@@ -1,12 +1,8 @@
-#region
-
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.Movement;
-using Jmodot.Implementation.AI.BB;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+
+using Core.AI.BB;
+using Core.Movement;
+using Implementation.AI.BB;
 
 [GlobalClass]
 [Tool]
@@ -19,7 +15,7 @@ public partial class QueuedAttack : BTCondition
 
     public QueuedAttack()
     {
-        _resetQueueIfTrue = false;
+        this._resetQueueIfTrue = false;
     }
 
     #endregion
@@ -29,23 +25,23 @@ public partial class QueuedAttack : BTCondition
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _moveComp = BB.GetVar<ICharacterController3D>(BBDataSig.MoveComp);
-        ConditionName = "_QueuedAttack";
+        this._moveComp = this.BB.GetVar<ICharacterController3D>(BBDataSig.MoveComp);
+        this.ConditionName = "_QueuedAttack";
     }
 
     public override void Enter()
     {
         base.Enter();
-        if (!BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value /*&&
+        if (!this.BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value /*&&
             !_moveComp.WantsAttack()*/) // if no attack is queued
         {
             GD.Print("ATTACK WAS NOT QUEUED, EXITING TASK WITH FAILURE!");
-            OnExitTask();
+            this.OnExitTask();
         }
         else
         {
             GD.Print("Attack was queued, continuing task!");
-            if (_resetQueueIfTrue) BB.SetPrimVar(BBDataSig.QueuedNextAttack, false);
+            if (this._resetQueueIfTrue) this.BB.SetPrimVar(BBDataSig.QueuedNextAttack, false);
         }
     }
 

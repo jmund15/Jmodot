@@ -17,12 +17,12 @@ public partial class LinearMemoryDecay : MemoryDecayStrategy
     /// <inheritdoc />
     public override float CalculateConfidence(float baseConfidence, float timeSinceUpdate)
     {
-        if (!IsEnabled || ForgetTime <= 0.0f)
+        if (!this.IsEnabled || this.ForgetTime <= 0.0f)
             // A forget time of zero or less means the memory does not decay.
             return baseConfidence;
 
         // Calculate the total amount of decay that should have occurred.
-        var decayAmount = 1.0f / ForgetTime * timeSinceUpdate;
+        var decayAmount = 1.0f / this.ForgetTime * timeSinceUpdate;
         var newConfidence = baseConfidence - decayAmount;
 
         // Ensure confidence does not fall below zero.

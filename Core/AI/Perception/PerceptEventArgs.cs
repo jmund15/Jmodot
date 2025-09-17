@@ -1,10 +1,6 @@
-#region
+namespace Jmodot.Core.AI.Perception;
 
 using System;
-
-#endregion
-
-namespace Jmodot.Core.AI.Perception;
 
 /// <summary>
 ///     Represents the arguments for a perception event, containing the generated Percept.
@@ -13,8 +9,8 @@ public class PerceptEventArgs : EventArgs
 {
     public PerceptEventArgs(Percept percept, IAISensor sensor)
     {
-        Percept = percept;
-        Sensor = sensor;
+        this.Percept = percept;
+        this.Sensor = sensor;
     }
 
     public Percept Percept { get; }

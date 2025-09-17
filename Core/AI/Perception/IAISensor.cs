@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Core.AI.Perception;
 
 using System;
-using Jmodot.Core.Shared;
-
-#endregion
-
-namespace Jmodot.Core.AI.Perception;
+using Shared;
 
 /// <summary>
 ///     The core interface for any sensor in the AI system. A sensor's only job is to

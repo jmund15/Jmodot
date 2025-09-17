@@ -15,17 +15,17 @@ public readonly struct IntentData
     // --- Constructors ---
     public IntentData(bool value)
     {
-        _value = value;
+        this._value = value;
     }
 
     public IntentData(float value)
     {
-        _value = value;
+        this._value = value;
     }
 
     public IntentData(Vector2 value)
     {
-        _value = value;
+        this._value = value;
     }
 
     // --- Safe "TryGet" Accessors ---
@@ -38,7 +38,7 @@ public readonly struct IntentData
     /// <returns>True if the held data was a bool, otherwise false.</returns>
     public bool TryGetBool(out bool value)
     {
-        if (_value is bool boolValue)
+        if (this._value is bool boolValue)
         {
             value = boolValue;
             return true;
@@ -53,7 +53,7 @@ public readonly struct IntentData
     /// </summary>
     public bool TryGetFloat(out float value)
     {
-        if (_value is float floatValue)
+        if (this._value is float floatValue)
         {
             value = floatValue;
             return true;
@@ -68,7 +68,7 @@ public readonly struct IntentData
     /// </summary>
     public bool TryGetVector2(out Vector2 value)
     {
-        if (_value is Vector2 vector2Value)
+        if (this._value is Vector2 vector2Value)
         {
             value = vector2Value;
             return true;

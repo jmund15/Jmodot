@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Core.Stats;
 
 using Godot.Collections;
-using Jmodot.Core.Modifiers.CalculationStrategy;
-
-#endregion
-
-namespace Jmodot.Core.Stats;
+using Modifiers.CalculationStrategy;
 
 /// <summary>
 ///     A data-driven Resource that defines a set of independent, raw physics properties.

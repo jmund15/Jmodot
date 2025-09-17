@@ -1,11 +1,7 @@
-#region
-
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BB;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+
+using Core.AI.BB;
+using Implementation.AI.BB;
 
 [GlobalClass]
 [Tool]
@@ -19,12 +15,12 @@ public partial class LastAnimName : BTCondition
 
     public LastAnimName(string lastAnimName) // REAL????
     {
-        _lastAnimName = lastAnimName;
+        this._lastAnimName = lastAnimName;
     }
 
     public LastAnimName()
     {
-        _lastAnimName = "";
+        this._lastAnimName = "";
     }
 
     #endregion
@@ -34,15 +30,15 @@ public partial class LastAnimName : BTCondition
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _animPlayer = BB.GetVar<AnimationPlayer>(BBDataSig.Anim);
-        _animPlayer.AnimationStarted += OnAnimationStarted;
+        this._animPlayer = this.BB.GetVar<AnimationPlayer>(BBDataSig.Anim);
+        this._animPlayer.AnimationStarted += this.OnAnimationStarted;
         //ConditionName = $"_LastAnimName:{_lastAnimName}";
-        GD.Print("OOOOOH INITIALIZED last anim name condition! \nName: ", ConditionName);
+        GD.Print("OOOOOH INITIALIZED last anim name condition! \nName: ", this.ConditionName);
     }
 
     private void OnAnimationStarted(StringName animName)
     {
-        SetDeferred(PropertyName._lastAnimFinished, animName);
+        this.SetDeferred(PropertyName._lastAnimFinished, animName);
         //_lastAnimFinished = animName;
     }
 
@@ -50,11 +46,11 @@ public partial class LastAnimName : BTCondition
     {
         base.Enter();
         //var assignedAnim = _animPlayer.AssignedAnimation;
-        GD.Print("last anim finished name: ", _lastAnimFinished, "\nlast anim key: ", _lastAnimName);
-        if (_lastAnimFinished.Contains(_lastAnimName))
+        GD.Print("last anim finished name: ", this._lastAnimFinished, "\nlast anim key: ", this._lastAnimName);
+        if (this._lastAnimFinished.Contains(this._lastAnimName))
         {
             GD.Print("LAST ANIM KEY MATCHES, EXITING...");
-            OnExitTask();
+            this.OnExitTask();
         }
     }
 

@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Identification;
 
-using Jmodot.Core.Identification;
-
-#endregion
-
-namespace Jmodot.Implementation.Identification;
+using Core.Identification;
 
 /// <summary>
 ///     A generic component for giving simple scene objects (props, triggers, etc.) a semantic identity.
@@ -21,6 +17,6 @@ public partial class IdentifiableComponent : Node, IIdentifiable
     /// <inheritdoc />
     public Identity GetIdentity()
     {
-        return Identity;
+        return this.Identity;
     }
 }

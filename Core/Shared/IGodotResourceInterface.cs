@@ -2,5 +2,5 @@
 
 public interface IGodotResourceInterface
 {
-    public Resource GetInterfaceResource();
+    Resource GetInterfaceResource();
 }

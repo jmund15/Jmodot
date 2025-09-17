@@ -1,13 +1,9 @@
-#region
+namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Tasks;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
+using Core.AI.BB;
+using Tasks;
 
 [GlobalClass]
 [Tool]
@@ -18,16 +14,16 @@ public partial class Selector : CompositeTask
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        TaskName += "_Selector";
+        this.TaskName += "_Selector";
     }
 
     public override void Enter()
     {
         base.Enter();
-        RunningChildIdx = 0;
-        RunningChild = ChildTasks[RunningChildIdx];
-        RunningChild.Enter();
-        GD.Print($"{TaskName} & child {RunningChild.TaskName} entered");
+        this.RunningChildIdx = 0;
+        this.RunningChild = this.ChildTasks[this.RunningChildIdx];
+        this.RunningChild.Enter();
+        GD.Print($"{this.TaskName} & child {this.RunningChild.TaskName} entered");
     }
 
     public override void Exit()
@@ -59,26 +55,26 @@ public partial class Selector : CompositeTask
         {
             case BTaskStatus.SUCCESS:
                 //RunningChild.Exit();
-                Status = BTaskStatus.SUCCESS;
+                this.Status = BTaskStatus.SUCCESS;
                 break;
             case BTaskStatus.FAILURE:
-                RunningChildIdx++;
-                if (RunningChildIdx == ChildTasks.Count)
+                this.RunningChildIdx++;
+                if (this.RunningChildIdx == this.ChildTasks.Count)
                 {
                     // failed to complete any child tasks in sequence
-                    Status = BTaskStatus.FAILURE;
+                    this.Status = BTaskStatus.FAILURE;
                 }
                 else
                 {
                     // go to next task
-                    RunningChild.Exit();
-                    RunningChild = ChildTasks[RunningChildIdx];
-                    RunningChild.Enter();
+                    this.RunningChild.Exit();
+                    this.RunningChild = this.ChildTasks[this.RunningChildIdx];
+                    this.RunningChild.Enter();
                 }
 
                 break;
             case BTaskStatus.RUNNING:
-                Status = newStatus;
+                this.Status = newStatus;
                 break;
         }
     }

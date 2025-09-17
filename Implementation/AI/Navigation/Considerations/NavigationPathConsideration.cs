@@ -1,14 +1,10 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Navigation.Considerations;
 
 using System;
 using System.Collections.Generic;
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.AI.Navigation.Considerations;
-using Jmodot.Core.Movement;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Navigation.Considerations;
+using Core.AI.BB;
+using Core.AI.Navigation.Considerations;
+using Core.Movement;
 
 /// <summary>
 ///     The path that defines any weight or modifiers for the base navigation path to the target.

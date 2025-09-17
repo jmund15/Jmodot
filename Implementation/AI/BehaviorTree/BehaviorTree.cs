@@ -1,14 +1,10 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.BehaviorTree;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Composites;
-using Jmodot.Implementation.AI.BehaviorTree.Tasks;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.BehaviorTree;
+using Composites;
+using Core.AI.BB;
+using Tasks;
 
 [GlobalClass]
 [Tool]
@@ -28,15 +24,15 @@ public partial class BehaviorTree : Node
     [Export]
     public bool Enabled
     {
-        get => _enabled;
+        get => this._enabled;
         set
         {
-            if (_enabled == value) return;
-            _enabled = value;
-            if (_enabled)
-                EmitSignal(SignalName.TreeEnabled);
+            if (this._enabled == value) return;
+            this._enabled = value;
+            if (this._enabled)
+                this.EmitSignal(SignalName.TreeEnabled);
             else
-                EmitSignal(SignalName.TreeDisabled);
+                this.EmitSignal(SignalName.TreeDisabled);
         }
     }
 
@@ -71,23 +67,23 @@ public partial class BehaviorTree : Node
         base._Ready();
         //TreeInitialized += () => { Initialized = true; GD.Print("TREE INITIALIZD"); };
 
-        if (_enabled && SelfSuffecient)
+        if (this._enabled && this.SelfSuffecient)
         {
             if (Engine.IsEditorHint())
             {
-                TreeName = "Editor's Behavior Tree";
+                this.TreeName = "Editor's Behavior Tree";
             }
-            else if (!AgentNode.IsValid())
+            else if (!this.AgentNode.IsValid())
             {
                 GD.PrintErr("BehaviorTree ERROR || AgentNode is not valid!");
                 return;
             }
             else
             {
-                TreeName = AgentNode.Name + "'s Behavior Tree";
+                this.TreeName = this.AgentNode.Name + "'s Behavior Tree";
             }
 
-            if (_exportedBB is not IBlackboard bb)
+            if (this._exportedBB is not IBlackboard bb)
             {
                 GD.PrintErr("BehaviorTree ERROR || Exported Blackboard doesn't implement \"IBlackboard\"!");
                 return;
@@ -95,14 +91,14 @@ public partial class BehaviorTree : Node
             //CallDeferred(MethodName.Init, AgentNode, bb);
             //CallDeferred(MethodName.Enter);
 
-            CallDeferred(MethodName.InitTreeAndEnter);
+            this.CallDeferred(MethodName.InitTreeAndEnter);
         }
     }
 
     private void InitTreeAndEnter()
     {
-        Init(AgentNode, _exportedBB as IBlackboard);
-        Enter();
+        this.Init(this.AgentNode, this._exportedBB as IBlackboard);
+        this.Enter();
         GD.Print("entered self enabled BT!");
     }
 
@@ -110,61 +106,61 @@ public partial class BehaviorTree : Node
     {
         if (Engine.IsEditorHint()) return;
         base._Process(delta);
-        if (Enabled && Initialized) ProcessFrame((float)delta);
+        if (this.Enabled && this.Initialized) this.ProcessFrame((float)delta);
     }
 
     public override void _PhysicsProcess(double delta)
     {
         if (Engine.IsEditorHint()) return;
         base._PhysicsProcess(delta);
-        if (Enabled && Initialized) ProcessPhysics((float)delta);
+        if (this.Enabled && this.Initialized) this.ProcessPhysics((float)delta);
     }
 
     public virtual void Init(Node agent, IBlackboard bb)
     {
-        AgentNode = agent;
-        BB = bb;
-        if (TreeName == string.Empty) TreeName = AgentNode.Name + "'s Behavior Tree";
+        this.AgentNode = agent;
+        this.BB = bb;
+        if (this.TreeName == string.Empty) this.TreeName = this.AgentNode.Name + "'s Behavior Tree";
         var rt = this.GetFirstChildOfType<BehaviorTask>();
         if (!rt.IsValid())
         {
-            Enabled = false;
+            this.Enabled = false;
             GD.PrintErr("BEHAVIOR TREE HAS NO ROOT TASK");
             return;
         }
 
-        RootTask = rt;
-        RootTask.Init(AgentNode, BB);
-        EmitSignal(SignalName.TreeInitialized);
-        Initialized = true;
+        this.RootTask = rt;
+        this.RootTask.Init(this.AgentNode, this.BB);
+        this.EmitSignal(SignalName.TreeInitialized);
+        this.Initialized = true;
         //GD.Print("root task of tree: ", RootTask.TaskName);
     }
 
     public virtual void Enter()
     {
-        Enabled = true;
-        RootTask.Enter();
-        RootTask.TaskStatusChanged += OnRootTaskStatusChanged;
+        this.Enabled = true;
+        this.RootTask.Enter();
+        this.RootTask.TaskStatusChanged += this.OnRootTaskStatusChanged;
 
         //GetRunningLeaf();
     }
 
     public virtual void Exit()
     {
-        Enabled = false;
-        RootTask.Exit();
-        RootTask.TaskStatusChanged -= OnRootTaskStatusChanged;
+        this.Enabled = false;
+        this.RootTask.Exit();
+        this.RootTask.TaskStatusChanged -= this.OnRootTaskStatusChanged;
         //GD.Print($"BTree {Name} Exited.");
     }
 
     public virtual void ProcessFrame(float delta)
     {
-        RootTask.ProcessFrame(delta);
+        this.RootTask.ProcessFrame(delta);
     }
 
     public virtual void ProcessPhysics(float delta)
     {
-        RootTask.ProcessPhysics(delta);
+        this.RootTask.ProcessPhysics(delta);
     }
 
     #endregion
@@ -173,30 +169,30 @@ public partial class BehaviorTree : Node
 
     private void OnRootTaskStatusChanged(BTaskStatus newStatus)
     {
-        GD.Print($"Tree root node {RootTask.Name} status changed to {newStatus}");
+        GD.Print($"Tree root node {this.RootTask.Name} status changed to {newStatus}");
         switch (newStatus)
         {
             case BTaskStatus.RUNNING or BTaskStatus.FRESH:
                 break;
             case BTaskStatus.SUCCESS:
-                EmitSignal(SignalName.TreeFinishedLoop, Variant.From(BTaskStatus.SUCCESS));
+                this.EmitSignal(SignalName.TreeFinishedLoop, Variant.From(BTaskStatus.SUCCESS));
                 GD.Print("EMITTED TREE FINISHED WITH SUCCESS");
-                if (Enabled)
+                if (this.Enabled)
                 {
-                    RootTask.Exit();
-                    RootTask.Enter();
-                    EmitSignal(SignalName.TreeReset);
+                    this.RootTask.Exit();
+                    this.RootTask.Enter();
+                    this.EmitSignal(SignalName.TreeReset);
                 }
 
                 break;
             case BTaskStatus.FAILURE:
-                EmitSignal(SignalName.TreeFinishedLoop, Variant.From(BTaskStatus.FAILURE));
+                this.EmitSignal(SignalName.TreeFinishedLoop, Variant.From(BTaskStatus.FAILURE));
                 GD.Print("EMITTED TREE FINISHED WITH FAILURE");
-                if (Enabled)
+                if (this.Enabled)
                 {
-                    RootTask.Exit();
-                    RootTask.Enter();
-                    EmitSignal(SignalName.TreeReset);
+                    this.RootTask.Exit();
+                    this.RootTask.Enter();
+                    this.EmitSignal(SignalName.TreeReset);
                 }
 
                 break;
@@ -206,7 +202,7 @@ public partial class BehaviorTree : Node
     protected virtual void
         GetRunningLeaf() // TODO: DOESN'T WORK (signal will emit before running leaf has actually switched (probably))
     {
-        var currLeaf = RootTask;
+        var currLeaf = this.RootTask;
         while (currLeaf is not BehaviorAction) //&& currLeaf.Status != BTaskStatus.RUNNING) //UNNECESARY
         {
             if (currLeaf is not CompositeTask compT)
@@ -218,19 +214,19 @@ public partial class BehaviorTree : Node
             currLeaf = compT.RunningChild;
         }
 
-        RunningLeaf = currLeaf as BehaviorAction;
-        RunningLeaf.TaskStatusChanged += status => GetRunningLeaf();
+        this.RunningLeaf = currLeaf as BehaviorAction;
+        this.RunningLeaf.TaskStatusChanged += status => this.GetRunningLeaf();
     }
 
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
 
-        if (GetChildren().Count > 1)
+        if (this.GetChildren().Count > 1)
             warnings.Add("BehaviorTree nodes should only have one child (the root BehaviorTask)");
-        if (GetChildren().Any(x => x is not BehaviorTask))
+        if (this.GetChildren().Any(x => x is not BehaviorTask))
             warnings.Add("Root BehaviorTree should inherit from BehaviorTask class.");
-        if (BB is not null && BB is not IBlackboard bb)
+        if (this.BB is not null && this.BB is not IBlackboard bb)
             warnings.Add("The exported Blackboard must implement \"IBlackboard\"!");
         return warnings.ToArray();
     }

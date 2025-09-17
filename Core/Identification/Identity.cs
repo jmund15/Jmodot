@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Identification;
 
 using Godot.Collections;
-
-#endregion
-
-namespace Jmodot.Core.Identification;
 
 /// <summary>
 ///     A data-driven Resource that defines the specific identity of an object in the game world.

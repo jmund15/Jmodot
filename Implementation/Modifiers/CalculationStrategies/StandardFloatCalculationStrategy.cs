@@ -1,13 +1,9 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.Modifiers;
-using Jmodot.Core.Modifiers.CalculationStrategy;
-
-#endregion
-
-namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
+using Core.Modifiers;
+using Core.Modifiers.CalculationStrategy;
 
 public class StandardFloatCalculationStrategy : ICalculationStrategy<float>
 {

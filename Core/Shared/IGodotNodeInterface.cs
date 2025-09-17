@@ -10,5 +10,5 @@ public interface IGodotNodeInterface
     ///     Gets the Godot.Node instance that implements this interface.
     /// </summary>
     /// <returns>The implementing Node itself.</returns>
-    public Node GetInterfaceNode();
+    Node GetInterfaceNode();
 }

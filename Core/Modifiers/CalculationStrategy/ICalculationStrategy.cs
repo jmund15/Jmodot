@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Modifiers.CalculationStrategy;
 
 using System.Collections.Generic;
-
-#endregion
-
-namespace Jmodot.Core.Modifiers.CalculationStrategy;
 
 /// <summary>
 ///     Defines a contract for a swappable strategy that calculates a final

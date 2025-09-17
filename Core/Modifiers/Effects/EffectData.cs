@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Modifiers.Effects;
 
 using Godot.Collections;
-
-#endregion
-
-namespace Jmodot.Core.Modifiers.Effects;
 
 /// <summary>
 ///     A Resource defining a temporary effect (buff or debuff) that can be applied to an actor.

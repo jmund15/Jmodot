@@ -1,12 +1,8 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Movement.Strategies;
 
-using Jmodot.Core.Movement.Strategies;
-using Jmodot.Core.Stats;
-using Jmodot.Implementation.Registry;
-
-#endregion
-
-namespace Jmodot.Implementation.Movement.Strategies;
+using Core.Movement.Strategies;
+using Core.Stats;
+using Registry;
 
 /// <summary>
 ///     A concrete movement strategy that produces smooth, accelerated movement based on the

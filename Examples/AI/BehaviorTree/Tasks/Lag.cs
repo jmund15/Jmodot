@@ -1,13 +1,9 @@
-#region
+namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Tasks;
-
-#endregion
-
-namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
+using Core.AI.BB;
+using Implementation.AI.BehaviorTree.Tasks;
 
 [GlobalClass]
 [Tool]
@@ -30,13 +26,13 @@ public partial class Lag : BehaviorAction
     public override void Enter()
     {
         base.Enter();
-        if (LagTime <= 0f)
+        if (this.LagTime <= 0f)
         {
-            OnLagTimeout();
+            this.OnLagTimeout();
             return;
         }
 
-        GetTree().CreateTimer(LagTime).Timeout += OnLagTimeout;
+        this.GetTree().CreateTimer(this.LagTime).Timeout += this.OnLagTimeout;
     }
 
     public override void Exit()
@@ -60,7 +56,7 @@ public partial class Lag : BehaviorAction
 
     protected virtual void OnLagTimeout()
     {
-        Status = BTaskStatus.SUCCESS;
+        this.Status = BTaskStatus.SUCCESS;
     }
 
     public override string[] _GetConfigurationWarnings()

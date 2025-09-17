@@ -1,12 +1,8 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
 
 using System.Collections.Generic;
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.AI.Navigation.SteeringModifiers;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
+using Core.AI.BB;
+using Core.AI.Navigation.SteeringModifiers;
 
 /// <summary>
 ///     Modifies the output of a steering consideration by applying a time-varying noise value.
@@ -36,15 +32,15 @@ public partial class NoiseSteeringModifier : SteeringConsiderationModifier
 
     public override void Modify(ref Dictionary<Vector3, float> scores, DecisionContext context, IBlackboard blackboard)
     {
-        if (_noise == null) return;
+        if (this._noise == null) return;
 
         // Get a noise value between -1 and 1
-        var time = (float)Time.GetUnixTimeFromSystem() * _noiseTimeScale;
-        var noiseValue = _noise.GetNoise1D(time);
+        var time = (float)Time.GetUnixTimeFromSystem() * this._noiseTimeScale;
+        var noiseValue = this._noise.GetNoise1D(time);
 
         // Calculate the final influence multiplier
-        var influence = _baseInfluence + noiseValue * _noiseIntensity;
-        var clampedInfluence = Mathf.Clamp(influence, _minInfluence, _maxInfluence);
+        var influence = this._baseInfluence + noiseValue * this._noiseIntensity;
+        var clampedInfluence = Mathf.Clamp(influence, this._minInfluence, this._maxInfluence);
 
         // Apply the multiplier to all scores produced by the consideration
         var keys = new List<Vector3>(scores.Keys);

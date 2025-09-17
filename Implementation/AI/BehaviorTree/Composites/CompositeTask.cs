@@ -1,14 +1,10 @@
-#region
+namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Tasks;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
+using Core.AI.BB;
+using Tasks;
 
 [GlobalClass]
 [Tool]
@@ -20,12 +16,12 @@ public abstract partial class CompositeTask : BehaviorTask
 
     public BehaviorTask RunningChild
     {
-        get => _runningChild;
+        get => this._runningChild;
         set
         {
-            if (_runningChild == value) return;
-            _runningChild = value;
-            RunningChildChanged?.Invoke(this, _runningChild);
+            if (this._runningChild == value) return;
+            this._runningChild = value;
+            this.RunningChildChanged?.Invoke(this, this._runningChild);
         }
     }
 
@@ -43,9 +39,9 @@ public abstract partial class CompositeTask : BehaviorTask
         base.Init(agent, bb);
         foreach (var cbt in this.GetChildrenOfType<BehaviorTask>(false))
         {
-            ChildTasks.Add(cbt);
+            this.ChildTasks.Add(cbt);
             cbt.Init(agent, bb);
-            cbt.TaskStatusChanged += OnRunningChildStatusChange;
+            cbt.TaskStatusChanged += this.OnRunningChildStatusChange;
         }
         //GD.PrintErr($"Composite task {Name} has {ChildTasks.Count} children!");
     }
@@ -58,19 +54,19 @@ public abstract partial class CompositeTask : BehaviorTask
     public override void Exit()
     {
         base.Exit();
-        RunningChild.IfValid()?.Exit();
+        this.RunningChild.IfValid()?.Exit();
     }
 
     public override void ProcessFrame(float delta)
     {
         base.ProcessFrame(delta);
-        if (Status == BTaskStatus.RUNNING) RunningChild.ProcessFrame(delta);
+        if (this.Status == BTaskStatus.RUNNING) this.RunningChild.ProcessFrame(delta);
     }
 
     public override void ProcessPhysics(float delta)
     {
         base.ProcessPhysics(delta);
-        if (Status == BTaskStatus.RUNNING) RunningChild.ProcessPhysics(delta);
+        if (this.Status == BTaskStatus.RUNNING) this.RunningChild.ProcessPhysics(delta);
     }
 
     #endregion
@@ -86,7 +82,7 @@ public abstract partial class CompositeTask : BehaviorTask
     {
         var warnings = new List<string>();
 
-        if (GetChildren().Count == 0) warnings.Add("Composite Task must have a child!");
+        if (this.GetChildren().Count == 0) warnings.Add("Composite Task must have a child!");
 
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }

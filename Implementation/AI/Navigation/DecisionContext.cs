@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Navigation;
 
-using Jmodot.Implementation.AI.Perception;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Navigation;
+using Perception;
 
 /// <summary>
 ///     An immutable, high-performance struct that provides a snapshot of all necessary world
@@ -25,11 +21,11 @@ public readonly struct DecisionContext
         Vector3 agentPosition, Vector3 agentFacing, Vector3 agentVelocity, Vector3 nextPathPointDirection,
         Vector3 targetPosition)
     {
-        Memory = memory;
-        AgentPosition = agentPosition;
-        AgentFacingDirection = agentFacing;
-        AgentVelocity = agentVelocity;
-        NextPathPointDirection = nextPathPointDirection;
-        TargetPosition = targetPosition;
+        this.Memory = memory;
+        this.AgentPosition = agentPosition;
+        this.AgentFacingDirection = agentFacing;
+        this.AgentVelocity = agentVelocity;
+        this.NextPathPointDirection = nextPathPointDirection;
+        this.TargetPosition = targetPosition;
     }
 }

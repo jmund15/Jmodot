@@ -1,11 +1,7 @@
-#region
-
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.Shared;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+
+using Core.AI.BB;
+using Core.Shared;
 
 [GlobalClass]
 [Tool]
@@ -28,7 +24,7 @@ public partial class ProbabilityToRun : BTCondition
     public override void Enter()
     {
         base.Enter();
-        if (MiscUtils.Rnd.NextSingle() > RunProbability) OnExitTask();
+        if (MiscUtils.Rnd.NextSingle() > this.RunProbability) this.OnExitTask();
     }
 
     public override void Exit()

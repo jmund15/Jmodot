@@ -1,12 +1,8 @@
-﻿#region
+﻿namespace Jmodot.Core.Modifiers;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.Modifiers.CalculationStrategy;
-
-#endregion
-
-namespace Jmodot.Core.Modifiers;
+using CalculationStrategy;
 
 /// <summary>
 ///     The generic wrapper class for any value that needs to be dynamically modified.
@@ -23,44 +19,44 @@ public class ModifiableProperty<T>
 
     public ModifiableProperty(T baseValue, ICalculationStrategy<T> calculationStrategy)
     {
-        BaseValue = baseValue;
-        _cachedValue = baseValue;
-        _calculationStrategy = calculationStrategy;
+        this.BaseValue = baseValue;
+        this._cachedValue = baseValue;
+        this._calculationStrategy = calculationStrategy;
     }
 
     public T BaseValue { get; set; }
-    public virtual T Value => GetValue();
+    public virtual T Value => this.GetValue();
 
     public virtual void AddModifier(IModifier<T> modifier)
     {
-        _modifiers.Add(modifier);
-        _isDirty = true;
+        this._modifiers.Add(modifier);
+        this._isDirty = true;
     }
 
     public virtual void RemoveModifier(IModifier<T> modifier)
     {
-        _modifiers.Remove(modifier);
-        _isDirty = true;
+        this._modifiers.Remove(modifier);
+        this._isDirty = true;
     }
 
     protected virtual T GetValue()
     {
-        if (!_isDirty) return _cachedValue;
+        if (!this._isDirty) return this._cachedValue;
 
-        var finalModifiers = GetFinalModifiers(); // Use the powerful filtering helper
+        var finalModifiers = this.GetFinalModifiers(); // Use the powerful filtering helper
 
         // Delegate the calculation to the strategy
-        _cachedValue = _calculationStrategy.Calculate(BaseValue, finalModifiers);
+        this._cachedValue = this._calculationStrategy.Calculate(this.BaseValue, finalModifiers);
 
-        _isDirty = false;
-        return _cachedValue;
+        this._isDirty = false;
+        return this._cachedValue;
     }
 
     protected List<IModifier<T>> GetFinalModifiers()
     {
-        if (_modifiers.Count == 0) return new List<IModifier<T>>();
+        if (this._modifiers.Count == 0) return new List<IModifier<T>>();
 
-        var sortedModifiers = _modifiers.OrderByDescending(m => m.Priority).ToList();
+        var sortedModifiers = this._modifiers.OrderByDescending(m => m.Priority).ToList();
         var tagsToCancel = new HashSet<string>();
         foreach (var mod in sortedModifiers)
             if (mod.CancelsTags != null)

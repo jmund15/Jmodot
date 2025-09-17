@@ -1,16 +1,17 @@
 ﻿#region
 
-using System.Collections.Generic;
-using Jmodot.Core.AI.Affinities;
-using Jmodot.Core.Identification;
-using Jmodot.Core.Input;
-using Jmodot.Core.Stats;
-using Jmodot.Implementation.Shared;
 using GCol = Godot.Collections;
 
 #endregion
 
 namespace Jmodot.Implementation.Registry;
+
+using System.Collections.Generic;
+using Core.AI.Affinities;
+using Core.Identification;
+using Core.Input;
+using Core.Stats;
+using Shared;
 
 /// <summary>
 ///     A central, project-wide Resource that acts as a manifest for all core game-defining
@@ -104,25 +105,25 @@ public partial class GameRegistry : Resource
     public void RebuildRegistry()
     {
         // Clear existing data
-        Identities.Clear();
-        Categories.Clear();
-        InputActions.Clear();
-        Attributes.Clear();
-        Affinities.Clear();
+        this.Identities.Clear();
+        this.Categories.Clear();
+        this.InputActions.Clear();
+        this.Attributes.Clear();
+        this.Affinities.Clear();
 
         // Load resources from collections
-        Identities = ProcessCollections<Identity>(IdentityCollection);
-        Categories = ProcessCollections<Category>(CategoryCollection);
-        InputActions = ProcessCollections<InputAction>(InputActionCollection);
-        Attributes = ProcessCollections<Attribute>(AttributeCollection);
-        Affinities = ProcessCollections<Affinity>(AffinityCollection);
+        this.Identities = this.ProcessCollections<Identity>(this.IdentityCollection);
+        this.Categories = this.ProcessCollections<Category>(this.CategoryCollection);
+        this.InputActions = this.ProcessCollections<InputAction>(this.InputActionCollection);
+        this.Attributes = this.ProcessCollections<Attribute>(this.AttributeCollection);
+        this.Affinities = this.ProcessCollections<Affinity>(this.AffinityCollection);
 
         // Clear lookup dictionaries to force rebuild on next access
-        _identityLookup = null;
-        _categoryLookup = null;
-        _inputActionLookup = null;
-        _attributeLookup = null;
-        _affinityLookup = null;
+        this._identityLookup = null;
+        this._categoryLookup = null;
+        this._inputActionLookup = null;
+        this._attributeLookup = null;
+        this._affinityLookup = null;
     }
 
     #region Public_API_Lookups
@@ -131,13 +132,13 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an identity is requested.
-        if (_identityLookup == null) BuildIdentityLookup();
-        return _identityLookup!.TryGetValue(identityKey, out identity);
+        if (this._identityLookup == null) this.BuildIdentityLookup();
+        return this._identityLookup!.TryGetValue(identityKey, out identity);
     }
 
     public Identity GetIdentity(StringName identityKey)
     {
-        if (!TryGetIdentity(identityKey, out var identity))
+        if (!this.TryGetIdentity(identityKey, out var identity))
             JmoLogger.Exception(
                 new KeyNotFoundException($"Identity with key '{identityKey}' not found in GameRegistry."),
                 this
@@ -152,8 +153,8 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time a category is requested.
-        if (_categoryLookup == null) BuildCategoryLookup();
-        return _categoryLookup!.TryGetValue(categoryKey, out category);
+        if (this._categoryLookup == null) this.BuildCategoryLookup();
+        return this._categoryLookup!.TryGetValue(categoryKey, out category);
     }
 
     /// <summary>
@@ -161,7 +162,7 @@ public partial class GameRegistry : Resource
     /// </summary>
     public Category GetCategory(StringName categoryKey)
     {
-        if (!TryGetCategory(categoryKey, out var category))
+        if (!this.TryGetCategory(categoryKey, out var category))
             JmoLogger.Exception(
                 new KeyNotFoundException($"Category with key '{categoryKey}' not found in GameRegistry."),
                 this
@@ -173,13 +174,13 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an input action is requested.
-        if (_inputActionLookup == null) BuildInputActionLookup();
-        return _inputActionLookup!.TryGetValue(actionKey, out action);
+        if (this._inputActionLookup == null) this.BuildInputActionLookup();
+        return this._inputActionLookup!.TryGetValue(actionKey, out action);
     }
 
     public InputAction GetInputAction(StringName actionKey)
     {
-        if (!TryGetInputAction(actionKey, out var action))
+        if (!this.TryGetInputAction(actionKey, out var action))
             JmoLogger.Exception(
                 new KeyNotFoundException($"InputAction with key '{actionKey}' not found in GameRegistry."),
                 this
@@ -191,13 +192,13 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an attribute is requested.
-        if (_attributeLookup == null) BuildAttributeLookup();
-        return _attributeLookup!.TryGetValue(attributeKey, out attribute);
+        if (this._attributeLookup == null) this.BuildAttributeLookup();
+        return this._attributeLookup!.TryGetValue(attributeKey, out attribute);
     }
 
     public Attribute GetAttribute(StringName attributeKey)
     {
-        if (!TryGetAttribute(attributeKey, out var attribute))
+        if (!this.TryGetAttribute(attributeKey, out var attribute))
             JmoLogger.Exception(
                 new KeyNotFoundException($"Attribute with key '{attributeKey}' not found in GameRegistry."),
                 this
@@ -209,13 +210,13 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an affinity is requested.
-        if (_affinityLookup == null) BuildAffinityLookup();
-        return _affinityLookup!.TryGetValue(affinityKey, out affinity);
+        if (this._affinityLookup == null) this.BuildAffinityLookup();
+        return this._affinityLookup!.TryGetValue(affinityKey, out affinity);
     }
 
     public Affinity GetAffinity(StringName affinityKey)
     {
-        if (!TryGetAffinity(affinityKey, out var affinity))
+        if (!this.TryGetAffinity(affinityKey, out var affinity))
             JmoLogger.Exception(
                 new KeyNotFoundException($"Affinity with key '{affinityKey}' not found in GameRegistry."),
                 this
@@ -229,96 +230,96 @@ public partial class GameRegistry : Resource
 
     public void BuildIdentityLookup()
     {
-        _identityLookup = new Dictionary<StringName, Identity>();
-        if (Identities == null) return;
-        foreach (var identity in Identities)
+        this._identityLookup = new Dictionary<StringName, Identity>();
+        if (this.Identities == null) return;
+        foreach (var identity in this.Identities)
             if (identity != null && !string.IsNullOrEmpty(identity.IdentityName))
             {
                 // This prevents crashes if a designer makes a duplicate.
-                if (_identityLookup.ContainsKey(identity.IdentityName))
+                if (this._identityLookup.ContainsKey(identity.IdentityName))
                 {
                     JmoLogger.Warning(this,
                         $"GameRegistry Error: Duplicate identity name '{identity.IdentityName}'. The first one found was kept.");
                     continue;
                 }
 
-                _identityLookup[new StringName(identity.IdentityName)] = identity;
+                this._identityLookup[new StringName(identity.IdentityName)] = identity;
             }
     }
 
     private void BuildCategoryLookup()
     {
-        _categoryLookup = new Dictionary<StringName, Category>();
-        if (Categories == null) return;
-        foreach (var category in Categories)
+        this._categoryLookup = new Dictionary<StringName, Category>();
+        if (this.Categories == null) return;
+        foreach (var category in this.Categories)
             if (category != null && !string.IsNullOrEmpty(category.CategoryName))
             {
                 // This prevents crashes if a designer makes a duplicate.
-                if (_categoryLookup.ContainsKey(category.CategoryName))
+                if (this._categoryLookup.ContainsKey(category.CategoryName))
                 {
                     JmoLogger.Warning(this,
                         $"GameRegistry Error: Duplicate category name '{category.CategoryName}'. The first one found was kept.");
                     continue;
                 }
 
-                _categoryLookup[new StringName(category.CategoryName)] = category;
+                this._categoryLookup[new StringName(category.CategoryName)] = category;
             }
     }
 
     private void BuildInputActionLookup()
     {
-        _inputActionLookup = new Dictionary<StringName, InputAction>();
-        if (InputActions == null) return;
-        foreach (var action in InputActions)
+        this._inputActionLookup = new Dictionary<StringName, InputAction>();
+        if (this.InputActions == null) return;
+        foreach (var action in this.InputActions)
             if (action != null && !string.IsNullOrEmpty(action.ActionName))
             {
                 // This prevents crashes if a designer makes a duplicate.
-                if (_inputActionLookup.ContainsKey(action.ActionName))
+                if (this._inputActionLookup.ContainsKey(action.ActionName))
                 {
                     JmoLogger.Warning(this,
                         $"GameRegistry Error: Duplicate input action name '{action.ActionName}'. The first one found was kept.");
                     continue;
                 }
 
-                _inputActionLookup[new StringName(action.ActionName)] = action;
+                this._inputActionLookup[new StringName(action.ActionName)] = action;
             }
     }
 
     private void BuildAttributeLookup()
     {
-        _attributeLookup = new Dictionary<StringName, Attribute>();
-        if (Attributes == null) return;
-        foreach (var attr in Attributes)
+        this._attributeLookup = new Dictionary<StringName, Attribute>();
+        if (this.Attributes == null) return;
+        foreach (var attr in this.Attributes)
             if (attr != null && !string.IsNullOrEmpty(attr.AttributeName))
             {
                 // This prevents crashes if a designer makes a duplicate.
-                if (_attributeLookup.ContainsKey(attr.AttributeName))
+                if (this._attributeLookup.ContainsKey(attr.AttributeName))
                 {
                     JmoLogger.Warning(this,
                         $"GameRegistry Error: Duplicate attribute name '{attr.AttributeName}'. The first one found was kept.");
                     continue;
                 }
 
-                _attributeLookup[new StringName(attr.AttributeName)] = attr;
+                this._attributeLookup[new StringName(attr.AttributeName)] = attr;
             }
     }
 
     private void BuildAffinityLookup()
     {
-        _affinityLookup = new Dictionary<StringName, Affinity>();
-        if (Affinities == null) return;
-        foreach (var affinity in Affinities)
+        this._affinityLookup = new Dictionary<StringName, Affinity>();
+        if (this.Affinities == null) return;
+        foreach (var affinity in this.Affinities)
             if (affinity != null && !string.IsNullOrEmpty(affinity.AffinityName))
             {
                 // This prevents crashes if a designer makes a duplicate.
-                if (_affinityLookup.ContainsKey(affinity.AffinityName))
+                if (this._affinityLookup.ContainsKey(affinity.AffinityName))
                 {
                     JmoLogger.Warning(this,
                         $"GameRegistry Error: Duplicate affinity name '{affinity.AffinityName}'. The first one found was kept.");
                     continue;
                 }
 
-                _affinityLookup[new StringName(affinity.AffinityName)] = affinity;
+                this._affinityLookup[new StringName(affinity.AffinityName)] = affinity;
             }
     }
 
@@ -342,7 +343,7 @@ public partial class GameRegistry : Resource
             foreach (var dir in collection.ScanDirectories)
             {
                 if (string.IsNullOrWhiteSpace(dir)) continue;
-                LoadFromDirectory(dir, ref resultSet);
+                this.LoadFromDirectory(dir, ref resultSet);
             }
 
             // optimize?
@@ -363,7 +364,7 @@ public partial class GameRegistry : Resource
             return;
         }
 
-        foreach (var subDir in dir.GetDirectories()) LoadFromDirectory(subDir, ref resultSet);
+        foreach (var subDir in dir.GetDirectories()) this.LoadFromDirectory(subDir, ref resultSet);
 
         foreach (var resPath in ResourceLoader.ListDirectory(directory))
         {

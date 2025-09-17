@@ -1,16 +1,12 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Perception;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Core.AI.Perception;
+using Core.Identification;
+using Core.Shared;
 using Godot.Collections;
-using Jmodot.Core.AI.Perception;
-using Jmodot.Core.Identification;
-using Jmodot.Core.Shared;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Perception;
 
 /// <summary>
 ///     The central hub of the perception system, acting as the AI's short-term memory. It collects
@@ -34,9 +30,9 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
 
     public override void _Ready()
     {
-        foreach (var node in _sensors)
+        foreach (var node in this._sensors)
             if (node is IAISensor sensor)
-                sensor.PerceptUpdated += OnPerceptUpdated;
+                sensor.PerceptUpdated += this.OnPerceptUpdated;
     }
 
     private void OnPerceptUpdated(object sender, PerceptEventArgs args)
@@ -44,19 +40,19 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
         var percept = args.Percept;
         if (percept.Target == null || percept.Identity == null) return;
 
-        if (_memoryByTarget.TryGetValue(percept.Target, out var info))
+        if (this._memoryByTarget.TryGetValue(percept.Target, out var info))
         {
-            RemoveFromCategoryCache(info);
+            this.RemoveFromCategoryCache(info);
             info.Update(percept);
-            AddToCategoryCache(info);
-            MemoryUpdatedEventHandler?.Invoke(this, info);
+            this.AddToCategoryCache(info);
+            this.MemoryUpdatedEventHandler?.Invoke(this, info);
         }
         else
         {
             var newInfo = new PerceptionInfo(percept);
-            _memoryByTarget.Add(percept.Target, newInfo);
-            AddToCategoryCache(newInfo);
-            MemoryAddedEventHandler?.Invoke(this, newInfo);
+            this._memoryByTarget.Add(percept.Target, newInfo);
+            this.AddToCategoryCache(newInfo);
+            this.MemoryAddedEventHandler?.Invoke(this, newInfo);
         }
     }
 
@@ -66,10 +62,10 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
         foreach (var category in info.Identity.Categories)
         {
             if (category == null) continue;
-            if (!_memoryByCategory.TryGetValue(category, out var set))
+            if (!this._memoryByCategory.TryGetValue(category, out var set))
             {
                 set = new HashSet<PerceptionInfo>();
-                _memoryByCategory.Add(category, set);
+                this._memoryByCategory.Add(category, set);
             }
 
             set.Add(info);
@@ -82,7 +78,7 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
         foreach (var category in info.Identity.Categories)
         {
             if (category == null) continue;
-            if (_memoryByCategory.TryGetValue(category, out var set)) set.Remove(info);
+            if (this._memoryByCategory.TryGetValue(category, out var set)) set.Remove(info);
         }
     }
 
@@ -92,13 +88,13 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
     /// </summary>
     private void OnCleanupTimerTimeout()
     {
-        var forgottenKeys = _memoryByTarget.Where(kvp => !kvp.Value.IsActive).Select(kvp => kvp.Key).ToList();
+        var forgottenKeys = this._memoryByTarget.Where(kvp => !kvp.Value.IsActive).Select(kvp => kvp.Key).ToList();
         foreach (var key in forgottenKeys)
         {
-            if (!_memoryByTarget.TryGetValue(key, out var info)) continue;
-            MemoryForgottenEventHandler?.Invoke(this, info);
-            RemoveFromCategoryCache(info);
-            _memoryByTarget.Remove(key);
+            if (!this._memoryByTarget.TryGetValue(key, out var info)) continue;
+            this.MemoryForgottenEventHandler?.Invoke(this, info);
+            this.RemoveFromCategoryCache(info);
+            this._memoryByTarget.Remove(key);
         }
     }
 
@@ -107,13 +103,13 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
     /// <summary>Tries to retrieve the memory record for a specific target.</summary>
     public bool TryGetMemoryOf(Node3D target, out PerceptionInfo info)
     {
-        return _memoryByTarget.TryGetValue(target, out info) && info.IsActive;
+        return this._memoryByTarget.TryGetValue(target, out info) && info.IsActive;
     }
 
     /// <summary>Returns an enumerable collection of all currently active memory records.</summary>
     public IEnumerable<PerceptionInfo> GetAllActiveMemories()
     {
-        return _memoryByTarget.Values.Where(info => info.IsActive);
+        return this._memoryByTarget.Values.Where(info => info.IsActive);
     }
 
     /// <summary>
@@ -122,7 +118,7 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
     /// </summary>
     public PerceptionInfo GetBestMemoryForCategory(Category category)
     {
-        if (category == null || !_memoryByCategory.TryGetValue(category, out var memorySet)) return null;
+        if (category == null || !this._memoryByCategory.TryGetValue(category, out var memorySet)) return null;
 
         PerceptionInfo bestMatch = null;
         var maxConfidence = -1.0f;
@@ -139,9 +135,9 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
 
     public IEnumerable<PerceptionInfo> GetSensedByCollLayer(int collLayer)
     {
-        return _memoryByTarget.Keys.OfType<CollisionObject3D>()
+        return this._memoryByTarget.Keys.OfType<CollisionObject3D>()
             .Where(obj => obj.GetCollisionLayerValue(collLayer))
-            .Select(obj => _memoryByTarget[obj]);
+            .Select(obj => this._memoryByTarget[obj]);
     }
 
     public Node GetInterfaceNode()

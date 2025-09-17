@@ -12,7 +12,7 @@ public interface IBlackboard
     ///     If a variable is not found in this blackboard, the request is forwarded to the parent.
     /// </summary>
     /// <param name="parent">The blackboard to set as the parent.</param>
-    public void SetParent(IBlackboard parent);
+    void SetParent(IBlackboard parent);
 
     /// <summary>
     ///     Retrieves a reference type (class) variable from the blackboard.
@@ -21,7 +21,7 @@ public interface IBlackboard
     /// <typeparam name="T">The expected type of the variable. Must be a class.</typeparam>
     /// <param name="key">The StringName key of the variable to retrieve.</param>
     /// <returns>The variable as type T, or null if not found or if the type does not match.</returns>
-    public T? GetVar<T>(StringName key) where T : class;
+    T? GetVar<T>(StringName key) where T : class;
 
     /// <summary>
     ///     Sets a reference type (class) variable in the blackboard.
@@ -31,7 +31,7 @@ public interface IBlackboard
     /// <param name="key">The StringName key for the variable.</param>
     /// <param name="value">The value to set.</param>
     /// <returns>Error.Ok on success, or Error.InvalidData if the type is mismatched with an existing key.</returns>
-    public Error SetVar<T>(StringName key, T value) where T : class;
+    Error SetVar<T>(StringName key, T value) where T : class;
 
     /// <summary>
     ///     Retrieves a value type (struct) variable from the blackboard.
@@ -40,7 +40,7 @@ public interface IBlackboard
     /// <typeparam name="T">The expected type of the variable. Must be a struct.</typeparam>
     /// <param name="key">The StringName key of the variable to retrieve.</param>
     /// <returns>A nullable struct of type T. HasValue will be false if the key is not found or the type does not match.</returns>
-    public T? GetPrimVar<[MustBeVariant] T>(StringName key) where T : struct;
+    T? GetPrimVar<[MustBeVariant] T>(StringName key) where T : struct;
 
     /// <summary>
     ///     Sets a value type (struct) variable in the blackboard.
@@ -50,5 +50,5 @@ public interface IBlackboard
     /// <param name="key">The StringName key for the variable.</param>
     /// <param name="val">The value to set.</param>
     /// <returns>Error.Ok on success, or Error.InvalidData if the type is mismatched with an existing key.</returns>
-    public Error SetPrimVar<[MustBeVariant] T>(StringName key, T val) where T : struct;
+    Error SetPrimVar<[MustBeVariant] T>(StringName key, T val) where T : struct;
 }

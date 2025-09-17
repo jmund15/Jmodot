@@ -1,15 +1,11 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Navigation.Considerations;
 
 using System.Collections.Generic;
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.AI.Navigation.Considerations;
-using Jmodot.Core.Movement;
-using Jmodot.Implementation.AI.BB;
-using Jmodot.Implementation.Shared;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Navigation.Considerations;
+using BB;
+using Core.AI.BB;
+using Core.AI.Navigation.Considerations;
+using Core.Movement;
+using Shared;
 
 [GlobalClass]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
@@ -38,7 +34,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
         var considerVec = new Dictionary<Vector3, float>();
         foreach (var dir in directions.Directions) considerVec[dir] = 0f;
 
-        var sensedPercepts = percept.GetSensedByCollLayer(_collLayer);
+        var sensedPercepts = percept.GetSensedByCollLayer(this._collLayer);
         foreach (var perceptInfo in sensedPercepts)
         {
             var sensed = (CollisionObject3D)perceptInfo.Target!;
@@ -48,28 +44,29 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
             var collVec = (sensed.GlobalPosition - Agent.GlobalPosition).Normalized();
             var dist = collVec.Length();
             var dir = collVec.Normalized();
-            var distWeight = GetDistanceConsideration(dist);
-            var dangerAmt = Consideration * distWeight;
+            var distWeight = this.GetDistanceConsideration(dist);
+            var dangerAmt = this.Consideration * distWeight;
 
             considerVec[dir] = dangerAmt;
         }
 
-        considerVec = PropogateConsiderations(considerVec);
+        considerVec = this.PropogateConsiderations(considerVec);
         return considerVec;
     }
 
     public float GetDistanceConsideration(float detectDist)
     {
-        if (detectDist > _distDiminishRange.Y) return 0f;
+        if (detectDist > this._distDiminishRange.Y) return 0f;
         // the closer the collision is to the raycast, the higher the "danger" weight
         var minWeight = 0.1f;
         var k = 2.5f;
         float distWeight;
 
-        if (detectDist <= _distDiminishRange.X)
+        if (detectDist <= this._distDiminishRange.X)
             distWeight = 1.0f; // Ensure max weight
         else
-            distWeight = 1f - (detectDist - _distDiminishRange.X) / (_distDiminishRange.Y - _distDiminishRange.X);
+            distWeight = 1f - (detectDist - this._distDiminishRange.X) /
+                (this._distDiminishRange.Y - this._distDiminishRange.X);
         //distWeight = minWeight + (1.0f - minWeight) *
         //    (float)Math.Exp(-k * (collDist - _distDiminishRange.X) / (_distDiminishRange.Y/*castLength*/ - _distDiminishRange.X));
         distWeight = Mathf.Clamp(distWeight, 0f, 1f);
@@ -88,11 +85,11 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
             var dangerAmt = preConsid.Value;
             if (dangerAmt == 0.0f) continue;
             //PROPOGATE DANGER OUT
-            var propogateNum = _dirsToPropogate;
-            var propLDir = _dirIds.Reverse[dir];
-            var propRDir = _dirIds.Reverse[dir];
-            var dirId = _dirIds.Reverse[dir];
-            var propWeight = _initPropWeight;
+            var propogateNum = this._dirsToPropogate;
+            var propLDir = this._dirIds.Reverse[dir];
+            var propRDir = this._dirIds.Reverse[dir];
+            var dirId = this._dirIds.Reverse[dir];
+            var propWeight = this._initPropWeight;
             while (propogateNum > 0)
             {
                 if (propLDir == 0)
@@ -106,12 +103,12 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
                     propRDir++;
                 //propLDir = propLDir.GetLeftDir();
                 //propRDir = propRDir.GetRightDir();
-                considerations[_dirIds.Forward[propLDir]] += dangerAmt * propWeight;
-                considerations[_dirIds.Forward[propRDir]] += dangerAmt * propWeight;
+                considerations[this._dirIds.Forward[propLDir]] += dangerAmt * propWeight;
+                considerations[this._dirIds.Forward[propRDir]] += dangerAmt * propWeight;
                 //GD.Print($"orig dir: {dir}; left dir: {propLDir}; right dir: {propRDir}; tbmb: {propWeight}" +
                 //    $"\norig left: {preConsiderations[propLDir]}; new left: {considerations[propLDir]}");
 
-                propWeight *= _propDiminishWeight;
+                propWeight *= this._propDiminishWeight;
                 propogateNum--;
             }
         }

@@ -55,29 +55,29 @@ public partial class AAA : EditorScript
     public override void _Run()
     {
         //GD.Print("resource type: ", ResourceLoader.Load(_aaaParamsPath).GetType().FullName);
-        _aaaParams = ResourceLoader.Load<AAAParameters>(_aaaParamsPath); // as AAAParameters;
-        SaveThisSceneAs(_aaaParams.SavePath);
-        _topLevel = GetScene();
-        _sprite = _topLevel.GetFirstChildOfType<Node>();
+        this._aaaParams = ResourceLoader.Load<AAAParameters>(_aaaParamsPath); // as AAAParameters;
+        this.SaveThisSceneAs(this._aaaParams.SavePath);
+        this._topLevel = this.GetScene();
+        this._sprite = this._topLevel.GetFirstChildOfType<Node>();
 
         //GD.Print("loaded resource! param list of dirs: ", _aaaParams.AnimDirections);
 
 
-        _initOffset = _aaaParams.SpriteTypePixelMap[_aaaParams.SpriteType];
-        _frameHeight = _aaaParams.SpriteTypePixelMap[_aaaParams.SpriteType];
+        this._initOffset = this._aaaParams.SpriteTypePixelMap[this._aaaParams.SpriteType];
+        this._frameHeight = this._aaaParams.SpriteTypePixelMap[this._aaaParams.SpriteType];
 
 
-        if (_sprite is Sprite2D spritesheet)
+        if (this._sprite is Sprite2D spritesheet)
         {
-            _texture = spritesheet.Texture;
-            _portTexture = spritesheet.Texture as PortableCompressedTexture2D;
-            _atlasTexture = spritesheet.Texture as AtlasTexture;
+            this._texture = spritesheet.Texture;
+            this._portTexture = spritesheet.Texture as PortableCompressedTexture2D;
+            this._atlasTexture = spritesheet.Texture as AtlasTexture;
         }
-        else if (_sprite is Sprite3D spritesheet3D)
+        else if (this._sprite is Sprite3D spritesheet3D)
         {
-            _texture = spritesheet3D.Texture;
-            _portTexture = spritesheet3D.Texture as PortableCompressedTexture2D;
-            _atlasTexture = spritesheet3D.Texture as AtlasTexture;
+            this._texture = spritesheet3D.Texture;
+            this._portTexture = spritesheet3D.Texture as PortableCompressedTexture2D;
+            this._atlasTexture = spritesheet3D.Texture as AtlasTexture;
         }
         else
         {
@@ -89,12 +89,12 @@ public partial class AAA : EditorScript
         //string? appendLibPath = await this.Extensibility.Shell().ShowOpenFileDialogAsync(options, cancellationToken);
 
         int textureHeight;
-        if (_portTexture != null)
-            textureHeight = _portTexture.GetHeight();
-        else if (_atlasTexture != null) textureHeight = _atlasTexture.GetHeight();
+        if (this._portTexture != null)
+            textureHeight = this._portTexture.GetHeight();
+        else if (this._atlasTexture != null) textureHeight = this._atlasTexture.GetHeight();
 
 
-        AutoAnimateSprite3D();
+        this.AutoAnimateSprite3D();
 
         //GetTree().CreateTimer(5.0f).Timeout += () => SaveThisSceneAs(SavePath);
 
@@ -104,7 +104,7 @@ public partial class AAA : EditorScript
 
         //if (_aaaParams.BodyParts.Count > 1)
         //{
-        OpenAndSaveScene(_aaaParams.SavePath);
+        this.OpenAndSaveScene(this._aaaParams.SavePath);
         //}
         //else
         //{
@@ -121,27 +121,28 @@ public partial class AAA : EditorScript
 
     private void AutoAnimateSprite3D()
     {
-        var animPlayer = _sprite.GetFirstChildOfType<AnimationPlayer>();
+        var animPlayer = this._sprite.GetFirstChildOfType<AnimationPlayer>();
         var globalAnimLibrary = animPlayer.GetAnimationLibrary("");
-        ResourceSaver.Save(globalAnimLibrary, $"res://Temp/{_sprite.Name}AnimLib.tres");
-        var textPath = $"res://Temp/{_sprite.Name}SpriteSheet.tres";
-        ResourceSaver.Save(_atlasTexture, textPath);
+        ResourceSaver.Save(globalAnimLibrary, $"res://Temp/{this._sprite.Name}AnimLib.tres");
+        var textPath = $"res://Temp/{this._sprite.Name}SpriteSheet.tres";
+        ResourceSaver.Save(this._atlasTexture, textPath);
         animPlayer.RemoveAnimationLibrary(""); // remove globalAnimLibrary
 
-        var topLevelName = _sprite.Name;
-        _sprite.Name = "QueueDelete";
-        _topLevel.Name = topLevelName;
+        var topLevelName = this._sprite.Name;
+        this._sprite.Name = "QueueDelete";
+        this._topLevel.Name = topLevelName;
 
         //var appendLibrary = ResourceLoader.Load<AnimationLibrary>();
 
         // TODO: MAKE NEW SPRITE FOR BODY PARTS HERE
         var partNum = 1;
         int partOffset;
-        foreach (var bodyPartPair in _aaaParams.BodyParts)
+        foreach (var bodyPartPair in this._aaaParams.BodyParts)
         {
             var part = bodyPartPair.Key;
             var typesOfPart = bodyPartPair.Value;
-            partOffset = _initOffset + (partNum - 1) * _frameHeight * typesOfPart * _aaaParams.AnimDirections.Count;
+            partOffset = this._initOffset +
+                         (partNum - 1) * this._frameHeight * typesOfPart * this._aaaParams.AnimDirections.Count;
             Sprite3DComponent partSprite;
             AnimationPlayerComponent partPlayer;
             var partLibrary = new AnimationLibrary(); //globalAnimLibrary.Duplicate(true) as AnimationLibrary;
@@ -170,18 +171,18 @@ public partial class AAA : EditorScript
             //}
             partSprite =
                 new Sprite3DComponent(); //_sprite.Duplicate((int)Node.DuplicateFlags.UseInstantiation) as Sprite3D;
-            _topLevel.AddChild(partSprite);
-            partSprite.Owner = _topLevel;
+            this._topLevel.AddChild(partSprite);
+            partSprite.Owner = this._topLevel;
             //partSprite.Texture = ResourceLoader.Load<AtlasTexture>(textPath);
             //partSprite.Texture.ResourceLocalToScene = true;
-            partSprite.Texture = _texture.Duplicate() as Texture2D;
+            partSprite.Texture = this._texture.Duplicate() as Texture2D;
             partSprite.TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest;
             //ResourceSaver.Save(partSprite.Texture, $"res://Temp/{_topLevel.Name}_{partSprite.Name}.tres");
             partPlayer =
                 new AnimationPlayerComponent(); //partSprite.GetFirstChildOfType<AnimationPlayer>();//new AnimationPlayer();
             partPlayer.AddAnimationLibrary("", partLibrary);
             partSprite.AddChild(partPlayer);
-            partPlayer.Owner = _topLevel;
+            partPlayer.Owner = this._topLevel;
             //partPlayer.Reparent(partSprite);
 
             partSprite.Name = part;
@@ -190,7 +191,7 @@ public partial class AAA : EditorScript
 
             //Set properties of sprite
             partSprite.Centered = false;
-            partSprite.Offset = new Vector2(_frameHeight / 2, 0);
+            partSprite.Offset = new Vector2(this._frameHeight / 2, 0);
             partSprite.Scale = new Vector3(8, 8, 8);
 
             //GD.Print($"part anim library anims: {partLibrary.GetAnimationList()}");
@@ -198,13 +199,13 @@ public partial class AAA : EditorScript
             int typeOffset;
             for (var typeNum = 0; typeNum < typesOfPart; typeNum++)
             {
-                typeOffset = typeNum * _frameHeight * _aaaParams.AnimDirections.Count;
+                typeOffset = typeNum * this._frameHeight * this._aaaParams.AnimDirections.Count;
                 var typeLabel = "";
                 if (typesOfPart > 1)
                 {
-                    if (_aaaParams.PartConfigLabels.ContainsKey(part))
+                    if (this._aaaParams.PartConfigLabels.ContainsKey(part))
                     {
-                        typeLabel = _aaaParams.PartConfigLabels[part][typeNum];
+                        typeLabel = this._aaaParams.PartConfigLabels[part][typeNum];
                     }
                     else
                     {
@@ -216,20 +217,20 @@ public partial class AAA : EditorScript
                 configLabels.Add(typeLabel);
                 foreach (var animName in globalAnimLibrary.GetAnimationList())
                 {
-                    _currHeight = partOffset + typeOffset;
+                    this._currHeight = partOffset + typeOffset;
                     //GD.Print($"Starting automating '{animName}'...");
                     var anim = globalAnimLibrary.GetAnimation(animName);
                     //foreach
                     //if (animName.ToString().ToLower().Contains(_))
-                    if (_aaaParams.AnimLoopMap.ContainsKey(animName))
-                        anim.LoopMode = _aaaParams.AnimLoopMap[animName];
+                    if (this._aaaParams.AnimLoopMap.ContainsKey(animName))
+                        anim.LoopMode = this._aaaParams.AnimLoopMap[animName];
                     //GD.Print($"Set loop mode to '{anim.LoopMode}'.");
                     else
                         anim.LoopMode = Animation.LoopModeEnum.None; // Default don't loop
                     var trackNum = 1;
 
 
-                    foreach (var dir in _aaaParams.AnimDirections)
+                    foreach (var dir in this._aaaParams.AnimDirections)
                     {
                         var dirAnim = anim.Duplicate(true) as Animation;
 
@@ -237,16 +238,16 @@ public partial class AAA : EditorScript
                         for (var i = 0; i < numFrames; i++)
                         {
                             var currRect = (Rect2)dirAnim.TrackGetKeyValue(trackNum, i);
-                            var dirRect = new Rect2(currRect.Position.X, _currHeight,
-                                currRect.Size.X, _frameHeight);
+                            var dirRect = new Rect2(currRect.Position.X, this._currHeight,
+                                currRect.Size.X, this._frameHeight);
 
                             dirAnim.TrackSetKeyValue(trackNum, i, Variant.From(dirRect));
                         }
 
                         var newAnimName = animName + GetFaceDirectionString(dir) + typeLabel;
-                        GD.Print($"For {partPlayer.Name}'s animation '{newAnimName}', height is: {_currHeight}");
+                        GD.Print($"For {partPlayer.Name}'s animation '{newAnimName}', height is: {this._currHeight}");
                         partLibrary.AddAnimation(newAnimName, dirAnim);
-                        _currHeight += _frameHeight;
+                        this._currHeight += this._frameHeight;
                         //partLibrary.RemoveAnimation(animName);
                     }
                 }
@@ -254,11 +255,11 @@ public partial class AAA : EditorScript
 
             partPlayer.SetConfigOptions(configLabels);
             partNum++;
-            partOffset += _currHeight;
+            partOffset += this._currHeight;
         }
 
         animPlayer.Free();
-        _sprite.Free();
+        this._sprite.Free();
         //globalAnimLibrary.Dispose();
     }
 

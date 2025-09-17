@@ -20,13 +20,13 @@ public partial class BehaviorTask : Node
 
     public BTaskStatus Status
     {
-        get => _status;
+        get => this._status;
         set
         {
-            if (_status == value) return;
+            if (this._status == value) return;
             //Global.LogError($"STATUS CHANGED ON: {Name}");
-            _status = value;
-            EmitSignal(SignalName.TaskStatusChanged, Variant.From(_status));
+            this._status = value;
+            this.EmitSignal(SignalName.TaskStatusChanged, Variant.From(this._status));
         }
     }
 
@@ -41,40 +41,40 @@ public partial class BehaviorTask : Node
 
     public virtual void Init(Node agent, IBlackboard bb)
     {
-        Agent = agent;
-        BB = bb;
-        Status = BTaskStatus.FRESH;
-        TaskName += Name;
-        foreach (var condition in Conditions)
+        this.Agent = agent;
+        this.BB = bb;
+        this.Status = BTaskStatus.FRESH;
+        this.TaskName += this.Name;
+        foreach (var condition in this.Conditions)
         {
             condition.Init(agent, bb);
-            TaskName += condition.ConditionName;
+            this.TaskName += condition.ConditionName;
         }
         //GD.Print("INIT TASK: ", TaskName);
     }
 
     public virtual void Enter()
     {
-        Status = BTaskStatus.FRESH;
+        this.Status = BTaskStatus.FRESH;
         //Status = BTaskStatus.RUNNING;
         //TODO: make sure is ok? currently deferring to allow proper entering and exiting of tasks.
         //But if conditions fail, do you really want them to even enter?
         //Solution could be for enter to return a enum (Enter_success, enter_failure, enter_running)?
-        CallDeferred(MethodName.EnterConditions);
+        this.CallDeferred(MethodName.EnterConditions);
         //GD.Print($"Task {TaskName} entered");
     }
 
     public virtual void Exit()
     {
         //GD.Print($"Task {TaskName} exited with status {Status}");
-        CallDeferred(MethodName.ExitConditions);
+        this.CallDeferred(MethodName.ExitConditions);
     }
 
     public virtual void ProcessFrame(float delta)
     {
         // Status = BTaskStatus.RUNNING;
         //GD.Print("Processing frame for task: ", TaskName);
-        foreach (var condition in Conditions)
+        foreach (var condition in this.Conditions)
             //GD.Print("RUNNING CONDITION FOR: ", condition.ConditionName);
             condition.ProcessFrame(delta);
     }
@@ -82,7 +82,7 @@ public partial class BehaviorTask : Node
     public virtual void ProcessPhysics(float delta)
     {
         // Status = BTaskStatus.RUNNING;
-        foreach (var condition in Conditions) condition.ProcessPhysics(delta);
+        foreach (var condition in this.Conditions) condition.ProcessPhysics(delta);
     }
 
     #endregion
@@ -91,26 +91,26 @@ public partial class BehaviorTask : Node
 
     private void EnterConditions()
     {
-        foreach (var condition in Conditions)
+        foreach (var condition in this.Conditions)
         {
-            condition.ExitTaskEvent += OnConditionExit;
-            if (Status != BTaskStatus.FRESH) continue;
+            condition.ExitTaskEvent += this.OnConditionExit;
+            if (this.Status != BTaskStatus.FRESH) continue;
             condition.Enter();
             GD.Print("entered condition: ", condition.ConditionName);
         }
 
-        if (Status == BTaskStatus.FRESH) // if status didn't exit from conditions, change to running
+        if (this.Status == BTaskStatus.FRESH) // if status didn't exit from conditions, change to running
         {
             GD.Print("After entering conditions, still at fresh, so running now.");
-            Status = BTaskStatus.RUNNING;
+            this.Status = BTaskStatus.RUNNING;
         }
     }
 
     private void ExitConditions()
     {
-        foreach (var condition in Conditions)
+        foreach (var condition in this.Conditions)
         {
-            condition.ExitTaskEvent -= OnConditionExit;
+            condition.ExitTaskEvent -= this.OnConditionExit;
             condition.Exit();
         }
     }
@@ -120,10 +120,10 @@ public partial class BehaviorTask : Node
         //if (!Conditions.Contains(sender)) { return; } //safeguard, may be slow and unecessary tho
 
         if (succeedTask)
-            Status = BTaskStatus.SUCCESS;
+            this.Status = BTaskStatus.SUCCESS;
         else
-            Status = BTaskStatus.FAILURE;
-        GD.Print($"EXITED TASK ON {Status} DUE TO CONDITION: {((BTCondition)sender).ConditionName}");
+            this.Status = BTaskStatus.FAILURE;
+        GD.Print($"EXITED TASK ON {this.Status} DUE TO CONDITION: {((BTCondition)sender).ConditionName}");
     }
 
     public override string[] _GetConfigurationWarnings()

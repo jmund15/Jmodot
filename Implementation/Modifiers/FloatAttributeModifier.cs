@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Modifiers;
 
 using Godot.Collections;
-
-#endregion
-
-namespace Jmodot.Core.Modifiers;
 
 /// <summary>
 ///     Resource for modifying a float value. This is the primary tool
@@ -23,8 +19,7 @@ public partial class FloatAttributeModifier : Resource, IModifier<Variant>
     /// For PercentAdd: A percentage (e.g., 0.1 for +10%).
     /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
     /// </summary>
-    [Export]
-    public float Value { get; private set; }
+    [Export] public float Value { get; private set; }
 
     [Export] public int Priority { get; private set; }
 
@@ -47,17 +42,17 @@ public partial class FloatAttributeModifier : Resource, IModifier<Variant>
 
         var currentFloat = currentValue.AsSingle();
         // The Modify method knows how to interpret its own Value based on its Stage.
-        return Stage switch
+        return this.Stage switch
         {
             // For the BaseAdd stage, it applies its value additively.
-            CalculationStage.BaseAdd => currentFloat + Value,
+            CalculationStage.BaseAdd => currentFloat + this.Value,
 
             // For the PercentAdd stage, it simply returns its own percentage value (e.g., 0.1)
             // for the pipeline to sum up with other percentage bonuses.
-            CalculationStage.PercentAdd => Value,
+            CalculationStage.PercentAdd => this.Value,
 
             // For the FinalMultiply stage, it applies its value multiplicatively.
-            CalculationStage.FinalMultiply => currentFloat * Value,
+            CalculationStage.FinalMultiply => currentFloat * this.Value,
 
             // Default case should never be hit but ensures safety.
             // TODO: error logging could be added here.

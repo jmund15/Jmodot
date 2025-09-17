@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Modifiers.Effects;
 
 using System.Collections.Generic;
-using Jmodot.Core.Modifiers.Effects;
-
-#endregion
-
-namespace Jmodot.Implementation.Modifiers.Effects;
+using Core.Modifiers.Effects;
 
 /// <summary>
 ///     A component that manages the application and removal of timed effects (buffs/debuffs) on an actor.
@@ -37,9 +33,9 @@ public partial class EffectController : Node
         {
             var timer = new Timer { WaitTime = effectData.Duration, Autostart = true, OneShot = true };
             var activeEffect = new ActiveEffect { Data = effectData, Timer = timer };
-            timer.Timeout += () => OnEffectExpired(activeEffect);
-            AddChild(timer);
-            _activeEffects.Add(activeEffect);
+            timer.Timeout += () => this.OnEffectExpired(activeEffect);
+            this.AddChild(timer);
+            this._activeEffects.Add(activeEffect);
         }
     }
 
@@ -48,7 +44,7 @@ public partial class EffectController : Node
         // Remove the modifiers that this effect applied.
         // foreach(var modResource in effect.Data.Modifiers) ...
 
-        _activeEffects.Remove(effect);
+        this._activeEffects.Remove(effect);
         effect.Timer.QueueFree();
     }
 

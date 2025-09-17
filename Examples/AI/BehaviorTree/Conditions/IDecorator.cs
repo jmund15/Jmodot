@@ -1,15 +1,11 @@
-#region
-
-using Jmodot.Implementation.AI.BehaviorTree.Tasks;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+
+using Implementation.AI.BehaviorTree.Tasks;
 
 public interface IDecorator
 {
-    public void DecoratorEnter();
-    public void DecoratorPostProcess(BTaskStatus postProcStatus);
-    public void DecoratorOnChangeStatus(BTaskStatus newStatus);
-    public void DecoratorExit();
+    void DecoratorEnter();
+    void DecoratorPostProcess(BTaskStatus postProcStatus);
+    void DecoratorOnChangeStatus(BTaskStatus newStatus);
+    void DecoratorExit();
 }

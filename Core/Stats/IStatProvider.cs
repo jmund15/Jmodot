@@ -1,12 +1,8 @@
-﻿#region
+﻿namespace Jmodot.Core.Stats;
 
 using System;
-using Jmodot.Core.Modifiers;
-using Jmodot.Core.Stats.Mechanics;
-
-#endregion
-
-namespace Jmodot.Core.Stats;
+using Mechanics;
+using Modifiers;
 
 /// <summary>
 ///     Defines the public contract for a component that acts as the source of truth

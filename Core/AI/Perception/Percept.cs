@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Core.AI.Perception;
 
-using Jmodot.Core.Identification;
-using Jmodot.Implementation.AI.Perception.Strategies;
-
-#endregion
-
-namespace Jmodot.Core.AI.Perception;
+using Identification;
+using Implementation.AI.Perception.Strategies;
 
 /// <summary>
 ///     An immutable struct representing a single, stateless sensory event or "snapshot" in time.
@@ -38,12 +34,12 @@ public readonly struct Percept
     public Percept(Node3D target, Vector3 position, Vector3 velocity, Identity identity, float confidence,
         MemoryDecayStrategy decayStrategy)
     {
-        Target = target;
-        LastKnownPosition = position;
-        LastKnownVelocity = velocity;
-        Identity = identity;
-        Confidence = Mathf.Clamp(confidence, 0.0f, 1.0f);
-        DecayStrategy = decayStrategy;
-        Timestamp = Time.GetTicksMsec();
+        this.Target = target;
+        this.LastKnownPosition = position;
+        this.LastKnownVelocity = velocity;
+        this.Identity = identity;
+        this.Confidence = Mathf.Clamp(confidence, 0.0f, 1.0f);
+        this.DecayStrategy = decayStrategy;
+        this.Timestamp = Time.GetTicksMsec();
     }
 }

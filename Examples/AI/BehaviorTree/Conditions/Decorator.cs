@@ -1,13 +1,9 @@
-#region
+namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Composites;
-
-#endregion
-
-namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+using Core.AI.BB;
+using Implementation.AI.BehaviorTree.Composites;
 
 [GlobalClass]
 [Tool]
@@ -32,20 +28,20 @@ public abstract partial class Decorator : CompositeTask
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        TaskName += "_Decorator";
-        RunningChild = this.GetFirstChildOfType<BehaviorTask>(false);
+        this.TaskName += "_Decorator";
+        this.RunningChild = this.GetFirstChildOfType<BehaviorTask>(false);
     }
 
     public override void Enter()
     {
         base.Enter();
-        RunningChild.Enter();
+        this.RunningChild.Enter();
     }
 
     public override void Exit()
     {
         base.Exit();
-        RunningChild.Exit();
+        this.RunningChild.Exit();
     }
 
     public override void ProcessFrame(float delta)

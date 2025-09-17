@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Input;
 
 using System.Collections.Generic;
-
-#endregion
-
-namespace Jmodot.Core.Input;
 
 /// <summary>
 ///     Defines a contract for a component that provides player or AI intent.

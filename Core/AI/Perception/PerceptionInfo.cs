@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Core.AI.Perception;
 
-using Jmodot.Core.Identification;
-using Jmodot.Implementation.AI.Perception.Strategies;
-
-#endregion
-
-namespace Jmodot.Core.AI.Perception;
+using Identification;
+using Implementation.AI.Perception.Strategies;
 
 /// <summary>
 ///     A stateful class representing an AI's "living memory" of a single target. It is created
@@ -19,8 +15,8 @@ public class PerceptionInfo
 
     public PerceptionInfo(Percept initialPercept)
     {
-        Target = initialPercept.Target;
-        Update(initialPercept);
+        this.Target = initialPercept.Target;
+        this.Update(initialPercept);
     }
 
     /// <summary>The target Node this memory pertains to.</summary>
@@ -36,20 +32,20 @@ public class PerceptionInfo
     ///     efficient, on-demand property that performs the calculation only when asked.
     /// </summary>
     public float CurrentConfidence =>
-        _decayStrategy?.CalculateConfidence(_baseConfidence, (Time.GetTicksMsec() - LastUpdateTime) / 1000.0f) ??
-        _baseConfidence;
+        this._decayStrategy?.CalculateConfidence(this._baseConfidence,
+            (Time.GetTicksMsec() - this.LastUpdateTime) / 1000.0f) ?? this._baseConfidence;
 
     /// <summary>Returns true if the memory is still considered active (confidence is above zero).</summary>
-    public bool IsActive => CurrentConfidence > 0.001f; // Use a small epsilon to avoid floating point issues.
+    public bool IsActive => this.CurrentConfidence > 0.001f; // Use a small epsilon to avoid floating point issues.
 
     /// <summary>Updates the memory record with information from a new, incoming percept.</summary>
     public void Update(Percept latestPercept)
     {
-        LastKnownPosition = latestPercept.LastKnownPosition;
-        LastKnownVelocity = latestPercept.LastKnownVelocity;
-        Identity = latestPercept.Identity;
-        _baseConfidence = latestPercept.Confidence;
-        _decayStrategy = latestPercept.DecayStrategy;
-        LastUpdateTime = latestPercept.Timestamp;
+        this.LastKnownPosition = latestPercept.LastKnownPosition;
+        this.LastKnownVelocity = latestPercept.LastKnownVelocity;
+        this.Identity = latestPercept.Identity;
+        this._baseConfidence = latestPercept.Confidence;
+        this._decayStrategy = latestPercept.DecayStrategy;
+        this.LastUpdateTime = latestPercept.Timestamp;
     }
 }

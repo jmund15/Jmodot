@@ -1,12 +1,9 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Input;
 
 using System.Collections.Generic;
+using Core.Input;
 using Godot.Collections;
-using Jmodot.Core.Input;
-
-#endregion
-
-namespace Jmodot.Implementation.Input;
+using Input = Godot.Input;
 
 [GlobalClass]
 public partial class PlayerIntentSource : Node, IIntentSource
@@ -26,7 +23,7 @@ public partial class PlayerIntentSource : Node, IIntentSource
     /// </summary>
     public IReadOnlyDictionary<InputAction, IntentData> GetIntents()
     {
-        return _currentIntents;
+        return this._currentIntents;
     }
 
     /// <summary>
@@ -34,21 +31,21 @@ public partial class PlayerIntentSource : Node, IIntentSource
     /// </summary>
     public override void _Process(double delta)
     {
-        if (!IsActive)
+        if (!this.IsActive)
         {
-            if (_currentIntents.Count > 0) _currentIntents.Clear();
+            if (this._currentIntents.Count > 0) this._currentIntents.Clear();
             return;
         }
 
-        UpdateIntentState();
+        this.UpdateIntentState();
     }
 
     private void UpdateIntentState()
     {
-        _currentIntents.Clear();
+        this._currentIntents.Clear();
 
         // Process all boolean/pressed/released actions
-        foreach (var binding in _actionBindings)
+        foreach (var binding in this._actionBindings)
         {
             if (binding?.Action == null || string.IsNullOrEmpty(binding.GodotActionName)) continue;
 
@@ -56,26 +53,26 @@ public partial class PlayerIntentSource : Node, IIntentSource
             switch (binding.PollType)
             {
                 case InputActionPollType.JustPressed:
-                    result = Godot.Input.IsActionJustPressed(binding.GodotActionName);
+                    result = Input.IsActionJustPressed(binding.GodotActionName);
                     break;
                 case InputActionPollType.Pressed:
-                    result = Godot.Input.IsActionPressed(binding.GodotActionName);
+                    result = Input.IsActionPressed(binding.GodotActionName);
                     break;
                 case InputActionPollType.JustReleased:
-                    result = Godot.Input.IsActionJustReleased(binding.GodotActionName);
+                    result = Input.IsActionJustReleased(binding.GodotActionName);
                     break;
             }
 
-            if (result) _currentIntents[binding.Action] = new IntentData(true);
+            if (result) this._currentIntents[binding.Action] = new IntentData(true);
         }
 
         // Process all vector actions
-        foreach (var binding in _vectorBindings)
+        foreach (var binding in this._vectorBindings)
         {
             if (binding?.Action == null) continue;
 
-            var moveVector = Godot.Input.GetVector(binding.Left, binding.Right, binding.Up, binding.Down);
-            if (moveVector.LengthSquared() > 0) _currentIntents[binding.Action] = new IntentData(moveVector);
+            var moveVector = Input.GetVector(binding.Left, binding.Right, binding.Up, binding.Down);
+            if (moveVector.LengthSquared() > 0) this._currentIntents[binding.Action] = new IntentData(moveVector);
         }
     }
 }

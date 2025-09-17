@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Stats.Mechanics;
 
-using Jmodot.Core.Stats.Mechanics;
-
-#endregion
-
-namespace Jmodot.Implementation.Stats.Mechanics;
+using Core.Stats.Mechanics;
 
 /// <summary>
 ///     Defines the data for a continuous dash or lunge mechanic.

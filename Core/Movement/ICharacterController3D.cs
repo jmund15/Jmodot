@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Movement;
 
-using Jmodot.Core.Shared;
-
-#endregion
-
-namespace Jmodot.Core.Movement;
+using Shared;
 
 /// <summary>
 ///     The definitive, low-level interface for directly manipulating a Godot 3D physics body.

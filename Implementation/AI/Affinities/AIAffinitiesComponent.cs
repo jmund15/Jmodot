@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Affinities;
 
+using Core.AI.Affinities;
 using Godot.Collections;
-using Jmodot.Core.AI.Affinities;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Affinities;
 
 /// <summary>
 ///     The definitive "personality" component for an AI. It holds the runtime values for
@@ -23,7 +19,7 @@ public partial class AIAffinitiesComponent : Node
     /// </summary>
     public float? GetAffinity(Affinity affinity)
     {
-        if (_affinities.TryGetValue(affinity, out float value)) return value;
+        if (this._affinities.TryGetValue(affinity, out float value)) return value;
         return null;
         //return _affinities.GetValueOrDefault(affinity, 0.0f);
     }
@@ -35,7 +31,7 @@ public partial class AIAffinitiesComponent : Node
     ///         <returns></returns>
     public bool TryGetAffinity(Affinity affinity, out float value)
     {
-        return _affinities.TryGetValue(affinity, out value);
+        return this._affinities.TryGetValue(affinity, out value);
     }
 
     /// <summary>
@@ -43,7 +39,7 @@ public partial class AIAffinitiesComponent : Node
     /// </summary>
     public void SetAffinity(Affinity affinity, float value)
     {
-        _affinities[affinity] = Mathf.Clamp(value, 0f, 1f);
+        this._affinities[affinity] = Mathf.Clamp(value, 0f, 1f);
         // Optional: Emit a signal here if other systems need to react to affinity changes in real-time.
     }
 }

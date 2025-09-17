@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Registry;
 
 using Godot.Collections;
-
-#endregion
-
-namespace Jmodot.Implementation.Registry;
 
 /// <summary>
 ///     A helper Resource that defines a set of other resources for collection purposes.

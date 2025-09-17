@@ -1,17 +1,13 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.Affinities;
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.AI.Navigation.SteeringModifiers;
-using Jmodot.Implementation.AI.Affinities;
-using Jmodot.Implementation.AI.BB;
-using Jmodot.Implementation.Shared;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
+using Affinities;
+using BB;
+using Core.AI.Affinities;
+using Core.AI.BB;
+using Core.AI.Navigation.SteeringModifiers;
+using Shared;
 
 /// <summary>
 ///     A powerful steering modifier that scales directional scores based on an AI's affinity.
@@ -27,7 +23,7 @@ public partial class AffinitySteeringModifier : SteeringConsiderationModifier
     public override void Modify(ref Dictionary<Vector3, float> scores, DecisionContext context, IBlackboard blackboard)
     {
         // --- Configuration Validation ---
-        if (_affinityToMeasure == null || _responseCurve == null)
+        if (this._affinityToMeasure == null || this._responseCurve == null)
         {
             JmoLogger.Error(this,
                 "Modifier is misconfigured. Either 'Affinity To Measure' or 'Response Curve' is not set. It will be skipped.",
@@ -39,18 +35,17 @@ public partial class AffinitySteeringModifier : SteeringConsiderationModifier
         if (affinities == null) return; // Agent will have logged this critical error already.
 
         // --- Core Logic ---
-        if (!affinities.TryGetAffinity(_affinityToMeasure, out float affinityValue))
+        if (!affinities.TryGetAffinity(this._affinityToMeasure, out float affinityValue))
         {
             // This is a recoverable state; the AI just doesn't have this personality trait.
             JmoLogger.Warning(
                 this,
                 "AffinitySteeringModifier could not find the affinity '{0}' in the AIAffinitiesComponent. It will be skipped.",
-                blackboard.GetVar<Node>(BBDataSig.Agent),
-                _affinityToMeasure.AffinityName);
+                blackboard.GetVar<Node>(BBDataSig.Agent), this._affinityToMeasure.AffinityName);
             return;
         }
 
-        var multiplier = _responseCurve.SampleBaked(affinityValue);
+        var multiplier = this._responseCurve.SampleBaked(affinityValue);
 
         foreach (var key in scores.Keys.ToList()) scores[key] *= multiplier;
     }

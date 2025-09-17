@@ -1,17 +1,11 @@
-﻿#region
+﻿namespace Jmodot.Core.Stats;
 
 using System;
 using System.Collections.Generic;
-using Jmodot.Core.Modifiers;
-using Jmodot.Core.Modifiers.CalculationStrategy;
-using Jmodot.Core.Stats.Mechanics;
-using Jmodot.Implementation.Modifiers.CalculationStrategies;
-
-#endregion
-
-// Alias to prevent conflict with Godot.System
-
-namespace Jmodot.Core.Stats;
+using Implementation.Modifiers.CalculationStrategies;
+using Mechanics;
+using Modifiers;
+using Modifiers.CalculationStrategy;
 
 /// <summary>
 ///     The definitive runtime "character sheet" and single source of truth for all of an entity's
@@ -68,13 +62,12 @@ public partial class StatController : Node, IStatProvider
     public ModifiableProperty<Variant>? GetStat(Attribute attribute, MovementMode? context = null)
     {
         // First, attempt to find the most specific, contextual version of the stat.
-        if (context != null &&
-            _movementModeStats.TryGetValue(context, out var modeStats) &&
+        if (context != null && this._movementModeStats.TryGetValue(context, out var modeStats) &&
             modeStats.TryGetValue(attribute, out var contextualProp))
             return contextualProp;
 
         // If no contextual version exists, fall back to the universal version.
-        if (_universalStats.TryGetValue(attribute, out var universalProp)) return universalProp;
+        if (this._universalStats.TryGetValue(attribute, out var universalProp)) return universalProp;
 
         // The entity does not possess this stat in any context.
         return null;
@@ -93,7 +86,7 @@ public partial class StatController : Node, IStatProvider
     public T GetStatValue<[MustBeVariant] T>(Attribute attribute, MovementMode? context = null,
         T defaultValue = default)
     {
-        var prop = GetStat(attribute, context);
+        var prop = this.GetStat(attribute, context);
         if (prop != null)
         {
             // Runtime Type Check: Ensure the requested type matches the stored Variant's type.
@@ -116,7 +109,7 @@ public partial class StatController : Node, IStatProvider
 
     public MechanicData? GetMechanicData(MechanicType mechanicType)
     {
-        if (mechanicType != null && _mechanics.TryGetValue(mechanicType, out var modifiableData))
+        if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
             // Return the final, potentially modified value.
             return modifiableData.Value;
 
@@ -148,7 +141,7 @@ public partial class StatController : Node, IStatProvider
             // Use the specific strategy if provided; otherwise, fall back to the safe default (override).
             var strategyToUse = specificStrategy ?? defaultOverrideStrategy;
 
-            _universalStats[attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
+            this._universalStats[attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
         }
 
         // --- 2. Initialize Contextual Movement Stats ---
@@ -160,7 +153,7 @@ public partial class StatController : Node, IStatProvider
         {
             var mode = modeEntry.Key;
             var profile = modeEntry.Value;
-            _movementModeStats[mode] = new Dictionary<Attribute, ModifiableProperty<Variant>>();
+            this._movementModeStats[mode] = new Dictionary<Attribute, ModifiableProperty<Variant>>();
 
             foreach (var attrEntry in profile.Attributes)
             {
@@ -173,18 +166,19 @@ public partial class StatController : Node, IStatProvider
                 // Use the override if it exists; otherwise, use the default for movement stats.
                 var strategyToUse = specificStrategy ?? defaultMovementStrategy;
 
-                _movementModeStats[mode][attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
+                this._movementModeStats[mode][attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
             }
         }
 
         // --- 3. Post-Initialization Notification ---
         // Emit an initial change event for all stats so listening systems can sync their initial state.
-        foreach (var stat in _universalStats) OnStatChanged?.Invoke(stat.Key, stat.Value.Value);
+        foreach (var stat in this._universalStats) this.OnStatChanged?.Invoke(stat.Key, stat.Value.Value);
     }
 
     public ModifiableProperty<MechanicData>? GetMechanic(MechanicType mechanicType)
     {
-        if (mechanicType != null && _mechanics.TryGetValue(mechanicType, out var modifiableData)) return modifiableData;
+        if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
+            return modifiableData;
         return null;
     }
 }

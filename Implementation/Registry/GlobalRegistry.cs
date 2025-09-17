@@ -18,19 +18,19 @@ public partial class GlobalRegistry : Node
     {
         if (Instance != null)
         {
-            QueueFree();
+            this.QueueFree();
             return;
         }
 
         Instance = this;
 
-        if (string.IsNullOrEmpty(_registryResourcePath))
+        if (string.IsNullOrEmpty(this._registryResourcePath))
         {
             GD.PrintErr("GlobalRegistry requires a path to a GameRegistry resource.");
             return;
         }
 
-        DB = GD.Load<GameRegistry>(_registryResourcePath);
-        if (DB == null) GD.PrintErr($"Failed to load GameRegistry from path: {_registryResourcePath}");
+        DB = GD.Load<GameRegistry>(this._registryResourcePath);
+        if (DB == null) GD.PrintErr($"Failed to load GameRegistry from path: {this._registryResourcePath}");
     }
 }

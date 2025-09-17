@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.BehaviorTree.Utility;
 
-using Jmodot.Core.AI.BB;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.BehaviorTree.Utility;
+using Core.AI.BB;
 
 [GlobalClass]
 public abstract partial class ConsiderationModifier : Resource

@@ -1,14 +1,10 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.Affinities;
 
-using Jmodot.Core.AI.Affinities;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Utility;
-using Jmodot.Implementation.Shared;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.Affinities;
+using BB;
+using BehaviorTree.Utility;
+using Core.AI.Affinities;
+using Core.AI.BB;
+using Shared;
 
 /// <summary>
 ///     A powerful, data-driven modifier that shapes a utility score based on an AI's
@@ -34,7 +30,7 @@ public partial class AffinityCurveModifier : ConsiderationModifier
     public override float Modify(float baseScore, IBlackboard blackboard)
     {
         // A missing curve is a configuration error, so we fail gracefully and log it.
-        if (_responseCurve == null)
+        if (this._responseCurve == null)
         {
             JmoLogger.Warning(
                 this,
@@ -58,20 +54,19 @@ public partial class AffinityCurveModifier : ConsiderationModifier
         }
 
         // 1. Get the current value of the chosen affinity (e.g., Fear = 0.8).
-        if (!affinities.TryGetAffinity(_affinityToMeasure, out float affinityValue))
+        if (!affinities.TryGetAffinity(this._affinityToMeasure, out float affinityValue))
         {
             JmoLogger.Warning(
                 this,
                 "AffinityCurveModifier on {0} could not find the affinity '{1}' in the AIAffinitiesComponent. Returning base score unmodified.",
                 blackboard.GetVar<Node>(BBDataSig.Agent),
-                blackboard.GetVar<Node>(BBDataSig.Agent)!.Name,
-                _affinityToMeasure.AffinityName);
+                blackboard.GetVar<Node>(BBDataSig.Agent)!.Name, this._affinityToMeasure.AffinityName);
             return baseScore;
         }
 
         // 2. Sample the curve at that value to get the multiplier.
         //    The curve's X-axis should be designed to be read from 0 to 1.
-        var multiplier = _responseCurve.SampleBaked(affinityValue);
+        var multiplier = this._responseCurve.SampleBaked(affinityValue);
 
         // 3. Apply the multiplier to the base score.
         return baseScore * multiplier;

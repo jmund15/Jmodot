@@ -37,20 +37,20 @@ public partial class BehaviorAction : BehaviorTask
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        TaskName += "_Action";
+        this.TaskName += "_Action";
     }
 
     public override void Enter()
     {
         base.Enter();
-        switch (SelfInterruptible)
+        switch (this.SelfInterruptible)
         {
             case InterruptibleChange.NoChange:
                 break;
             case InterruptibleChange.True:
-                BB.SetPrimVar(BBDataSig.SelfInteruptible, true); break;
+                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, true); break;
             case InterruptibleChange.False:
-                BB.SetPrimVar(BBDataSig.SelfInteruptible, false); break;
+                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, false); break;
         }
     }
 

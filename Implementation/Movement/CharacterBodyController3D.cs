@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Movement;
 
-using Jmodot.Core.Movement;
-
-#endregion
-
-namespace Jmodot.Implementation.Movement;
+using Core.Movement;
 
 /// <summary>
 ///     An adapter that implements the ICharacterController3D interface
@@ -16,35 +12,35 @@ public class CharacterBodyController3D : ICharacterController3D
 
     public CharacterBodyController3D(CharacterBody3D body)
     {
-        _body = body;
+        this._body = body;
     }
 
     public Node GetInterfaceNode()
     {
-        return _body;
+        return this._body;
     }
 
-    public Vector3 GlobalPosition => _body.GlobalPosition;
-    public Vector3 Velocity => _body.Velocity;
-    public bool IsOnFloor => _body.IsOnFloor();
+    public Vector3 GlobalPosition => this._body.GlobalPosition;
+    public Vector3 Velocity => this._body.Velocity;
+    public bool IsOnFloor => this._body.IsOnFloor();
 
     public void SetVelocity(Vector3 newVelocity)
     {
-        _body.Velocity = newVelocity;
+        this._body.Velocity = newVelocity;
     }
 
     public void AddVelocity(Vector3 additiveVelocity)
     {
-        _body.Velocity += additiveVelocity;
+        this._body.Velocity += additiveVelocity;
     }
 
     public void Move()
     {
-        _body.MoveAndSlide();
+        this._body.MoveAndSlide();
     }
 
     public void Teleport(Vector3 newGlobalPosition)
     {
-        _body.GlobalPosition = newGlobalPosition;
+        this._body.GlobalPosition = newGlobalPosition;
     }
 }

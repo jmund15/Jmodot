@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Movement.Strategies;
 
-using Jmodot.Core.Stats;
-
-#endregion
-
-namespace Jmodot.Core.Movement.Strategies;
+using Stats;
 
 public interface IMovementStrategy
 {

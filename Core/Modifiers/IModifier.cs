@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Modifiers;
 
 using Godot.Collections;
-
-#endregion
-
-namespace Jmodot.Core.Modifiers;
 
 /// <summary>
 ///     The generic interface for any object that can modify a value. It contains all the

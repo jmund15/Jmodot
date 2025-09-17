@@ -1,12 +1,8 @@
-#region
-
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.Movement;
-using Jmodot.Implementation.AI.BB;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+
+using Core.AI.BB;
+using Core.Movement;
+using Implementation.AI.BB;
 
 [GlobalClass]
 [Tool]
@@ -25,7 +21,7 @@ public partial class QueueableAttack : BTCondition
 
     public QueueableAttack()
     {
-        _queueBuffer = 0f;
+        this._queueBuffer = 0f;
         //_setQueueFalseOnEnter = false;
     }
 
@@ -36,8 +32,8 @@ public partial class QueueableAttack : BTCondition
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _moveComp = BB.GetVar<ICharacterController3D>(BBDataSig.MoveComp);
-        ConditionName = $"_QueueableAttack:{_queueBuffer}";
+        this._moveComp = this.BB.GetVar<ICharacterController3D>(BBDataSig.MoveComp);
+        this.ConditionName = $"_QueueableAttack:{this._queueBuffer}";
     }
 
     public override void Enter()
@@ -47,8 +43,8 @@ public partial class QueueableAttack : BTCondition
         //{
         //          BB.SetPrimVar(BBDataSig.QueuedNextAttack, false);
         //      }
-        _timeElapsed = 0f;
-        if (_queueBuffer <= 0f) _canQueue = true;
+        this._timeElapsed = 0f;
+        if (this._queueBuffer <= 0f) this._canQueue = true;
     }
 
     public override void Exit()
@@ -59,10 +55,10 @@ public partial class QueueableAttack : BTCondition
     public override void ProcessFrame(float delta)
     {
         base.ProcessFrame(delta);
-        if (!_canQueue)
+        if (!this._canQueue)
         {
-            _timeElapsed += delta;
-            if (_timeElapsed >= _queueBuffer) _canQueue = true;
+            this._timeElapsed += delta;
+            if (this._timeElapsed >= this._queueBuffer) this._canQueue = true;
         }
 
         /*if (_canQueue && _moveComp.WantsAttack())

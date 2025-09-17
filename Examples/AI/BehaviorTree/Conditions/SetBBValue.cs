@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BB;
-
-#endregion
-
-namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+using Core.AI.BB;
+using Implementation.AI.BB;
 
 [GlobalClass]
 [Tool]
@@ -21,8 +17,8 @@ public partial class SetBBValue : BTCondition
 
     public SetBBValue()
     {
-        _valueToSet = BBDataSig.Agent;
-        _value = default;
+        this._valueToSet = BBDataSig.Agent;
+        this._value = default;
     }
 
     #endregion
@@ -32,13 +28,13 @@ public partial class SetBBValue : BTCondition
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        ConditionName = $"_Set{_valueToSet}To{_value}";
+        this.ConditionName = $"_Set{this._valueToSet}To{this._value}";
     }
 
     public override void Enter()
     {
         base.Enter();
-        BB.SetPrimVar(_valueToSet, _value);
+        this.BB.SetPrimVar(this._valueToSet, this._value);
     }
 
     public override void Exit()

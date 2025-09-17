@@ -1,12 +1,8 @@
-﻿#region
+﻿namespace Jmodot.Core.AI.Navigation.SteeringModifiers;
 
 using System.Collections.Generic;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.Navigation;
-
-#endregion
-
-namespace Jmodot.Core.AI.Navigation.SteeringModifiers;
+using BB;
+using Implementation.AI.Navigation;
 
 /// <summary>
 ///     An abstract resource that modifies the directional scores produced by a steering consideration.

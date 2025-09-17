@@ -20,13 +20,13 @@ public abstract partial class BTCondition : Resource
 
     protected virtual void OnExitTask()
     {
-        if (SucceedTaskOnExit)
+        if (this.SucceedTaskOnExit)
         {
-            ExitTaskEvent?.Invoke(this, true);
+            this.ExitTaskEvent?.Invoke(this, true);
             return;
         }
 
-        ExitTaskEvent?.Invoke(this, false);
+        this.ExitTaskEvent?.Invoke(this, false);
     }
 
     #endregion
@@ -62,8 +62,8 @@ public abstract partial class BTCondition : Resource
 
     public virtual void Init(Node agent, IBlackboard bb)
     {
-        Agent = agent;
-        BB = bb;
+        this.Agent = agent;
+        this.BB = bb;
     }
 
     public virtual void Enter()

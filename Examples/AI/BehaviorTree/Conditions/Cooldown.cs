@@ -1,10 +1,6 @@
-#region
-
-using Jmodot.Core.AI.BB;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+
+using Core.AI.BB;
 
 [GlobalClass]
 [Tool]
@@ -14,7 +10,7 @@ public partial class Cooldown : BTCondition
 
     private void OnCooldownTimeout()
     {
-        _cooled = true;
+        this._cooled = true;
     }
 
     #endregion
@@ -28,12 +24,12 @@ public partial class Cooldown : BTCondition
 
     public Cooldown(float cooldownTime) // REAL????
     {
-        _cooldownTime = cooldownTime;
+        this._cooldownTime = cooldownTime;
     }
 
     public Cooldown()
     {
-        _cooldownTime = 0f;
+        this._cooldownTime = 0f;
     }
 
     #endregion
@@ -48,7 +44,7 @@ public partial class Cooldown : BTCondition
     public override void Enter()
     {
         base.Enter();
-        if (!_cooled) OnExitTask();
+        if (!this._cooled) this.OnExitTask();
         //if (_cooldownTimer.TimeLeft > 0 && Status == ConditionStatus.SUCCESS)
         //{
         //	Status = ConditionStatus.FAILURE; // failsafe
@@ -58,11 +54,11 @@ public partial class Cooldown : BTCondition
     public override void Exit()
     {
         base.Exit();
-        if (!_cooled) return; // already cooling, don't restart cooldown
+        if (!this._cooled) return; // already cooling, don't restart cooldown
 
-        _cooldownTimer = (Engine.GetMainLoop() as SceneTree).CreateTimer(_cooldownTime);
-        _cooldownTimer.Timeout += OnCooldownTimeout;
-        _cooled = false;
+        this._cooldownTimer = (Engine.GetMainLoop() as SceneTree).CreateTimer(this._cooldownTime);
+        this._cooldownTimer.Timeout += this.OnCooldownTimeout;
+        this._cooled = false;
     }
 
     public override void ProcessFrame(float delta)

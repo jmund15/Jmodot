@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Examples.Environment;
 
-using Jmodot.Core.Environment;
-
-#endregion
-
-namespace Jmodot.Examples.Environment;
+using Core.Environment;
 
 /// <summary>
 ///     A concrete implementation of IForceProvider. This Area3D acts as a conveyor belt,
@@ -26,7 +22,7 @@ public partial class ConveyorBelt : Area3D, IForceProvider
     public Vector3 GetForceFor(Node3D target)
     {
         // For a simple conveyor belt, the force is constant regardless of the target.
-        return _globalPushVelocity;
+        return this._globalPushVelocity;
     }
 
     public override void _Ready()

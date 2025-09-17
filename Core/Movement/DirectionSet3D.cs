@@ -1,11 +1,7 @@
-﻿#region
+﻿namespace Jmodot.Core.Movement;
 
 using System.Collections.Generic;
-using Jmodot.Implementation.Shared;
-
-#endregion
-
-namespace Jmodot.Core.Movement;
+using Implementation.Shared;
 
 /// <summary>
 ///     A data-driven Resource that defines a discrete set of directional vectors.
@@ -68,7 +64,7 @@ public abstract partial class DirectionSet3D : Resource
         Vector3? closestDir = null;
         var maxDot = float.MinValue;
         var normalizedTarget = targetDirection.Normalized();
-        foreach (var dir in Directions)
+        foreach (var dir in this.Directions)
         {
             // The dot product of two normalized vectors gives the cosine of the angle between them.
             // A higher dot product means a smaller angle.
@@ -82,7 +78,7 @@ public abstract partial class DirectionSet3D : Resource
 
         if (closestDir == null)
             JmoLogger.Error(this,
-                $"No valid direction found for {targetDirection} within the DirectionSet3D '{ResourceName}'.");
+                $"No valid direction found for {targetDirection} within the DirectionSet3D '{this.ResourceName}'.");
         // TODO: print out all directions in direction set for error case
         return closestDir ?? Vector3.Zero;
     }

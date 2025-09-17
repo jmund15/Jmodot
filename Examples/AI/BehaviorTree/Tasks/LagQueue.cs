@@ -1,14 +1,15 @@
 #region
 
-using System.Collections.Generic;
-using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BB;
 using BTaskStatus = Jmodot.Implementation.AI.BehaviorTree.Tasks.BTaskStatus;
 
 #endregion
 
 namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
+
+using System.Collections.Generic;
+using System.Linq;
+using Core.AI.BB;
+using Implementation.AI.BB;
 
 [GlobalClass]
 [Tool]
@@ -31,13 +32,13 @@ public partial class LagQueue : BehaviorAction
     public override void Enter()
     {
         base.Enter();
-        if (LagTime <= 0f)
+        if (this.LagTime <= 0f)
         {
-            OnLagTimeout();
+            this.OnLagTimeout();
             return;
         }
 
-        GetTree().CreateTimer(LagTime).Timeout += OnLagTimeout;
+        this.GetTree().CreateTimer(this.LagTime).Timeout += this.OnLagTimeout;
     }
 
     public override void Exit()
@@ -63,10 +64,10 @@ public partial class LagQueue : BehaviorAction
 
     protected virtual void OnLagTimeout()
     {
-        if (BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value)
-            Status = BTaskStatus.SUCCESS;
+        if (this.BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value)
+            this.Status = BTaskStatus.SUCCESS;
         else
-            Status = BTaskStatus.FAILURE;
+            this.Status = BTaskStatus.FAILURE;
     }
 
     public override string[] _GetConfigurationWarnings()

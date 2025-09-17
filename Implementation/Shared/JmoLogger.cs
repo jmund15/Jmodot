@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Implementation.Shared;
 
 using System;
-
-#endregion
-
-namespace Jmodot.Implementation.Shared;
 
 /// <summary>
 ///     A centralized static class for logging with rich context. It standardizes message formats

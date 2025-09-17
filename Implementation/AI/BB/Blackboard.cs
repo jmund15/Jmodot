@@ -1,12 +1,8 @@
-﻿#region
+﻿namespace Jmodot.Implementation.AI.BB;
 
 using System.Diagnostics;
+using Core.AI.BB;
 using Godot.Collections;
-using Jmodot.Core.AI.BB;
-
-#endregion
-
-namespace Jmodot.Implementation.AI.BB;
 
 /// <summary>
 ///     A centralized data container for sharing state between various game systems, particularly for AI agents.
@@ -27,7 +23,7 @@ public partial class Blackboard : Node, IBlackboard
     /// <param name="parentBB">The IBlackboard instance to use as a parent.</param>
     public void SetParent(IBlackboard? parentBB)
     {
-        ParentBB = parentBB;
+        this.ParentBB = parentBB;
     }
 
     /// <summary>
@@ -39,19 +35,19 @@ public partial class Blackboard : Node, IBlackboard
     /// <returns>The requested object, or null if it does not exist or has a mismatched type.</returns>
     public T? GetVar<T>(StringName key) where T : class
     {
-        if (BBData.TryGetValue(key, out var val))
+        if (this.BBData.TryGetValue(key, out var val))
         {
             if (val.Obj is T tVal) return tVal;
 
             GD.PrintErr(
-                $"BB \"{Name}\" ERROR || Requested data for key \"{key}\" exists, but the requested type \"{typeof(T).Name}\" does not match the stored type \"{val.Obj?.GetType().Name}\"!");
+                $"BB \"{this.Name}\" ERROR || Requested data for key \"{key}\" exists, but the requested type \"{typeof(T).Name}\" does not match the stored type \"{val.Obj?.GetType().Name}\"!");
             return null;
         }
 
-        if (ParentBB != null) return ParentBB.GetVar<T>(key);
+        if (this.ParentBB != null) return this.ParentBB.GetVar<T>(key);
 
         GD.PrintErr(
-            $"BB \"{Name}\" ERROR || Requested data with key \"{key}\" does not exist in this or any parent blackboard!");
+            $"BB \"{this.Name}\" ERROR || Requested data with key \"{key}\" does not exist in this or any parent blackboard!");
         return null;
     }
 
@@ -65,19 +61,19 @@ public partial class Blackboard : Node, IBlackboard
     /// <returns>Error.Ok on success, Error.InvalidData if a type mismatch occurs.</returns>
     public Error SetVar<T>(StringName key, T val) where T : class
     {
-        if (BBData.TryGetValue(key, out var oldVal))
+        if (this.BBData.TryGetValue(key, out var oldVal))
             // Enforce strict type safety. Do not allow changing the type of an existing variable.
             if (oldVal.Obj != null && val != null && oldVal.Obj.GetType() != val.GetType())
             {
                 var lastFrame = new StackFrame(1);
                 GD.PrintErr(
                     $"Var attempted set from {lastFrame.GetMethod().DeclaringType.Name}'s {lastFrame.GetMethod().Name}");
-                GD.PrintErr($"BB \"{Name}\" ERROR || Inconsistent data type for key \"{key}\"!"
+                GD.PrintErr($"BB \"{this.Name}\" ERROR || Inconsistent data type for key \"{key}\"!"
                             + $"\nOriginal data was of type \"{oldVal.Obj.GetType().Name}\", but attempted set data was of type \"{typeof(T).Name}\".");
                 return Error.InvalidData;
             }
 
-        BBData[key] = Variant.From(val);
+        this.BBData[key] = Variant.From(val);
 
         return Error.Ok;
     }
@@ -91,19 +87,19 @@ public partial class Blackboard : Node, IBlackboard
     /// <returns>A nullable struct. Returns the value if found, or null if it does not exist or has a mismatched type.</returns>
     public T? GetPrimVar<[MustBeVariant] T>(StringName key) where T : struct
     {
-        if (BBData.TryGetValue(key, out var val))
+        if (this.BBData.TryGetValue(key, out var val))
         {
             if (val.Obj is T tVal) return tVal;
 
             GD.PrintErr(
-                $"BB \"{Name}\" ERROR || Requested data for key \"{key}\" exists, but the requested type \"{typeof(T).Name}\" does not match the stored type \"{val.Obj?.GetType().Name}\"!");
+                $"BB \"{this.Name}\" ERROR || Requested data for key \"{key}\" exists, but the requested type \"{typeof(T).Name}\" does not match the stored type \"{val.Obj?.GetType().Name}\"!");
             return null;
         }
 
-        if (ParentBB != null) return ParentBB.GetPrimVar<T>(key);
+        if (this.ParentBB != null) return this.ParentBB.GetPrimVar<T>(key);
 
         GD.PrintErr(
-            $"BB \"{Name}\" ERROR || Requested primitive data with key \"{key}\" does not exist in this or any parent blackboard!");
+            $"BB \"{this.Name}\" ERROR || Requested primitive data with key \"{key}\" does not exist in this or any parent blackboard!");
         return null;
     }
 
@@ -117,19 +113,19 @@ public partial class Blackboard : Node, IBlackboard
     /// <returns>Error.Ok on success, Error.InvalidData if a type mismatch occurs.</returns>
     public Error SetPrimVar<[MustBeVariant] T>(StringName key, T val) where T : struct
     {
-        if (BBData.TryGetValue(key, out var oldVal))
+        if (this.BBData.TryGetValue(key, out var oldVal))
             // Enforce strict type safety. Do not allow changing the type of an existing variable.
             if (oldVal.Obj is not T)
             {
                 var lastFrame = new StackFrame(1);
                 GD.PrintErr(
                     $"Var attempted set from {lastFrame.GetMethod().DeclaringType.Name}'s {lastFrame.GetMethod().Name}");
-                GD.PrintErr($"BB \"{Name}\" ERROR || Inconsistent data type for key \"{key}\"!"
+                GD.PrintErr($"BB \"{this.Name}\" ERROR || Inconsistent data type for key \"{key}\"!"
                             + $"\nOriginal data was of type \"{oldVal.Obj?.GetType().Name}\", but attempted set data was of type \"{typeof(T).Name}\".");
                 return Error.InvalidData;
             }
 
-        BBData[key] = Variant.From(val);
+        this.BBData[key] = Variant.From(val);
 
         return Error.Ok;
     }

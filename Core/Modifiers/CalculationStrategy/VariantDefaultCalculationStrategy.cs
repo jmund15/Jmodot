@@ -1,10 +1,6 @@
-﻿#region
+﻿namespace Jmodot.Core.Modifiers.CalculationStrategy;
 
 using System.Collections.Generic;
-
-#endregion
-
-namespace Jmodot.Core.Modifiers.CalculationStrategy;
 
 /// <summary>
 ///     Base Godot Resource class for creating custom calculation strategies.
