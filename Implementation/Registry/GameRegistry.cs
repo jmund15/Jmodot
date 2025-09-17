@@ -1,0 +1,376 @@
+﻿#region
+
+using System.Collections.Generic;
+using Jmodot.Core.AI.Affinities;
+using Jmodot.Core.Identification;
+using Jmodot.Core.Input;
+using Jmodot.Core.Stats;
+using Jmodot.Implementation.Shared;
+using GCol = Godot.Collections;
+
+#endregion
+
+namespace Jmodot.Implementation.Registry;
+
+/// <summary>
+///     A central, project-wide Resource that acts as a manifest for all core game-defining
+///     semantic assets. It provides a "source of truth" for the framework, allowing programmers
+///     to get type-safe, non-brittle references to fundamental Categories and InputActions.
+/// </summary>
+[GlobalClass]
+public partial class GameRegistry : Resource
+{
+    /// <summary>
+    ///     All affinities in the game, indexed by their AffinityName for fast lookup.
+    ///     This is automatically populated from the Game GlobalRegistry.
+    /// </summary>
+    private Dictionary<StringName, Affinity> _affinityLookup = new();
+
+    /// <summary>
+    ///     All attributes in the game, indexed by their AttributeName for fast lookup.
+    ///     This is automatically populated from the Game GlobalRegistry.
+    /// </summary>
+    private Dictionary<StringName, Attribute> _attributeLookup = new();
+
+    /// <summary>
+    ///     All categories in the game, indexed by their CategoryName for fast lookup.
+    ///     This is automatically populated from the Game GlobalRegistry.
+    /// </summary>
+    private Dictionary<StringName, Category> _categoryLookup = new();
+
+    /// <summary>
+    ///     All identities in the game, indexed by their IdentityName for fast lookup.
+    ///     This is automatically populated from the Game GlobalRegistry.
+    /// </summary>
+    private Dictionary<StringName, Identity> _identityLookup = new();
+
+    /// <summary>
+    ///     All input actions in the game, indexed by their ActionName for fast lookup.
+    ///     This is automatically populated from the Game GlobalRegistry.
+    /// </summary>
+    private Dictionary<StringName, InputAction> _inputActionLookup = new();
+
+    [ExportGroup("Resource Collectors")]
+    [Export]
+    public GCol.Array<ResourceCollection> IdentityCollection { get; private set; } = new();
+
+    [Export] public GCol.Array<ResourceCollection> CategoryCollection { get; private set; } = new();
+    [Export] public GCol.Array<ResourceCollection> InputActionCollection { get; private set; } = new();
+    [Export] public GCol.Array<ResourceCollection> AttributeCollection { get; private set; } = new();
+    [Export] public GCol.Array<ResourceCollection> AffinityCollection { get; private set; } = new();
+
+    [ExportGroup("Loaded GlobalRegistry")]
+    [Export]
+    public GCol.Array<Identity> Identities { get; private set; } = new();
+
+    [Export] public GCol.Array<Category> Categories { get; private set; } = new();
+    [Export] public GCol.Array<InputAction> InputActions { get; private set; } = new();
+    [Export] public GCol.Array<Attribute> Attributes { get; private set; } = new();
+    [Export] public GCol.Array<Affinity> Affinities { get; private set; } = new();
+
+    [ExportGroup("Core Semantic Categories")]
+    [Export]
+    public Category EnemyCategory { get; private set; } = null!;
+
+    [Export] public Category FriendlyCategory { get; private set; } = null!;
+    [Export] public Category ItemCategory { get; private set; } = null!;
+    [Export] public Category ObjectiveCategory { get; private set; } = null!;
+    [Export] public Category PlayerFactionCategory { get; private set; } = null!;
+
+    [ExportGroup("Unique Core Identities")]
+    [Export]
+    public Identity PlayerIdentity { get; private set; } = null!;
+
+    [ExportGroup("Core Input Actions")]
+    [Export]
+    public InputAction MoveAction { get; private set; } = null!;
+
+    [Export] public InputAction JumpAction { get; private set; } = null!;
+
+    [ExportGroup("Core Attributes")]
+    [Export]
+    public Attribute HealthAttr { get; private set; } = null!;
+
+    [Export] public Attribute MaxSpeedAttr { get; private set; } = null!;
+    [Export] public Attribute AccelerationAttr { get; private set; } = null!;
+    [Export] public Attribute FrictionAttr { get; private set; } = null!;
+
+    [ExportGroup("Core Affinities")]
+    [Export]
+    public Affinity FearAffinity { get; private set; } = null!;
+
+    [Export] public Affinity AggressionAffinity { get; private set; } = null!;
+
+    public void RebuildRegistry()
+    {
+        // Clear existing data
+        Identities.Clear();
+        Categories.Clear();
+        InputActions.Clear();
+        Attributes.Clear();
+        Affinities.Clear();
+
+        // Load resources from collections
+        Identities = ProcessCollections<Identity>(IdentityCollection);
+        Categories = ProcessCollections<Category>(CategoryCollection);
+        InputActions = ProcessCollections<InputAction>(InputActionCollection);
+        Attributes = ProcessCollections<Attribute>(AttributeCollection);
+        Affinities = ProcessCollections<Affinity>(AffinityCollection);
+
+        // Clear lookup dictionaries to force rebuild on next access
+        _identityLookup = null;
+        _categoryLookup = null;
+        _inputActionLookup = null;
+        _attributeLookup = null;
+        _affinityLookup = null;
+    }
+
+    #region Public_API_Lookups
+
+    public bool TryGetIdentity(StringName identityKey, out Identity? identity)
+    {
+        // This is the lazy-loading pattern. The dictionary is only built once,
+        // the very first time an identity is requested.
+        if (_identityLookup == null) BuildIdentityLookup();
+        return _identityLookup!.TryGetValue(identityKey, out identity);
+    }
+
+    public Identity GetIdentity(StringName identityKey)
+    {
+        if (!TryGetIdentity(identityKey, out var identity))
+            JmoLogger.Exception(
+                new KeyNotFoundException($"Identity with key '{identityKey}' not found in GameRegistry."),
+                this
+            );
+        return identity!;
+    }
+
+    /// <summary>
+    ///     Attempts to get a category by its key. The lookup dictionary is built on first access.
+    /// </summary>
+    public bool TryGetCategory(StringName categoryKey, out Category? category)
+    {
+        // This is the lazy-loading pattern. The dictionary is only built once,
+        // the very first time a category is requested.
+        if (_categoryLookup == null) BuildCategoryLookup();
+        return _categoryLookup!.TryGetValue(categoryKey, out category);
+    }
+
+    /// <summary>
+    ///     Asserts a category exists and gets by its key. The lookup dictionary is built on first access.
+    /// </summary>
+    public Category GetCategory(StringName categoryKey)
+    {
+        if (!TryGetCategory(categoryKey, out var category))
+            JmoLogger.Exception(
+                new KeyNotFoundException($"Category with key '{categoryKey}' not found in GameRegistry."),
+                this
+            );
+        return category!;
+    }
+
+    public bool TryGetInputAction(StringName actionKey, out InputAction? action)
+    {
+        // This is the lazy-loading pattern. The dictionary is only built once,
+        // the very first time an input action is requested.
+        if (_inputActionLookup == null) BuildInputActionLookup();
+        return _inputActionLookup!.TryGetValue(actionKey, out action);
+    }
+
+    public InputAction GetInputAction(StringName actionKey)
+    {
+        if (!TryGetInputAction(actionKey, out var action))
+            JmoLogger.Exception(
+                new KeyNotFoundException($"InputAction with key '{actionKey}' not found in GameRegistry."),
+                this
+            );
+        return action!;
+    }
+
+    public bool TryGetAttribute(StringName attributeKey, out Attribute? attribute)
+    {
+        // This is the lazy-loading pattern. The dictionary is only built once,
+        // the very first time an attribute is requested.
+        if (_attributeLookup == null) BuildAttributeLookup();
+        return _attributeLookup!.TryGetValue(attributeKey, out attribute);
+    }
+
+    public Attribute GetAttribute(StringName attributeKey)
+    {
+        if (!TryGetAttribute(attributeKey, out var attribute))
+            JmoLogger.Exception(
+                new KeyNotFoundException($"Attribute with key '{attributeKey}' not found in GameRegistry."),
+                this
+            );
+        return attribute!;
+    }
+
+    public bool TryGetAffinity(StringName affinityKey, out Affinity? affinity)
+    {
+        // This is the lazy-loading pattern. The dictionary is only built once,
+        // the very first time an affinity is requested.
+        if (_affinityLookup == null) BuildAffinityLookup();
+        return _affinityLookup!.TryGetValue(affinityKey, out affinity);
+    }
+
+    public Affinity GetAffinity(StringName affinityKey)
+    {
+        if (!TryGetAffinity(affinityKey, out var affinity))
+            JmoLogger.Exception(
+                new KeyNotFoundException($"Affinity with key '{affinityKey}' not found in GameRegistry."),
+                this
+            );
+        return affinity!;
+    }
+
+    #endregion
+
+    #region Lookup_Builders
+
+    public void BuildIdentityLookup()
+    {
+        _identityLookup = new Dictionary<StringName, Identity>();
+        if (Identities == null) return;
+        foreach (var identity in Identities)
+            if (identity != null && !string.IsNullOrEmpty(identity.IdentityName))
+            {
+                // This prevents crashes if a designer makes a duplicate.
+                if (_identityLookup.ContainsKey(identity.IdentityName))
+                {
+                    JmoLogger.Warning(this,
+                        $"GameRegistry Error: Duplicate identity name '{identity.IdentityName}'. The first one found was kept.");
+                    continue;
+                }
+
+                _identityLookup[new StringName(identity.IdentityName)] = identity;
+            }
+    }
+
+    private void BuildCategoryLookup()
+    {
+        _categoryLookup = new Dictionary<StringName, Category>();
+        if (Categories == null) return;
+        foreach (var category in Categories)
+            if (category != null && !string.IsNullOrEmpty(category.CategoryName))
+            {
+                // This prevents crashes if a designer makes a duplicate.
+                if (_categoryLookup.ContainsKey(category.CategoryName))
+                {
+                    JmoLogger.Warning(this,
+                        $"GameRegistry Error: Duplicate category name '{category.CategoryName}'. The first one found was kept.");
+                    continue;
+                }
+
+                _categoryLookup[new StringName(category.CategoryName)] = category;
+            }
+    }
+
+    private void BuildInputActionLookup()
+    {
+        _inputActionLookup = new Dictionary<StringName, InputAction>();
+        if (InputActions == null) return;
+        foreach (var action in InputActions)
+            if (action != null && !string.IsNullOrEmpty(action.ActionName))
+            {
+                // This prevents crashes if a designer makes a duplicate.
+                if (_inputActionLookup.ContainsKey(action.ActionName))
+                {
+                    JmoLogger.Warning(this,
+                        $"GameRegistry Error: Duplicate input action name '{action.ActionName}'. The first one found was kept.");
+                    continue;
+                }
+
+                _inputActionLookup[new StringName(action.ActionName)] = action;
+            }
+    }
+
+    private void BuildAttributeLookup()
+    {
+        _attributeLookup = new Dictionary<StringName, Attribute>();
+        if (Attributes == null) return;
+        foreach (var attr in Attributes)
+            if (attr != null && !string.IsNullOrEmpty(attr.AttributeName))
+            {
+                // This prevents crashes if a designer makes a duplicate.
+                if (_attributeLookup.ContainsKey(attr.AttributeName))
+                {
+                    JmoLogger.Warning(this,
+                        $"GameRegistry Error: Duplicate attribute name '{attr.AttributeName}'. The first one found was kept.");
+                    continue;
+                }
+
+                _attributeLookup[new StringName(attr.AttributeName)] = attr;
+            }
+    }
+
+    private void BuildAffinityLookup()
+    {
+        _affinityLookup = new Dictionary<StringName, Affinity>();
+        if (Affinities == null) return;
+        foreach (var affinity in Affinities)
+            if (affinity != null && !string.IsNullOrEmpty(affinity.AffinityName))
+            {
+                // This prevents crashes if a designer makes a duplicate.
+                if (_affinityLookup.ContainsKey(affinity.AffinityName))
+                {
+                    JmoLogger.Warning(this,
+                        $"GameRegistry Error: Duplicate affinity name '{affinity.AffinityName}'. The first one found was kept.");
+                    continue;
+                }
+
+                _affinityLookup[new StringName(affinity.AffinityName)] = affinity;
+            }
+    }
+
+    #endregion
+
+    #region Resource_Loading
+
+    private GCol.Array<T> ProcessCollections<[MustBeVariant] T>(GCol.Array<ResourceCollection> collections)
+        where T : Resource
+    {
+        // set for no duplicates
+        HashSet<T> resultSet = new();
+
+
+        foreach (var collection in collections)
+        {
+            foreach (var include in collection.Include)
+                if (include is T tRes)
+                    resultSet.Add(tRes);
+
+            foreach (var dir in collection.ScanDirectories)
+            {
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+                LoadFromDirectory(dir, ref resultSet);
+            }
+
+            // optimize?
+            foreach (var exclude in collection.Exclude)
+                if (exclude is T tRes)
+                    resultSet.Remove(tRes);
+        }
+
+        return new GCol.Array<T>(resultSet);
+    }
+
+    private void LoadFromDirectory<[MustBeVariant] T>(string directory, ref HashSet<T> resultSet) where T : Resource
+    {
+        using var dir = DirAccess.Open(directory);
+        if (dir == null)
+        {
+            JmoLogger.Error(this, $"Failed to open directory: {directory}");
+            return;
+        }
+
+        foreach (var subDir in dir.GetDirectories()) LoadFromDirectory(subDir, ref resultSet);
+
+        foreach (var resPath in ResourceLoader.ListDirectory(directory))
+        {
+            var res = ResourceLoader.Load(resPath);
+            if (res is T tRes) resultSet.Add(tRes);
+        }
+    }
+
+    #endregion
+}

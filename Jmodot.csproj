@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+		<CompilerVisibleProperty Include="RootNamespace" />
+		<CompilerVisibleProperty Include="ProjectDir" />
+
+		<PackageReference Include="Godot.SourceGenerators" Version="4.5.0" />
+        <PackageReference Include="GodotSharp" Version="4.5.0" />
+        <PackageReference Include="GodotSharpEditor" Version="4.5.0" />
+    </ItemGroup>
+
+</Project>
