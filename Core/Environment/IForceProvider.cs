@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Environment;
+namespace Jmodot.Core.Environment;
 
 /// <summary>
 ///     A universal interface for any environmental object or area that can exert a

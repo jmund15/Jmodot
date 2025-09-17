@@ -1,9 +1,3 @@
-﻿#region
-
-using GCol = Godot.Collections;
-
-#endregion
-
 namespace Jmodot.Implementation.Registry;
 
 using System.Collections.Generic;
@@ -12,6 +6,7 @@ using Core.Identification;
 using Core.Input;
 using Core.Stats;
 using Shared;
+using GCol = Godot.Collections;
 
 /// <summary>
 ///     A central, project-wide Resource that acts as a manifest for all core game-defining
@@ -132,17 +127,24 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an identity is requested.
-        if (this._identityLookup == null) this.BuildIdentityLookup();
+        if (this._identityLookup == null)
+        {
+            this.BuildIdentityLookup();
+        }
+
         return this._identityLookup!.TryGetValue(identityKey, out identity);
     }
 
     public Identity GetIdentity(StringName identityKey)
     {
         if (!this.TryGetIdentity(identityKey, out var identity))
+        {
             JmoLogger.Exception(
                 new KeyNotFoundException($"Identity with key '{identityKey}' not found in GameRegistry."),
                 this
             );
+        }
+
         return identity!;
     }
 
@@ -153,7 +155,11 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time a category is requested.
-        if (this._categoryLookup == null) this.BuildCategoryLookup();
+        if (this._categoryLookup == null)
+        {
+            this.BuildCategoryLookup();
+        }
+
         return this._categoryLookup!.TryGetValue(categoryKey, out category);
     }
 
@@ -163,10 +169,13 @@ public partial class GameRegistry : Resource
     public Category GetCategory(StringName categoryKey)
     {
         if (!this.TryGetCategory(categoryKey, out var category))
+        {
             JmoLogger.Exception(
                 new KeyNotFoundException($"Category with key '{categoryKey}' not found in GameRegistry."),
                 this
             );
+        }
+
         return category!;
     }
 
@@ -174,17 +183,24 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an input action is requested.
-        if (this._inputActionLookup == null) this.BuildInputActionLookup();
+        if (this._inputActionLookup == null)
+        {
+            this.BuildInputActionLookup();
+        }
+
         return this._inputActionLookup!.TryGetValue(actionKey, out action);
     }
 
     public InputAction GetInputAction(StringName actionKey)
     {
         if (!this.TryGetInputAction(actionKey, out var action))
+        {
             JmoLogger.Exception(
                 new KeyNotFoundException($"InputAction with key '{actionKey}' not found in GameRegistry."),
                 this
             );
+        }
+
         return action!;
     }
 
@@ -192,17 +208,24 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an attribute is requested.
-        if (this._attributeLookup == null) this.BuildAttributeLookup();
+        if (this._attributeLookup == null)
+        {
+            this.BuildAttributeLookup();
+        }
+
         return this._attributeLookup!.TryGetValue(attributeKey, out attribute);
     }
 
     public Attribute GetAttribute(StringName attributeKey)
     {
         if (!this.TryGetAttribute(attributeKey, out var attribute))
+        {
             JmoLogger.Exception(
                 new KeyNotFoundException($"Attribute with key '{attributeKey}' not found in GameRegistry."),
                 this
             );
+        }
+
         return attribute!;
     }
 
@@ -210,17 +233,24 @@ public partial class GameRegistry : Resource
     {
         // This is the lazy-loading pattern. The dictionary is only built once,
         // the very first time an affinity is requested.
-        if (this._affinityLookup == null) this.BuildAffinityLookup();
+        if (this._affinityLookup == null)
+        {
+            this.BuildAffinityLookup();
+        }
+
         return this._affinityLookup!.TryGetValue(affinityKey, out affinity);
     }
 
     public Affinity GetAffinity(StringName affinityKey)
     {
         if (!this.TryGetAffinity(affinityKey, out var affinity))
+        {
             JmoLogger.Exception(
                 new KeyNotFoundException($"Affinity with key '{affinityKey}' not found in GameRegistry."),
                 this
             );
+        }
+
         return affinity!;
     }
 
@@ -231,8 +261,13 @@ public partial class GameRegistry : Resource
     public void BuildIdentityLookup()
     {
         this._identityLookup = new Dictionary<StringName, Identity>();
-        if (this.Identities == null) return;
+        if (this.Identities == null)
+        {
+            return;
+        }
+
         foreach (var identity in this.Identities)
+        {
             if (identity != null && !string.IsNullOrEmpty(identity.IdentityName))
             {
                 // This prevents crashes if a designer makes a duplicate.
@@ -245,13 +280,19 @@ public partial class GameRegistry : Resource
 
                 this._identityLookup[new StringName(identity.IdentityName)] = identity;
             }
+        }
     }
 
     private void BuildCategoryLookup()
     {
         this._categoryLookup = new Dictionary<StringName, Category>();
-        if (this.Categories == null) return;
+        if (this.Categories == null)
+        {
+            return;
+        }
+
         foreach (var category in this.Categories)
+        {
             if (category != null && !string.IsNullOrEmpty(category.CategoryName))
             {
                 // This prevents crashes if a designer makes a duplicate.
@@ -264,13 +305,19 @@ public partial class GameRegistry : Resource
 
                 this._categoryLookup[new StringName(category.CategoryName)] = category;
             }
+        }
     }
 
     private void BuildInputActionLookup()
     {
         this._inputActionLookup = new Dictionary<StringName, InputAction>();
-        if (this.InputActions == null) return;
+        if (this.InputActions == null)
+        {
+            return;
+        }
+
         foreach (var action in this.InputActions)
+        {
             if (action != null && !string.IsNullOrEmpty(action.ActionName))
             {
                 // This prevents crashes if a designer makes a duplicate.
@@ -283,13 +330,19 @@ public partial class GameRegistry : Resource
 
                 this._inputActionLookup[new StringName(action.ActionName)] = action;
             }
+        }
     }
 
     private void BuildAttributeLookup()
     {
         this._attributeLookup = new Dictionary<StringName, Attribute>();
-        if (this.Attributes == null) return;
+        if (this.Attributes == null)
+        {
+            return;
+        }
+
         foreach (var attr in this.Attributes)
+        {
             if (attr != null && !string.IsNullOrEmpty(attr.AttributeName))
             {
                 // This prevents crashes if a designer makes a duplicate.
@@ -302,13 +355,19 @@ public partial class GameRegistry : Resource
 
                 this._attributeLookup[new StringName(attr.AttributeName)] = attr;
             }
+        }
     }
 
     private void BuildAffinityLookup()
     {
         this._affinityLookup = new Dictionary<StringName, Affinity>();
-        if (this.Affinities == null) return;
+        if (this.Affinities == null)
+        {
+            return;
+        }
+
         foreach (var affinity in this.Affinities)
+        {
             if (affinity != null && !string.IsNullOrEmpty(affinity.AffinityName))
             {
                 // This prevents crashes if a designer makes a duplicate.
@@ -321,6 +380,7 @@ public partial class GameRegistry : Resource
 
                 this._affinityLookup[new StringName(affinity.AffinityName)] = affinity;
             }
+        }
     }
 
     #endregion
@@ -337,19 +397,31 @@ public partial class GameRegistry : Resource
         foreach (var collection in collections)
         {
             foreach (var include in collection.Include)
+            {
                 if (include is T tRes)
+                {
                     resultSet.Add(tRes);
+                }
+            }
 
             foreach (var dir in collection.ScanDirectories)
             {
-                if (string.IsNullOrWhiteSpace(dir)) continue;
+                if (string.IsNullOrWhiteSpace(dir))
+                {
+                    continue;
+                }
+
                 this.LoadFromDirectory(dir, ref resultSet);
             }
 
             // optimize?
             foreach (var exclude in collection.Exclude)
+            {
                 if (exclude is T tRes)
+                {
                     resultSet.Remove(tRes);
+                }
+            }
         }
 
         return new GCol.Array<T>(resultSet);
@@ -364,12 +436,18 @@ public partial class GameRegistry : Resource
             return;
         }
 
-        foreach (var subDir in dir.GetDirectories()) this.LoadFromDirectory(subDir, ref resultSet);
+        foreach (var subDir in dir.GetDirectories())
+        {
+            this.LoadFromDirectory(subDir, ref resultSet);
+        }
 
         foreach (var resPath in ResourceLoader.ListDirectory(directory))
         {
             var res = ResourceLoader.Load(resPath);
-            if (res is T tRes) resultSet.Add(tRes);
+            if (res is T tRes)
+            {
+                resultSet.Add(tRes);
+            }
         }
     }
 

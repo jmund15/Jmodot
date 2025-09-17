@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Affinities;
+namespace Jmodot.Implementation.AI.Affinities;
 
 using Core.AI.Affinities;
 using Godot.Collections;
@@ -19,7 +19,11 @@ public partial class AIAffinitiesComponent : Node
     /// </summary>
     public float? GetAffinity(Affinity affinity)
     {
-        if (this._affinities.TryGetValue(affinity, out float value)) return value;
+        if (this._affinities.TryGetValue(affinity, out float value))
+        {
+            return value;
+        }
+
         return null;
         //return _affinities.GetValueOrDefault(affinity, 0.0f);
     }

@@ -24,7 +24,10 @@ public partial class ProbabilityToRun : BTCondition
     public override void Enter()
     {
         base.Enter();
-        if (MiscUtils.Rnd.NextSingle() > this.RunProbability) this.OnExitTask();
+        if (MiscUtils.Rnd.NextSingle() > this.RunProbability)
+        {
+            this.OnExitTask();
+        }
     }
 
     public override void Exit()

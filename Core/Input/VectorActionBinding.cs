@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Input;
+namespace Jmodot.Core.Input;
 
 [GlobalClass]
 public partial class VectorActionBinding : Resource

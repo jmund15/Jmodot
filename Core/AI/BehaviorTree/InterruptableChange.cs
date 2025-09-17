@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.AI.BehaviorTree;
+namespace Jmodot.Core.AI.BehaviorTree;
 
 public enum InterruptibleChange
 {

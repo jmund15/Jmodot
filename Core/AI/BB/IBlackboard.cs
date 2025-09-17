@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.AI.BB;
+namespace Jmodot.Core.AI.BB;
 
 /// <summary>
 ///     Defines the contract for a Blackboard, a centralized data store for AI and game systems.

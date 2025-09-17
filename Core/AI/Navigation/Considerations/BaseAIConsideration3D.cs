@@ -1,9 +1,3 @@
-﻿#region
-
-using GColl = Godot.Collections;
-
-#endregion
-
 namespace Jmodot.Core.AI.Navigation.Considerations;
 
 using System.Collections.Generic;
@@ -11,6 +5,7 @@ using BB;
 using Implementation.AI.Navigation;
 using Movement;
 using SteeringModifiers;
+using GColl = Godot.Collections;
 
 /// <summary>
 ///     The abstract base class for any environmental consideration. Its purpose is to
@@ -40,21 +35,34 @@ public abstract partial class BaseAIConsideration3D : Resource
     {
         // 1. Calculate the raw, objective scores for this consideration.
         var baseScores = this.CalculateBaseScores(directions, context, blackboard);
-        if (baseScores == null) return;
+        if (baseScores == null)
+        {
+            return;
+        }
 
         // 2. Apply all subjective modifiers to the base scores.
         if (this._modifiers != null)
+        {
             foreach (var modifier in this._modifiers)
             {
-                if (modifier == null) continue;
+                if (modifier == null)
+                {
+                    continue;
+                }
+
                 // Pass the agent node as the owner for better logging context.
                 modifier.Modify(ref baseScores, context, blackboard);
             }
+        }
 
         // 3. Add the final, modified scores to the processor's master score dictionary.
         foreach (var score in baseScores)
+        {
             if (finalScores.ContainsKey(score.Key))
+            {
                 finalScores[score.Key] += score.Value;
+            }
+        }
     }
 
     /// <summary>

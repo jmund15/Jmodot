@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Input;
+namespace Jmodot.Core.Input;
 
 /// <summary>
 ///     A data-driven Resource that represents a unique, abstract input action.

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers.CalculationStrategy;
+namespace Jmodot.Core.Modifiers.CalculationStrategy;
 
 using System.Collections.Generic;
 
@@ -16,8 +16,11 @@ public partial class VariantDefaultCalculationStrategy : Resource, ICalculationS
         // For non-numeric types, we assume the highest priority modifier simply overrides the value.
         // The list is already sorted by priority.
         if (modifiers.Count > 0)
+        {
             // The 'Modify' method for an override modifier should just return its own value, ignoring input.
             return modifiers[0].Modify(baseValue);
+        }
+
         return baseValue;
     }
 }

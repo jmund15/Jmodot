@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Identification;
+namespace Jmodot.Implementation.Identification;
 
 using Core.Identification;
 

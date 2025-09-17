@@ -19,7 +19,11 @@ public abstract partial class CompositeTask : BehaviorTask
         get => this._runningChild;
         set
         {
-            if (this._runningChild == value) return;
+            if (this._runningChild == value)
+            {
+                return;
+            }
+
             this._runningChild = value;
             this.RunningChildChanged?.Invoke(this, this._runningChild);
         }
@@ -60,13 +64,19 @@ public abstract partial class CompositeTask : BehaviorTask
     public override void ProcessFrame(float delta)
     {
         base.ProcessFrame(delta);
-        if (this.Status == BTaskStatus.RUNNING) this.RunningChild.ProcessFrame(delta);
+        if (this.Status == BTaskStatus.RUNNING)
+        {
+            this.RunningChild.ProcessFrame(delta);
+        }
     }
 
     public override void ProcessPhysics(float delta)
     {
         base.ProcessPhysics(delta);
-        if (this.Status == BTaskStatus.RUNNING) this.RunningChild.ProcessPhysics(delta);
+        if (this.Status == BTaskStatus.RUNNING)
+        {
+            this.RunningChild.ProcessPhysics(delta);
+        }
     }
 
     #endregion
@@ -82,7 +92,10 @@ public abstract partial class CompositeTask : BehaviorTask
     {
         var warnings = new List<string>();
 
-        if (this.GetChildren().Count == 0) warnings.Add("Composite Task must have a child!");
+        if (this.GetChildren().Count == 0)
+        {
+            warnings.Add("Composite Task must have a child!");
+        }
 
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }

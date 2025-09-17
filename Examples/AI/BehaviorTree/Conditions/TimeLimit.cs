@@ -38,7 +38,10 @@ public partial class TimeLimit : BTCondition
     {
         base.ProcessFrame(delta);
         this._elasped += delta;
-        if (this._elasped >= this.Limit) this.OnExitTask();
+        if (this._elasped >= this.Limit)
+        {
+            this.OnExitTask();
+        }
     }
 
     public override void ProcessPhysics(float delta)

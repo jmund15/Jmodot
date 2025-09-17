@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
+namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
 
 using System.Collections.Generic;
 using Core.AI.BB;
@@ -13,7 +13,8 @@ using Core.AI.Navigation.SteeringModifiers;
 [GlobalClass]
 public partial class NoiseSteeringModifier : SteeringConsiderationModifier
 {
-    [ExportGroup("Influence Clamping")] [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
+    [ExportGroup("Influence Clamping")]
+    [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
     private float _baseInfluence = 1.0f;
 
     [Export(PropertyHint.Range, "1.0, 3.0, 0.05")]
@@ -22,7 +23,8 @@ public partial class NoiseSteeringModifier : SteeringConsiderationModifier
     [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
     private float _minInfluence = 0.5f;
 
-    [ExportGroup("Noise Configuration")] [Export]
+    [ExportGroup("Noise Configuration")]
+    [Export]
     private FastNoiseLite _noise = null!;
 
     [Export(PropertyHint.Range, "0.0, 1.0, 0.01")]
@@ -32,7 +34,10 @@ public partial class NoiseSteeringModifier : SteeringConsiderationModifier
 
     public override void Modify(ref Dictionary<Vector3, float> scores, DecisionContext context, IBlackboard blackboard)
     {
-        if (this._noise == null) return;
+        if (this._noise == null)
+        {
+            return;
+        }
 
         // Get a noise value between -1 and 1
         var time = (float)Time.GetUnixTimeFromSystem() * this._noiseTimeScale;
@@ -44,6 +49,9 @@ public partial class NoiseSteeringModifier : SteeringConsiderationModifier
 
         // Apply the multiplier to all scores produced by the consideration
         var keys = new List<Vector3>(scores.Keys);
-        foreach (var key in keys) scores[key] *= clampedInfluence;
+        foreach (var key in keys)
+        {
+            scores[key] *= clampedInfluence;
+        }
     }
 }

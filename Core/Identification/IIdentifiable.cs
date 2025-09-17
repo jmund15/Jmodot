@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Identification;
+namespace Jmodot.Core.Identification;
 
 /// <summary>
 ///     A universal interface for any object that has a semantic identity. It provides

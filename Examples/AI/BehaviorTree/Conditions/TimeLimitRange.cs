@@ -18,7 +18,11 @@ public partial class TimeLimitRange : BTCondition
         get => this._min;
         set
         {
-            if (value == this._min) return;
+            if (value == this._min)
+            {
+                return;
+            }
+
             this._min = value;
             this.LimitMax = Mathf.Max(this._max, this._min);
         }
@@ -30,7 +34,11 @@ public partial class TimeLimitRange : BTCondition
         get => this._max;
         set
         {
-            if (value == this._max) return;
+            if (value == this._max)
+            {
+                return;
+            }
+
             this._max = value;
             this.LimitMin = Mathf.Clamp(this._min, 0.0f, this._max);
         }
@@ -67,8 +75,10 @@ public partial class TimeLimitRange : BTCondition
         this._elasped += delta;
         //GD.Print("TIMELIMITRANGE CURRENT ELAPSED = ", _elasped);
         if (this._elasped >= this._limit)
+        {
             //GD.Print("TIME LIMIT RANGE CONDITION FULL ELASPED");
             this.OnExitTask();
+        }
     }
 
     public override void ProcessPhysics(float delta)

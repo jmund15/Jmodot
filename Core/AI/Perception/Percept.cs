@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.AI.Perception;
+namespace Jmodot.Core.AI.Perception;
 
 using Identification;
 using Implementation.AI.Perception.Strategies;

@@ -23,7 +23,11 @@ public partial class BehaviorTask : Node
         get => this._status;
         set
         {
-            if (this._status == value) return;
+            if (this._status == value)
+            {
+                return;
+            }
+
             //Global.LogError($"STATUS CHANGED ON: {Name}");
             this._status = value;
             this.EmitSignal(SignalName.TaskStatusChanged, Variant.From(this._status));
@@ -75,14 +79,19 @@ public partial class BehaviorTask : Node
         // Status = BTaskStatus.RUNNING;
         //GD.Print("Processing frame for task: ", TaskName);
         foreach (var condition in this.Conditions)
+        {
             //GD.Print("RUNNING CONDITION FOR: ", condition.ConditionName);
             condition.ProcessFrame(delta);
+        }
     }
 
     public virtual void ProcessPhysics(float delta)
     {
         // Status = BTaskStatus.RUNNING;
-        foreach (var condition in this.Conditions) condition.ProcessPhysics(delta);
+        foreach (var condition in this.Conditions)
+        {
+            condition.ProcessPhysics(delta);
+        }
     }
 
     #endregion
@@ -94,7 +103,11 @@ public partial class BehaviorTask : Node
         foreach (var condition in this.Conditions)
         {
             condition.ExitTaskEvent += this.OnConditionExit;
-            if (this.Status != BTaskStatus.FRESH) continue;
+            if (this.Status != BTaskStatus.FRESH)
+            {
+                continue;
+            }
+
             condition.Enter();
             GD.Print("entered condition: ", condition.ConditionName);
         }
@@ -120,9 +133,14 @@ public partial class BehaviorTask : Node
         //if (!Conditions.Contains(sender)) { return; } //safeguard, may be slow and unecessary tho
 
         if (succeedTask)
+        {
             this.Status = BTaskStatus.SUCCESS;
+        }
         else
+        {
             this.Status = BTaskStatus.FAILURE;
+        }
+
         GD.Print($"EXITED TASK ON {this.Status} DUE TO CONDITION: {((BTCondition)sender).ConditionName}");
     }
 

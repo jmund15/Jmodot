@@ -14,4 +14,8 @@
         <PackageReference Include="GodotSharpEditor" Version="4.5.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Implementation\Visual\Model\" />
+    </ItemGroup>
+
 </Project>

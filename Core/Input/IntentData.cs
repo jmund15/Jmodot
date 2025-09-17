@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Input;
+namespace Jmodot.Core.Input;
 
 /// <summary>
 ///     A lightweight, type-safe container for a single piece of input intent data.

@@ -1,15 +1,10 @@
-#region
-
-using BTaskStatus = Jmodot.Implementation.AI.BehaviorTree.Tasks.BTaskStatus;
-
-#endregion
-
 namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
 
 using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
 using Implementation.AI.BB;
+using BTaskStatus = Implementation.AI.BehaviorTree.Tasks.BTaskStatus;
 
 [GlobalClass]
 [Tool]
@@ -65,9 +60,13 @@ public partial class LagQueue : BehaviorAction
     protected virtual void OnLagTimeout()
     {
         if (this.BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value)
+        {
             this.Status = BTaskStatus.SUCCESS;
+        }
         else
+        {
             this.Status = BTaskStatus.FAILURE;
+        }
     }
 
     public override string[] _GetConfigurationWarnings()

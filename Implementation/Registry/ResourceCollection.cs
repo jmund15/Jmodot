@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Registry;
+namespace Jmodot.Implementation.Registry;
 
 using Godot.Collections;
 

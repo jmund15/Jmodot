@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.AI.Affinities;
+namespace Jmodot.Core.AI.Affinities;
 
 /// <summary>
 ///     A data-driven "tag" Resource that represents a core personality trait or emotional

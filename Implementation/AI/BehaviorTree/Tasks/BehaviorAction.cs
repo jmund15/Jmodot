@@ -25,7 +25,9 @@ public partial class BehaviorAction : BehaviorTask
         var warnings = new List<string>();
 
         if (this.GetChildrenOfType<BehaviorTask>().Count > 0)
+        {
             warnings.Add("BehaviorAction must be a leaf node (NO BehaviorTask children)");
+        }
 
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }

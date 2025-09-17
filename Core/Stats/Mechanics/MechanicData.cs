@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Stats.Mechanics;
+namespace Jmodot.Core.Stats.Mechanics;
 
 /// <summary>
 ///     The abstract base class for all mechanic data resources. Its sole purpose is to

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers.Effects;
+namespace Jmodot.Core.Modifiers.Effects;
 
 using Godot.Collections;
 

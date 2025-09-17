@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Stats;
+namespace Jmodot.Core.Stats;
 
 /// <summary>
 ///     A data-driven "tag" Resource that represents a specific character statistic

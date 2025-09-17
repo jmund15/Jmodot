@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Stats;
+namespace Jmodot.Core.Stats;
 
 using System;
 using Mechanics;

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.BehaviorTree.Utility;
+namespace Jmodot.Implementation.AI.BehaviorTree.Utility;
 
 using Core.AI.BB;
 

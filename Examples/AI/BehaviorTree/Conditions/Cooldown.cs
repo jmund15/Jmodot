@@ -44,7 +44,10 @@ public partial class Cooldown : BTCondition
     public override void Enter()
     {
         base.Enter();
-        if (!this._cooled) this.OnExitTask();
+        if (!this._cooled)
+        {
+            this.OnExitTask();
+        }
         //if (_cooldownTimer.TimeLeft > 0 && Status == ConditionStatus.SUCCESS)
         //{
         //	Status = ConditionStatus.FAILURE; // failsafe
@@ -54,7 +57,10 @@ public partial class Cooldown : BTCondition
     public override void Exit()
     {
         base.Exit();
-        if (!this._cooled) return; // already cooling, don't restart cooldown
+        if (!this._cooled)
+        {
+            return; // already cooling, don't restart cooldown
+        }
 
         this._cooldownTimer = (Engine.GetMainLoop() as SceneTree).CreateTimer(this._cooldownTime);
         this._cooldownTimer.Timeout += this.OnCooldownTimeout;

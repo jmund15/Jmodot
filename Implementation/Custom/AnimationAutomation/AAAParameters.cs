@@ -57,7 +57,8 @@ public partial class AAAParameters : Resource
 
     [Export]
     public Dictionary<string, Array<string>>
-        PartConfigLabels { get; private set; } =
+        PartConfigLabels
+    { get; private set; } =
         new();
 
     //[Export]

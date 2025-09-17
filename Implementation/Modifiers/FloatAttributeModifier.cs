@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers;
+namespace Jmodot.Core.Modifiers;
 
 using Godot.Collections;
 
@@ -19,7 +19,8 @@ public partial class FloatAttributeModifier : Resource, IModifier<Variant>
     /// For PercentAdd: A percentage (e.g., 0.1 for +10%).
     /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
     /// </summary>
-    [Export] public float Value { get; private set; }
+    [Export]
+    public float Value { get; private set; }
 
     [Export] public int Priority { get; private set; }
 

@@ -44,7 +44,10 @@ public partial class QueueableAttack : BTCondition
         //          BB.SetPrimVar(BBDataSig.QueuedNextAttack, false);
         //      }
         this._timeElapsed = 0f;
-        if (this._queueBuffer <= 0f) this._canQueue = true;
+        if (this._queueBuffer <= 0f)
+        {
+            this._canQueue = true;
+        }
     }
 
     public override void Exit()
@@ -58,7 +61,10 @@ public partial class QueueableAttack : BTCondition
         if (!this._canQueue)
         {
             this._timeElapsed += delta;
-            if (this._timeElapsed >= this._queueBuffer) this._canQueue = true;
+            if (this._timeElapsed >= this._queueBuffer)
+            {
+                this._canQueue = true;
+            }
         }
 
         /*if (_canQueue && _moveComp.WantsAttack())

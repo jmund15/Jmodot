@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.AI.Navigation.SteeringModifiers;
+namespace Jmodot.Core.AI.Navigation.SteeringModifiers;
 
 using System.Collections.Generic;
 using BB;

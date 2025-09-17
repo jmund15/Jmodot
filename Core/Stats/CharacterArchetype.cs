@@ -1,13 +1,8 @@
-﻿#region
-
-using GColl = Godot.Collections;
-
-#endregion
-
 namespace Jmodot.Core.Stats;
 
 using Mechanics;
 using Modifiers.CalculationStrategy;
+using GColl = Godot.Collections;
 
 /// <summary>
 ///     A comprehensive, data-driven "character sheet" that acts as a library of all available

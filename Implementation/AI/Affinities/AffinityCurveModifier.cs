@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Affinities;
+namespace Jmodot.Implementation.AI.Affinities;
 
 using BB;
 using BehaviorTree.Utility;

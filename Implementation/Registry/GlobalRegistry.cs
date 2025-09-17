@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Registry;
+namespace Jmodot.Implementation.Registry;
 
 /// <summary>
 ///     A global singleton (Autoload) that provides convenient, static access to the
@@ -31,6 +31,9 @@ public partial class GlobalRegistry : Node
         }
 
         DB = GD.Load<GameRegistry>(this._registryResourcePath);
-        if (DB == null) GD.PrintErr($"Failed to load GameRegistry from path: {this._registryResourcePath}");
+        if (DB == null)
+        {
+            GD.PrintErr($"Failed to load GameRegistry from path: {this._registryResourcePath}");
+        }
     }
 }

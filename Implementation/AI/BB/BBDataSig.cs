@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.BB;
+namespace Jmodot.Implementation.AI.BB;
 
 /// <summary>
 ///     Provides a centralized and performant registry of StringName keys for use with the Blackboard system.

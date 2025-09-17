@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Movement.Strategies;
+namespace Jmodot.Core.Movement.Strategies;
 
 using Stats;
 

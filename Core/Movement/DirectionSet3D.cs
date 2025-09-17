@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Movement;
+namespace Jmodot.Core.Movement;
 
 using System.Collections.Generic;
 using Implementation.Shared;
@@ -12,7 +12,8 @@ using Implementation.Shared;
 public abstract partial class DirectionSet3D : Resource
 {
     /// <summary>
-    ///     Directions should always be normalized vectors.
+    /// The collection of normalized direction vectors that make up this set.
+    /// This property is populated by the concrete implementations.
     /// </summary>
     public IEnumerable<Vector3> Directions { get; protected set; } = null!;
 
@@ -54,6 +55,13 @@ public abstract partial class DirectionSet3D : Resource
     //    }
     //    return bestIdx;
     //}
+    /// <summary>
+    /// Finds the closest direction vector in this set to a given target direction.
+    /// This is the core logic that snaps a continuous input (like from a joystick)
+    /// to a discrete direction.
+    /// </summary>
+    /// <param name="targetDirection">The continuous, normalized direction to check against.</param>
+    /// <returns>The closest matching Vector3 from the Directions collection, or Vector3.Zero if none found.</returns>
     public Vector3 GetClosestDirection(Vector3 targetDirection)
     {
         //int index = GetClosestDirectionIndex(targetDirection);
@@ -64,10 +72,11 @@ public abstract partial class DirectionSet3D : Resource
         Vector3? closestDir = null;
         var maxDot = float.MinValue;
         var normalizedTarget = targetDirection.Normalized();
+
+        // The dot product of two normalized vectors gives the cosine of the angle between them.
+        // A higher dot product means a smaller angle, so we are looking for the maximum dot product.
         foreach (var dir in this.Directions)
         {
-            // The dot product of two normalized vectors gives the cosine of the angle between them.
-            // A higher dot product means a smaller angle.
             var dot = dir.Dot(normalizedTarget);
             if (dot > maxDot)
             {
@@ -77,8 +86,11 @@ public abstract partial class DirectionSet3D : Resource
         }
 
         if (closestDir == null)
+        {
             JmoLogger.Error(this,
                 $"No valid direction found for {targetDirection} within the DirectionSet3D '{this.ResourceName}'.");
+        }
+
         // TODO: print out all directions in direction set for error case
         return closestDir ?? Vector3.Zero;
     }

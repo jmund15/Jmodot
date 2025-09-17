@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Movement;
+namespace Jmodot.Implementation.Movement;
 
 using Core.Movement;
 
@@ -15,7 +15,7 @@ public class CharacterBodyController3D : ICharacterController3D
         this._body = body;
     }
 
-    public Node GetInterfaceNode()
+    public Node GetUnderlyingNode()
     {
         return this._body;
     }

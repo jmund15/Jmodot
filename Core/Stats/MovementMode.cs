@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Stats;
+namespace Jmodot.Core.Stats;
 
 /// <summary>
 ///     A simple, data-driven "tag" Resource that represents a state of movement

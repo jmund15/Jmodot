@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Movement.Strategies;
+namespace Jmodot.Implementation.Movement.Strategies;
 
 using Core.Movement.Strategies;
 using Core.Stats;
@@ -21,12 +21,16 @@ public partial class AcceleratedMovementStrategy : Resource, IMovementStrategy
 
         // If there's input, accelerate towards the target.
         if (!desiredDirection.IsZeroApprox())
+        {
             newVelocity = newVelocity.MoveToward(targetVelocity,
                 stats.GetStatValue<float>(GlobalRegistry.DB.AccelerationAttr, activeMode) * delta);
+        }
         else // If no input, apply friction.
+        {
             // Note: a more complex strategy could use the BrakingMultiplier here.
             newVelocity = newVelocity.MoveToward(Vector3.Zero,
                 stats.GetStatValue<float>(GlobalRegistry.DB.FrictionAttr, activeMode) * delta);
+        }
 
         // TODO: make sure y is handled correctly (does acceleration/friction apply to gravity?)
         return newVelocity;

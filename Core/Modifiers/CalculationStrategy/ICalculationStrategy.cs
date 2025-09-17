@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers.CalculationStrategy;
+namespace Jmodot.Core.Modifiers.CalculationStrategy;
 
 using System.Collections.Generic;
 

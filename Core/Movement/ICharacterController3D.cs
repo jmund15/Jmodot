@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Movement;
+namespace Jmodot.Core.Movement;
 
 using Shared;
 

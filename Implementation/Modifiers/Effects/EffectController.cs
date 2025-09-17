@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Modifiers.Effects;
+namespace Jmodot.Implementation.Modifiers.Effects;
 
 using System.Collections.Generic;
 using Core.Modifiers.Effects;

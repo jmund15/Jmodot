@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers;
+namespace Jmodot.Core.Modifiers;
 
 using Godot.Collections;
 

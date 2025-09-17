@@ -1,11 +1,9 @@
 //#if TOOLS
 
-#region
+namespace Jmodot.Implementation.Custom.AnimationAutomation;
 
 using System.Collections.Generic;
-using Jmodot.Implementation.Custom.AnimationAutomation;
 
-#endregion
 
 [Tool]
 public partial class AAA : EditorScript
@@ -90,9 +88,13 @@ public partial class AAA : EditorScript
 
         int textureHeight;
         if (this._portTexture != null)
+        {
             textureHeight = this._portTexture.GetHeight();
-        else if (this._atlasTexture != null) textureHeight = this._atlasTexture.GetHeight();
-
+        }
+        else if (this._atlasTexture != null)
+        {
+            textureHeight = this._atlasTexture.GetHeight();
+        }
 
         this.AutoAnimateSprite3D();
 
@@ -223,10 +225,15 @@ public partial class AAA : EditorScript
                     //foreach
                     //if (animName.ToString().ToLower().Contains(_))
                     if (this._aaaParams.AnimLoopMap.ContainsKey(animName))
+                    {
                         anim.LoopMode = this._aaaParams.AnimLoopMap[animName];
+                    }
                     //GD.Print($"Set loop mode to '{anim.LoopMode}'.");
                     else
+                    {
                         anim.LoopMode = Animation.LoopModeEnum.None; // Default don't loop
+                    }
+
                     var trackNum = 1;
 
 
@@ -283,7 +290,11 @@ public partial class AAA : EditorScript
     private void SaveNodeAsScene(Node node, string scenePath)
     {
         var packedScene = new PackedScene();
-        foreach (var child in node.GetChildren()) child.Owner = node;
+        foreach (var child in node.GetChildren())
+        {
+            child.Owner = node;
+        }
+
         packedScene.Pack(node);
         ResourceSaver.Save(packedScene, scenePath);
     }

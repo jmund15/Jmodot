@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.AI.Perception.Strategies;
+namespace Jmodot.Core.AI.Perception.Strategies;
 
 /// <summary>
 ///     Defines a contract for a "strategy" that calculates how an AI's memory confidence decays over time.

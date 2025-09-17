@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Identification;
+namespace Jmodot.Core.Identification;
 
 /// <summary>
 ///     A data-driven Resource representing a high-level, abstract category or "tag".

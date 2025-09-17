@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Shared;
+namespace Jmodot.Core.Shared;
 
 /// <summary>
 ///     A standardized interface ensuring any component that is a Node
@@ -10,5 +10,5 @@ public interface IGodotNodeInterface
     ///     Gets the Godot.Node instance that implements this interface.
     /// </summary>
     /// <returns>The implementing Node itself.</returns>
-    Node GetInterfaceNode();
+    Node GetUnderlyingNode();
 }

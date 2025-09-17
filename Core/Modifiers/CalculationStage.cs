@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers;
+namespace Jmodot.Core.Modifiers;
 
 /// <summary>
 ///     Defines the strict, non-overridable order of operations for calculating a final stat value.

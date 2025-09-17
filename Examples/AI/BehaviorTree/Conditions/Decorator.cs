@@ -16,7 +16,9 @@ public abstract partial class Decorator : CompositeTask
         var warnings = new List<string>();
 
         if (this.GetChildrenOfType<BehaviorAction>().Count > 1)
+        {
             warnings.Add("Decorators should have exactly one Task child!");
+        }
 
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Input;
+namespace Jmodot.Implementation.Input;
 
 using System.Collections.Generic;
 using Core.Input;
@@ -11,7 +11,8 @@ public partial class PlayerIntentSource : Node, IIntentSource
     private readonly System.Collections.Generic.Dictionary<InputAction, IntentData> _currentIntents = new();
 
     // This is now a unified, data-driven system. No more special-casing movement.
-    [ExportGroup("Action Bindings")] [Export]
+    [ExportGroup("Action Bindings")]
+    [Export]
     private Array<ActionBinding> _actionBindings = new();
 
     [Export] private Array<VectorActionBinding> _vectorBindings = new();
@@ -33,7 +34,11 @@ public partial class PlayerIntentSource : Node, IIntentSource
     {
         if (!this.IsActive)
         {
-            if (this._currentIntents.Count > 0) this._currentIntents.Clear();
+            if (this._currentIntents.Count > 0)
+            {
+                this._currentIntents.Clear();
+            }
+
             return;
         }
 
@@ -47,7 +52,10 @@ public partial class PlayerIntentSource : Node, IIntentSource
         // Process all boolean/pressed/released actions
         foreach (var binding in this._actionBindings)
         {
-            if (binding?.Action == null || string.IsNullOrEmpty(binding.GodotActionName)) continue;
+            if (binding?.Action == null || string.IsNullOrEmpty(binding.GodotActionName))
+            {
+                continue;
+            }
 
             var result = false;
             switch (binding.PollType)
@@ -63,16 +71,25 @@ public partial class PlayerIntentSource : Node, IIntentSource
                     break;
             }
 
-            if (result) this._currentIntents[binding.Action] = new IntentData(true);
+            if (result)
+            {
+                this._currentIntents[binding.Action] = new IntentData(true);
+            }
         }
 
         // Process all vector actions
         foreach (var binding in this._vectorBindings)
         {
-            if (binding?.Action == null) continue;
+            if (binding?.Action == null)
+            {
+                continue;
+            }
 
             var moveVector = Input.GetVector(binding.Left, binding.Right, binding.Up, binding.Down);
-            if (moveVector.LengthSquared() > 0) this._currentIntents[binding.Action] = new IntentData(moveVector);
+            if (moveVector.LengthSquared() > 0)
+            {
+                this._currentIntents[binding.Action] = new IntentData(moveVector);
+            }
         }
     }
 }

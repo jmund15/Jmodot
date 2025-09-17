@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Stats.Mechanics;
+namespace Jmodot.Implementation.Stats.Mechanics;
 
 using Core.Stats.Mechanics;
 

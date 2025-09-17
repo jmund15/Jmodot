@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
+namespace Jmodot.Implementation.AI.Navigation.SteeringModifiers;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -32,7 +32,10 @@ public partial class AffinitySteeringModifier : SteeringConsiderationModifier
         }
 
         var affinities = blackboard.GetVar<AIAffinitiesComponent>(BBDataSig.Affinities);
-        if (affinities == null) return; // Agent will have logged this critical error already.
+        if (affinities == null)
+        {
+            return; // Agent will have logged this critical error already.
+        }
 
         // --- Core Logic ---
         if (!affinities.TryGetAffinity(this._affinityToMeasure, out float affinityValue))
@@ -47,6 +50,9 @@ public partial class AffinitySteeringModifier : SteeringConsiderationModifier
 
         var multiplier = this._responseCurve.SampleBaked(affinityValue);
 
-        foreach (var key in scores.Keys.ToList()) scores[key] *= multiplier;
+        foreach (var key in scores.Keys.ToList())
+        {
+            scores[key] *= multiplier;
+        }
     }
 }

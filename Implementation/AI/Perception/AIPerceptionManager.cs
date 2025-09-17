@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Perception;
+namespace Jmodot.Implementation.AI.Perception;
 
 using System;
 using System.Collections.Generic;
@@ -31,14 +31,21 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
     public override void _Ready()
     {
         foreach (var node in this._sensors)
+        {
             if (node is IAISensor sensor)
+            {
                 sensor.PerceptUpdated += this.OnPerceptUpdated;
+            }
+        }
     }
 
     private void OnPerceptUpdated(object sender, PerceptEventArgs args)
     {
         var percept = args.Percept;
-        if (percept.Target == null || percept.Identity == null) return;
+        if (percept.Target == null || percept.Identity == null)
+        {
+            return;
+        }
 
         if (this._memoryByTarget.TryGetValue(percept.Target, out var info))
         {
@@ -58,10 +65,18 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
 
     private void AddToCategoryCache(PerceptionInfo info)
     {
-        if (info.Identity?.Categories == null) return;
+        if (info.Identity?.Categories == null)
+        {
+            return;
+        }
+
         foreach (var category in info.Identity.Categories)
         {
-            if (category == null) continue;
+            if (category == null)
+            {
+                continue;
+            }
+
             if (!this._memoryByCategory.TryGetValue(category, out var set))
             {
                 set = new HashSet<PerceptionInfo>();
@@ -74,11 +89,22 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
 
     private void RemoveFromCategoryCache(PerceptionInfo info)
     {
-        if (info.Identity?.Categories == null) return;
+        if (info.Identity?.Categories == null)
+        {
+            return;
+        }
+
         foreach (var category in info.Identity.Categories)
         {
-            if (category == null) continue;
-            if (this._memoryByCategory.TryGetValue(category, out var set)) set.Remove(info);
+            if (category == null)
+            {
+                continue;
+            }
+
+            if (this._memoryByCategory.TryGetValue(category, out var set))
+            {
+                set.Remove(info);
+            }
         }
     }
 
@@ -91,7 +117,11 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
         var forgottenKeys = this._memoryByTarget.Where(kvp => !kvp.Value.IsActive).Select(kvp => kvp.Key).ToList();
         foreach (var key in forgottenKeys)
         {
-            if (!this._memoryByTarget.TryGetValue(key, out var info)) continue;
+            if (!this._memoryByTarget.TryGetValue(key, out var info))
+            {
+                continue;
+            }
+
             this.MemoryForgottenEventHandler?.Invoke(this, info);
             this.RemoveFromCategoryCache(info);
             this._memoryByTarget.Remove(key);
@@ -118,17 +148,22 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
     /// </summary>
     public PerceptionInfo GetBestMemoryForCategory(Category category)
     {
-        if (category == null || !this._memoryByCategory.TryGetValue(category, out var memorySet)) return null;
+        if (category == null || !this._memoryByCategory.TryGetValue(category, out var memorySet))
+        {
+            return null;
+        }
 
         PerceptionInfo bestMatch = null;
         var maxConfidence = -1.0f;
 
         foreach (var info in memorySet)
+        {
             if (info.IsActive && info.CurrentConfidence > maxConfidence)
             {
                 maxConfidence = info.CurrentConfidence;
                 bestMatch = info;
             }
+        }
 
         return bestMatch;
     }
@@ -140,7 +175,7 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
             .Select(obj => this._memoryByTarget[obj]);
     }
 
-    public Node GetInterfaceNode()
+    public Node GetUnderlyingNode()
     {
         return this;
     }

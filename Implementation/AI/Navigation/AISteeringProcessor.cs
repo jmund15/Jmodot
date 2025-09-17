@@ -1,9 +1,3 @@
-﻿#region
-
-using GColl = Godot.Collections;
-
-#endregion
-
 namespace Jmodot.AI.Navigation;
 
 using System.Collections.Generic;
@@ -13,6 +7,7 @@ using Core.AI.Navigation.Considerations;
 using Core.Movement;
 using Implementation.AI.Navigation;
 using Implementation.Shared;
+using GColl = Godot.Collections;
 
 /// <summary>
 ///     The AI's low-level "brain" responsible for moment-to-moment steering. It synthesizes a
@@ -30,7 +25,8 @@ public partial class AISteeringProcessor : Node
 
     [ExportGroup("Debug")] private bool _showNavigationDebugArrows;
 
-    [ExportGroup("Configuration")] [Export]
+    [ExportGroup("Configuration")]
+    [Export]
     private bool _snapToDirectionSet;
 
     public IOrderedEnumerable<BaseAIConsideration3D> SortedConsiderations { get; private set; } = null!;
@@ -47,9 +43,15 @@ public partial class AISteeringProcessor : Node
     {
         var warnings = new List<string>();
         if (this._considerations.Count == 0)
+        {
             warnings.Add("No considerations are assigned. The AI will have no environmental awareness.");
+        }
+
         if (this.MovementDirections == null || !this.MovementDirections.Directions.Any())
+        {
             warnings.Add("No movement directions are defined. The AI will not know how to score potential moves.");
+        }
+
         return warnings.ToArray();
     }
 
@@ -77,7 +79,11 @@ public partial class AISteeringProcessor : Node
     {
         base._PhysicsProcess(delta);
 
-        if (!this._showNavigationDebugArrows) return;
+        if (!this._showNavigationDebugArrows)
+        {
+            return;
+        }
+
         var _time = Time.GetTicksMsec() / 1000.0f;
         var arrowSize = 4f;
         var arrowheadSize = 0.1f;
@@ -124,34 +130,52 @@ public partial class AISteeringProcessor : Node
     /// </summary>
     public Vector3 CalculateSteering(DecisionContext context, IBlackboard blackboard)
     {
-        if (this._scores == null) return Vector3.Zero; // Not initialized.
+        if (this._scores == null)
+        {
+            return Vector3.Zero; // Not initialized.
+        }
 
         // --- 1. Reset scores for this frame's calculation ---
-        foreach (var key in this._scores.Keys.ToList()) this._scores[key] = 0f;
+        foreach (var key in this._scores.Keys.ToList())
+        {
+            this._scores[key] = 0f;
+        }
 
         // --- 2. Score the High-Level Goal ---
         if (!context.NextPathPointDirection.IsZeroApprox())
+        {
             foreach (var dir in this.MovementDirections.Directions)
             {
                 var dot = dir.Dot(context.NextPathPointDirection);
                 // Score is higher for directions that align with the target direction.
-                if (dot > 0) this._scores[dir] += dot;
+                if (dot > 0)
+                {
+                    this._scores[dir] += dot;
+                }
             }
+        }
 
         // --- 3. Score Environmental Considerations ---
         foreach (var consideration in this.SortedConsiderations)
         {
-            if (consideration == null) continue;
+            if (consideration == null)
+            {
+                continue;
+            }
+
             consideration.Evaluate(context, blackboard, this.MovementDirections, ref this._scores);
         }
 
         // --- 4. Choose the Best Direction ---
         var finalDirection = Vector3.Zero;
         foreach (var score in this._scores)
+        {
             // A direction's final score is clamped at 0. Negative scores (danger) cancel out
             // interest, but do not create a "desire" to move in the opposite direction.
             // Avoidance is simply the absence of interest in a given direction.
             finalDirection += score.Key * Mathf.Max(0, score.Value);
+        }
+
         this.DesiredDirection = finalDirection.IsZeroApprox() ? Vector3.Zero :
             this._snapToDirectionSet ? this.MovementDirections.GetClosestDirection(finalDirection.Normalized()) :
             finalDirection.Normalized();

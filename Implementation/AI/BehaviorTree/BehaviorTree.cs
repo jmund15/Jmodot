@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.BehaviorTree;
+namespace Jmodot.Implementation.AI.BehaviorTree;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -27,12 +27,20 @@ public partial class BehaviorTree : Node
         get => this._enabled;
         set
         {
-            if (this._enabled == value) return;
+            if (this._enabled == value)
+            {
+                return;
+            }
+
             this._enabled = value;
             if (this._enabled)
+            {
                 this.EmitSignal(SignalName.TreeEnabled);
+            }
             else
+            {
                 this.EmitSignal(SignalName.TreeDisabled);
+            }
         }
     }
 
@@ -104,23 +112,41 @@ public partial class BehaviorTree : Node
 
     public override void _Process(double delta)
     {
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
+
         base._Process(delta);
-        if (this.Enabled && this.Initialized) this.ProcessFrame((float)delta);
+        if (this.Enabled && this.Initialized)
+        {
+            this.ProcessFrame((float)delta);
+        }
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
+
         base._PhysicsProcess(delta);
-        if (this.Enabled && this.Initialized) this.ProcessPhysics((float)delta);
+        if (this.Enabled && this.Initialized)
+        {
+            this.ProcessPhysics((float)delta);
+        }
     }
 
     public virtual void Init(Node agent, IBlackboard bb)
     {
         this.AgentNode = agent;
         this.BB = bb;
-        if (this.TreeName == string.Empty) this.TreeName = this.AgentNode.Name + "'s Behavior Tree";
+        if (this.TreeName == string.Empty)
+        {
+            this.TreeName = this.AgentNode.Name + "'s Behavior Tree";
+        }
+
         var rt = this.GetFirstChildOfType<BehaviorTask>();
         if (!rt.IsValid())
         {
@@ -223,11 +249,20 @@ public partial class BehaviorTree : Node
         var warnings = new List<string>();
 
         if (this.GetChildren().Count > 1)
+        {
             warnings.Add("BehaviorTree nodes should only have one child (the root BehaviorTask)");
+        }
+
         if (this.GetChildren().Any(x => x is not BehaviorTask))
+        {
             warnings.Add("Root BehaviorTree should inherit from BehaviorTask class.");
+        }
+
         if (this.BB is not null && this.BB is not IBlackboard bb)
+        {
             warnings.Add("The exported Blackboard must implement \"IBlackboard\"!");
+        }
+
         return warnings.ToArray();
     }
 

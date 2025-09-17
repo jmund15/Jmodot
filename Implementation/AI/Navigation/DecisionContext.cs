@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Navigation;
+namespace Jmodot.Implementation.AI.Navigation;
 
 using Perception;
 

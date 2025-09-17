@@ -41,7 +41,10 @@ public partial class QueuedAttack : BTCondition
         else
         {
             GD.Print("Attack was queued, continuing task!");
-            if (this._resetQueueIfTrue) this.BB.SetPrimVar(BBDataSig.QueuedNextAttack, false);
+            if (this._resetQueueIfTrue)
+            {
+                this.BB.SetPrimVar(BBDataSig.QueuedNextAttack, false);
+            }
         }
     }
 

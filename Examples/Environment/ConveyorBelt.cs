@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Examples.Environment;
+namespace Jmodot.Examples.Environment;
 
 using Core.Environment;
 

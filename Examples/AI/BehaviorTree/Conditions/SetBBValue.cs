@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
+namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
 using Core.AI.BB;
 using Implementation.AI.BB;

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Modifiers;
+namespace Jmodot.Core.Modifiers;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -41,7 +41,10 @@ public class ModifiableProperty<T>
 
     protected virtual T GetValue()
     {
-        if (!this._isDirty) return this._cachedValue;
+        if (!this._isDirty)
+        {
+            return this._cachedValue;
+        }
 
         var finalModifiers = this.GetFinalModifiers(); // Use the powerful filtering helper
 
@@ -54,14 +57,23 @@ public class ModifiableProperty<T>
 
     protected List<IModifier<T>> GetFinalModifiers()
     {
-        if (this._modifiers.Count == 0) return new List<IModifier<T>>();
+        if (this._modifiers.Count == 0)
+        {
+            return new List<IModifier<T>>();
+        }
 
         var sortedModifiers = this._modifiers.OrderByDescending(m => m.Priority).ToList();
         var tagsToCancel = new HashSet<string>();
         foreach (var mod in sortedModifiers)
+        {
             if (mod.CancelsTags != null)
+            {
                 foreach (var tag in mod.CancelsTags)
+                {
                     tagsToCancel.Add(tag);
+                }
+            }
+        }
 
         return sortedModifiers.Where(mod => !(mod.Tags?.Any(tagsToCancel.Contains) ?? false)).ToList();
     }

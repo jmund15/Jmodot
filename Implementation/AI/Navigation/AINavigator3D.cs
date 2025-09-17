@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Navigation;
+namespace Jmodot.Implementation.AI.Navigation;
 
 using System.Collections.Generic;
 using System.Threading;
@@ -49,17 +49,25 @@ public partial class AINavigator3D : NavigationAgent3D
     public override string[] _GetConfigurationWarnings()
     {
         if (this.GetOwnerOrNull<Node3D>() == null)
+        {
             return new[] { "AINavigator3D must be owned an Node3D node for proper coordination." };
+        }
+
         return base._GetConfigurationWarnings();
     }
 
     public override void _Ready()
     {
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
 
         this._ownerAgent = this.GetOwnerOrNull<Node3D>();
         if (this._ownerAgent == null)
+        {
             JmoLogger.Error(this, "AINavigator3D's owner is not of type Node3D", this.GetOwnerOrNull<Node>());
+        }
 
         // Ensure the agent doesn't try to move itself. The parent body is the one that moves.
         // This is a common point of confusion with NavigationAgent3D.
@@ -80,7 +88,9 @@ public partial class AINavigator3D : NavigationAgent3D
     {
         var calcThreshold = overridePathCalcThresh ?? this.DefaultPathCalculationThreshold;
         if (calcThreshold > 0f && this.TargetPosition.DistanceTo(globalPosition) < calcThreshold)
+        {
             return NavReqPathResponse.TooCloseToPrevTarget;
+        }
 
         // TODO: replace with a better calculation of what the current map the agent is actually in, instead of iterating through all of them.
         var rIDs = NavigationServer3D.GetMaps();
@@ -131,7 +141,10 @@ public partial class AINavigator3D : NavigationAgent3D
 
     public Vector3 GetIdealDirection()
     {
-        if (this.IsNavigationFinished()) return Vector3.Zero;
+        if (this.IsNavigationFinished())
+        {
+            return Vector3.Zero;
+        }
 
         var nextPathPos = this.GetNextPathPosition();
         return this._ownerAgent.GlobalPosition.DirectionTo(nextPathPos);
@@ -159,13 +172,23 @@ public partial class AINavigator3D : NavigationAgent3D
     /// <returns>The path distance in meters, or zero if no path exists.</returns>
     public float GetTotalPathDistance()
     {
-        if (this.IsNavigationFinished()) return 0f;
+        if (this.IsNavigationFinished())
+        {
+            return 0f;
+        }
 
         var pathPoints = this.GetCurrentNavigationPath();
-        if (pathPoints.Length < 2) return 0f;
+        if (pathPoints.Length < 2)
+        {
+            return 0f;
+        }
 
         var distance = this._ownerAgent.GlobalPosition.DistanceTo(pathPoints[0]);
-        for (var i = 0; i < pathPoints.Length - 1; i++) distance += pathPoints[i].DistanceTo(pathPoints[i + 1]);
+        for (var i = 0; i < pathPoints.Length - 1; i++)
+        {
+            distance += pathPoints[i].DistanceTo(pathPoints[i + 1]);
+        }
+
         return distance;
     }
 
@@ -175,16 +198,25 @@ public partial class AINavigator3D : NavigationAgent3D
     /// <returns>The path distance to the target in meters.</returns>
     public float GetRemainingPathDistance()
     {
-        if (this.IsNavigationFinished()) return 0f;
+        if (this.IsNavigationFinished())
+        {
+            return 0f;
+        }
 
         var pathPoints = this.GetCurrentNavigationPath();
         var currentIndex = this.GetCurrentNavigationPathIndex();
-        if (currentIndex >= pathPoints.Length) return 0f;
+        if (currentIndex >= pathPoints.Length)
+        {
+            return 0f;
+        }
 
         var distance = this._ownerAgent.GlobalPosition.DistanceTo(pathPoints[currentIndex]);
 
         for (var i = currentIndex; i < pathPoints.Length - 1; i++)
+        {
             distance += pathPoints[i].DistanceTo(pathPoints[i + 1]);
+        }
+
         return distance;
     }
 
@@ -234,7 +266,10 @@ public partial class AINavigator3D : NavigationAgent3D
         foreach (var target in targets)
         {
             // Check if the task was cancelled from outside
-            if (cancellationToken.IsCancellationRequested) return null;
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
 
             //NavigationServer3D.QueryPath // TODO: look into using this instead
             var path = NavigationServer3D.MapGetPath(map, this._ownerAgent.GlobalPosition, target.GlobalPosition,
@@ -260,7 +295,11 @@ public partial class AINavigator3D : NavigationAgent3D
     private float CalculatePathLength(Vector3[] path)
     {
         var distance = 0f;
-        for (var i = 0; i < path.Length - 1; i++) distance += path[i].DistanceTo(path[i + 1]);
+        for (var i = 0; i < path.Length - 1; i++)
+        {
+            distance += path[i].DistanceTo(path[i + 1]);
+        }
+
         return distance;
     }
 

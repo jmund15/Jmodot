@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Actors;
+namespace Jmodot.Implementation.Actors;
 
 using Core.Movement;
 using Core.Movement.Strategies;

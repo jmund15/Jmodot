@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Navigation;
+namespace Jmodot.Implementation.AI.Navigation;
 
 using System.Collections.Generic;
 using Affinities;
@@ -19,7 +19,8 @@ public partial class AIAgent : Node3D
 {
     [Export] private AIAffinitiesComponent _affinities;
 
-    [ExportGroup("Core Components")] [Export]
+    [ExportGroup("Core Components")]
+    [Export]
     private Blackboard _blackboard;
 
     [Export] private AINavigator3D _navigator;
@@ -30,17 +31,40 @@ public partial class AIAgent : Node3D
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-        if (this._blackboard == null) warnings.Add("Component reference '_blackboard' is not set.");
-        if (this._perceptionManager == null) warnings.Add("Component reference '_perceptionManager' is not set.");
-        if (this._steeringProcessor == null) warnings.Add("Component reference '_steeringProcessor' is not set.");
-        if (this._navigator == null) warnings.Add("Component reference '_navigator' is not set.");
-        if (this._affinities == null) warnings.Add("Component reference '_affinities' is not set.");
+        if (this._blackboard == null)
+        {
+            warnings.Add("Component reference '_blackboard' is not set.");
+        }
+
+        if (this._perceptionManager == null)
+        {
+            warnings.Add("Component reference '_perceptionManager' is not set.");
+        }
+
+        if (this._steeringProcessor == null)
+        {
+            warnings.Add("Component reference '_steeringProcessor' is not set.");
+        }
+
+        if (this._navigator == null)
+        {
+            warnings.Add("Component reference '_navigator' is not set.");
+        }
+
+        if (this._affinities == null)
+        {
+            warnings.Add("Component reference '_affinities' is not set.");
+        }
+
         return warnings.ToArray();
     }
 
     public override void _Ready()
     {
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
 
         // --- Configuration Validation ---
         // A robust agent validates its own dependencies at runtime.

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Shared;
+namespace Jmodot.Implementation.Shared;
 
 using System;
 

@@ -38,7 +38,7 @@ public partial class LastAnimName : BTCondition
 
     private void OnAnimationStarted(StringName animName)
     {
-        this.SetDeferred(PropertyName._lastAnimFinished, animName);
+        this.SetDeferred(PropertyName._lastAnimFinished.animName);
         //_lastAnimFinished = animName;
     }
 

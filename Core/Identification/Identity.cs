@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Identification;
+namespace Jmodot.Core.Identification;
 
 using Godot.Collections;
 

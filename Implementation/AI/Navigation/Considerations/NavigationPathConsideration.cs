@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.AI.Navigation.Considerations;
+namespace Jmodot.Implementation.AI.Navigation.Considerations;
 
 using System;
 using System.Collections.Generic;

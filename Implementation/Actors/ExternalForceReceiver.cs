@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Actors;
+namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
 using Core.Environment;
@@ -27,12 +27,18 @@ public partial class ExternalForceReceiver : Area3D
 
     private void OnProviderEntered(Area3D area)
     {
-        if (area is IForceProvider provider) this._activeForceProviders.Add(provider);
+        if (area is IForceProvider provider)
+        {
+            this._activeForceProviders.Add(provider);
+        }
     }
 
     private void OnProviderExited(Area3D area)
     {
-        if (area is IForceProvider provider) this._activeForceProviders.Remove(provider);
+        if (area is IForceProvider provider)
+        {
+            this._activeForceProviders.Remove(provider);
+        }
     }
 
     /// <summary>
@@ -43,10 +49,17 @@ public partial class ExternalForceReceiver : Area3D
     /// <returns>A single Vector3 representing the sum of all external forces for this frame.</returns>
     public Vector3 GetTotalForce(Node3D target)
     {
-        if (this._activeForceProviders.Count == 0) return Vector3.Zero;
+        if (this._activeForceProviders.Count == 0)
+        {
+            return Vector3.Zero;
+        }
 
         var totalForce = Vector3.Zero;
-        foreach (var provider in this._activeForceProviders) totalForce += provider.GetForceFor(target);
+        foreach (var provider in this._activeForceProviders)
+        {
+            totalForce += provider.GetForceFor(target);
+        }
+
         return totalForce;
     }
 }

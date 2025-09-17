@@ -1,4 +1,4 @@
-﻿#region
+#region
 
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -29,9 +29,13 @@ public static class NodeExts
     public static void SafeQueueFree(this Node node)
     {
         if (node.IsValid())
+        {
             node.QueueFree();
+        }
         else
+        {
             GD.PrintErr("Couldn't Safely Queue Free node: ", node.Name, ", node is not valid");
+        }
     }
 
     #endregion
@@ -43,10 +47,16 @@ public static class NodeExts
     {
         var scene = Engine.GetMainLoop() as SceneTree;
         if (scene == null)
+        {
             throw new InvalidDataException(
                 "ERROR || Scene is null, cannot get node!"); // why would scene tree be null? could be possible
+        }
 
-        if (includeScene && scene.CurrentScene is T tScene) return tScene;
+        if (includeScene && scene.CurrentScene is T tScene)
+        {
+            return tScene;
+        }
+
         return scene.CurrentScene.GetFirstChildOfType<T>(includeSubChildren);
     }
 
@@ -82,7 +92,10 @@ public static class NodeExts
         if (root.HasNode(nodePath))
         {
             var node = root.GetNode(nodePath);
-            if (node is T castedNode) result = castedNode;
+            if (node is T castedNode)
+            {
+                result = castedNode;
+            }
         }
 
         return result != null;
@@ -95,11 +108,13 @@ public static class NodeExts
         {
             Array<Node> children = root.GetChildren();
             foreach (var node in children)
+            {
                 if (node is T castedNode)
                 {
                     result = castedNode;
                     return true;
                 }
+            }
         }
         else
         {
@@ -116,7 +131,10 @@ public static class NodeExts
                 }
 
                 // Enqueue each child to be processed later.
-                foreach (var child in cursor.GetChildren()) nodesToParse.Enqueue(child);
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
@@ -132,11 +150,13 @@ public static class NodeExts
         {
             Array<Node> children = root.GetChildren();
             foreach (var node in children)
+            {
                 if (node is T castedNode)
                 {
                     result = castedNode;
                     return true;
                 }
+            }
         }
         else
         {
@@ -152,7 +172,10 @@ public static class NodeExts
                     return true;
                 }
 
-                foreach (var child in cursor.GetChildren()) nodesToParse.Enqueue(child);
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
@@ -166,7 +189,10 @@ public static class NodeExts
         if (root.HasNode(nodePath))
         {
             var node = root.GetNode(nodePath);
-            if (node is T castedNode) result = castedNode;
+            if (node is T castedNode)
+            {
+                result = castedNode;
+            }
         }
 
         return result != null;
@@ -174,13 +200,21 @@ public static class NodeExts
 
     public static T GetFirstChildOfType<T>(this Node root, bool includeSubChildren = true) where T : Node
     {
-        if (root.TryGetFirstChildOfType(out T? result, includeSubChildren)) return result!;
+        if (root.TryGetFirstChildOfType(out T? result, includeSubChildren))
+        {
+            return result!;
+        }
+
         throw new InvalidDataException($"Couldn't find a child of type {typeof(T).Name} in node {root.Name}");
     }
 
     public static T GetFirstChildOfInterface<T>(this Node root, bool includeSubChildren = true) where T : class
     {
-        if (root.TryGetFirstChildOfInterface(out T? result, includeSubChildren)) return result!;
+        if (root.TryGetFirstChildOfInterface(out T? result, includeSubChildren))
+        {
+            return result!;
+        }
+
         throw new InvalidDataException($"Couldn't find a child of interface {typeof(T).Name} in node {root.Name}");
     }
 
@@ -191,8 +225,12 @@ public static class NodeExts
         if (!includeSubChildren)
         {
             foreach (var node in root.GetChildren())
+            {
                 if (node is T castNode)
+                {
                     childArray.Add(castNode);
+                }
+            }
         }
         else
         {
@@ -201,7 +239,11 @@ public static class NodeExts
             {
                 var cursor = nodesToParse[0];
                 nodesToParse.Remove(cursor);
-                if (cursor is T castedNode) childArray.Add(castedNode);
+                if (cursor is T castedNode)
+                {
+                    childArray.Add(castedNode);
+                }
+
                 nodesToParse.AddRange(cursor.GetChildren());
             }
         }
@@ -215,8 +257,12 @@ public static class NodeExts
         if (!includeSubChildren)
         {
             foreach (var node in root.GetChildren())
+            {
                 if (node is T castNode)
+                {
                     childArray.Add(castNode);
+                }
+            }
         }
         else
         {
@@ -225,7 +271,11 @@ public static class NodeExts
             {
                 var cursor = nodesToParse[0];
                 nodesToParse.Remove(cursor);
-                if (cursor is T castedNode) childArray.Add(castedNode);
+                if (cursor is T castedNode)
+                {
+                    childArray.Add(castedNode);
+                }
+
                 nodesToParse.AddRange(cursor.GetChildren());
             }
         }
@@ -257,8 +307,12 @@ public static class NodeExts
         if (!includeSubChildren)
         {
             foreach (var child in children)
+            {
                 if (child.IsInGroup(groupName))
+                {
                     groupChildren.Add(child);
+                }
+            }
         }
         else
         {
@@ -267,7 +321,11 @@ public static class NodeExts
             {
                 var cursor = nodesToParse[0];
                 nodesToParse.Remove(cursor);
-                if (cursor.IsInGroup(groupName)) groupChildren.Add(cursor);
+                if (cursor.IsInGroup(groupName))
+                {
+                    groupChildren.Add(cursor);
+                }
+
                 nodesToParse.AddRange(cursor.GetChildren());
             }
         }

@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Input;
+namespace Jmodot.Core.Input;
 
 using System.Collections.Generic;
 

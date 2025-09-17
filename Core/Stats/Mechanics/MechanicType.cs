@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Stats.Mechanics;
+namespace Jmodot.Core.Stats.Mechanics;
 
 /// <summary>
 ///     A simple, data-driven "tag" Resource that represents a type of mechanic

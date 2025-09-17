@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Core.Stats;
+namespace Jmodot.Core.Stats;
 
 using System;
 using System.Collections.Generic;
@@ -64,10 +64,15 @@ public partial class StatController : Node, IStatProvider
         // First, attempt to find the most specific, contextual version of the stat.
         if (context != null && this._movementModeStats.TryGetValue(context, out var modeStats) &&
             modeStats.TryGetValue(attribute, out var contextualProp))
+        {
             return contextualProp;
+        }
 
         // If no contextual version exists, fall back to the universal version.
-        if (this._universalStats.TryGetValue(attribute, out var universalProp)) return universalProp;
+        if (this._universalStats.TryGetValue(attribute, out var universalProp))
+        {
+            return universalProp;
+        }
 
         // The entity does not possess this stat in any context.
         return null;
@@ -110,8 +115,10 @@ public partial class StatController : Node, IStatProvider
     public MechanicData? GetMechanicData(MechanicType mechanicType)
     {
         if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
+        {
             // Return the final, potentially modified value.
             return modifiableData.Value;
+        }
 
         GD.PrintErr($"Entity does not have mechanic data for '{mechanicType?.MechanicName ?? "NULL"}'");
         return null;
@@ -172,13 +179,19 @@ public partial class StatController : Node, IStatProvider
 
         // --- 3. Post-Initialization Notification ---
         // Emit an initial change event for all stats so listening systems can sync their initial state.
-        foreach (var stat in this._universalStats) this.OnStatChanged?.Invoke(stat.Key, stat.Value.Value);
+        foreach (var stat in this._universalStats)
+        {
+            this.OnStatChanged?.Invoke(stat.Key, stat.Value.Value);
+        }
     }
 
     public ModifiableProperty<MechanicData>? GetMechanic(MechanicType mechanicType)
     {
         if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
+        {
             return modifiableData;
+        }
+
         return null;
     }
 }

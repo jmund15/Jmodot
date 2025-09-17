@@ -1,4 +1,4 @@
-﻿namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
+namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +19,10 @@ public class StandardFloatCalculationStrategy : ICalculationStrategy<float>
 
         // Stage 1: BaseAdd
         var baseAddMods = floatModifiers.Where(m => m.Stage == CalculationStage.BaseAdd);
-        foreach (var mod in baseAddMods) currentValue = mod.Modify(currentValue);
+        foreach (var mod in baseAddMods)
+        {
+            currentValue = mod.Modify(currentValue);
+        }
 
         // Stage 2: PercentAdd
         var percentAddMods = floatModifiers.Where(m => m.Stage == CalculationStage.PercentAdd);
@@ -27,13 +30,20 @@ public class StandardFloatCalculationStrategy : ICalculationStrategy<float>
         {
             var totalPercentBonus = 0f;
             foreach (var mod in
-                     percentAddMods) totalPercentBonus += mod.Modify(0); // Modify returns the value for this stage
+                     percentAddMods)
+            {
+                totalPercentBonus += mod.Modify(0); // Modify returns the value for this stage
+            }
+
             currentValue *= 1.0f + totalPercentBonus;
         }
 
         // Stage 3: FinalMultiply
         var finalMultMods = floatModifiers.Where(m => m.Stage == CalculationStage.FinalMultiply);
-        foreach (var mod in finalMultMods) currentValue = mod.Modify(currentValue);
+        foreach (var mod in finalMultMods)
+        {
+            currentValue = mod.Modify(currentValue);
+        }
 
         return currentValue;
     }
