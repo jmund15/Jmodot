@@ -1,99 +1,71 @@
-#region
+namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
-using System.Collections.Generic;
-using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BehaviorTree.Composites;
-using Jmodot.Implementation.AI.BehaviorTree.Tasks;
+using Core.AI;
 
-#endregion
-
-[GlobalClass]
-[Tool]
+/// <summary>
+/// A composite task that executes its children in order. It succeeds only if all
+/// of its children succeed. It fails as soon as one of its children fails.
+/// </summary>
+[GlobalClass, Tool]
 public partial class Sequence : CompositeTask
 {
-    #region TASK_UPDATES
+    private int _runningChildIdx = -1;
 
-    public override void Init(Node agent, IBlackboard bb)
+    protected override void OnEnter()
     {
-        base.Init(agent, bb);
-        this.TaskName += "_Sequence";
-    }
-
-    public override void Enter()
-    {
-        base.Enter();
-        this.RunningChildIdx = 0;
-        this.RunningChild = this.ChildTasks[this.RunningChildIdx];
-        this.RunningChild.Enter();
-        //GD.Print($"{TaskName} & child {RunningChild.TaskName} entered");
-    }
-
-    public override void Exit()
-    {
-        base.Exit();
-        //RunningChild.Exit();
-    }
-
-    public override void ProcessFrame(float delta)
-    {
-        base.ProcessFrame(delta);
-        //RunningChild.ProcessFrame(delta);
-    }
-
-    public override void ProcessPhysics(float delta)
-    {
-        base.ProcessPhysics(delta);
-        //RunningChild.ProcessPhysics(delta);
-    }
-
-    #endregion
-
-    #region TASK_HELPER
-
-    protected override void OnRunningChildStatusChange(BTaskStatus newStatus)
-    {
-        base.OnRunningChildStatusChange(newStatus);
-        GD.Print($"sequence child {this.RunningChild.Name} status changed to {newStatus}");
-        switch (newStatus)
+        base.OnEnter();
+        _runningChildIdx = 0;
+        if (ChildTasks.Count > 0)
         {
-            case BTaskStatus.SUCCESS:
-                this.RunningChildIdx++;
-                if (this.RunningChildIdx == this.ChildTasks.Count)
-                {
-                    // successfully completed all child tasks in sequence
-                    this.Status = BTaskStatus.SUCCESS;
-                }
-                else
-                {
-                    // go to next task
-                    this.RunningChild.Exit();
-                    this.RunningChild = this.ChildTasks[this.RunningChildIdx];
-                    this.RunningChild.Enter();
-                }
-
-                break;
-            case BTaskStatus.FAILURE:
-                //RunningChild.Exit();
-                this.Status = BTaskStatus.FAILURE;
-                break;
-            case BTaskStatus.RUNNING:
-                this.Status = BTaskStatus.RUNNING;
-                break;
-            case BTaskStatus.FRESH:
-                this.Status = BTaskStatus.RUNNING; //TODO: CONFIRM?
-                break;
+            var child = ChildTasks[_runningChildIdx];
+            child.TaskStatusChanged += OnChildStatusChanged;
+            child.Enter();
+        }
+        else
+        {
+            // A sequence with no children succeeds immediately.
+            Status = TaskStatus.SUCCESS;
         }
     }
 
-    public override string[] _GetConfigurationWarnings()
+    protected override void OnExit()
     {
-        var warnings = new List<string>();
-
-        //
-
-        return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
+        base.OnExit();
+        if (_runningChildIdx != -1 && _runningChildIdx < ChildTasks.Count)
+        {
+            var child = ChildTasks[_runningChildIdx];
+            child.TaskStatusChanged -= OnChildStatusChanged;
+            child.Exit();
+        }
+        _runningChildIdx = -1;
     }
 
-    #endregion
+    private void OnChildStatusChanged(TaskStatus newStatus)
+    {
+        if (newStatus is TaskStatus.RUNNING or TaskStatus.FRESH) { return; }
+
+        var currentChild = ChildTasks[_runningChildIdx];
+        currentChild.TaskStatusChanged -= OnChildStatusChanged;
+
+        switch (newStatus)
+        {
+            case TaskStatus.SUCCESS:
+                _runningChildIdx++;
+                if (_runningChildIdx >= ChildTasks.Count)
+                {
+                    Status = TaskStatus.SUCCESS; // All children succeeded
+                }
+                else
+                {
+                    var nextChild = ChildTasks[_runningChildIdx];
+                    nextChild.TaskStatusChanged += OnChildStatusChanged;
+                    nextChild.Enter();
+                }
+                break;
+
+            case TaskStatus.FAILURE:
+                Status = TaskStatus.FAILURE; // One child failed, so the sequence fails
+                break;
+        }
+    }
 }

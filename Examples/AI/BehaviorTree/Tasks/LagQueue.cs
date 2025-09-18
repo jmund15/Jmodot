@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
 using Implementation.AI.BB;
-using BTaskStatus = Implementation.AI.BehaviorTree.Tasks.BTaskStatus;
+using TaskStatus = Implementation.AI.BehaviorTree.Tasks.TaskStatus;
 
 [GlobalClass]
 [Tool]
@@ -61,11 +61,11 @@ public partial class LagQueue : BehaviorAction
     {
         if (this.BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value)
         {
-            this.Status = BTaskStatus.SUCCESS;
+            this.Status = TaskStatus.SUCCESS;
         }
         else
         {
-            this.Status = BTaskStatus.FAILURE;
+            this.Status = TaskStatus.FAILURE;
         }
     }
 

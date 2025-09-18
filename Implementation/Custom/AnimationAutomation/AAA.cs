@@ -3,7 +3,8 @@
 namespace Jmodot.Implementation.Custom.AnimationAutomation;
 
 using System.Collections.Generic;
-
+using Visual.Animation.Sprite;
+using Visual.Sprite;
 
 [Tool]
 public partial class AAA : EditorScript
@@ -136,134 +137,134 @@ public partial class AAA : EditorScript
 
         //var appendLibrary = ResourceLoader.Load<AnimationLibrary>();
 
-        // TODO: MAKE NEW SPRITE FOR BODY PARTS HERE
-        var partNum = 1;
-        int partOffset;
-        foreach (var bodyPartPair in this._aaaParams.BodyParts)
-        {
-            var part = bodyPartPair.Key;
-            var typesOfPart = bodyPartPair.Value;
-            partOffset = this._initOffset +
-                         (partNum - 1) * this._frameHeight * typesOfPart * this._aaaParams.AnimDirections.Count;
-            Sprite3DComponent partSprite;
-            AnimationPlayerComponent partPlayer;
-            var partLibrary = new AnimationLibrary(); //globalAnimLibrary.Duplicate(true) as AnimationLibrary;
-            var configLabels = new List<string>();
-
-            //if (partNum == 1)
-            //{
-            //    partSprite = _sprite as Sprite3D;
-            //    partPlayer = animPlayer;
-            //    partPlayer.AddAnimationLibrary("", partLibrary);
-            //    if (_aaaParams.BodyParts.Count > 1)
-            //    {
-            //        _sprite.Name = part;
-            //    }
-            //}
-            //else
-            //{
-            //    //continue;
-
-            //    //_sprite.AddChild(partSprite);
-            //    //partSprite.AddChild(partPlayer);
-            //}
-            //if (partNum == 1 && _aaaParams.BodyParts.Count > 1)
-            //{
-            //    _sprite.Name = part;
-            //}
-            partSprite =
-                new Sprite3DComponent(); //_sprite.Duplicate((int)Node.DuplicateFlags.UseInstantiation) as Sprite3D;
-            this._topLevel.AddChild(partSprite);
-            partSprite.Owner = this._topLevel;
-            //partSprite.Texture = ResourceLoader.Load<AtlasTexture>(textPath);
-            //partSprite.Texture.ResourceLocalToScene = true;
-            partSprite.Texture = this._texture.Duplicate() as Texture2D;
-            partSprite.TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest;
-            //ResourceSaver.Save(partSprite.Texture, $"res://Temp/{_topLevel.Name}_{partSprite.Name}.tres");
-            partPlayer =
-                new AnimationPlayerComponent(); //partSprite.GetFirstChildOfType<AnimationPlayer>();//new AnimationPlayer();
-            partPlayer.AddAnimationLibrary("", partLibrary);
-            partSprite.AddChild(partPlayer);
-            partPlayer.Owner = this._topLevel;
-            //partPlayer.Reparent(partSprite);
-
-            partSprite.Name = part;
-            partPlayer.Name = part + "AnimationPlayer";
-            GD.Print($"children count of {partSprite}'s node: {partSprite.GetChildCount()}");
-
-            //Set properties of sprite
-            partSprite.Centered = false;
-            partSprite.Offset = new Vector2(this._frameHeight / 2, 0);
-            partSprite.Scale = new Vector3(8, 8, 8);
-
-            //GD.Print($"part anim library anims: {partLibrary.GetAnimationList()}");
-            //GD.Print($"blobal anim library anims: {globalAnimLibrary.GetAnimationList()}");
-            int typeOffset;
-            for (var typeNum = 0; typeNum < typesOfPart; typeNum++)
-            {
-                typeOffset = typeNum * this._frameHeight * this._aaaParams.AnimDirections.Count;
-                var typeLabel = "";
-                if (typesOfPart > 1)
-                {
-                    if (this._aaaParams.PartConfigLabels.ContainsKey(part))
-                    {
-                        typeLabel = this._aaaParams.PartConfigLabels[part][typeNum];
-                    }
-                    else
-                    {
-                        var typeChar = (char)(typeNum + 65);
-                        typeLabel = typeChar.ToString();
-                    }
-                }
-
-                configLabels.Add(typeLabel);
-                foreach (var animName in globalAnimLibrary.GetAnimationList())
-                {
-                    this._currHeight = partOffset + typeOffset;
-                    //GD.Print($"Starting automating '{animName}'...");
-                    var anim = globalAnimLibrary.GetAnimation(animName);
-                    //foreach
-                    //if (animName.ToString().ToLower().Contains(_))
-                    if (this._aaaParams.AnimLoopMap.ContainsKey(animName))
-                    {
-                        anim.LoopMode = this._aaaParams.AnimLoopMap[animName];
-                    }
-                    //GD.Print($"Set loop mode to '{anim.LoopMode}'.");
-                    else
-                    {
-                        anim.LoopMode = Animation.LoopModeEnum.None; // Default don't loop
-                    }
-
-                    var trackNum = 1;
-
-
-                    foreach (var dir in this._aaaParams.AnimDirections)
-                    {
-                        var dirAnim = anim.Duplicate(true) as Animation;
-
-                        var numFrames = dirAnim.TrackGetKeyCount(trackNum);
-                        for (var i = 0; i < numFrames; i++)
-                        {
-                            var currRect = (Rect2)dirAnim.TrackGetKeyValue(trackNum, i);
-                            var dirRect = new Rect2(currRect.Position.X, this._currHeight,
-                                currRect.Size.X, this._frameHeight);
-
-                            dirAnim.TrackSetKeyValue(trackNum, i, Variant.From(dirRect));
-                        }
-
-                        var newAnimName = animName + GetFaceDirectionString(dir) + typeLabel;
-                        GD.Print($"For {partPlayer.Name}'s animation '{newAnimName}', height is: {this._currHeight}");
-                        partLibrary.AddAnimation(newAnimName, dirAnim);
-                        this._currHeight += this._frameHeight;
-                        //partLibrary.RemoveAnimation(animName);
-                    }
-                }
-            }
-
-            partPlayer.SetConfigOptions(configLabels);
-            partNum++;
-            partOffset += this._currHeight;
-        }
+        // // TODO: MAKE NEW SPRITE FOR BODY PARTS HERE
+        // var partNum = 1;
+        // int partOffset;
+        // foreach (var bodyPartPair in this._aaaParams.BodyParts)
+        // {
+        //     var part = bodyPartPair.Key;
+        //     var typesOfPart = bodyPartPair.Value;
+        //     partOffset = this._initOffset +
+        //                  (partNum - 1) * this._frameHeight * typesOfPart * this._aaaParams.AnimDirections.Count;
+        //     Sprite3DComponent partSprite;
+        //     AnimationPlayerComponent partPlayer;
+        //     var partLibrary = new AnimationLibrary(); //globalAnimLibrary.Duplicate(true) as AnimationLibrary;
+        //     var configLabels = new List<string>();
+        //
+        //     //if (partNum == 1)
+        //     //{
+        //     //    partSprite = _sprite as Sprite3D;
+        //     //    partPlayer = animPlayer;
+        //     //    partPlayer.AddAnimationLibrary("", partLibrary);
+        //     //    if (_aaaParams.BodyParts.Count > 1)
+        //     //    {
+        //     //        _sprite.Name = part;
+        //     //    }
+        //     //}
+        //     //else
+        //     //{
+        //     //    //continue;
+        //
+        //     //    //_sprite.AddChild(partSprite);
+        //     //    //partSprite.AddChild(partPlayer);
+        //     //}
+        //     //if (partNum == 1 && _aaaParams.BodyParts.Count > 1)
+        //     //{
+        //     //    _sprite.Name = part;
+        //     //}
+        //     partSprite =
+        //         new Sprite3DComponent(); //_sprite.Duplicate((int)Node.DuplicateFlags.UseInstantiation) as Sprite3D;
+        //     this._topLevel.AddChild(partSprite);
+        //     partSprite.Owner = this._topLevel;
+        //     //partSprite.Texture = ResourceLoader.Load<AtlasTexture>(textPath);
+        //     //partSprite.Texture.ResourceLocalToScene = true;
+        //     partSprite.Texture = this._texture.Duplicate() as Texture2D;
+        //     partSprite.TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest;
+        //     //ResourceSaver.Save(partSprite.Texture, $"res://Temp/{_topLevel.Name}_{partSprite.Name}.tres");
+        //     partPlayer =
+        //         new AnimationPlayerComponent(); //partSprite.GetFirstChildOfType<AnimationPlayer>();//new AnimationPlayer();
+        //     partPlayer.AddAnimationLibrary("", partLibrary);
+        //     partSprite.AddChild(partPlayer);
+        //     partPlayer.Owner = this._topLevel;
+        //     //partPlayer.Reparent(partSprite);
+        //
+        //     partSprite.Name = part;
+        //     partPlayer.Name = part + "AnimationPlayer";
+        //     GD.Print($"children count of {partSprite}'s node: {partSprite.GetChildCount()}");
+        //
+        //     //Set properties of sprite
+        //     partSprite.Centered = false;
+        //     partSprite.Offset = new Vector2(this._frameHeight / 2, 0);
+        //     partSprite.Scale = new Vector3(8, 8, 8);
+        //
+        //     //GD.Print($"part anim library anims: {partLibrary.GetAnimationList()}");
+        //     //GD.Print($"blobal anim library anims: {globalAnimLibrary.GetAnimationList()}");
+        //     int typeOffset;
+        //     for (var typeNum = 0; typeNum < typesOfPart; typeNum++)
+        //     {
+        //         typeOffset = typeNum * this._frameHeight * this._aaaParams.AnimDirections.Count;
+        //         var typeLabel = "";
+        //         if (typesOfPart > 1)
+        //         {
+        //             if (this._aaaParams.PartConfigLabels.ContainsKey(part))
+        //             {
+        //                 typeLabel = this._aaaParams.PartConfigLabels[part][typeNum];
+        //             }
+        //             else
+        //             {
+        //                 var typeChar = (char)(typeNum + 65);
+        //                 typeLabel = typeChar.ToString();
+        //             }
+        //         }
+        //
+        //         configLabels.Add(typeLabel);
+        //         foreach (var animName in globalAnimLibrary.GetAnimationList())
+        //         {
+        //             this._currHeight = partOffset + typeOffset;
+        //             //GD.Print($"Starting automating '{animName}'...");
+        //             var anim = globalAnimLibrary.GetAnimation(animName);
+        //             //foreach
+        //             //if (animName.ToString().ToLower().Contains(_))
+        //             if (this._aaaParams.AnimLoopMap.ContainsKey(animName))
+        //             {
+        //                 anim.LoopMode = this._aaaParams.AnimLoopMap[animName];
+        //             }
+        //             //GD.Print($"Set loop mode to '{anim.LoopMode}'.");
+        //             else
+        //             {
+        //                 anim.LoopMode = Animation.LoopModeEnum.None; // Default don't loop
+        //             }
+        //
+        //             var trackNum = 1;
+        //
+        //
+        //             foreach (var dir in this._aaaParams.AnimDirections)
+        //             {
+        //                 var dirAnim = anim.Duplicate(true) as Animation;
+        //
+        //                 var numFrames = dirAnim.TrackGetKeyCount(trackNum);
+        //                 for (var i = 0; i < numFrames; i++)
+        //                 {
+        //                     var currRect = (Rect2)dirAnim.TrackGetKeyValue(trackNum, i);
+        //                     var dirRect = new Rect2(currRect.Position.X, this._currHeight,
+        //                         currRect.Size.X, this._frameHeight);
+        //
+        //                     dirAnim.TrackSetKeyValue(trackNum, i, Variant.From(dirRect));
+        //                 }
+        //
+        //                 var newAnimName = animName + GetFaceDirectionString(dir) + typeLabel;
+        //                 GD.Print($"For {partPlayer.Name}'s animation '{newAnimName}', height is: {this._currHeight}");
+        //                 partLibrary.AddAnimation(newAnimName, dirAnim);
+        //                 this._currHeight += this._frameHeight;
+        //                 //partLibrary.RemoveAnimation(animName);
+        //             }
+        //         }
+        //     }
+        //
+        //     partPlayer.SetConfigOptions(configLabels);
+        //     partNum++;
+        //     partOffset += this._currHeight;
+        // }
 
         animPlayer.Free();
         this._sprite.Free();

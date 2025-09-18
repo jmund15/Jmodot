@@ -139,12 +139,11 @@ public partial class GameRegistry : Resource
     {
         if (!this.TryGetIdentity(identityKey, out var identity))
         {
-            JmoLogger.Exception(
+            throw JmoLogger.LogAndRethrow(
                 new KeyNotFoundException($"Identity with key '{identityKey}' not found in GameRegistry."),
                 this
             );
         }
-
         return identity!;
     }
 
@@ -170,12 +169,11 @@ public partial class GameRegistry : Resource
     {
         if (!this.TryGetCategory(categoryKey, out var category))
         {
-            JmoLogger.Exception(
+            throw JmoLogger.LogAndRethrow(
                 new KeyNotFoundException($"Category with key '{categoryKey}' not found in GameRegistry."),
                 this
             );
         }
-
         return category!;
     }
 
@@ -195,12 +193,11 @@ public partial class GameRegistry : Resource
     {
         if (!this.TryGetInputAction(actionKey, out var action))
         {
-            JmoLogger.Exception(
+            throw JmoLogger.LogAndRethrow(
                 new KeyNotFoundException($"InputAction with key '{actionKey}' not found in GameRegistry."),
                 this
             );
         }
-
         return action!;
     }
 
@@ -220,12 +217,11 @@ public partial class GameRegistry : Resource
     {
         if (!this.TryGetAttribute(attributeKey, out var attribute))
         {
-            JmoLogger.Exception(
+            throw JmoLogger.LogAndRethrow(
                 new KeyNotFoundException($"Attribute with key '{attributeKey}' not found in GameRegistry."),
                 this
             );
         }
-
         return attribute!;
     }
 
@@ -245,12 +241,11 @@ public partial class GameRegistry : Resource
     {
         if (!this.TryGetAffinity(affinityKey, out var affinity))
         {
-            JmoLogger.Exception(
+            throw JmoLogger.LogAndRethrow(
                 new KeyNotFoundException($"Affinity with key '{affinityKey}' not found in GameRegistry."),
                 this
             );
         }
-
         return affinity!;
     }
 

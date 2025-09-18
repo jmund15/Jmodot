@@ -1,72 +1,50 @@
 namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
 
-using System.Collections.Generic;
-using System.Linq;
-using Core.AI.BB;
+using Core.AI;
 using Implementation.AI.BehaviorTree.Tasks;
 
-[GlobalClass]
-[Tool]
+/// <summary>
+/// An action that waits for a specified duration and then succeeds.
+/// </summary>
+[GlobalClass, Tool]
 public partial class Lag : BehaviorAction
 {
-    #region TASK_VARIABLES
+    [Export(PropertyHint.Range, "0.0, 10.0, 0.1, or_greater")]
+    protected float LagTime = 1.0f;
 
-    [Export(PropertyHint.Range, "0.0, 5.0, .1f, or_greater")]
-    protected float LagTime;
+    private SceneTreeTimer _timer;
 
-    #endregion
-
-    #region TASK_UPDATES
-
-    public override void Init(Node agent, IBlackboard bb)
+    protected override void OnEnter()
     {
-        base.Init(agent, bb);
-    }
-
-    public override void Enter()
-    {
-        base.Enter();
-        if (this.LagTime <= 0f)
+        base.OnEnter();
+        if (LagTime <= 0f)
         {
-            this.OnLagTimeout();
+            Status = TaskStatus.SUCCESS;
             return;
         }
 
-        this.GetTree().CreateTimer(this.LagTime).Timeout += this.OnLagTimeout;
+        _timer = GetTree().CreateTimer(LagTime);
+        _timer.Timeout += OnLagTimeout;
     }
 
-    public override void Exit()
+    protected override void OnExit()
     {
-        base.Exit();
+        base.OnExit();
+        // Ensure the timer is cleaned up if the task is aborted.
+        if (_timer.IsValid())
+        {
+            _timer.Timeout -= OnLagTimeout;
+            // No need to QueueFree, SceneTreeTimer does this automatically.
+        }
     }
 
-    public override void ProcessFrame(float delta)
+    private void OnLagTimeout()
     {
-        base.ProcessFrame(delta);
+        // Check if we are still running. It's possible the task was aborted
+        // but the timer fired in the same frame.
+        if (Status == TaskStatus.RUNNING)
+        {
+            Status = TaskStatus.SUCCESS;
+        }
     }
-
-    public override void ProcessPhysics(float delta)
-    {
-        base.ProcessPhysics(delta);
-    }
-
-    #endregion
-
-    #region TASK_HELPER
-
-    protected virtual void OnLagTimeout()
-    {
-        this.Status = BTaskStatus.SUCCESS;
-    }
-
-    public override string[] _GetConfigurationWarnings()
-    {
-        var warnings = new List<string>();
-
-        //
-
-        return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
-    }
-
-    #endregion
 }

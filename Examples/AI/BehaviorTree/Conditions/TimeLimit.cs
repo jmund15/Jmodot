@@ -1,53 +1,28 @@
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
 using Core.AI.BB;
+using Core.AI.BehaviorTree.Conditions;
 
-[GlobalClass]
-[Tool]
+/// <summary>
+/// A condition that monitors elapsed time. It fails (or succeeds, if SucceedOnAbort is true)
+/// after a specified time limit has passed. This is a monitoring condition.
+/// </summary>
+[GlobalClass, Tool]
 public partial class TimeLimit : BTCondition
 {
-    #region TASK_VARIABLES
+    [Export(PropertyHint.Range, "0.0, 60.0, 0.1, or_greater")]
+    public float Limit { get; private set; } = 1.0f;
 
-    [Export] public float Limit { get; set; }
+    private double _startTime;
 
-    private float _elasped;
-
-    #endregion
-
-    #region TASK_UPDATES
-
-    public override void Init(Node agent, IBlackboard bb)
+    public override void OnParentTaskEnter()
     {
-        base.Init(agent, bb);
-        this._elasped = 0f;
+        _startTime = Time.GetTicksMsec();
     }
 
-    public override void Enter()
+    public override bool Check()
     {
-        base.Enter();
-        this._elasped = 0f;
+        // The condition is "true" as long as the time limit has NOT been exceeded.
+        return (Time.GetTicksMsec() - _startTime) / 1000.0 < Limit;
     }
-
-    public override void Exit()
-    {
-        base.Exit();
-        this._elasped = 0f;
-    }
-
-    public override void ProcessFrame(float delta)
-    {
-        base.ProcessFrame(delta);
-        this._elasped += delta;
-        if (this._elasped >= this.Limit)
-        {
-            this.OnExitTask();
-        }
-    }
-
-    public override void ProcessPhysics(float delta)
-    {
-        base.ProcessPhysics(delta);
-    }
-
-    #endregion
 }

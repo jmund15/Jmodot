@@ -1,49 +1,30 @@
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
-using Core.AI.BB;
-using Core.Shared;
+using Core.AI.BehaviorTree.Conditions;
+using Implementation.Shared;
 
-[GlobalClass]
-[Tool]
+/// <summary>
+/// A condition that succeeds based on a random probability check.
+/// This is a "guard" condition, meant to be checked once on entry.
+/// Set MonitorConditions=false on the parent task for this behavior.
+/// </summary>
+[GlobalClass, Tool]
 public partial class ProbabilityToRun : BTCondition
 {
-    #region TASK_VARIABLES
+    [Export(PropertyHint.Range, "0.0, 1.0, 0.01")]
+    public float RunProbability { get; private set; } = 0.5f;
 
-    [Export(PropertyHint.Range, "0,1,0.01")]
-    public float RunProbability { get; set; }
+    private bool _lastCheckResult = false;
 
-    #endregion
-
-    #region TASK_UPDATES
-
-    public override void Init(Node agent, IBlackboard bb)
+    public override void OnParentTaskEnter()
     {
-        base.Init(agent, bb);
+        // Roll the dice only once when the parent task enters.
+        _lastCheckResult = MiscUtils.Rnd.NextSingle() < RunProbability;
     }
 
-    public override void Enter()
+    public override bool Check()
     {
-        base.Enter();
-        if (MiscUtils.Rnd.NextSingle() > this.RunProbability)
-        {
-            this.OnExitTask();
-        }
+        // Return the result of the roll that was made on entry.
+        return _lastCheckResult;
     }
-
-    public override void Exit()
-    {
-        base.Exit();
-    }
-
-    public override void ProcessFrame(float delta)
-    {
-        base.ProcessFrame(delta);
-    }
-
-    public override void ProcessPhysics(float delta)
-    {
-        base.ProcessPhysics(delta);
-    }
-
-    #endregion
 }

@@ -1,71 +1,69 @@
 namespace Jmodot.Implementation.Shared;
-
+using Godot;
 using System;
 
 /// <summary>
-///     A centralized static class for logging with rich context. It standardizes message formats
-///     across the project and leverages Godot's debugger for clear presentation of warnings and errors.
-///     This is the definitive tool for all diagnostic output.
+/// A centralized static class for logging with rich context. It standardizes message formats
+/// across the project and leverages Godot's debugger for clear presentation of warnings and errors.
+/// This is the definitive tool for all diagnostic output.
 /// </summary>
 public static class JmoLogger
 {
     /// <summary>
-    ///     The core private helper that builds the standardized log message string.
+    /// The core private helper that builds the standardized log message string based on the context object's type.
     /// </summary>
-    private static string BuildLogMessage(string level, object context, string message, Node? owner = null,
-        params object[] args)
+    /// <param name="level">The severity level of the log (e.g., "ERROR", "INFO").</param>
+    /// <param name="context">The object that is the source of the log message.</param>
+    /// <param name="message">The log message, which can contain format specifiers (e.g., "{0}").</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object, for additional clarity.</param>
+    /// <param name="args">Optional arguments to format into the message string.</param>
+    /// <returns>A fully formatted string ready for output.</returns>
+    private static string BuildLogMessage(string level, object? context, string message, Node? owner, params object[] args)
     {
+        // Gracefully handle cases where a null context is passed.
+        if (context == null)
+        {
+            return $"[NULL CONTEXT] {level}: {message}";
+        }
+
         string contextStr;
-        if (context is Node node)
+        string ownerStr = "";
+
+        // Intelligently format the context string based on the object's type.
+        switch (context)
         {
-            var ownerStr = owner != null ? $" (Owner: {owner.GetPath()})" :
-                node.GetOwner() != null ? $" (Owner: {node.GetOwner().GetPath()})" : "";
-            contextStr = $"[{node.GetType().Name} @ '{node.GetPath()}']{ownerStr}";
-        }
-        else if (context is Resource resource)
-        {
-            var ownerStr = owner != null ? $" (Owner: {owner.GetPath()})" : "";
-            contextStr = $"[{resource.GetType().Name} @ '{resource.ResourcePath}']{ownerStr}";
-        }
-        else
-        {
-            contextStr = "[UNKNOWN CONTEXT]";
+            case Node node:
+                var nodeOwner = owner ?? node.GetOwner();
+                ownerStr = nodeOwner != null ? $" (Owner: {nodeOwner.GetPath()})" : "";
+                contextStr = $"[{node.GetType().Name} @ '{node.GetPath()}']{ownerStr}";
+                break;
+            case Resource resource:
+                ownerStr = owner != null ? $" (Owner: {owner.GetPath()})" : "";
+                contextStr = $"[{resource.GetType().Name} @ '{resource.ResourcePath}']{ownerStr}";
+                break;
+            default:
+                // Provide a sensible fallback for any other C# object.
+                contextStr = $"[{context.GetType().Name}]";
+                break;
         }
 
-        var finalMessage = args != null && args.Length > 0 ? string.Format(message, args) : message;
-
+        var finalMessage = args is { Length: > 0 } ? string.Format(message, args) : message;
         return $"{contextStr} {level}: {finalMessage}";
     }
 
     #region Error Logging (For Critical, Non-Functional Bugs)
 
     /// <summary>
-    ///     Logs a critical error originating from a Node. Use for setup or configuration errors
-    ///     that prevent the Node from functioning as intended.
+    /// Logs a critical error. Use for setup, configuration, or runtime errors that
+    /// prevent an object from functioning as intended.
     /// </summary>
-    /// <param name="context">The Node that is the source of the error.</param>
-    /// <param name="owner">Optional. The Node that owns or is using this Resource, for crucial context.</param>
+    /// <param name="context">The object (Node, Resource, etc.) that is the source of the error.</param>
     /// <param name="message">The error message, which can contain format specifiers (e.g., "{0}").</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object, for crucial context.</param>
     /// <param name="args">Optional arguments to format into the message string.</param>
-    public static void Error(Node context, string message, Node? owner = null, params object[] args)
+    public static void Error(object context, string message, Node? owner = null, params object[] args)
     {
-        var formattedMessage =
-            BuildLogMessage("ERROR", context, message, owner ?? context.GetOwnerOrNull<Node>(), args);
-        GD.PushError(formattedMessage);
-    }
-
-    /// <summary>
-    ///     Logs a critical error originating from a Resource. Use for configuration errors
-    ///     that make the Resource invalid or unusable.
-    /// </summary>
-    /// <param name="context">The Resource that is the source of the error.</param>
-    /// <param name="owner">Optional. The Node that owns or is using this Resource, for crucial context.</param>
-    /// <param name="message">The error message, which can contain format specifiers.</param>
-    /// <param name="args">Optional arguments to format into the message string.</param>
-    public static void Error(Resource context, string message, Node? owner = null, params object[] args)
-    {
-        var formattedMessage = BuildLogMessage("ERROR", context, message, owner, args);
-        GD.PushError(formattedMessage);
+        GD.PushError(BuildLogMessage("ERROR", context, message, owner, args));
     }
 
     #endregion
@@ -73,29 +71,16 @@ public static class JmoLogger
     #region Warning Logging (For Recoverable or Non-Critical Issues)
 
     /// <summary>
-    ///     Logs a warning originating from a Node. Use for unexpected states or configurations
-    ///     that the system can recover from but may indicate a designer oversight.
+    /// Logs a warning. Use for unexpected states or configurations that the system can
+    /// recover from but may indicate a designer oversight or a potential future problem.
     /// </summary>
-    /// <param name="context">The Node that is the source of the warning.</param>
+    /// <param name="context">The object (Node, Resource, etc.) that is the source of the warning.</param>
     /// <param name="message">The warning message, which can contain format specifiers.</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object.</param>
     /// <param name="args">Optional arguments to format into the message string.</param>
-    public static void Warning(Node context, string message, Node? custOwner = null, params object[] args)
+    public static void Warning(object context, string message, Node? owner = null, params object[] args)
     {
-        var formattedMessage = BuildLogMessage("WARNING", context, message, custOwner, args);
-        GD.PushWarning(formattedMessage);
-    }
-
-    /// <summary>
-    ///     Logs a warning originating from a Resource.
-    /// </summary>
-    /// <param name="context">The Resource that is the source of the warning.</param>
-    /// <param name="owner">Optional. The Node that owns or is using this Resource.</param>
-    /// <param name="message">The warning message, which can contain format specifiers.</param>
-    /// <param name="args">Optional arguments to format into the message string.</param>
-    public static void Warning(Resource context, string message, Node? owner = null, params object[] args)
-    {
-        var formattedMessage = BuildLogMessage("WARNING", context, message, owner, args);
-        GD.PushWarning(formattedMessage);
+        GD.PushWarning(BuildLogMessage("WARNING", context, message, owner, args));
     }
 
     #endregion
@@ -103,29 +88,16 @@ public static class JmoLogger
     #region Info Logging (For General Diagnostic/Trace Messages)
 
     /// <summary>
-    ///     Logs an informational message from a Node. Use for tracing application flow, state changes,
-    ///     or other diagnostics that are useful during development but not indicative of a problem.
+    /// Logs an informational message. Use for tracing application flow, state changes,
+    /// or other diagnostics that are useful during development but not indicative of a problem.
     /// </summary>
-    /// <param name="context">The Node that is the source of the message.</param>
+    /// <param name="context">The object (Node, Resource, etc.) that is the source of the message.</param>
     /// <param name="message">The info message, which can contain format specifiers.</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object.</param>
     /// <param name="args">Optional arguments to format into the message string.</param>
-    public static void Info(Node context, string message, params object[] args)
+    public static void Info(object context, string message, Node? owner = null, params object[] args)
     {
-        var formattedMessage = BuildLogMessage("INFO", context, message, null, args);
-        GD.Print(formattedMessage);
-    }
-
-    /// <summary>
-    ///     Logs an informational message from a Resource.
-    /// </summary>
-    /// <param name="context">The Resource that is the source of the message.</param>
-    /// <param name="owner">Optional. The Node that owns or is using this Resource.</param>
-    /// <param name="message">The info message, which can contain format specifiers.</param>
-    /// <param name="args">Optional arguments to format into the message string.</param>
-    public static void Info(Resource context, Node owner, string message, params object[] args)
-    {
-        var formattedMessage = BuildLogMessage("INFO", context, message, owner, args);
-        GD.Print(formattedMessage);
+        GD.Print(BuildLogMessage("INFO", context, message, owner, args));
     }
 
     #endregion
@@ -133,27 +105,34 @@ public static class JmoLogger
     #region Exception Handling
 
     /// <summary>
-    ///     Logs a caught exception with full context and then re-throws it. Use in a catch block
-    ///     when you want to add context to an exception before it propagates up the stack.
+    /// Logs a caught exception and returns it, allowing the caller to re-throw it.
+    /// This is the standard pattern for logging and propagating exceptions, as it makes
+    /// the control flow clear to the C# compiler.
+    /// Usage: throw JmoLogger.LogAndRethrow(ex, this);
     /// </summary>
-    public static void Exception(Exception ex, Node context, Node? custOwner = null)
+    /// <param name="ex">The caught exception.</param>
+    /// <param name="context">The object where the exception was caught.</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object.</param>
+    /// <returns>The original exception, to be thrown by the caller.</returns>
+    public static Exception LogAndRethrow(Exception ex, object context, Node? owner = null)
     {
-        var message = $"Caught Exception: {ex.Message}\n{ex.StackTrace}";
-        var formattedMessage = BuildLogMessage("EXCEPTION", context, message, custOwner);
-        GD.PushError(formattedMessage);
-        throw ex;
+        var message = $"Caught Exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
+        GD.PushError(BuildLogMessage("EXCEPTION", context, message, owner));
+        return ex;
     }
 
     /// <summary>
-    ///     Logs a caught exception with full context and then re-throws it. Use in a catch block
-    ///     when you want to add context to an exception before it propagates up the stack.
+    /// Logs a caught exception that has been handled and will NOT be re-thrown.
+    /// Use this in a catch block where you can gracefully recover from the error.
+    /// The output is a warning because the program is continuing execution.
     /// </summary>
-    public static void Exception(Exception ex, Resource context, Node? owner = null)
+    /// <param name="ex">The caught exception.</param>
+    /// <param name="context">The object where the exception was caught and handled.</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object.</param>
+    public static void LogHandledException(Exception ex, object context, Node? owner = null)
     {
-        var message = $"Caught Exception: {ex.Message}\n{ex.StackTrace}";
-        var formattedMessage = BuildLogMessage("EXCEPTION", context, message, owner);
-        GD.PushError(formattedMessage);
-        throw ex;
+        var message = $"Handled Exception: {ex.GetType().Name}: {ex.Message}";
+        GD.PushWarning(BuildLogMessage("HANDLED EXCEPTION", context, message, owner));
     }
 
     #endregion

@@ -5,7 +5,7 @@ using Implementation.AI.BehaviorTree.Tasks;
 public interface IDecorator
 {
     void DecoratorEnter();
-    void DecoratorPostProcess(BTaskStatus postProcStatus);
-    void DecoratorOnChangeStatus(BTaskStatus newStatus);
+    void DecoratorPostProcess(TaskStatus postProcStatus);
+    void DecoratorOnChangeStatus(TaskStatus newStatus);
     void DecoratorExit();
 }

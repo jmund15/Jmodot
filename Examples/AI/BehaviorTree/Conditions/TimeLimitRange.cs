@@ -2,6 +2,7 @@ namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
 using Core.AI.BB;
 using Core.Shared;
+using Implementation.Shared;
 
 [GlobalClass]
 [Tool]

@@ -3,264 +3,223 @@ namespace Jmodot.Implementation.AI.BehaviorTree;
 using System.Collections.Generic;
 using System.Linq;
 using Composites;
+using Core.AI;
 using Core.AI.BB;
+using Shared;
+using Shared.GodotExceptions;
 using Tasks;
 
-[GlobalClass]
-[Tool]
+/// <summary>
+/// The root controller for a Behavior Tree. It manages the lifecycle (initialization, entering, exiting)
+/// and the continuous "ticking" of its root task. It serves as the entry point for executing
+/// a tree of behaviors, either driven by an external system (like a BTState) or running independently.
+/// </summary>
+[GlobalClass, Tool]
 public partial class BehaviorTree : Node
 {
-    #region TREE_VARIABLES
+    #region EXPORTS & PROPERTIES
 
-    public string TreeName { get; protected set; } = string.Empty;
-    public bool Initialized { get; protected set; }
+    /// <summary>
+    /// The agent (Node) that this behavior tree will control.
+    /// </summary>
+    [Export] public Node AgentNode { get; private set; }
 
-    [Export] private Node _exportedBB;
-    [Export] public Node AgentNode { get; set; }
-    public IBlackboard BB { get; set; }
+    /// <summary>
+    /// The Blackboard resource used for data sharing among tasks. Must implement IBlackboard.
+    /// </summary>
+    [Export] private Node _blackboardNode;
+    public IBlackboard Blackboard { get; private set; }
+
+    /// <summary>
+    /// If true, this tree will attempt to initialize and run itself in _Ready.
+    /// Useful for testing or for agents whose entire logic is contained within a single tree.
+    /// Requires AgentNode and Blackboard to be set in the editor.
+    /// </summary>
+    [Export] public bool SelfSufficient { get; private set; }
+
+    public enum DebugViewPosition
+    {
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight
+    }
+    [ExportGroup("Debugging")]
+    /// <summary>
+    /// If true, a debug overlay will be instantiated to visualize the tree's activity at runtime.
+    /// </summary>
+    [Export] private bool _enableDebugView = false;
+
+    [Export] private DebugViewPosition _debugViewPosition = DebugViewPosition.TopLeft;
+
+    public bool IsInitialized { get; private set; }
+    public BehaviorTask RootTask { get; private set; }
 
     private bool _enabled;
-
-    [Export]
     public bool Enabled
     {
-        get => this._enabled;
-        set
+        get => _enabled;
+        private set
         {
-            if (this._enabled == value)
-            {
-                return;
-            }
-
-            this._enabled = value;
-            if (this._enabled)
-            {
-                this.EmitSignal(SignalName.TreeEnabled);
-            }
-            else
-            {
-                this.EmitSignal(SignalName.TreeDisabled);
-            }
+            if (_enabled == value) return;
+            _enabled = value;
+            EmitSignal(_enabled ? SignalName.TreeEnabled : SignalName.TreeDisabled);
         }
     }
-
-    [Export] // Runs without needing init'd from another node
-    public bool SelfSuffecient { get; protected set; }
-
-    public BehaviorTask RootTask { get; set; }
-    public BehaviorAction RunningLeaf { get; protected set; }
-    public float ProcTimeMetric { get; private set; }
-
-    [Signal]
-    public delegate void TreeInitializedEventHandler();
-
-    [Signal]
-    public delegate void TreeEnabledEventHandler();
-
-    [Signal]
-    public delegate void TreeDisabledEventHandler();
-
-    [Signal]
-    public delegate void TreeFinishedLoopEventHandler(BTaskStatus treeStatus);
-
-    [Signal]
-    public delegate void TreeResetEventHandler();
 
     #endregion
 
-    #region TREE_UPDATES
+    #region SIGNALS
+
+    [Signal] public delegate void TreeInitializedEventHandler();
+    [Signal] public delegate void TreeEnabledEventHandler();
+    [Signal] public delegate void TreeDisabledEventHandler();
+    [Signal] public delegate void TreeFinishedLoopEventHandler(TaskStatus treeStatus);
+    [Signal] public delegate void TreeResetEventHandler();
+
+    #endregion
+
+    #region LIFECYCLE & PROCESSING
 
     public override void _Ready()
     {
-        base._Ready();
-        //TreeInitialized += () => { Initialized = true; GD.Print("TREE INITIALIZD"); };
+        if (Engine.IsEditorHint() || !SelfSufficient) return;
 
-        if (this._enabled && this.SelfSuffecient)
+        if (!AgentNode.IsValid())
         {
-            if (Engine.IsEditorHint())
-            {
-                this.TreeName = "Editor's Behavior Tree";
-            }
-            else if (!this.AgentNode.IsValid())
-            {
-                GD.PrintErr("BehaviorTree ERROR || AgentNode is not valid!");
-                return;
-            }
-            else
-            {
-                this.TreeName = this.AgentNode.Name + "'s Behavior Tree";
-            }
-
-            if (this._exportedBB is not IBlackboard bb)
-            {
-                GD.PrintErr("BehaviorTree ERROR || Exported Blackboard doesn't implement \"IBlackboard\"!");
-                return;
-            }
-            //CallDeferred(MethodName.Init, AgentNode, bb);
-            //CallDeferred(MethodName.Enter);
-
-            this.CallDeferred(MethodName.InitTreeAndEnter);
+            JmoLogger.Error(this, "SelfSufficient tree cannot start: AgentNode is not set.");
+            return;
         }
-    }
+        if (_blackboardNode is not IBlackboard bb)
+        {
+            JmoLogger.Error(this, "SelfSufficient tree cannot start: Blackboard is not set or does not implement IBlackboard.");
+            return;
+        }
 
-    private void InitTreeAndEnter()
-    {
-        this.Init(this.AgentNode, this._exportedBB as IBlackboard);
-        this.Enter();
-        GD.Print("entered self enabled BT!");
+        Init(AgentNode, bb);
+        Enter();
     }
 
     public override void _Process(double delta)
     {
-        if (Engine.IsEditorHint())
-        {
-            return;
-        }
-
-        base._Process(delta);
-        if (this.Enabled && this.Initialized)
-        {
-            this.ProcessFrame((float)delta);
-        }
+        if (Engine.IsEditorHint() || !Enabled || !IsInitialized) return;
+        RootTask?.ProcessFrame((float)delta);
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Engine.IsEditorHint())
-        {
-            return;
-        }
-
-        base._PhysicsProcess(delta);
-        if (this.Enabled && this.Initialized)
-        {
-            this.ProcessPhysics((float)delta);
-        }
+        if (Engine.IsEditorHint() || !Enabled || !IsInitialized) return;
+        RootTask?.ProcessPhysics((float)delta);
     }
 
+    /// <summary>
+    /// Initializes the Behavior Tree and all its child tasks.
+    /// This must be called before Enter().
+    /// </summary>
+    /// <param name="agent">The Node that the tree will be controlling.</param>
+    /// <param name="bb">The IBlackboard instance for data communication.</param>
     public virtual void Init(Node agent, IBlackboard bb)
     {
-        this.AgentNode = agent;
-        this.BB = bb;
-        if (this.TreeName == string.Empty)
+        if (IsInitialized) return;
+
+        AgentNode = agent;
+        Blackboard = bb;
+
+        if (!this.TryGetFirstChildOfType<BehaviorTask>(out var rootTask, false))
         {
-            this.TreeName = this.AgentNode.Name + "'s Behavior Tree";
+            throw new NodeConfigurationException($"BehaviorTree '{Name}' requires a child node that inherits from BehaviorTask to serve as its root.", this);
         }
 
-        var rt = this.GetFirstChildOfType<BehaviorTask>();
-        if (!rt.IsValid())
+        RootTask = rootTask;
+        RootTask.Init(AgentNode, Blackboard);
+
+        if (_enableDebugView && !Engine.IsEditorHint())
         {
-            this.Enabled = false;
-            GD.PrintErr("BEHAVIOR TREE HAS NO ROOT TASK");
+            var canvas = new CanvasLayer { Name = "BTDebugCanvas" };
+            AddChild(canvas);
+            var debugComponent = new DebugBTComponent();
+            AddChild(debugComponent); // Add the UI as a child of the tree itself.
+            debugComponent.Init(this); // Initialize it with a reference to this tree.
+            debugComponent.SetDisplayPosition(_debugViewPosition); // New method call
+        }
+
+        IsInitialized = true;
+        EmitSignal(SignalName.TreeInitialized);
+    }
+
+    /// <summary>
+    /// Activates the Behavior Tree, causing it to start processing.
+    /// </summary>
+    public virtual void Enter()
+    {
+        if (!IsInitialized)
+        {
+            JmoLogger.Error(this, "Attempted to Enter() BehaviorTree before it was initialized. Call Init() first.");
             return;
         }
 
-        this.RootTask = rt;
-        this.RootTask.Init(this.AgentNode, this.BB);
-        this.EmitSignal(SignalName.TreeInitialized);
-        this.Initialized = true;
-        //GD.Print("root task of tree: ", RootTask.TaskName);
+        Enabled = true;
+        RootTask.TaskStatusChanged += OnRootTaskStatusChanged;
+        RootTask.Enter();
     }
 
-    public virtual void Enter()
-    {
-        this.Enabled = true;
-        this.RootTask.Enter();
-        this.RootTask.TaskStatusChanged += this.OnRootTaskStatusChanged;
-
-        //GetRunningLeaf();
-    }
-
+    /// <summary>
+    /// Deactivates the Behavior Tree, stopping all processing.
+    /// </summary>
     public virtual void Exit()
     {
-        this.Enabled = false;
-        this.RootTask.Exit();
-        this.RootTask.TaskStatusChanged -= this.OnRootTaskStatusChanged;
-        //GD.Print($"BTree {Name} Exited.");
-    }
+        if (!IsInitialized) return;
 
-    public virtual void ProcessFrame(float delta)
-    {
-        this.RootTask.ProcessFrame(delta);
-    }
-
-    public virtual void ProcessPhysics(float delta)
-    {
-        this.RootTask.ProcessPhysics(delta);
+        Enabled = false;
+        RootTask.TaskStatusChanged -= OnRootTaskStatusChanged;
+        RootTask.Exit();
     }
 
     #endregion
 
-    #region TREE_HELPER
+    #region EVENT_HANDLERS & HELPERS
 
-    private void OnRootTaskStatusChanged(BTaskStatus newStatus)
+    private void OnRootTaskStatusChanged(TaskStatus newStatus)
     {
-        GD.Print($"Tree root node {this.RootTask.Name} status changed to {newStatus}");
-        switch (newStatus)
+        // We only care about terminal states (SUCCESS or FAILURE) at the root level.
+        if (newStatus is TaskStatus.RUNNING or TaskStatus.FRESH)
         {
-            case BTaskStatus.RUNNING or BTaskStatus.FRESH:
-                break;
-            case BTaskStatus.SUCCESS:
-                this.EmitSignal(SignalName.TreeFinishedLoop, Variant.From(BTaskStatus.SUCCESS));
-                GD.Print("EMITTED TREE FINISHED WITH SUCCESS");
-                if (this.Enabled)
-                {
-                    this.RootTask.Exit();
-                    this.RootTask.Enter();
-                    this.EmitSignal(SignalName.TreeReset);
-                }
-
-                break;
-            case BTaskStatus.FAILURE:
-                this.EmitSignal(SignalName.TreeFinishedLoop, Variant.From(BTaskStatus.FAILURE));
-                GD.Print("EMITTED TREE FINISHED WITH FAILURE");
-                if (this.Enabled)
-                {
-                    this.RootTask.Exit();
-                    this.RootTask.Enter();
-                    this.EmitSignal(SignalName.TreeReset);
-                }
-
-                break;
-        }
-    }
-
-    protected virtual void
-        GetRunningLeaf() // TODO: DOESN'T WORK (signal will emit before running leaf has actually switched (probably))
-    {
-        var currLeaf = this.RootTask;
-        while (currLeaf is not BehaviorAction) //&& currLeaf.Status != BTaskStatus.RUNNING) //UNNECESARY
-        {
-            if (currLeaf is not CompositeTask compT)
-            {
-                GD.PrintErr("WEIRD BT ERROR HELP!");
-                return;
-            }
-
-            currLeaf = compT.RunningChild;
+            return;
         }
 
-        this.RunningLeaf = currLeaf as BehaviorAction;
-        this.RunningLeaf.TaskStatusChanged += status => this.GetRunningLeaf();
+        JmoLogger.Info(this, $"Tree root task '{RootTask.Name}' finished with status {newStatus}.");
+        EmitSignal(SignalName.TreeFinishedLoop, (long)newStatus);
+
+        // If the tree is still enabled after the loop finished (i.e., not being shut down by a BTState),
+        // automatically reset and restart it for continuous execution.
+        if (Enabled)
+        {
+            JmoLogger.Info(this, "Resetting and restarting tree...");
+            EmitSignal(SignalName.TreeReset);
+            RootTask.Exit();  // Ensure a clean exit before re-entering.
+            RootTask.Enter();
+        }
     }
 
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
 
-        if (this.GetChildren().Count > 1)
+        var children = GetChildren();
+        if (children.Count(c => c is BehaviorTask) == 0)
         {
-            warnings.Add("BehaviorTree nodes should only have one child (the root BehaviorTask)");
+            warnings.Add("BehaviorTree must have one child that inherits from BehaviorTask to act as the root.");
+        }
+        if (children.Count(c => c is BehaviorTask) > 1)
+        {
+            warnings.Add("BehaviorTree should only have one BehaviorTask child (the root task).");
         }
 
-        if (this.GetChildren().Any(x => x is not BehaviorTask))
+        if (SelfSufficient)
         {
-            warnings.Add("Root BehaviorTree should inherit from BehaviorTask class.");
-        }
-
-        if (this.BB is not null && this.BB is not IBlackboard bb)
-        {
-            warnings.Add("The exported Blackboard must implement \"IBlackboard\"!");
+            if (AgentNode == null) warnings.Add("SelfSufficient is true, but AgentNode is not assigned.");
+            if (_blackboardNode == null) warnings.Add("SelfSufficient is true, but Blackboard is not assigned.");
+            else if (_blackboardNode is not IBlackboard) warnings.Add("The assigned Blackboard node must implement the IBlackboard interface.");
         }
 
         return warnings.ToArray();

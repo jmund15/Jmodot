@@ -1,5 +1,7 @@
 namespace Jmodot.Core.AI.BB;
 
+using System;
+
 /// <summary>
 ///     Defines the contract for a Blackboard, a centralized data store for AI and game systems.
 ///     This allows for decoupled communication by enabling different components to read and write
@@ -51,4 +53,18 @@ public interface IBlackboard
     /// <param name="val">The value to set.</param>
     /// <returns>Error.Ok on success, or Error.InvalidData if the type is mismatched with an existing key.</returns>
     Error SetPrimVar<[MustBeVariant] T>(StringName key, T val) where T : struct;
+
+    /// <summary>
+    /// Subscribes a callback action to be invoked whenever the value associated with the specified key changes.
+    /// </summary>
+    /// <param name="key">The StringName key to monitor.</param>
+    /// <param name="callback">The action to execute when the value changes. The new value is passed as a Variant.</param>
+    void Subscribe(StringName key, Action<Variant> callback);
+
+    /// <summary>
+    /// Unsubscribes a callback action from the specified key.
+    /// </summary>
+    /// <param name="key">The StringName key from which to unsubscribe.</param>
+    /// <param name="callback">The specific action to remove.</param>
+    void Unsubscribe(StringName key, Action<Variant> callback);
 }

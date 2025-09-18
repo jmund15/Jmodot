@@ -1,75 +1,43 @@
-#region
+namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.AI.BB;
-using Jmodot.Core.AI.BehaviorTree;
-using Jmodot.Implementation.AI.BB;
+using BB;
+using Core.AI.BehaviorTree;
 
-#endregion
-
-[GlobalClass]
-[Tool]
-public partial class BehaviorAction : BehaviorTask
+/// <summary>
+/// Represents a leaf node in the Behavior Tree. Actions are where the actual work
+/// (e.g., moving, attacking, playing an animation) is performed.
+/// </summary>
+[GlobalClass, Tool]
+public abstract partial class BehaviorAction : BehaviorTask
 {
-    #region TASK_VARIABLES
-
+    /// <summary>
+    /// Modifies the agent's 'SelfInterruptible' property on the blackboard when this task is active.
+    /// </summary>
     [Export] protected InterruptibleChange SelfInterruptible = InterruptibleChange.NoChange;
 
-    #endregion
-
-    #region TASK_HELPER
+    protected override void OnEnter()
+    {
+        base.OnEnter();
+        switch (this.SelfInterruptible)
+        {
+            case InterruptibleChange.True:
+                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, true);
+                break;
+            case InterruptibleChange.False:
+                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, false);
+                break;
+        }
+    }
 
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-
-        if (this.GetChildrenOfType<BehaviorTask>().Count > 0)
+        if (this.GetChildren().OfType<BehaviorTask>().Any())
         {
-            warnings.Add("BehaviorAction must be a leaf node (NO BehaviorTask children)");
+            warnings.Add("BehaviorAction must be a leaf node and cannot have BehaviorTask children.");
         }
-
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }
-
-    #endregion
-
-    #region TASK_UPDATES
-
-    public override void Init(Node agent, IBlackboard bb)
-    {
-        base.Init(agent, bb);
-        this.TaskName += "_Action";
-    }
-
-    public override void Enter()
-    {
-        base.Enter();
-        switch (this.SelfInterruptible)
-        {
-            case InterruptibleChange.NoChange:
-                break;
-            case InterruptibleChange.True:
-                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, true); break;
-            case InterruptibleChange.False:
-                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, false); break;
-        }
-    }
-
-    public override void Exit()
-    {
-        base.Exit();
-    }
-
-    public override void ProcessFrame(float delta)
-    {
-        base.ProcessFrame(delta);
-    }
-
-    public override void ProcessPhysics(float delta)
-    {
-        base.ProcessPhysics(delta);
-    }
-
-    #endregion
 }

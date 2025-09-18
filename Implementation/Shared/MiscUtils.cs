@@ -1,4 +1,4 @@
-namespace Jmodot.Core.Shared;
+namespace Jmodot.Implementation.Shared;
 
 using System;
 using System.Collections.Generic;

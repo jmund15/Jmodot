@@ -15,6 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="Implementation\AI\BehaviorTree\Conditions\" />
       <Folder Include="Implementation\Visual\Model\" />
     </ItemGroup>
 

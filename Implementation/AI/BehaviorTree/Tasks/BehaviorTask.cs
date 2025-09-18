@@ -1,159 +1,186 @@
-#region
+namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
 using System.Collections.Generic;
+using System.Linq;
+using Core.AI.BehaviorTree;
+using Core.AI.BehaviorTree.Conditions;
 using Godot.Collections;
+using Jmodot.Core.AI;
 using Jmodot.Core.AI.BB;
-using BTaskStatus = Jmodot.Implementation.AI.BehaviorTree.Tasks.BTaskStatus;
+using Shared;
 
-#endregion
-
-[GlobalClass]
-[Tool]
-public partial class BehaviorTask : Node
-{
-    #region TASK_VARIABLES
-
-    public string TaskName { get; protected set; }
-    public Node Agent { get; private set; }
-    public IBlackboard BB { get; private set; }
-    private BTaskStatus _status;
-
-    public BTaskStatus Status
+/// <summary>
+    /// The abstract base class for all nodes in a Behavior Tree.
+    /// It manages status, conditions, and the basic execution lifecycle (Enter, Exit, Process).
+    /// </summary>
+    [GlobalClass, Tool]
+    public abstract partial class BehaviorTask : Node, IBehaviorTask
     {
-        get => this._status;
-        set
+        private TaskStatus _status;
+        /// <summary>
+        /// Gets or sets the current execution status of the task.
+        /// Setting this value will automatically fire the TaskStatusChanged signal.
+        /// </summary>
+        public TaskStatus Status
         {
-            if (this._status == value)
+            get => _status;
+            protected set
             {
+                if (_status == value) { return; }
+                _status = value;
+                EmitSignal(SignalName.TaskStatusChanged, (long)_status);
+            }
+        }
+
+        /// <summary>
+        /// A list of conditions that must be met for this task to run or continue running.
+        /// </summary>
+        [Export] public Array<BTCondition> Conditions { get; private set; } = new();
+
+        /// <summary>
+        /// If true, this task will re-evaluate its conditions every frame while running.
+        /// If a condition fails, the task will abort.
+        /// Set to false for performance-critical tasks that only need a guard check on entry.
+        /// </summary>
+        [Export] public bool MonitorConditions { get; set; } = true;
+
+        protected Node Agent { get; private set; } = null!;
+        protected IBlackboard BB { get; private set; }  = null!;
+        public string TaskName { get; private set; } = string.Empty;
+
+        [Signal]
+        public delegate void TaskStatusChangedEventHandler(TaskStatus newStatus);
+
+        public virtual void Init(Node agent, IBlackboard bb)
+        {
+            this.Agent = agent;
+            this.BB = bb;
+            this.Status = TaskStatus.FRESH;
+            this.TaskName = Name;
+
+            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            {
+                condition.Init(agent, bb);
+            }
+        }
+
+        /// <summary>
+        /// Template Method: Enters the task. Checks conditions first.
+        /// Do not override this. Override OnEnter() for custom logic.
+        /// </summary>
+        public void Enter()
+        {
+            Status = TaskStatus.FRESH;
+
+            if (!CheckAllConditions(out _))
+            {
+                Status = TaskStatus.FAILURE;
                 return;
             }
 
-            //Global.LogError($"STATUS CHANGED ON: {Name}");
-            this._status = value;
-            this.EmitSignal(SignalName.TaskStatusChanged, Variant.From(this._status));
-        }
-    }
-
-    [Export] public Array<BTCondition> Conditions { get; private set; } = new();
-
-    [Signal]
-    public delegate void TaskStatusChangedEventHandler(BTaskStatus newStatus);
-
-    #endregion
-
-    #region TASK_UPDATES
-
-    public virtual void Init(Node agent, IBlackboard bb)
-    {
-        this.Agent = agent;
-        this.BB = bb;
-        this.Status = BTaskStatus.FRESH;
-        this.TaskName += this.Name;
-        foreach (var condition in this.Conditions)
-        {
-            condition.Init(agent, bb);
-            this.TaskName += condition.ConditionName;
-        }
-        //GD.Print("INIT TASK: ", TaskName);
-    }
-
-    public virtual void Enter()
-    {
-        this.Status = BTaskStatus.FRESH;
-        //Status = BTaskStatus.RUNNING;
-        //TODO: make sure is ok? currently deferring to allow proper entering and exiting of tasks.
-        //But if conditions fail, do you really want them to even enter?
-        //Solution could be for enter to return a enum (Enter_success, enter_failure, enter_running)?
-        this.CallDeferred(MethodName.EnterConditions);
-        //GD.Print($"Task {TaskName} entered");
-    }
-
-    public virtual void Exit()
-    {
-        //GD.Print($"Task {TaskName} exited with status {Status}");
-        this.CallDeferred(MethodName.ExitConditions);
-    }
-
-    public virtual void ProcessFrame(float delta)
-    {
-        // Status = BTaskStatus.RUNNING;
-        //GD.Print("Processing frame for task: ", TaskName);
-        foreach (var condition in this.Conditions)
-        {
-            //GD.Print("RUNNING CONDITION FOR: ", condition.ConditionName);
-            condition.ProcessFrame(delta);
-        }
-    }
-
-    public virtual void ProcessPhysics(float delta)
-    {
-        // Status = BTaskStatus.RUNNING;
-        foreach (var condition in this.Conditions)
-        {
-            condition.ProcessPhysics(delta);
-        }
-    }
-
-    #endregion
-
-    #region TASK_HELPER
-
-    private void EnterConditions()
-    {
-        foreach (var condition in this.Conditions)
-        {
-            condition.ExitTaskEvent += this.OnConditionExit;
-            if (this.Status != BTaskStatus.FRESH)
+            foreach (var condition in Conditions.Where(c => c.IsValid()))
             {
-                continue;
+                condition.OnParentTaskEnter();
             }
 
-            condition.Enter();
-            GD.Print("entered condition: ", condition.ConditionName);
+            OnEnter();
+
+            if (Status == TaskStatus.FRESH)
+            {
+                Status = TaskStatus.RUNNING;
+            }
         }
 
-        if (this.Status == BTaskStatus.FRESH) // if status didn't exit from conditions, change to running
+        /// <summary>
+        /// Template Method: Exits the task.
+        /// Do not override this. Override OnExit() for custom logic.
+        /// </summary>
+        public void Exit()
         {
-            GD.Print("After entering conditions, still at fresh, so running now.");
-            this.Status = BTaskStatus.RUNNING;
+            if (Status == TaskStatus.RUNNING)
+            {
+                OnExit();
+            }
+            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            {
+                condition.OnParentTaskExit();
+            }
+            Status = TaskStatus.FRESH;
+        }
+
+        /// <summary>
+        /// Template Method: Per-frame processing.
+        /// Do not override this. Override OnProcessFrame() for custom logic.
+        /// </summary>
+        public void ProcessFrame(float delta)
+        {
+            if (Status != TaskStatus.RUNNING) { return; }
+
+            if (MonitorConditions && !CheckAllConditions(out var failingCondition))
+            {
+                JmoLogger.Info(this, $"Task aborted due to failed condition monitoring: {failingCondition!.ResourceName}");
+                Status = failingCondition.SucceedOnAbort ? TaskStatus.SUCCESS : TaskStatus.FAILURE;
+                return;
+            }
+            OnProcessFrame(delta);
+        }
+
+        /// <summary>
+        /// Template Method: Per-physics-frame processing.
+        /// Do not override this. Override OnProcessPhysics() for custom logic.
+        /// </summary>
+        public void ProcessPhysics(float delta)
+        {
+            if (Status != TaskStatus.RUNNING) { return; }
+            OnProcessPhysics(delta);
+        }
+
+        /// <summary>
+        /// Override this method to implement the task's entry logic.
+        /// </summary>
+        protected virtual void OnEnter() { }
+
+        /// <summary>
+        /// Override this method to implement the task's cleanup logic.
+        /// </summary>
+        protected virtual void OnExit() { }
+
+        /// <summary>
+        /// Override this method to implement the task's per-frame update logic.
+        /// </summary>
+        protected virtual void OnProcessFrame(float delta) { }
+
+        /// <summary>
+        /// Override this method to implement the task's per-physics-frame update logic.
+        /// </summary>
+        protected virtual void OnProcessPhysics(float delta) { }
+
+        private bool CheckAllConditions(out BTCondition? failingCondition)
+        {
+            failingCondition = null;
+            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            {
+                if (condition.Check())
+                {
+                    continue;
+                }
+
+                failingCondition = condition;
+                return false;
+            }
+            return true;
+        }
+
+        public override string[] _GetConfigurationWarnings()
+        {
+            var warnings = new List<string>();
+            foreach (var child in GetChildren())
+            {
+                if (child is not BehaviorTask)
+                {
+                    warnings.Add($"Child '{child.Name}' is not a BehaviorTask. All children must derive from BehaviorTask.");
+                }
+            }
+            return warnings.ToArray();
         }
     }
-
-    private void ExitConditions()
-    {
-        foreach (var condition in this.Conditions)
-        {
-            condition.ExitTaskEvent -= this.OnConditionExit;
-            condition.Exit();
-        }
-    }
-
-    private void OnConditionExit(object sender, bool succeedTask)
-    {
-        //if (!Conditions.Contains(sender)) { return; } //safeguard, may be slow and unecessary tho
-
-        if (succeedTask)
-        {
-            this.Status = BTaskStatus.SUCCESS;
-        }
-        else
-        {
-            this.Status = BTaskStatus.FAILURE;
-        }
-
-        GD.Print($"EXITED TASK ON {this.Status} DUE TO CONDITION: {((BTCondition)sender).ConditionName}");
-    }
-
-    public override string[] _GetConfigurationWarnings()
-    {
-        var warnings = new List<string>();
-
-        //if (GetChildren().Any(x => x is not BehaviorTask)) {
-        //    warnings.Add("All children of this node should inherit from BehaviorTask class.");
-        //}
-
-        return warnings.ToArray();
-    }
-
-    #endregion
-}
