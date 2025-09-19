@@ -12,6 +12,7 @@ using Shared;
 /// NavigationAgent3D to handle pathfinding and avoidance. Its primary job is to accept
 /// a high-level desired velocity and translate it into a safe velocity for the parent
 /// physics body to use. It has no knowledge of *why* it is moving, only *how*.
+/// It has no knowledge on *what* it is moving towards, only *where*.
 /// </summary>
 [Tool]
 [GlobalClass]
@@ -20,34 +21,19 @@ public partial class AINavigator3D : NavigationAgent3D
     private Node3D _ownerAgent = null!;
     private NavigationProfile _activeProfile= null!;
 
-    [ExportGroup("Movement")] [Export(PropertyHint.Range, "0, 50, 0.1")]
-    private float _maxSpeed = 10.0f;
-
-    [ExportGroup("Pathing Behavior")]
+    [ExportGroup("Pathing Optimization")]
+    /// <summary>
+    /// To prevent excessive path requests, new navigation commands to a position within this
+    /// distance (in meters) of the last calculated path's target will be ignored.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
+    public float RecalculationThreshold { get; private set; } = 1.0f;
 
     /// <summary>
-    /// To prevent excessive path requests, new targets within this distance (in meters) of the
-    /// current target will be ignored. This can be overridden in the RequestPath function.
+    /// Stores the destination of the last successful path calculation. This is used to
+    /// compare against new requests to prevent redundant pathfinding.
     /// </summary>
-    [Export] public float DefaultPathCalculationThreshold { get; private set; } = 1.0f;
-
-    /// <summary>
-    /// If the current target moves further than this distance from where the last path was
-    /// calculated, a new path will be automatically requested. This makes the agent
-    /// responsive to moving targets.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.5, 10.0, 0.1")]
-    public float RecalculateDistanceThreshold { get; private set; } = 2.0f;
-
-    /// <summary>
-    /// If the agent's velocity is near zero for more than this duration (in seconds) while it
-    /// has not reached its target, it's considered stuck and will request a new path.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.5, 5.0, 0.1")]
-    public float StuckTimeThreshold { get; private set; } = 1.0f;
-
     private Vector3 _lastCalculatedTargetPath;
-    private double _stuckTimer = 0.0;
 
     public override string[] _GetConfigurationWarnings()
     {
@@ -67,9 +53,7 @@ public partial class AINavigator3D : NavigationAgent3D
         {
             return;
         }
-
         _ownerAgent = GetOwner<Node3D>();
-
         // This component is useless without an owner.
         if (_ownerAgent == null)
         {
@@ -77,42 +61,15 @@ public partial class AINavigator3D : NavigationAgent3D
             SetPhysicsProcess(false);
             return;
         }
-
+        // Initialize last calced path
+        _lastCalculatedTargetPath = _ownerAgent.GlobalPosition;
         // Connect to signals for automatic state handling.
         TargetReached += OnTargetReached;
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        // If we have no path, there's nothing to check.
-        if (IsNavigationFinished())
-        {
-            _stuckTimer = 0.0;
-            return;
-        }
-
-        // Condition 1: Target has moved too far from where we last pathed.
-        // This is crucial for making the AI responsive to moving targets.
-        if (TargetPosition.DistanceTo(_lastCalculatedTargetPath) > RecalculateDistanceThreshold)
-        {
-            RequestPath(TargetPosition);
-        }
-
-        // Condition 2: Agent is stuck (e.g., a door closed on its path).
-        if (Velocity.IsZeroApprox())
-        {
-            _stuckTimer += delta;
-            if (_stuckTimer > StuckTimeThreshold)
-            {
-                JmoLogger.Info(this, "Agent appears to be stuck. Recalculating path.");
-                RequestPath(TargetPosition); // Recalculate path to the same target.
-                _stuckTimer = 0.0; // Reset timer after recalculating.
-            }
-        }
-        else
-        {
-            _stuckTimer = 0.0; // We are moving, so we are not stuck.
-        }
+        // probably shouldn't do anything here, keep frame logic to other agents
     }
 
     /// <summary>
@@ -121,9 +78,9 @@ public partial class AINavigator3D : NavigationAgent3D
     /// </summary>
     /// <param name="globalPosition">The global position to navigate to.</param>
     /// <param name="overridePathCalcThresh">If set, overrides the default path calculation threshold.</param>
-    public NavReqPathResponse RequestPath(Vector3 globalPosition, float? overridePathCalcThresh = null)
+    public NavReqPathResponse RequestNewNavPath(Vector3 globalPosition, float? overridePathCalcThresh = null)
     {
-        float calcThreshold = overridePathCalcThresh ?? DefaultPathCalculationThreshold;
+        float calcThreshold = overridePathCalcThresh ?? RecalculationThreshold;
         if (calcThreshold > 0f && TargetPosition.DistanceTo(globalPosition) < calcThreshold)
         {
             return NavReqPathResponse.TooCloseToPrevTarget;
@@ -139,7 +96,6 @@ public partial class AINavigator3D : NavigationAgent3D
         {
             TargetPosition = globalPosition;
             _lastCalculatedTargetPath = globalPosition; // Store this position for future checks.
-            _stuckTimer = 0.0; // Reset stuck timer on new path.
             return NavReqPathResponse.Success;
         }
 
@@ -147,30 +103,34 @@ public partial class AINavigator3D : NavigationAgent3D
     }
 
     /// <summary>
+    /// Stops all navigation and clears the current path.
+    /// </summary>
+    public void ClearPath()
+    {
+        TargetPosition = _ownerAgent.GlobalPosition;
+        _lastCalculatedTargetPath = _ownerAgent.GlobalPosition;
+    }
+
+    /// <summary>
     /// This is the core update method. The AIAgent calls this every frame, providing the
     /// final desired direction from the steering system. This method sets the agent's
     /// desired velocity for the Godot NavigationServer to process.
     /// </summary>
-    /// <param name="steeringDirection">The normalized direction vector from the AISteeringProcessor.</param>
-    public void UpdateVelocity(Vector3 steeringDirection)
+    /// <param name="desiredVelocity">The normalized direction vector from the AISteeringProcessor.</param>
+    public void UpdateVelocity(Vector3 desiredVelocity)
     {
-        if (IsNavigationFinished())
-        {
-            // If there's no path, we just use the steering direction directly.
-            // This is useful for wandering, local avoidance, etc.
-            Velocity = steeringDirection * _maxSpeed;
-        }
-        else
-        {
-            // If we are on a path, blend the strict path direction with the desired steering direction.
-            // This allows the AI to follow a path while still reacting to its environment (e.g., dodging).
-            Vector3 nextPathPos = GetNextPathPosition();
-            Vector3 navDirection = _ownerAgent.GlobalPosition.DirectionTo(nextPathPos);
+        // If there's no path, we just use the steering direction directly.
+        // This is useful for wandering, local avoidance, etc.
+        Velocity = desiredVelocity;
 
-            // A 50/50 Lerp is a good default starting point for blending.
-            Vector3 finalDirection = steeringDirection.Lerp(navDirection, 0.5f).Normalized();
-            Velocity = finalDirection * _maxSpeed;
-        }
+        // // If we are on a path, blend the strict path direction with the desired steering direction.
+        // // This allows the AI to follow a path while still reacting to its environment (e.g., dodging).
+        // Vector3 nextPathPos = GetNextPathPosition();
+        // Vector3 navDirection = _ownerAgent.GlobalPosition.DirectionTo(nextPathPos);
+        //
+        // // A 50/50 Lerp is a good default starting point for blending.
+        // Vector3 finalDirection = desiredVelocity.Lerp(navDirection, 0.5f).Normalized();
+        // Velocity = finalDirection * _maxSpeed;
     }
 
     /// <summary>
@@ -178,10 +138,10 @@ public partial class AINavigator3D : NavigationAgent3D
     /// </summary>
     private void OnTargetReached()
     {
-        // The canonical way to stop a NavigationAgent is to set its target to its own position.
-        TargetPosition = _ownerAgent.GlobalPosition;
+        // Since target reached threshold can let a target "reach" the target position without it actually
+        // being there, we should adjust the last calced position for accuracy.
         _lastCalculatedTargetPath = _ownerAgent.GlobalPosition;
-        JmoLogger.Info(this, "Target reached. Halting navigation.");
+        JmoLogger.Info(this, "Target reached.");
     }
 
     #region HELPER_FUNCTIONS
@@ -262,7 +222,7 @@ public partial class AINavigator3D : NavigationAgent3D
     /// <param name="targets">A list of potential target nodes.</param>
     /// <param name="optimize">Tells the NavigationServer whether to optimize the path request</param>
     /// <returns>The closest reachable target, or null if none are reachable.</returns>
-    public Node3D? FindNearestNavTargetSyncronous(IEnumerable<Node3D> targets, bool optimize = true)
+    public Node3D? FindNearestNavTarget(IEnumerable<Node3D> targets, bool optimize = true)
     {
         Node3D? closestTarget = null;
         float shortestDistance = float.MaxValue;

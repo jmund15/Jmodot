@@ -8,49 +8,54 @@ using SteeringModifiers;
 using GColl = Godot.Collections;
 
 /// <summary>
-///     The abstract base class for any environmental consideration. Its purpose is to
-///     evaluate the current world state (via the DecisionContext) and add its calculated
-///     scores to the final directional score dictionary.
+/// The abstract base class for any environmental consideration. Its purpose is to
+/// evaluate the current world state (via the SteeringDecisionContext) and produce a
+/// dictionary of scores, where each key is a direction and each value is a float
+/// representing the "interest" or "danger" associated with moving in that direction.
 /// </summary>
 [GlobalClass]
 public abstract partial class BaseAIConsideration3D : Resource
 {
+    /// <summary>
+    /// The evaluation priority of this consideration. While all considerations are summed
+    /// together, this can be used for debugging or for systems that may need a specific order.
+    /// </summary>
+    [Export] public int Priority { get; protected set; } = 1;
+
+    /// <summary>
+    /// A list of modifiers that can alter the objective scores of this consideration,
+    /// allowing an AI's personality (Affinities) to influence its low-level behavior.
+    /// </summary>
     [Export] private GColl.Array<SteeringConsiderationModifier> _modifiers = new();
 
     /// <summary>
-    ///     Highest consideration priorities get calculated first
+    /// Called once by the AISteeringProcessor during initialization. This allows the
+    /// consideration to perform any necessary setup or caching.
     /// </summary>
-    [Export]
-    public int Priority { get; protected set; } = 1;
+    /// <param name="directions">The DirectionSet3D used by the agent.</param>
+    public virtual void Initialize(DirectionSet3D directions) { }
 
     /// <summary>
-    ///     The primary evaluation method. It calculates the base scores and then allows
-    ///     all registered modifiers to alter them before adding to the final scores.
+    /// The primary evaluation method. It calculates the base scores and then allows
+    /// all registered modifiers to alter them before adding to the final scores.
     /// </summary>
     /// <param name="context">A snapshot of the current world and agent state.</param>
     /// <param name="blackboard">The AI's blackboard for accessing core components.</param>
-    /// <param name="finalScores">The master score dictionary from the steering processor.</param>
-    public void Evaluate(DecisionContext context, IBlackboard blackboard,
+    /// <param name="directions">The set of directions to score.</param>
+    /// <param name="finalScores">The master score dictionary from the steering processor, passed by reference.</param>
+    public void Evaluate(SteeringDecisionContext context, IBlackboard blackboard,
         DirectionSet3D directions, ref Dictionary<Vector3, float> finalScores)
     {
         // 1. Calculate the raw, objective scores for this consideration.
-        var baseScores = this.CalculateBaseScores(directions, context, blackboard);
-        if (baseScores == null)
-        {
-            return;
-        }
+        var baseScores = CalculateBaseScores(directions, context, blackboard);
+        if (baseScores == null) { return; }
 
         // 2. Apply all subjective modifiers to the base scores.
-        if (this._modifiers != null)
+        if (_modifiers != null)
         {
-            foreach (var modifier in this._modifiers)
+            foreach (var modifier in _modifiers)
             {
-                if (modifier == null)
-                {
-                    continue;
-                }
-
-                // Pass the agent node as the owner for better logging context.
+                if (modifier == null) continue;
                 modifier.Modify(ref baseScores, context, blackboard);
             }
         }
@@ -66,9 +71,9 @@ public abstract partial class BaseAIConsideration3D : Resource
     }
 
     /// <summary>
-    ///     Child classes must implement this to provide the raw directional scores
-    ///     before any personality-driven modifications are applied.
+    /// Child classes MUST implement this method. It contains the core logic for calculating
+    /// the raw directional scores before any personality-driven modifications are applied.
     /// </summary>
     protected abstract Dictionary<Vector3, float> CalculateBaseScores(
-        DirectionSet3D directions, DecisionContext context, IBlackboard blackboard);
+        DirectionSet3D directions, SteeringDecisionContext context, IBlackboard blackboard);
 }

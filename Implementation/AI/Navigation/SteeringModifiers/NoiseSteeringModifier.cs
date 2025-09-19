@@ -32,7 +32,7 @@ public partial class NoiseSteeringModifier : SteeringConsiderationModifier
 
     [Export] private float _noiseTimeScale = 0.5f;
 
-    public override void Modify(ref Dictionary<Vector3, float> scores, DecisionContext context, IBlackboard blackboard)
+    public override void Modify(ref Dictionary<Vector3, float> scores, SteeringDecisionContext context, IBlackboard blackboard)
     {
         if (this._noise == null)
         {

@@ -17,5 +17,5 @@ public abstract partial class SteeringConsiderationModifier : Resource
     /// <param name="scores">The current dictionary of directional scores to be modified.</param>
     /// <param name="context">The per-frame snapshot of the AI's state and world view.</param>
     /// <param name="blackboard">The AI's blackboard for accessing core components.</param>
-    public abstract void Modify(ref Dictionary<Vector3, float> scores, DecisionContext context, IBlackboard blackboard);
+    public abstract void Modify(ref Dictionary<Vector3, float> scores, SteeringDecisionContext context, IBlackboard blackboard);
 }

@@ -142,16 +142,22 @@ public partial class AIPerceptionManager : Node, IGodotNodeInterface
         return this._memoryByTarget.Values.Where(info => info.IsActive);
     }
 
+    public IEnumerable<PerceptionInfo> GetSensedByCategory(Category category)
+    {
+        if (!this._memoryByCategory.TryGetValue(category, out var memorySet))
+        {
+            return [];
+        }
+        return memorySet;
+    }
+
     /// <summary>
     ///     Finds the most prominent (highest confidence) active memory belonging to a specific category. This is a highly
     ///     performant query.
     /// </summary>
-    public PerceptionInfo GetBestMemoryForCategory(Category category)
+    public PerceptionInfo? GetBestMemoryForCategory(Category category)
     {
-        if (category == null || !this._memoryByCategory.TryGetValue(category, out var memorySet))
-        {
-            return null;
-        }
+        var memorySet = GetSensedByCategory(category);
 
         PerceptionInfo bestMatch = null;
         var maxConfidence = -1.0f;

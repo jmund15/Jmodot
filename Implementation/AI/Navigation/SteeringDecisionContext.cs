@@ -8,7 +8,7 @@ using Perception;
 ///     and passed to the AISteeringProcessor to ensure all considerations operate on the
 ///     same consistent data set.
 /// </summary>
-public readonly struct DecisionContext
+public readonly struct SteeringDecisionContext
 {
     public readonly AIPerceptionManager Memory;
     public readonly Vector3 AgentPosition;
@@ -17,7 +17,7 @@ public readonly struct DecisionContext
     public readonly Vector3 NextPathPointDirection;
     public readonly Vector3 TargetPosition;
 
-    public DecisionContext(AIPerceptionManager memory,
+    public SteeringDecisionContext(AIPerceptionManager memory,
         Vector3 agentPosition, Vector3 agentFacing, Vector3 agentVelocity, Vector3 nextPathPointDirection,
         Vector3 targetPosition)
     {

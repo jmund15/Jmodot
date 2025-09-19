@@ -8,6 +8,7 @@ using Core.AI.Navigation.Considerations;
 using Core.AI.Perception;
 using Core.Identification;
 using Core.Movement;
+using Shared;
 
 /// <summary>
 /// A steering consideration that evaluates dynamic targets with velocities.
@@ -33,10 +34,10 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     private float _considerationWeight = -1.0f; // Default to avoidance
 
     /// <summary>
-    /// The Identity resource used to filter which perceived targets this consideration will react to.
-    /// For example, you could assign an "Enemy" identity to react to hostile units.
+    /// The Category resource used to filter which perceived targets this consideration will react to.
+    /// For example, you could assign an "Enemy" Category to react to hostile units.
     /// </summary>
-    [Export] private Identity _targetIdentity;
+    [Export] private Category _targetCategory = null!;
 
     /// <summary>
     /// Balances the agent's strategy between position and velocity.
@@ -77,7 +78,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     #endregion
 
     private const float Epsilon = 0.001f;
-    private List<Vector3> _orderedDirections; // Cached for propagation logic
+    private List<Vector3> _orderedDirections = null!; // Cached for propagation logic
 
     /// <summary>
     /// Caches the ordered list of directions from the DirectionSet3D. This is crucial
@@ -86,6 +87,11 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     public override void Initialize(DirectionSet3D directions)
     {
         _orderedDirections = directions.Directions.ToList();
+
+        if (_targetCategory == null)
+        {
+            JmoLogger.Error(this, $"No '_targetCategory' assigned in {ResourcePath}. Consideration will have no effect.");
+        }
     }
 
     /// <summary>
@@ -93,18 +99,12 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// It calculates scores by identifying relevant targets from the agent's memory and
     /// aggregating the behavioral scores for each one.
     /// </summary>
-    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, DecisionContext context, IBlackboard blackboard)
+    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext context, IBlackboard blackboard)
     {
         var finalScores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
-        if (_targetIdentity == null)
-        {
-            Logger.Warn(this, $"No '_targetIdentity' assigned in {ResourcePath}. Consideration will have no effect.");
-            return finalScores;
-        }
-
         // Get all relevant targets from the agent's perception manager.
-        var relevantPercepts = context.Memory.GetSensedByIdentity(_targetIdentity.ResourcePath);
+        var relevantPercepts = context.Memory.GetSensedByCategory(_targetCategory);
 
         // Calculate and aggregate the scores for each perceived target.
         foreach (var perceptInfo in relevantPercepts)
@@ -127,10 +127,10 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// <summary>
     /// Calculates the directional scores for a single dynamic target.
     /// </summary>
-    private Dictionary<Vector3, float> GetScoresForSingleTarget(PerceptionInfo targetInfo, DirectionSet3D directions, DecisionContext context)
+    private Dictionary<Vector3, float> GetScoresForSingleTarget(PerceptionInfo targetInfo, DirectionSet3D directions, SteeringDecisionContext context)
     {
         var considerations = directions.Directions.ToDictionary(dir => dir, dir => 0f);
-        if (Mathf.Abs(_considerationWeight) < Epsilon) return considerations;
+        if (Mathf.Abs(_considerationWeight) < Epsilon) { return considerations; }
 
         // --- 1. Gather Data from Context and Percept ---
         Vector3 targetPosition = targetInfo.LastKnownPosition;

@@ -20,7 +20,7 @@ public partial class AffinitySteeringModifier : SteeringConsiderationModifier
     [Export] private Affinity _affinityToMeasure = null!;
     [Export] private Curve _responseCurve = null!;
 
-    public override void Modify(ref Dictionary<Vector3, float> scores, DecisionContext context, IBlackboard blackboard)
+    public override void Modify(ref Dictionary<Vector3, float> scores, SteeringDecisionContext context, IBlackboard blackboard)
     {
         // --- Configuration Validation ---
         if (this._affinityToMeasure == null || this._responseCurve == null)

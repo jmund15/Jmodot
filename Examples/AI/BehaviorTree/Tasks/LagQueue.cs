@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
 using Implementation.AI.BB;
-using TaskStatus = Implementation.AI.BehaviorTree.Tasks.TaskStatus;
 
 [GlobalClass]
 [Tool]

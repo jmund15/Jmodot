@@ -1,67 +1,97 @@
 namespace Jmodot.Implementation.AI.Navigation.Considerations;
 
 using System.Collections.Generic;
+using System.Linq;
 using BB;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
+using Core.Identification;
 using Core.Movement;
 using Shared;
 
+/// <summary>
+/// A consideration that scores directions based on proximity to static bodies of a specific Category.
+/// It is used to create avoidance or attraction behaviors towards environmental objects like walls,
+/// cover points, or hazards.
+/// </summary>
 [GlobalClass]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
 {
-    // bidirectional dictionary (using '.Forward' & '.Reverse')
-    private readonly Map<int, Vector3> _dirIds = new();
+    [ExportGroup("Behavior Tuning")]
+    /// <summary>
+    /// The core weight of this consideration. Negative values create avoidance (danger),
+    /// while positive values create attraction (interest).
+    /// </summary>
+    [Export(PropertyHint.Range, "-5.0, 5.0, 0.1")]
+    private float _considerationWeight = -1.0f; // Default to avoidance
 
-    // TODO: use Category instead of collision layer?
-    [Export] private int _collLayer;
-    [Export] private int _dirsToPropogate = 2;
-    [Export] private Vector2 _distDiminishRange;
-    [Export] private float _initPropWeight = 0.75f;
+    /// <summary>
+    /// The consideration will only react to perceived objects whose Identity belongs to this Category.
+    /// </summary>
+    [Export] private Category _targetCategory;
 
-    [Export] private float _propDiminishWeight = 0.5f;
+    [ExportGroup("Distance Weighting")]
+    /// <summary>
+    /// Defines the range over which the consideration's weight is applied.
+    /// X: The distance at which the full weight is applied (max danger/interest).
+    /// Y: The distance at which the weight fades to zero.
+    /// </summary>
+    [Export] private Vector2 _distanceDiminishRange = new Vector2(1.0f, 5.0f);
 
-    [Export(PropertyHint.Range, "-2.5,2.5,0.1,or_greater,or_less")]
-    protected float Consideration; // negative values are danger, positive are interest
+    [ExportGroup("Score Propagation")]
+    [Export] private bool _propagateScores = true;
+    [Export(PropertyHint.Range, "1, 8, 1")] private int _dirsToPropagate = 2;
+    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")] private float _propDiminishWeight = 0.5f;
 
-    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions,
-        DecisionContext context, IBlackboard blackboard)
+    private List<Vector3> _orderedDirections;
+    private Map<int, Vector3> _dirIds = new Map<int, Vector3>();
+
+    public override void Initialize(DirectionSet3D directions)
     {
-        var Agent = blackboard.GetVar<Node3D>(BBDataSig.Agent);
-        var AINav = blackboard.GetVar<AINavigator3D>(BBDataSig.AINavComp);
-        var percept = context.Memory;
-
-        var considerVec = new Dictionary<Vector3, float>();
-        foreach (var dir in directions.Directions)
+        _orderedDirections = directions.Directions.ToList();
+        _dirIds.Clear();
+        for (int i = 0; i < _orderedDirections.Count; i++)
         {
-            considerVec[dir] = 0f;
+            _dirIds.Add(i, _orderedDirections[i]);
         }
-
-        var sensedPercepts = percept.GetSensedByCollLayer(this._collLayer);
-        foreach (var perceptInfo in sensedPercepts)
-        {
-            var sensed = (CollisionObject3D)perceptInfo.Target!;
-            if (sensed == Agent)
-            {
-                continue;
-            }
-
-            var collVec = (sensed.GlobalPosition - Agent.GlobalPosition).Normalized();
-            var dist = collVec.Length();
-            var dir = collVec.Normalized();
-            var distWeight = this.GetDistanceConsideration(dist);
-            var dangerAmt = this.Consideration * distWeight;
-
-            considerVec[dir] = dangerAmt;
-        }
-
-        considerVec = this.PropogateConsiderations(considerVec);
-        return considerVec;
     }
 
-    public float GetDistanceConsideration(float detectDist)
+    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext context, IBlackboard blackboard)
     {
-        if (detectDist > this._distDiminishRange.Y)
+        var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
+
+        if (_targetCategory == null) return scores;
+
+        // Get all perceived objects that match our target category.
+        var relevantPercepts = context.Memory.GetSensedByCategory(_targetCategory);
+
+        foreach (var percept in relevantPercepts)
+        {
+            Vector3 toTargetDir = (percept.LastKnownPosition - context.AgentPosition).Normalized();
+            float distance = context.AgentPosition.DistanceTo(percept.LastKnownPosition);
+
+            // Calculate the weight based on distance.
+            float distanceWeight = GetDistanceConsideration(distance);
+            if (distanceWeight <= 0f) continue;
+
+            float scoreAmount = _considerationWeight * distanceWeight;
+
+            // Find the direction in our set that best matches the direction to the object.
+            Vector3 closestDir = directions.GetClosestDirection(toTargetDir);
+            scores[closestDir] += scoreAmount;
+        }
+
+        if (_propagateScores)
+        {
+            Propagate(ref scores);
+        }
+
+        return scores;
+    }
+
+    public float GetDistanceConsiderationKexponential(float detectDist)
+    {
+        if (detectDist > this._distanceDiminishRange.Y)
         {
             return 0f;
         }
@@ -71,14 +101,14 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
         var k = 2.5f;
         float distWeight;
 
-        if (detectDist <= this._distDiminishRange.X)
+        if (detectDist <= this._distanceDiminishRange.X)
         {
             distWeight = 1.0f; // Ensure max weight
         }
         else
         {
-            distWeight = 1f - (detectDist - this._distDiminishRange.X) /
-                (this._distDiminishRange.Y - this._distDiminishRange.X);
+            distWeight = 1f - (detectDist - this._distanceDiminishRange.X) /
+                (this._distanceDiminishRange.Y - this._distanceDiminishRange.X);
         }
 
         //distWeight = minWeight + (1.0f - minWeight) *
@@ -87,59 +117,46 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
         //GD.Print($"{raycast.TargetPosition.Normalized().GetDir16()}'s wall dist: {collDist}\ndistWeight: {distWeight}");
         return distWeight;
     }
-
-    public Dictionary<Vector3, float> PropogateConsiderations(Dictionary<Vector3, float> considerations)
+    /// <summary>
+    /// Calculates a weight multiplier (0.0 to 1.0) based on distance to a target.
+    /// </summary>
+    private float GetDistanceConsideration(float distance)
     {
-        var preConsiderations = new Dictionary<Vector3, float>(considerations);
+        if (distance <= _distanceDiminishRange.X) return 1.0f; // Max weight
+        if (distance >= _distanceDiminishRange.Y) return 0.0f; // No weight
 
+        // Linearly interpolate the weight between the min and max distances.
+        return 1.0f - (distance - _distanceDiminishRange.X) / (_distanceDiminishRange.Y - _distanceDiminishRange.X);
+    }
 
-        foreach (var preConsid in preConsiderations)
+    /// <summary>
+    /// Propagates scores to neighboring directions to create a smoother AI response.
+    /// </summary>
+    private void Propagate(ref Dictionary<Vector3, float> scores)
+    {
+        if (_orderedDirections == null || _orderedDirections.Count == 0) return;
+
+        var initialScores = new Dictionary<Vector3, float>(scores);
+        int dirCount = _orderedDirections.Count;
+
+        for (int i = 0; i < dirCount; i++)
         {
-            var dir = preConsid.Key;
-            var dangerAmt = preConsid.Value;
-            if (dangerAmt == 0.0f)
+            int dirId = _dirIds.Reverse[_orderedDirections[i]];
+            float initialScore = initialScores[_orderedDirections[i]];
+            if (initialScore == 0f) continue;
+
+            float propWeight = initialScore * _propDiminishWeight;
+
+            for (int j = 1; j <= _dirsToPropagate; j++)
             {
-                continue;
-            }
+                int leftIndex = (dirId - j + dirCount) % dirCount;
+                scores[_dirIds.Forward[leftIndex]] += propWeight;
 
-            //PROPOGATE DANGER OUT
-            var propogateNum = this._dirsToPropogate;
-            var propLDir = this._dirIds.Reverse[dir];
-            var propRDir = this._dirIds.Reverse[dir];
-            var dirId = this._dirIds.Reverse[dir];
-            var propWeight = this._initPropWeight;
-            while (propogateNum > 0)
-            {
-                if (propLDir == 0)
-                {
-                    propLDir = considerations.Count;
-                }
-                else
-                {
-                    propLDir--;
-                }
+                int rightIndex = (dirId + j) % dirCount;
+                scores[_dirIds.Forward[rightIndex]] += propWeight;
 
-                if (propRDir == considerations.Count)
-                {
-                    propRDir = 0;
-                }
-                else
-                {
-                    propRDir++;
-                }
-
-                //propLDir = propLDir.GetLeftDir();
-                //propRDir = propRDir.GetRightDir();
-                considerations[this._dirIds.Forward[propLDir]] += dangerAmt * propWeight;
-                considerations[this._dirIds.Forward[propRDir]] += dangerAmt * propWeight;
-                //GD.Print($"orig dir: {dir}; left dir: {propLDir}; right dir: {propRDir}; tbmb: {propWeight}" +
-                //    $"\norig left: {preConsiderations[propLDir]}; new left: {considerations[propLDir]}");
-
-                propWeight *= this._propDiminishWeight;
-                propogateNum--;
+                propWeight *= _propDiminishWeight;
             }
         }
-
-        return considerations;
     }
 }

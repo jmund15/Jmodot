@@ -47,6 +47,11 @@ public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
         this._forward.Remove(forwardKey);
     }
 
+    public void Clear()
+    {
+        _forward.Clear();
+        _reverse.Clear();
+    }
     public class Indexer<T3, T4>
     {
         private readonly Dictionary<T3, T4> _dictionary;
