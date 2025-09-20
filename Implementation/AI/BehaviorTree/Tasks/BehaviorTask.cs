@@ -60,7 +60,7 @@ using Shared;
 
             foreach (var condition in Conditions.Where(c => c.IsValid()))
             {
-                condition.Init(agent, bb);
+                condition.Init(this, agent, bb);
             }
         }
 

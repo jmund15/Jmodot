@@ -1,6 +1,7 @@
 namespace Jmodot.Core.AI.BehaviorTree.Conditions;
 
 using BB;
+using Implementation.AI.BehaviorTree.Tasks;
 
 /// <summary>
 /// A base class for condition resources used by BehaviorTasks.
@@ -19,15 +20,17 @@ public abstract partial class BTCondition : Resource
     [Export]
     public bool SucceedOnAbort { get; private set; }
 
+    protected BehaviorTask OwnerTask { get; private set; }
     protected Node Agent { get; private set; } = null!;
     protected IBlackboard BB { get; private set; } = null!;
 
     /// <summary>
-    /// Initializes the condition with the agent and blackboard context.
+    /// Initializes the condition with its owner task, agent, and blackboard context.
     /// This is called once when the Behavior Tree is initialized.
     /// </summary>
-    public virtual void Init(Node agent, IBlackboard bb)
+    public virtual void Init(BehaviorTask owner, Node agent, IBlackboard bb)
     {
+        this.OwnerTask = owner;
         this.Agent = agent;
         this.BB = bb;
     }

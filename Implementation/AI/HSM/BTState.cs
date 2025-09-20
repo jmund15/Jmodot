@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.HSM;
 
 using System.Collections.Generic;
+using System.Linq;
 using BehaviorTree;
 using Core.AI;
 using Core.AI.BB;
@@ -83,10 +84,33 @@ using Shared.GodotExceptions;
         public override string[] _GetConfigurationWarnings()
         {
             var warnings = new List<string>();
-            if (!this.GetFirstChildOfType<BehaviorTree>(false).IsValid())
+
+            if (!this.TryGetFirstChildOfType<BehaviorTree>(out _, false))
             {
                 warnings.Add("BTState must contain a child of type BehaviorTree.");
             }
-            return warnings.ToArray();
+
+            if (OnTreeSuccessState == null)
+            {
+                warnings.Add("OnTreeSuccessState is not assigned. The state machine will remain in this state upon BT success.");
+            }
+            else if (Engine.IsEditorHint() && OnTreeSuccessState.GetParent() != GetParent())
+            {
+                // A common configuration error is pointing to a state in a different FSM.
+                // A valid target state should almost always be a sibling.
+                warnings.Add("OnTreeSuccessState is not a sibling of this BTState. Ensure it belongs to the same CompoundState.");
+            }
+
+            if (OnTreeFailureState == null)
+            {
+                warnings.Add("OnTreeFailureState is not assigned. The state machine will remain in this state upon BT failure.");
+            }
+            else if (Engine.IsEditorHint() && OnTreeFailureState.GetParent() != GetParent())
+            {
+                warnings.Add("OnTreeFailureState is not a sibling of this BTState. Ensure it belongs to the same CompoundState.");
+            }
+
+            // Concatenate warnings from the base State class.
+            return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
         }
     }

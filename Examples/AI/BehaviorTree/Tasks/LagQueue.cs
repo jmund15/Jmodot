@@ -2,8 +2,10 @@ namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
 
 using System.Collections.Generic;
 using System.Linq;
+using Core.AI;
 using Core.AI.BB;
 using Implementation.AI.BB;
+using Implementation.AI.BehaviorTree.Tasks;
 
 [GlobalClass]
 [Tool]
@@ -23,9 +25,9 @@ public partial class LagQueue : BehaviorAction
         base.Init(agent, bb);
     }
 
-    public override void Enter()
+    protected override void OnEnter()
     {
-        base.Enter();
+        base.OnEnter();
         if (this.LagTime <= 0f)
         {
             this.OnLagTimeout();
@@ -35,21 +37,19 @@ public partial class LagQueue : BehaviorAction
         this.GetTree().CreateTimer(this.LagTime).Timeout += this.OnLagTimeout;
     }
 
-    public override void Exit()
+    protected override void OnExit()
     {
-        base.Exit();
+        base.OnExit();
     }
 
-    public override void ProcessFrame(float delta)
+    protected override void OnProcessFrame(float delta)
     {
-        base.ProcessFrame(delta);
-        /*if (BB.GetVar<ICharacterController3D>(BBDataSig.MoveComp).WantsAttack())
-            BB.SetPrimVar(BBDataSig.QueuedNextAttack, true);*/
+        base.OnProcessFrame(delta);
     }
 
-    public override void ProcessPhysics(float delta)
+    protected override void OnProcessPhysics(float delta)
     {
-        base.ProcessPhysics(delta);
+        base.OnProcessPhysics(delta);
     }
 
     #endregion

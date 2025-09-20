@@ -8,6 +8,7 @@ using Core.AI.HSM;
 
 using GColl = Godot.Collections;
 using System.Collections.Generic;
+using Shared;
 
 /// <summary>
 /// The abstract base class for all states in the Hierarchical State Machine.
@@ -164,14 +165,20 @@ public abstract partial class State : Node, IState
     }
 
     /// <summary>
-    /// Iterates through the exported transitions and triggers the first one whose conditions are met.
+    /// Iterates through the exported transitions, resolves their NodePaths,
+    /// and triggers the first one whose conditions are met.
     /// </summary>
     private void CheckTransitions()
     {
-        foreach (var transition in Transitions.Where(t => t.IsValid() && t.TargetState.IsValid()))
+        foreach (var transition in Transitions)
         {
+            if (!transition.IsValid()) continue;
+
+            // A transition with an empty path is invalid.
+            if (transition.TargetStatePath == null || transition.TargetStatePath.IsEmpty) continue;
+
             // A transition with no conditions is not checked automatically.
-            // It must be triggered manually via EmitSignal.
+            // It must be triggered manually by emitting the TransitionState signal from state logic.
             if (transition.Conditions.Count == 0) continue;
 
             bool allConditionsMet = transition.Conditions
@@ -180,10 +187,53 @@ public abstract partial class State : Node, IState
 
             if (allConditionsMet)
             {
-                EmitSignal(SignalName.TransitionState, this, transition.TargetState);
-                // Stop after the first valid transition is found.
-                return;
+                // Resolve the NodePath to get the actual State node instance.
+                var targetState = GetNode<State>(transition.TargetStatePath);
+
+                if (!targetState.IsValid())
+                {
+                    JmoLogger.Error(this, $"Transition condition met, but NodePath '{transition.TargetStatePath}' did not resolve to a valid State node.");
+                    continue; // Try the next transition
+                }
+
+                EmitSignal(SignalName.TransitionState, this, targetState);
+                return; // Stop after the first valid transition is found.
             }
         }
+    }
+
+    public override string[] _GetConfigurationWarnings()
+    {
+        var warnings = new List<string>();
+
+        for (int i = 0; i < Transitions.Count; i++)
+        {
+            var transition = Transitions[i];
+            if (transition == null)
+            {
+                warnings.Add($"Transition at index {i} is not assigned.");
+                continue;
+            }
+
+            var path = transition.TargetStatePath;
+            if (path == null || path.IsEmpty)
+            {
+                // This is already warned about in the resource, but good to have here too.
+                warnings.Add($"Transition '{transition.ResourceName}' (index {i}) has no TargetStatePath assigned.");
+                continue;
+            }
+
+            // The State node, unlike the resource, has a scene context and can validate the path.
+            if (!HasNode(path))
+            {
+                warnings.Add($"Transition '{transition.ResourceName}' (index {i}) has an invalid TargetStatePath: '{path}'. The node was not found.");
+            }
+            else if (GetNode(path) is not State)
+            {
+                warnings.Add($"Transition '{transition.ResourceName}' (index {i}) points to a node ('{path}') that is not a valid State.");
+            }
+        }
+
+        return warnings.ToArray();
     }
 }

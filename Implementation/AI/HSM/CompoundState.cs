@@ -201,4 +201,21 @@ using Shared.GodotExceptions;
             ParallelSubStates[state] = false;
             state.Exit();
         }
+
+        public override string[] _GetConfigurationWarnings()
+        {
+            var warnings = new List<string>();
+
+            if (InitialSubState == null)
+            {
+                warnings.Add("InitialSubState is not assigned. This CompoundState will fail on entry.");
+            }
+            else if (InitialSubState.GetParent() != this)
+            {
+                warnings.Add("InitialSubState must be a direct child of this CompoundState.");
+            }
+
+            // Important: Concatenate warnings from the base class to include its checks.
+            return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
+        }
     }
