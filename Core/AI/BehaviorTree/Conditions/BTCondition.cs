@@ -20,7 +20,7 @@ public abstract partial class BTCondition : Resource
     [Export]
     public bool SucceedOnAbort { get; private set; }
 
-    protected BehaviorTask OwnerTask { get; private set; }
+    protected BehaviorTask OwnerTask { get; private set; } = null!;
     protected Node Agent { get; private set; } = null!;
     protected IBlackboard BB { get; private set; } = null!;
 

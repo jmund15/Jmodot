@@ -11,7 +11,7 @@ using Implementation.AI.Perception.Strategies;
 public class PerceptionInfo
 {
     private float _baseConfidence;
-    private MemoryDecayStrategy _decayStrategy;
+    private MemoryDecayStrategy _decayStrategy = null!;
 
     public PerceptionInfo(Percept initialPercept)
     {

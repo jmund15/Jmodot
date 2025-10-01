@@ -2,7 +2,7 @@ namespace Jmodot.Core.Modifiers;
 
 using System.Collections.Generic;
 using System.Linq;
-using CalculationStrategy;
+using CalculationStrategies;
 
 /// <summary>
 ///     The generic wrapper class for any value that needs to be dynamically modified.

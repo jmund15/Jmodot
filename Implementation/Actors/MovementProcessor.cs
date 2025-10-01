@@ -19,6 +19,7 @@ public class MovementProcessor
     private readonly IStatProvider _stats; // Now it needs a reference to the StatController
 
     //private readonly Vector3 _gravity = Vector3.Down * 9.8f;
+    private Vector3 _frameImpulses = Vector3.Zero;
 
     public MovementProcessor(
         ICharacterController3D controller,
@@ -30,6 +31,10 @@ public class MovementProcessor
         this._stats = statsProvider;
         this._forceReceiver = forceReceiver;
         this._owner = owner;
+
+        var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
+        var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
+        GD.Print($"gravity vec: {gravityVec}\ngravity mag: {gravityMag}");
     }
 
     /// <summary>
@@ -43,13 +48,23 @@ public class MovementProcessor
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
             strategy.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, activeMode, delta);
-        this._controller.SetVelocity(characterVelocity); // The strategy now returns the full vector including Y
+        _controller.SetVelocity(characterVelocity
+            ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
 
-        // --- 2. Apply External Forces (Gravity, Environment) ---
-        this.ApplyExternalForces(delta);
+        // The strategy now returns the full vector including Y
 
-        // --- 3. Execute the Final Move ---
-        this._controller.Move();
+        // TODO: currently adding to keep 'ApplyImpulse' functionality, but should probably be set and add impulses after
+        //GD.Print($"moving with vec: {characterVelocity}");
+
+        // --- 2. Apply Impulses
+        _controller.AddVelocity(_frameImpulses);
+        _frameImpulses = Vector3.Zero; // reset after applied
+
+        // --- 3. Apply External Forces (Gravity, Environment) ---
+        ApplyExternalForces(delta);
+
+        // --- 4. Execute the Final Move ---
+        _controller.Move();
     }
 
     /// <summary>
@@ -74,17 +89,20 @@ public class MovementProcessor
     /// <param name="impulse">The velocity vector to add to the character's current velocity.</param>
     public void ApplyImpulse(Vector3 impulse)
     {
-        this._controller.AddVelocity(impulse);
+        _frameImpulses += impulse;
+        //this._controller.AddVelocity(impulse);
     }
 
     private void ApplyExternalForces(float delta)
     {
         if (!this._controller.IsOnFloor)
         {
-            // A better way to get gravity settings, still bad, should be used by ForceReceiver too.
+            // A better way to get gravity settings.
+            // TODO: still bad, should be used by ForceReceiver too.
             var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
             var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
-            this._controller.AddVelocity(gravityVec * gravityMag * delta);
+            //GD.Print($"gravity vec: {gravityVec * gravityMag * delta}");
+            _controller.AddVelocity(gravityVec * gravityMag * delta * 5f);
         }
 
         // TODO: this force receiver should also handle gravity, instead of being hardcoded above.

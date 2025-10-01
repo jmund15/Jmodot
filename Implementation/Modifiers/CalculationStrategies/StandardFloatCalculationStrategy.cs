@@ -3,7 +3,7 @@ namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
 using System.Collections.Generic;
 using System.Linq;
 using Core.Modifiers;
-using Core.Modifiers.CalculationStrategy;
+using Core.Modifiers.CalculationStrategies;
 
 public class StandardFloatCalculationStrategy : ICalculationStrategy<float>
 {

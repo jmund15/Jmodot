@@ -10,8 +10,11 @@ using Implementation.AI.Perception.Strategies;
 /// </summary>
 public readonly struct Percept
 {
+    // TODO: look at replacing Node3D with something more generic. Is identity enough info?
+    // Currently there's no way to get the indentity's entity, it's just its label and categories.
+    // That could be a valuable extension that allows us to get rid of 'Target'
     /// <summary>The entity that was perceived. Can be null for location-only percepts like sounds.</summary>
-    public readonly Node3D Target;
+    public readonly Node3D? Target;
 
     /// <summary>The position where the sensation occurred or the last known position of the target.</summary>
     public readonly Vector3 LastKnownPosition;
@@ -20,18 +23,18 @@ public readonly struct Percept
     public readonly Vector3 LastKnownVelocity;
 
     /// <summary>The data-driven Identity of this percept (e.g., "Enemy.tres").</summary>
-    public readonly Identity Identity;
+    public readonly Identity Identity = null!;
 
     /// <summary>The strength of the sensation, from 0.0 (barely perceived) to 1.0 (clearly perceived).</summary>
     public readonly float Confidence;
 
     /// <summary>The strategy defining how this memory should fade over time.</summary>
-    public readonly MemoryDecayStrategy DecayStrategy;
+    public readonly MemoryDecayStrategy DecayStrategy = null!;
 
     /// <summary>The timestamp (in milliseconds via Time.GetTicksMsec()) when this percept was generated.</summary>
     public readonly ulong Timestamp;
 
-    public Percept(Node3D target, Vector3 position, Vector3 velocity, Identity identity, float confidence,
+    public Percept(Node3D? target, Vector3 position, Vector3 velocity, Identity identity, float confidence,
         MemoryDecayStrategy decayStrategy)
     {
         this.Target = target;

@@ -32,5 +32,5 @@ public interface IStatProvider
     /// </summary>
     /// <param name="mechanicType">The mechanic to retrieve data for.</param>
     /// <returns>The final MechanicData object, or null if the entity cannot perform this mechanic.</returns>
-    MechanicData? GetMechanicData(MechanicType mechanicType);
+    T? GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData;
 }

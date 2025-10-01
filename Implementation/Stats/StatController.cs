@@ -3,9 +3,9 @@ namespace Jmodot.Core.Stats;
 using System;
 using System.Collections.Generic;
 using Implementation.Modifiers.CalculationStrategies;
+using Implementation.Shared;
 using Mechanics;
 using Modifiers;
-using Modifiers.CalculationStrategy;
 
 /// <summary>
 ///     The definitive runtime "character sheet" and single source of truth for all of an entity's
@@ -59,7 +59,7 @@ public partial class StatController : Node, IStatProvider
     /// <param name="attribute">The attribute to retrieve the property for.</param>
     /// <param name="context">Optional: The current MovementMode. If provided, will search for a contextual stat first.</param>
     /// <returns>The ModifiableProperty object, or null if the entity does not have the specified attribute.</returns>
-    public ModifiableProperty<Variant>? GetStat(Attribute attribute, MovementMode? context = null)
+    public ModifiableProperty<Variant> GetStat(Attribute attribute, MovementMode? context = null)
     {
         // First, attempt to find the most specific, contextual version of the stat.
         if (context != null && this._movementModeStats.TryGetValue(context, out var modeStats) &&
@@ -75,7 +75,11 @@ public partial class StatController : Node, IStatProvider
         }
 
         // The entity does not possess this stat in any context.
-        return null;
+        throw JmoLogger.LogAndRethrow(
+            new KeyNotFoundException($"could not find attribute '{attribute.AttributeName}' in the stat controller!"),
+            this
+            );
+            //return null;
     }
 
     /// <summary>
@@ -89,9 +93,11 @@ public partial class StatController : Node, IStatProvider
     /// <param name="defaultValue">The value to return if the stat doesn't exist or if a type mismatch occurs.</param>
     /// <returns>The final calculated value of the stat, or the default value on failure.</returns>
     public T GetStatValue<[MustBeVariant] T>(Attribute attribute, MovementMode? context = null,
-        T defaultValue = default)
+        T defaultValue = default(T))
     {
-        var prop = this.GetStat(attribute, context);
+        // TODO: make and use trygetstat
+        var prop = GetStat(attribute, context);
+
         if (prop != null)
         {
             // Runtime Type Check: Ensure the requested type matches the stored Variant's type.
@@ -99,11 +105,17 @@ public partial class StatController : Node, IStatProvider
             {
                 return prop.Value.As<T>();
             }
+            else if (prop.Value.As<T> != null)
+            {
+                return prop.Value.As<T>();
+            }
 
+            // TODO: replace with jmo logger
             // This indicates a logic error somewhere in the code or a design error in the data.
             // Log a detailed error to help developers debug it quickly.
-            GD.PrintErr($"Stat Type Mismatch: Failed to get value for attribute '{attribute?.ResourceName}'. ",
+            GD.PrintErr($"Stat Type Mismatch: Failed to get value for attribute '{attribute?.AttributeName}'. ",
                 $"Requested type '{typeof(T).Name}' but the stat's actual type is '{prop.Value.VariantType}'. ",
+                $"Actual stat value is '{prop.Value}'. ",
                 "Returning default value.");
             return defaultValue;
         }
@@ -112,12 +124,12 @@ public partial class StatController : Node, IStatProvider
         return defaultValue;
     }
 
-    public MechanicData? GetMechanicData(MechanicType mechanicType)
+    public T? GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData
     {
         if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
         {
             // Return the final, potentially modified value.
-            return modifiableData.Value;
+            return (T)modifiableData.Value; // TODO: fix
         }
 
         GD.PrintErr($"Entity does not have mechanic data for '{mechanicType?.MechanicName ?? "NULL"}'");
@@ -175,6 +187,17 @@ public partial class StatController : Node, IStatProvider
 
                 this._movementModeStats[mode][attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
             }
+        }
+
+        var mechanicDataCalStrat = new MechanicDataDefaultCalculationStrategy();
+        foreach (var mechanic in archetype.MechanicLibrary)
+        {
+            var mechanicType = mechanic.Key;
+            var baseValue = mechanic.Value;
+
+            var mechanicDataMod = new ModifiableProperty<MechanicData>(baseValue, mechanicDataCalStrat);
+
+            _mechanics.Add(mechanicType, mechanicDataMod);
         }
 
         // --- 3. Post-Initialization Notification ---

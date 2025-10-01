@@ -1,8 +1,9 @@
 namespace Jmodot.Core.Stats;
 
 using Mechanics;
-using Modifiers.CalculationStrategy;
+using Core.Modifiers.CalculationStrategies;
 using GColl = Godot.Collections;
+using Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 /// <summary>
 ///     A comprehensive, data-driven "character sheet" that acts as a library of all available

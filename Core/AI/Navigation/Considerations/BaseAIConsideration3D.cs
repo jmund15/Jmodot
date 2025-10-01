@@ -48,16 +48,11 @@ public abstract partial class BaseAIConsideration3D : Resource
     {
         // 1. Calculate the raw, objective scores for this consideration.
         var baseScores = CalculateBaseScores(directions, context, blackboard);
-        if (baseScores == null) { return; }
 
         // 2. Apply all subjective modifiers to the base scores.
-        if (_modifiers != null)
+        foreach (var modifier in _modifiers)
         {
-            foreach (var modifier in _modifiers)
-            {
-                if (modifier == null) continue;
-                modifier.Modify(ref baseScores, context, blackboard);
-            }
+            modifier.Modify(ref baseScores, context, blackboard);
         }
 
         // 3. Add the final, modified scores to the processor's master score dictionary.

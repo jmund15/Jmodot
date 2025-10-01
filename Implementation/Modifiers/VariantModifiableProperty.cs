@@ -1,7 +1,7 @@
 namespace Jmodot.Implementation.Modifiers;
 
 using Core.Modifiers;
-using Core.Modifiers.CalculationStrategy;
+using Core.Modifiers.CalculationStrategies;
 
 public class VariantModifiableProperty : ModifiableProperty<Variant>
 {

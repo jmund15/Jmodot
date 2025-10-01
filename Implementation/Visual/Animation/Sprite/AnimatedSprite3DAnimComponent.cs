@@ -3,11 +3,8 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 using System;
 using Core.Visual.Animation.Sprite;
 
-// Jmodot/Implementation/Visual/Animation/Sprite/Components/AnimSprite3DComponentNode.cs
 using Godot;
-using System;
 using Core.Visual.Sprite;
-using Jmodot.Core.Visual.Animation.Sprite;
 
 /// <summary>
 /// An IAnimComponent and ISpriteComponent implementation that directly inherits from AnimatedSprite3D.

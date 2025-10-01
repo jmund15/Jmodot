@@ -2,7 +2,7 @@ namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 using System.Collections.Generic;
 using Core.Modifiers;
-using Core.Modifiers.CalculationStrategy;
+using Core.Modifiers.CalculationStrategies;
 
 public partial class FloatCalculationStrategy : VariantDefaultCalculationStrategy
 {

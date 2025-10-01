@@ -10,8 +10,8 @@ using BB;
 [GlobalClass, Tool]
 public abstract partial class TransitionCondition : Resource
 {
-    protected Node Agent { get; private set; }
-    protected IBlackboard BB { get; private set; }
+    protected Node Agent { get; private set; } = null!;
+    protected IBlackboard BB { get; private set; } = null!;
 
     /// <summary>
     /// Initializes the condition with the agent and blackboard context.

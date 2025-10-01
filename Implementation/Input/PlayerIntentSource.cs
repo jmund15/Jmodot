@@ -24,7 +24,7 @@ public partial class PlayerIntentSource : Node, IIntentSource
     /// </summary>
     public IReadOnlyDictionary<InputAction, IntentData> GetIntents()
     {
-        return this._currentIntents;
+        return _currentIntents;
     }
 
     /// <summary>
@@ -71,10 +71,11 @@ public partial class PlayerIntentSource : Node, IIntentSource
                     break;
             }
 
-            if (result)
-            {
-                this._currentIntents[binding.Action] = new IntentData(true);
-            }
+            //if (result)
+            //{
+            //    this._currentIntents[binding.Action] = new IntentData(true);
+            //}
+            _currentIntents[binding.Action] = new IntentData(result);
         }
 
         // Process all vector actions
@@ -86,10 +87,16 @@ public partial class PlayerIntentSource : Node, IIntentSource
             }
 
             var moveVector = Input.GetVector(binding.Left, binding.Right, binding.Up, binding.Down);
-            if (moveVector.LengthSquared() > 0)
-            {
-                this._currentIntents[binding.Action] = new IntentData(moveVector);
-            }
+            //if (moveVector.LengthSquared() > 0)
+            //{
+            //    this._currentIntents[binding.Action] = new IntentData(moveVector);
+            //}
+            _currentIntents[binding.Action] = new IntentData(moveVector);
         }
+        //GD.Print("INTENTS!!");
+        //foreach (var intent in _currentIntents)
+        //{
+        //    GD.Print($"intent: {intent.Key.ActionName} - value: {intent.Value.GetValue()}");
+        //}
     }
 }

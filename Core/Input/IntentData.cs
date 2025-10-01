@@ -1,5 +1,8 @@
 namespace Jmodot.Core.Input;
 
+using System;
+using Jmodot.Implementation.Shared;
+
 /// <summary>
 ///     A lightweight, type-safe container for a single piece of input intent data.
 ///     It acts as a "Tagged Union", holding one of several possible data types.
@@ -28,8 +31,17 @@ public readonly struct IntentData
         this._value = value;
     }
 
-    // --- Safe "TryGet" Accessors ---
 
+    // --- Safe "TryGet" Accessors ---
+    public bool GetBool()
+    {
+        if (!TryGetBool(out var b))
+        {
+            throw JmoLogger.LogAndRethrow(
+                new InvalidOperationException($"Cannot get bool from intent data  '{_value}'"), this);
+        }
+        return b;
+    }
     /// <summary>
     ///     Safely retrieves the value if it is a bool. This is the primary and safest
     ///     way to access the contained data.
@@ -48,6 +60,15 @@ public readonly struct IntentData
         return false;
     }
 
+    public float GetFloat()
+    {
+        if (!TryGetFloat(out var f))
+        {
+            throw JmoLogger.LogAndRethrow(
+                new InvalidOperationException($"Cannot get float from intent data  '{_value}'"), this);
+        }
+        return f;
+    }
     /// <summary>
     ///     Safely retrieves the value if it is a float.
     /// </summary>
@@ -63,6 +84,15 @@ public readonly struct IntentData
         return false;
     }
 
+    public Vector2 GetVector2()
+    {
+        if (!TryGetVector2(out var vec2))
+        {
+            throw JmoLogger.LogAndRethrow(
+                new InvalidOperationException($"Cannot get Vector2 from intent data  '{_value}'"), this);
+        }
+        return vec2;
+    }
     /// <summary>
     ///     Safely retrieves the value if it is a Vector2.
     /// </summary>
@@ -76,5 +106,10 @@ public readonly struct IntentData
 
         value = default;
         return false;
+    }
+
+    public object GetValue()
+    {
+        return _value;
     }
 }

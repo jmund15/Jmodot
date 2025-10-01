@@ -1,7 +1,7 @@
 namespace Jmodot.Core.Stats;
 
 using Godot.Collections;
-using Modifiers.CalculationStrategy;
+using Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 /// <summary>
 ///     A data-driven Resource that defines a set of independent, raw physics properties.
