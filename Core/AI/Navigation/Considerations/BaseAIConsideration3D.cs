@@ -26,7 +26,7 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// A list of modifiers that can alter the objective scores of this consideration,
     /// allowing an AI's personality (Affinities) to influence its low-level behavior.
     /// </summary>
-    [Export] private GColl.Array<SteeringConsiderationModifier> _modifiers = new();
+    [Export] private GColl.Array<SteeringConsiderationModifier3D> _modifiers = new();
 
     /// <summary>
     /// Called once by the AISteeringProcessor during initialization. This allows the
@@ -39,20 +39,20 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// The primary evaluation method. It calculates the base scores and then allows
     /// all registered modifiers to alter them before adding to the final scores.
     /// </summary>
-    /// <param name="context">A snapshot of the current world and agent state.</param>
+    /// <param name="context3D">A snapshot of the current world and agent state.</param>
     /// <param name="blackboard">The AI's blackboard for accessing core components.</param>
     /// <param name="directions">The set of directions to score.</param>
     /// <param name="finalScores">The master score dictionary from the steering processor, passed by reference.</param>
-    public void Evaluate(SteeringDecisionContext context, IBlackboard blackboard,
+    public void Evaluate(SteeringDecisionContext3D context3D, IBlackboard blackboard,
         DirectionSet3D directions, ref Dictionary<Vector3, float> finalScores)
     {
         // 1. Calculate the raw, objective scores for this consideration.
-        var baseScores = CalculateBaseScores(directions, context, blackboard);
+        var baseScores = CalculateBaseScores(directions, context3D, blackboard);
 
         // 2. Apply all subjective modifiers to the base scores.
         foreach (var modifier in _modifiers)
         {
-            modifier.Modify(ref baseScores, context, blackboard);
+            modifier.Modify(ref baseScores, context3D, blackboard);
         }
 
         // 3. Add the final, modified scores to the processor's master score dictionary.
@@ -70,5 +70,5 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// the raw directional scores before any personality-driven modifications are applied.
     /// </summary>
     protected abstract Dictionary<Vector3, float> CalculateBaseScores(
-        DirectionSet3D directions, SteeringDecisionContext context, IBlackboard blackboard);
+        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard);
 }

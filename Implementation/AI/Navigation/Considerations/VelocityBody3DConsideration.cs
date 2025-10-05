@@ -99,17 +99,17 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// It calculates scores by identifying relevant targets from the agent's memory and
     /// aggregating the behavioral scores for each one.
     /// </summary>
-    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext context, IBlackboard blackboard)
+    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
         var finalScores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
         // Get all relevant targets from the agent's perception manager.
-        var relevantPercepts = context.Memory.GetSensedByCategory(_targetCategory);
+        var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
 
         // Calculate and aggregate the scores for each perceived target.
         foreach (var perceptInfo in relevantPercepts)
         {
-            var targetScores = GetScoresForSingleTarget(perceptInfo, directions, context);
+            var targetScores = GetScoresForSingleTarget(perceptInfo, directions, context3D);
             foreach (var score in targetScores)
             {
                 finalScores[score.Key] += score.Value;
@@ -127,16 +127,16 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// <summary>
     /// Calculates the directional scores for a single dynamic target.
     /// </summary>
-    private Dictionary<Vector3, float> GetScoresForSingleTarget(PerceptionInfo targetInfo, DirectionSet3D directions, SteeringDecisionContext context)
+    private Dictionary<Vector3, float> GetScoresForSingleTarget(Perception3DInfo target3DInfo, DirectionSet3D directions, SteeringDecisionContext3D context3D)
     {
         var considerations = directions.Directions.ToDictionary(dir => dir, dir => 0f);
         if (Mathf.Abs(_considerationWeight) < Epsilon) { return considerations; }
 
         // --- 1. Gather Data from Context and Percept ---
-        Vector3 targetPosition = targetInfo.LastKnownPosition;
-        Vector3 targetVelocity = targetInfo.LastKnownVelocity;
-        Vector3 agentPosition = context.AgentPosition;
-        Vector3 agentVelocity = context.AgentVelocity;
+        Vector3 targetPosition = target3DInfo.LastKnownPosition;
+        Vector3 targetVelocity = target3DInfo.LastKnownVelocity;
+        Vector3 agentPosition = context3D.AgentPosition;
+        Vector3 agentVelocity = context3D.AgentVelocity;
 
         // --- 2. Calculate Relative Vectors ---
         Vector3 toTargetVector = targetPosition - agentPosition;

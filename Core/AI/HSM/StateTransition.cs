@@ -2,6 +2,10 @@ namespace Jmodot.Core.AI.HSM;
 
 using Godot.Collections;
 
+// TODO: use "lego builder" pattern - create a fluent builder that chains logic of checks together for a TransitionCondition
+// this will allow not just "all conditions must be met" logic, but a intelligent system of chained logic for state transitions
+// uncertain if this is possible in the godot inspector, will need more thought
+
 /// <summary>
 /// A data resource that defines a potential transition from one state to another.
 /// It bundles a path to a target state with a set of conditions that must all be met

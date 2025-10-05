@@ -9,7 +9,7 @@ using CalculationStrategies;
 ///     It provides the core logic for managing modifiers, caching values, and resolving conflicts
 ///     via tags and priority. The default calculation applies modifiers in a simple priority-sorted list.
 /// </summary>
-public class ModifiableProperty<T>
+public class ModifiableProperty<T> : IModifiableProperty
 {
     private readonly ICalculationStrategy<T> _calculationStrategy;
 
@@ -19,50 +19,50 @@ public class ModifiableProperty<T>
 
     public ModifiableProperty(T baseValue, ICalculationStrategy<T> calculationStrategy)
     {
-        this.BaseValue = baseValue;
-        this._cachedValue = baseValue;
-        this._calculationStrategy = calculationStrategy;
+        BaseValue = baseValue;
+        _cachedValue = baseValue;
+        _calculationStrategy = calculationStrategy;
     }
 
     public T BaseValue { get; set; }
-    public virtual T Value => this.GetValue();
+    public virtual T Value => GetValue();
 
     public virtual void AddModifier(IModifier<T> modifier)
     {
-        this._modifiers.Add(modifier);
-        this._isDirty = true;
+        _modifiers.Add(modifier);
+        _isDirty = true;
     }
 
     public virtual void RemoveModifier(IModifier<T> modifier)
     {
-        this._modifiers.Remove(modifier);
-        this._isDirty = true;
+        _modifiers.Remove(modifier);
+        _isDirty = true;
     }
 
     protected virtual T GetValue()
     {
-        if (!this._isDirty)
+        if (!_isDirty)
         {
-            return this._cachedValue;
+            return _cachedValue;
         }
 
-        var finalModifiers = this.GetFinalModifiers(); // Use the powerful filtering helper
+        var finalModifiers = GetFinalModifiers(); // Use the powerful filtering helper
 
         // Delegate the calculation to the strategy
-        this._cachedValue = this._calculationStrategy.Calculate(this.BaseValue, finalModifiers);
+        _cachedValue = _calculationStrategy.Calculate(BaseValue, finalModifiers);
 
-        this._isDirty = false;
-        return this._cachedValue;
+        _isDirty = false;
+        return _cachedValue;
     }
 
     protected List<IModifier<T>> GetFinalModifiers()
     {
-        if (this._modifiers.Count == 0)
+        if (_modifiers.Count == 0)
         {
             return new List<IModifier<T>>();
         }
 
-        var sortedModifiers = this._modifiers.OrderByDescending(m => m.Priority).ToList();
+        var sortedModifiers = _modifiers.OrderByDescending(m => m.Priority).ToList();
         var tagsToCancel = new HashSet<string>();
         foreach (var mod in sortedModifiers)
         {
@@ -76,5 +76,29 @@ public class ModifiableProperty<T>
         }
 
         return sortedModifiers.Where(mod => !(mod.Tags?.Any(tagsToCancel.Contains) ?? false)).ToList();
+    }
+
+    public Variant GetValueAsVariant()
+    {
+        return Variant.From(Value);
+    }
+
+    /// <summary>
+    /// Explicit implementation of the gatekeeper method.
+    /// </summary>
+    public bool TryAddModifier(Resource modifierResource)
+    {
+        // the type-safe cast.
+        // check if the provided resource can be cast to the specific
+        // generic interface that this property instance requires (e.g., IModifier<float>).
+        if (modifierResource is IModifier<T> typedModifier)
+        {
+            // If the cast is successful, we call the strongly-typed AddModifier method.
+            AddModifier(typedModifier);
+            return true;
+        }
+
+        // If the cast fails, the types are incompatible.
+        return false;
     }
 }

@@ -18,6 +18,12 @@ public partial class PlayerIntentSource : Node, IIntentSource
     [Export] private Array<VectorActionBinding> _vectorBindings = new();
     [Export] public bool IsActive { get; set; } = true;
 
+    public override void _Ready()
+    {
+        base._Ready();
+        UpdateIntentState();
+    }
+
     /// <summary>
     ///     Returns a snapshot of the intents captured during the last _Process frame.
     ///     This method is safe to call from _PhysicsProcess.
@@ -28,7 +34,7 @@ public partial class PlayerIntentSource : Node, IIntentSource
     }
 
     /// <summary>
-    ///     Input polling now happens in _Process to ensure no inputs are missed.
+    ///     Input polling happens in _Process to ensure no inputs are missed.
     /// </summary>
     public override void _Process(double delta)
     {
@@ -42,7 +48,7 @@ public partial class PlayerIntentSource : Node, IIntentSource
             return;
         }
 
-        this.UpdateIntentState();
+        UpdateIntentState();
     }
 
     private void UpdateIntentState()

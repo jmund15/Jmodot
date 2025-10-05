@@ -6,7 +6,7 @@ namespace Jmodot.Core.Stats;
 ///     replacing brittle enums or strings and allowing designers to define new movement types.
 /// </summary>
 [GlobalClass]
-public partial class MovementMode : Resource
+public partial class MovementMode : StatContext
 {
-    [Export] public string ModeName { get; private set; } = "Unnamed";
+    //[Export] public string ModeName { get; private set; } = "Unnamed";
 }

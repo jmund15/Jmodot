@@ -63,7 +63,7 @@ public partial class AnimationOrchestrator : Node
     /// </summary>
     public void SetDirection(Vector3 direction)
     {
-        foreach (var source in VariantSources.OfType<DirectionalVariantSource>())
+        foreach (var source in VariantSources.OfType<Directional3DVariantSource>())
         {
             source.UpdateDirection(direction);
         }

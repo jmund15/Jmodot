@@ -100,25 +100,25 @@ public partial class GameRegistry : Resource
     public void RebuildRegistry()
     {
         // Clear existing data
-        this.Identities.Clear();
-        this.Categories.Clear();
-        this.InputActions.Clear();
-        this.Attributes.Clear();
-        this.Affinities.Clear();
+        Identities.Clear();
+        Categories.Clear();
+        InputActions.Clear();
+        Attributes.Clear();
+        Affinities.Clear();
 
         // Load resources from collections
-        this.Identities = this.ProcessCollections<Identity>(this.IdentityCollection);
-        this.Categories = this.ProcessCollections<Category>(this.CategoryCollection);
-        this.InputActions = this.ProcessCollections<InputAction>(this.InputActionCollection);
-        this.Attributes = this.ProcessCollections<Attribute>(this.AttributeCollection);
-        this.Affinities = this.ProcessCollections<Affinity>(this.AffinityCollection);
+        Identities = ProcessCollections<Identity>(IdentityCollection);
+        Categories = ProcessCollections<Category>(CategoryCollection);
+        InputActions = ProcessCollections<InputAction>(InputActionCollection);
+        Attributes = ProcessCollections<Attribute>(AttributeCollection);
+        Affinities = ProcessCollections<Affinity>(AffinityCollection);
 
         // Clear lookup dictionaries to force rebuild on next access
-        this._identityLookup = null;
-        this._categoryLookup = null;
-        this._inputActionLookup = null;
-        this._attributeLookup = null;
-        this._affinityLookup = null;
+        _identityLookup = null;
+        _categoryLookup = null;
+        _inputActionLookup = null;
+        _attributeLookup = null;
+        _affinityLookup = null;
     }
 
     #region Public_API_Lookups
@@ -433,12 +433,12 @@ public partial class GameRegistry : Resource
 
         foreach (var subDir in dir.GetDirectories())
         {
-            this.LoadFromDirectory(subDir, ref resultSet);
+            LoadFromDirectory(subDir, ref resultSet);
         }
 
         foreach (var resPath in ResourceLoader.ListDirectory(directory))
         {
-            var res = ResourceLoader.Load(resPath);
+            var res = ResourceLoader.Load($"{directory}/{resPath}");
             if (res is T tRes)
             {
                 resultSet.Add(tRes);

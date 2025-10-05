@@ -8,7 +8,7 @@ using Core.Environment;
 ///     that enters its volume.
 /// </summary>
 [GlobalClass]
-public partial class ConveyorBelt : Area3D, IForceProvider
+public partial class ConveyorBelt : Area3D, IForceProvider3D
 {
     private Vector3 _globalPushVelocity;
 

@@ -6,7 +6,7 @@ public static class MovementExtensions
 
     public const float DEFAULT_WEIGHT_PERCENTAGE = 0.075f;
 
-    public static Vector3 GetWeightedGravity(this CharacterBody3D body,
+    public static Vector3 GetWeightedGravity3D(this CharacterBody3D body,
         float weightPercentage = DEFAULT_WEIGHT_PERCENTAGE)
     {
         Vector3 weightedGrav;

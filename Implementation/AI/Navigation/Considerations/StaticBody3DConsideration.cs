@@ -56,19 +56,19 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
         }
     }
 
-    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext context, IBlackboard blackboard)
+    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
         if (_targetCategory == null) return scores;
 
         // Get all perceived objects that match our target category.
-        var relevantPercepts = context.Memory.GetSensedByCategory(_targetCategory);
+        var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
 
         foreach (var percept in relevantPercepts)
         {
-            Vector3 toTargetDir = (percept.LastKnownPosition - context.AgentPosition).Normalized();
-            float distance = context.AgentPosition.DistanceTo(percept.LastKnownPosition);
+            Vector3 toTargetDir = (percept.LastKnownPosition - context3D.AgentPosition).Normalized();
+            float distance = context3D.AgentPosition.DistanceTo(percept.LastKnownPosition);
 
             // Calculate the weight based on distance.
             float distanceWeight = GetDistanceConsideration(distance);

@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using Implementation.Modifiers.CalculationStrategies;
 using Implementation.Shared;
 using Mechanics;
+using Microsoft.CSharp.RuntimeBinder;
 using Modifiers;
+using Modifiers.CalculationStrategies;
 
 /// <summary>
 ///     The definitive runtime "character sheet" and single source of truth for all of an entity's
@@ -15,27 +17,82 @@ using Modifiers;
 ///     needing to query or modify character data.
 /// </summary>
 [GlobalClass]
-// TODO: MAKE THIS A INTERFACE for better dependency injection and scalability
 public partial class StatController : Node, IStatProvider
 {
-    // A dedicated library for mechanics. The value is a ModifiableProperty
-    // so that buffs/debuffs can change a mechanic's data at runtime (e.g., a "Super Jump" power-up).
-    private readonly Dictionary<MechanicType, ModifiableProperty<MechanicData>> _mechanics = new();
-
     /// <summary>
     ///     Stores stats that are specific to a particular MovementMode. These provide the context-specific
     ///     overrides and properties needed for different states of motion.
     ///     Example: Ground Max Speed, Air Acceleration, Swim Friction.
     /// </summary>
-    private readonly Dictionary<MovementMode, Dictionary<Attribute, ModifiableProperty<Variant>>> _movementModeStats =
+    private readonly Dictionary<StatContext, Dictionary<Attribute, IModifiableProperty>> _contextualStats =
         new();
-    // --- Private State ---
-
     /// <summary>
     ///     Stores all universal stats that apply to the entity regardless of its state.
     ///     Example: Max Health, Strength, Intelligence.
     /// </summary>
-    private readonly Dictionary<Attribute, ModifiableProperty<Variant>> _universalStats = new();
+    private readonly Dictionary<Attribute, IModifiableProperty> _universalStats = new();
+    // A dedicated library for mechanics.
+    // Buffs/debuffs can change a mechanic's data at runtime (e.g., a "Jump Power" Attribute).
+    private readonly Dictionary<MechanicType, MechanicData> _mechanicLibrary = new();
+
+    // Default strategies (can make static if we make the get calc strat static)
+    private readonly FloatCalculationStrategy _defaultFloatCalcStrat = new();
+    private readonly BoolOverrideStrategy _defaultBoolCalcStrat = new();
+
+    // --- Initialization ---
+
+    /// <summary>
+    ///     Configures and populates the entire StatController based on the data defined in a
+    ///     CharacterArchetype resource. This method builds the runtime ModifiableProperty objects,
+    ///     assigns the correct calculation strategies, and sets their base values.
+    /// </summary>
+    /// <param name="archetype">The data template used to define this entity's stats.</param>
+    public void InitializeFromArchetype(CharacterArchetype archetype)
+    {
+        // --- 1. Initialize Universal Stats ---
+        foreach (var entry in archetype.UniversalAttributes)
+        {
+            var attribute = entry.Key;
+            var baseValue = entry.Value;
+
+            // Look up the specific strategy assigned in the archetype for this attribute.
+            archetype.UniversalAttributeStrategies.TryGetValue(attribute, out var specificStrategy);
+
+            _universalStats[attribute] = GetAttributeStrategy(attribute, baseValue, specificStrategy);
+        }
+
+        // --- 2. Initialize Contextual Movement Stats ---
+        foreach (var modeEntry in archetype.ContextualProfiles)
+        {
+            var mode = modeEntry.Key;
+            var profile = modeEntry.Value;
+            this._contextualStats[mode] = new Dictionary<Attribute, IModifiableProperty>();
+
+            foreach (var attrEntry in profile.Attributes)
+            {
+                var attribute = attrEntry.Key;
+                var baseValue = attrEntry.Value;
+
+                // Check if the VelocityProfile provides a specific strategy override for this attribute.
+                profile.AttributeStrategies.TryGetValue(attribute, out var specificStrategy);
+
+                _contextualStats[mode][attribute] = GetAttributeStrategy(attribute, baseValue, specificStrategy);
+            }
+        }
+
+        // 3. Initialize Mechanic Library
+        foreach (var (mechanicType, mechanicData) in archetype.MechanicLibrary)
+        {
+            _mechanicLibrary[mechanicType] = mechanicData;
+        }
+
+        // --- 3. Post-Initialization Notification ---
+        // Emit an initial change event for all stats so listening systems can sync their initial state.
+        foreach (var stat in this._universalStats)
+        {
+            OnStatChanged?.Invoke(stat.Key, stat.Value.GetValueAsVariant());
+        }
+    }
 
     // --- Public Events ---
 
@@ -59,19 +116,40 @@ public partial class StatController : Node, IStatProvider
     /// <param name="attribute">The attribute to retrieve the property for.</param>
     /// <param name="context">Optional: The current MovementMode. If provided, will search for a contextual stat first.</param>
     /// <returns>The ModifiableProperty object, or null if the entity does not have the specified attribute.</returns>
-    public ModifiableProperty<Variant> GetStat(Attribute attribute, MovementMode? context = null)
+    public ModifiableProperty<T> GetStat<T>(Attribute attribute, StatContext? context = null)
     {
         // First, attempt to find the most specific, contextual version of the stat.
-        if (context != null && this._movementModeStats.TryGetValue(context, out var modeStats) &&
+        if (context != null && this._contextualStats.TryGetValue(context, out var modeStats) &&
             modeStats.TryGetValue(attribute, out var contextualProp))
         {
-            return contextualProp;
+            if (contextualProp is ModifiableProperty<T> typedProp)
+            {
+                return typedProp;
+            }
+            JmoLogger.LogAndRethrow(
+                new InvalidCastException($"value for attribute {attribute} is not of type {typeof(T)}"),
+                this
+            );
         }
 
         // If no contextual version exists, fall back to the universal version.
         if (this._universalStats.TryGetValue(attribute, out var universalProp))
         {
-            return universalProp;
+            if (universalProp is ModifiableProperty<T> typedProp)
+            {
+                return typedProp;
+            }
+            JmoLogger.LogAndRethrow(
+                new InvalidCastException($"value for attribute {attribute} is not of type {typeof(T)}"),
+                this
+            );
+            // // TODO: replace with jmo logger
+            // // This indicates a logic error somewhere in the code or a design error in the data.
+            // // Log a detailed error to help developers debug it quickly.
+            // GD.PrintErr($"Stat Type Mismatch: Failed to get value for attribute '{attribute?.AttributeName}'. ",
+            //     $"Requested type '{typeof(T).Name}' but the stat's actual type is '{prop.Value.VariantType}'. ",
+            //     $"Actual stat value is '{prop.Value}'. ",
+            //     "Returning default value.");
         }
 
         // The entity does not possess this stat in any context.
@@ -92,129 +170,139 @@ public partial class StatController : Node, IStatProvider
     /// <param name="context">Optional: The current MovementMode for contextual lookups.</param>
     /// <param name="defaultValue">The value to return if the stat doesn't exist or if a type mismatch occurs.</param>
     /// <returns>The final calculated value of the stat, or the default value on failure.</returns>
-    public T GetStatValue<[MustBeVariant] T>(Attribute attribute, MovementMode? context = null,
+    public T GetStatValue<[MustBeVariant] T>(Attribute attribute, StatContext? context = null,
         T defaultValue = default(T))
     {
         // TODO: make and use trygetstat
-        var prop = GetStat(attribute, context);
+        var prop = GetStat<T>(attribute, context);
 
-        if (prop != null)
-        {
-            // Runtime Type Check: Ensure the requested type matches the stored Variant's type.
-            if (prop.Value.Obj is T) //.Value.VariantType == Variant.Type.From<T>())
-            {
-                return prop.Value.As<T>();
-            }
-            else if (prop.Value.As<T> != null)
-            {
-                return prop.Value.As<T>();
-            }
-
-            // TODO: replace with jmo logger
-            // This indicates a logic error somewhere in the code or a design error in the data.
-            // Log a detailed error to help developers debug it quickly.
-            GD.PrintErr($"Stat Type Mismatch: Failed to get value for attribute '{attribute?.AttributeName}'. ",
-                $"Requested type '{typeof(T).Name}' but the stat's actual type is '{prop.Value.VariantType}'. ",
-                $"Actual stat value is '{prop.Value}'. ",
-                "Returning default value.");
-            return defaultValue;
-        }
+        return prop.Value;
 
         // The stat was not found in any context.
         return defaultValue;
     }
 
-    public T? GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData
+    public T GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData
     {
-        if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
+        if (_mechanicLibrary.TryGetValue(mechanicType, out var data))
         {
-            // Return the final, potentially modified value.
-            return (T)modifiableData.Value; // TODO: fix
+            return data as T;
         }
-
-        GD.PrintErr($"Entity does not have mechanic data for '{mechanicType?.MechanicName ?? "NULL"}'");
+        // todo: throw instead
         return null;
     }
-
-    // --- Initialization ---
 
     /// <summary>
-    ///     Configures and populates the entire StatController based on the data defined in a
-    ///     CharacterArchetype resource. This method builds the runtime ModifiableProperty objects,
-    ///     assigns the correct calculation strategies, and sets their base values.
+    /// The "Gatekeeper" method. It takes a generic modifier resource and safely applies it
+    /// to the correct, strongly-typed ModifiableProperty using the 'dynamic' keyword.
     /// </summary>
-    /// <param name="archetype">The data template used to define this entity's stats.</param>
-    public void InitializeFromArchetype(CharacterArchetype archetype)
+    public bool TryAddModifier(Attribute attribute, Resource modifierResource, StatContext context = null)
     {
-        // --- 1. Initialize Universal Stats ---
-        var defaultOverrideStrategy = new VariantDefaultCalculationStrategy();
+        // TODO: add to context if given
 
-        foreach (var entry in archetype.UniversalAttributes)
+        if (!_universalStats.TryGetValue(attribute, out var prop))
         {
-            var attribute = entry.Key;
-            var baseValue = entry.Value;
-
-            // Look up the specific strategy assigned in the archetype for this attribute.
-            archetype.UniversalAttributeStrategies.TryGetValue(attribute, out var specificStrategy);
-
-            // Use the specific strategy if provided; otherwise, fall back to the safe default (override).
-            var strategyToUse = specificStrategy ?? defaultOverrideStrategy;
-
-            this._universalStats[attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
+            JmoLogger.Error(this, $"StatController: Attempted to add modifier to non-existent attribute '{attribute.AttributeName}'.");
+            return false;
         }
 
-        // --- 2. Initialize Contextual Movement Stats ---
-        // For convenience and the 99% use case, we assume movement stats are floats and use the
-        // standard float calculation pipeline as the default. This can be overridden in the VelocityProfile.
-        var defaultMovementStrategy = new FloatCalculationStrategy();
-
-        foreach (var modeEntry in archetype.MovementProfiles)
+        if (!prop.TryAddModifier(modifierResource))
         {
-            var mode = modeEntry.Key;
-            var profile = modeEntry.Value;
-            this._movementModeStats[mode] = new Dictionary<Attribute, ModifiableProperty<Variant>>();
-
-            foreach (var attrEntry in profile.Attributes)
-            {
-                var attribute = attrEntry.Key;
-                var baseValue = attrEntry.Value;
-
-                // Check if the VelocityProfile provides a specific strategy override for this attribute.
-                profile.AttributeStrategies.TryGetValue(attribute, out var specificStrategy);
-
-                // Use the override if it exists; otherwise, use the default for movement stats.
-                var strategyToUse = specificStrategy ?? defaultMovementStrategy;
-
-                this._movementModeStats[mode][attribute] = new ModifiableProperty<Variant>(baseValue, strategyToUse);
-            }
+            JmoLogger.Error(this, $"StatController: Attempted to add modifier of incompatible type '{modifierResource.GetType().FullName}' for attribute '{attribute.AttributeName}'.");
+            return false;
         }
 
-        var mechanicDataCalStrat = new MechanicDataDefaultCalculationStrategy();
-        foreach (var mechanic in archetype.MechanicLibrary)
-        {
-            var mechanicType = mechanic.Key;
-            var baseValue = mechanic.Value;
+        return true;
 
-            var mechanicDataMod = new ModifiableProperty<MechanicData>(baseValue, mechanicDataCalStrat);
-
-            _mechanics.Add(mechanicType, mechanicDataMod);
-        }
-
-        // --- 3. Post-Initialization Notification ---
-        // Emit an initial change event for all stats so listening systems can sync their initial state.
-        foreach (var stat in this._universalStats)
-        {
-            this.OnStatChanged?.Invoke(stat.Key, stat.Value.Value);
-        }
+        // try
+        // {
+        //     // The 'dynamic' keyword defers the type check until runtime.
+        //     // It will attempt to call prop.AddModifier(modifierResource).
+        //     // If the generic types of the property (e.g., <float>) and the modifier
+        //     // (e.g., IModifier<float>) match, it will succeed.
+        //     // If they do not match, it will throw a RuntimeBinderException, which we catch.
+        //     dynamic typedProp = prop;
+        //     typedProp.AddModifier(modifierResource);
+        //     return true;
+        // }
+        // catch (RuntimeBinderException ex)
+        // {
+        //     JmoLogger.Info(this,
+        //         $"attempted modifier: {modifierResource.GetType().FullName}." +
+        //         $"\nNeeded modifier: {prop.GetType().FullName}");
+        //     // This catch block is our runtime type validation.
+        //     // It means the modifier's type was incompatible with the stat's type.
+        //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifierResource.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
+        //     return false;
+        // }
     }
 
-    public ModifiableProperty<MechanicData>? GetMechanic(MechanicType mechanicType)
+    /// <summary>
+    /// Gets the attribute value's Type
+    /// </summary>
+    /// <param name="attribute"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    public Type GetAttributeType(Attribute attribute)
     {
-        if (mechanicType != null && this._mechanics.TryGetValue(mechanicType, out var modifiableData))
+        // First, attempt to find the most specific, contextual version of the stat.
+        // If no contextual version exists, fall back to the universal version.
+        if (_universalStats.TryGetValue(attribute, out var universalProp))
         {
-            return modifiableData;
+            return universalProp.GetValueAsVariant().Obj!.GetType();
         }
 
-        return null;
+        throw new InvalidOperationException(); // TODO: define better
+    }
+
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="attribute"></param>
+    /// <param name="baseValue"></param>
+    /// <param name="specificStrategy"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+
+    private IModifiableProperty GetAttributeStrategy(Attribute attribute, Variant baseValue, Resource? specificStrategy = null)
+    {
+        switch (baseValue.VariantType)
+        {
+            case Variant.Type.Float:
+                switch (specificStrategy)
+                {
+                    case null:
+                        return new ModifiableProperty<float>(
+                            baseValue.AsSingle(),
+                            _defaultFloatCalcStrat);
+                    case ICalculationStrategy<float> floatStrat:
+                        return new ModifiableProperty<float>(
+                            baseValue.AsSingle(),
+                            floatStrat);
+                    default:
+                        throw JmoLogger.LogAndRethrow(new InvalidCastException($"Incorrect Strategy Type: '{specificStrategy.GetType().Name}' for Variant type '{baseValue.VariantType}'"),
+                            this);
+                }
+                break;
+            case Variant.Type.Bool:
+                switch (specificStrategy)
+                {
+                    case null:
+                        return new ModifiableProperty<bool>(
+                            baseValue.AsBool(),
+                            _defaultBoolCalcStrat);
+                        break;
+                    case ICalculationStrategy<bool> boolStrat:
+                        return new ModifiableProperty<bool>(
+                            baseValue.AsBool(),
+                            boolStrat);
+                    default:
+                        throw JmoLogger.LogAndRethrow(new InvalidCastException($"Incorrect Strategy Type: '{specificStrategy.GetType().Name}' for Variant type '{baseValue.VariantType}'"),
+                            this);
+                }
+            default:
+                throw JmoLogger.LogAndRethrow(new InvalidCastException($"StatController: No handler for attribute '{attribute.AttributeName}' of type '{baseValue.VariantType}'."),
+                    this);
+        }
     }
 }

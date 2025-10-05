@@ -19,18 +19,19 @@ public interface IStatProvider
     /// <summary>
     ///     Retrieves the underlying ModifiableProperty object for systems that need to add/remove modifiers.
     /// </summary>
-    ModifiableProperty<Variant> GetStat(Attribute attribute, MovementMode? context = null);
-
+    ModifiableProperty<T> GetStat<T>(Attribute attribute, StatContext? context = null);
     /// <summary>
     ///     Retrieves the final, calculated VALUE of a stat in a type-safe manner.
     ///     This is the primary method for any system that consumes stat data.
     /// </summary>
-    T GetStatValue<[MustBeVariant] T>(Attribute attribute, MovementMode? context = null, T defaultValue = default(T));
-
+    T GetStatValue<[MustBeVariant] T>(Attribute attribute, StatContext? context = null, T defaultValue = default(T));
     /// <summary>
     ///     Retrieves the final, calculated data for a specific mechanic.
     /// </summary>
     /// <param name="mechanicType">The mechanic to retrieve data for.</param>
     /// <returns>The final MechanicData object, or null if the entity cannot perform this mechanic.</returns>
-    T? GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData;
+    T GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData;
+    // TryGetMechanicData
+
+    bool TryAddModifier(Attribute attribute, Resource modifierResource, StatContext context = null);
 }

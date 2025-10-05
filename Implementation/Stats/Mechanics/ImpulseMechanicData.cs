@@ -1,12 +1,16 @@
 namespace Jmodot.Implementation.Stats.Mechanics;
 
+using Core.Stats;
 using Core.Stats.Mechanics;
 
 /// <summary>
-///     Defines the data for a simple, instantaneous physics impulse(e.g., a jump).
+/// Defines the contract for a simple, instantaneous physics impulse like a jump or dodge.
+/// It requires one Attribute to define its strength.
 /// </summary>
 [GlobalClass]
-public partial class ImpulseMechanicData : MechanicData // Inherits from the base class
+public partial class ImpulseMechanicData : MechanicData
 {
-    [Export] public float Strength { get; private set; } = 10.0f;
+    [ExportGroup("Attribute Contract")]
+    [Export]
+    public Attribute ImpulseStrengthAttribute { get; private set; } = null!;
 }

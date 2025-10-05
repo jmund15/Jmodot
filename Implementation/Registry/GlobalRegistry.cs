@@ -35,5 +35,8 @@ public partial class GlobalRegistry : Node
         {
             GD.PrintErr($"Failed to load GameRegistry from path: {this._registryResourcePath}");
         }
+
+        //DEBUG, should happen automatically in editor right?
+        DB.RebuildRegistry();
     }
 }

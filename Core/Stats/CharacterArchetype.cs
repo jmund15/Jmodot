@@ -19,27 +19,23 @@ public partial class CharacterArchetype : Resource
     public GColl.Dictionary<Attribute, Variant> UniversalAttributes { get; private set; } = new();
 
     // a separate dictionary to explicitly assign strategies.
-    // This is more verbose but architecturally 100% correct and flexible.
+    // we can't export templatized interfaces/resources, so for now the user just has to ensure that they're importing a valid Calulation Strategy
     [Export]
-    public GColl.Dictionary<Attribute, VariantDefaultCalculationStrategy> UniversalAttributeStrategies
-    {
-        get;
-        private set;
-    } = new();
+    public GColl.Dictionary<Attribute, Resource> UniversalAttributeStrategies { get; private set; } = new();
 
     /// <summary>
     ///     A dictionary mapping the character's available movement modes to their physics profiles.
     /// </summary>
     [ExportGroup("Contextual Movement")]
     [Export]
-    public GColl.Dictionary<MovementMode, VelocityProfile> MovementProfiles { get; private set; } = new();
+    public GColl.Dictionary<StatContext, StatProfile> ContextualProfiles { get; private set; } = new();
 
 
     /// <summary>
     ///     A list of all mechanics (like jumps or dashes) this character is capable of performing.
     ///     A State Machine will query this list to find the data for a specific mechanic.
     /// </summary>
-    [ExportGroup("Mechanics")]
+    [ExportGroup("Mechanic Library")]
     [Export]
     public GColl.Dictionary<MechanicType, MechanicData> MechanicLibrary { get; private set; } = new();
 }
