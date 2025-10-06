@@ -12,35 +12,35 @@ public class CharacterBodyController2D : ICharacterController2D
 
     public CharacterBodyController2D(CharacterBody2D body)
     {
-        this._body = body;
+        _body = body;
     }
 
     public Node GetUnderlyingNode()
     {
-        return this._body;
+        return _body;
     }
 
-    public Vector2 GlobalPosition => this._body.GlobalPosition;
-    public Vector2 Velocity => this._body.Velocity;
-    public bool IsOnFloor => this._body.IsOnFloor();
+    public Vector2 GlobalPosition => _body.GlobalPosition;
+    public Vector2 Velocity => _body.Velocity;
+    public bool IsOnFloor => _body.IsOnFloor();
 
     public void SetVelocity(Vector2 newVelocity)
     {
-        this._body.Velocity = newVelocity;
+        _body.Velocity = newVelocity;
     }
 
     public void AddVelocity(Vector2 additiveVelocity)
     {
-        this._body.Velocity += additiveVelocity;
+        _body.Velocity += additiveVelocity;
     }
 
     public void Move()
     {
-        this._body.MoveAndSlide();
+        _body.MoveAndSlide();
     }
 
     public void Teleport(Vector2 newGlobalPosition)
     {
-        this._body.GlobalPosition = newGlobalPosition;
+        _body.GlobalPosition = newGlobalPosition;
     }
 }

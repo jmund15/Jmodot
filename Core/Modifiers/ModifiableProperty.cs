@@ -3,6 +3,7 @@ namespace Jmodot.Core.Modifiers;
 using System.Collections.Generic;
 using System.Linq;
 using CalculationStrategies;
+using Implementation.Shared;
 
 /// <summary>
 ///     The generic wrapper class for any value that needs to be dynamically modified.
@@ -100,5 +101,24 @@ public class ModifiableProperty<T> : IModifiableProperty
 
         // If the cast fails, the types are incompatible.
         return false;
+    }
+
+    public bool TryRemoveModifier(Resource modifierResource)
+    {
+        if (modifierResource is not IModifier<T> typedModifier)
+        {
+            return false;
+        }
+
+        if (_modifiers.Contains(typedModifier))
+        {
+            JmoLogger.Warning(this,
+                $"modifier '{modifierResource.ResourceName}' is not currently active in this modifiable property");
+            return false;
+        }
+
+        // If the cast is successful, we call the strongly-typed RemoveModifier method.
+        RemoveModifier(typedModifier);
+        return true;
     }
 }

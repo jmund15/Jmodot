@@ -34,7 +34,6 @@ public class MovementProcessor3D
 
         var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
         var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
-        GD.Print($"gravity vec: {gravityVec}\ngravity mag: {gravityMag}");
     }
 
     /// <summary>

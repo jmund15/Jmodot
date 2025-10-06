@@ -20,4 +20,5 @@ public interface IModifiableProperty
     /// <param name="modifierResource">The modifier resource to add.</param>
     /// <returns>True if the modifier was of the correct type and was added, false otherwise.</returns>
     bool TryAddModifier(Resource modifierResource);
+    bool TryRemoveModifier(Resource modifierResource);
 }

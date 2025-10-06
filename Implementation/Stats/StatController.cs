@@ -238,6 +238,31 @@ public partial class StatController : Node, IStatProvider
     }
 
     /// <summary>
+    /// The "Gatekeeper" method. It takes a generic modifier resource and safely applies it
+    /// to the correct, strongly-typed ModifiableProperty using the 'dynamic' keyword.
+    /// </summary>
+    public bool TryRemoveModifier(Attribute attribute, Resource modifierResource, StatContext context = null)
+    {
+        // TODO: add to context if given
+
+        if (!_universalStats.TryGetValue(attribute, out var prop))
+        {
+            JmoLogger.Error(this,
+                $"StatController: Attempted to add modifier to non-existent attribute '{attribute.AttributeName}'.");
+            return false;
+        }
+
+        if (!prop.TryRemoveModifier(modifierResource))
+        {
+            JmoLogger.Error(this,
+                $"StatController: Attempted to remove modifier of type '{modifierResource.GetType().FullName}' for attribute '{attribute.AttributeName}'.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Gets the attribute value's Type
     /// </summary>
     /// <param name="attribute"></param>

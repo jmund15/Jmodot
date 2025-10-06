@@ -101,7 +101,6 @@ public class MovementProcessor2D
         //     // TODO: still bad, should be used by ForceReceiver too.
         //     var gravityVec = ProjectSettings.GetSetting("physics/2d/default_gravity_vector").AsVector2();
         //     var gravityMag = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
-        //     //GD.Print($"gravity vec: {gravityVec * gravityMag * delta}");
         //     _controller.AddVelocity(gravityVec * gravityMag * delta * 5f);
         // }
 

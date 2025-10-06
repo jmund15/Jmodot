@@ -12,7 +12,7 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
 {
     [Export] public CalculationStage Stage { get; private set; } = CalculationStage.BaseAdd;
 
-    [ExportGroup("Modification Value")]
+    //[ExportGroup("Modification Value")]
     /// <summary>
     /// The value to use for the modification. How this is interpreted depends on the Stage.
     /// For BaseAdd: A flat value (e.g., 10 for +10).
