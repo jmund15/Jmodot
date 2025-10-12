@@ -14,5 +14,6 @@ public interface IIntentSource
     ///     This is the primary method for any system to query what an entity wants to do.
     /// </summary>
     /// <returns>A read-only dictionary of InputAction keys and their corresponding IntentData values.</returns>
-    IReadOnlyDictionary<InputAction, IntentData> GetIntents();
+    IReadOnlyDictionary<InputAction, IntentData> GetProcessIntents();
+    IReadOnlyDictionary<InputAction, IntentData> GetPhysicsIntents();
 }

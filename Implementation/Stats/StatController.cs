@@ -13,7 +13,7 @@ using Modifiers.CalculationStrategies;
 ///     The definitive runtime "character sheet" and single source of truth for all of an entity's
 ///     dynamic properties. This class manages both universal stats (like Max Health) and contextual
 ///     stats (like Ground Speed), applying modifiers and calculating the final values on demand.
-///     It is initialized from a CharacterArchetype and serves as the central hub for any system
+///     It is initialized from a EntityStatSheet and serves as the central hub for any system
 ///     needing to query or modify character data.
 /// </summary>
 [GlobalClass]
@@ -43,11 +43,11 @@ public partial class StatController : Node, IStatProvider
 
     /// <summary>
     ///     Configures and populates the entire StatController based on the data defined in a
-    ///     CharacterArchetype resource. This method builds the runtime ModifiableProperty objects,
+    ///     EntityStatSheet resource. This method builds the runtime ModifiableProperty objects,
     ///     assigns the correct calculation strategies, and sets their base values.
     /// </summary>
     /// <param name="archetype">The data template used to define this entity's stats.</param>
-    public void InitializeFromArchetype(CharacterArchetype archetype)
+    public void InitializeFromArchetype(EntityStatSheet archetype)
     {
         // --- 1. Initialize Universal Stats ---
         foreach (var entry in archetype.UniversalAttributes)

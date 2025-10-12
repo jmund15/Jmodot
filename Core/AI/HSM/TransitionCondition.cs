@@ -16,11 +16,14 @@ public abstract partial class TransitionCondition : Resource
     /// <summary>
     /// Initializes the condition with the agent and blackboard context.
     /// </summary>
-    public virtual void Init(Node agent, IBlackboard bb)
+    public void Init(Node agent, IBlackboard bb)
     {
-        this.Agent = agent;
-        this.BB = bb;
+        Agent = agent;
+        BB = bb;
+        OnInit();
     }
+
+    public virtual void OnInit() { }
 
     /// <summary>
     /// The core logic of the condition. Evaluates the condition and returns the result.

@@ -5,7 +5,8 @@ namespace Jmodot.Implementation.AI.BB;
 ///     Using a static registry combines the performance benefits of StringName with the discoverability and
 ///     typo-prevention of enums.
 /// </summary>
-public static class BBDataSig
+/// <remarks>Use partial to allow for extensions for each new Godot Project.</remarks>
+public static partial class BBDataSig
 {
     #region CORE_PROPERTIES
 

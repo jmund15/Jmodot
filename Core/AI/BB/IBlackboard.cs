@@ -2,6 +2,10 @@ namespace Jmodot.Core.AI.BB;
 
 using System;
 
+// TODO: make try-get and get functions
+//  try-get are nullable return options
+//  get throw errors if not found
+
 /// <summary>
 ///     Defines the contract for a Blackboard, a centralized data store for AI and game systems.
 ///     This allows for decoupled communication by enabling different components to read and write

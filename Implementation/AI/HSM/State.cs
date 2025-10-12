@@ -15,7 +15,7 @@ using Shared;
 /// It manages the core lifecycle, blackboard interactions, and the new declarative transition system.
 /// </summary>
 [GlobalClass, Tool]
-public abstract partial class State : Node, IState
+public partial class State : Node, IState
 {
     [Signal]
     public delegate void TransitionStateEventHandler(State oldState, State newState);
@@ -70,7 +70,7 @@ public abstract partial class State : Node, IState
 
         foreach (var transition in Transitions.Where(t => t.IsValid()))
         {
-            foreach (var condition in transition.Conditions.Where(c => c.IsValid()))
+            foreach (var condition in transition.Conditions.Where(c => c.IsValid())) // CHECK: make sure this works for resources
             {
                 condition.Init(agent, bb);
             }

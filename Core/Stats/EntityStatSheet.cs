@@ -11,7 +11,7 @@ using Jmodot.Implementation.Modifiers.CalculationStrategies;
 ///     correct physics data for its current state and actions.
 /// </summary>
 [GlobalClass]
-public partial class CharacterArchetype : Resource
+public partial class EntityStatSheet : Resource
 {
     [ExportGroup("Universal Attributes")]
     // The dictionary holds the raw base value.
