@@ -27,10 +27,10 @@ public class MovementProcessor2D
         ExternalForceReceiver2D forceReceiver2D,
         Node2D owner)
     {
-        this._controller = controller;
-        this._stats = statsProvider;
-        this._forceReceiver2D = forceReceiver2D;
-        this._owner = owner;
+        _controller = controller;
+        _stats = statsProvider;
+        _forceReceiver2D = forceReceiver2D;
+        _owner = owner;
 
         var gravityVec = ProjectSettings.GetSetting("physics/2d/default_gravity_vector").AsVector2();
         var gravityMag = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
@@ -41,17 +41,18 @@ public class MovementProcessor2D
     ///     The main update loop for continuous movement. It is called by the active State,
     ///     which provides all necessary contextual information.
     /// </summary>
-    public void ProcessMovement(IMovementStrategy2D strategy2D, MovementMode activeMode, Vector2 desiredDirection,
+    public void ProcessMovement(
+        IMovementStrategy2D strategy2D,
+        MovementMode activeMode,
+        Vector2 desiredDirection,
         float delta)
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
-            strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, activeMode, delta);
+            strategy2D.CalculateVelocity(_controller.Velocity, desiredDirection, _stats, activeMode, delta);
         _controller.SetVelocity(characterVelocity
-            ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
-
-        // The strategy now returns the full vector including Y
+        );
 
         // TODO: currently adding to keep 'ApplyImpulse' functionality, but should probably be set and add impulses after
         //GD.Print($"moving with vec: {characterVelocity}");
@@ -75,11 +76,15 @@ public class MovementProcessor2D
     {
         // 1. No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
 
+        // Still apply any impulses that might occur
+        _controller.AddVelocity(_frameImpulses);
+        _frameImpulses = Vector2.Zero;
+
         // 2. Apply external forces
-        this.ApplyExternalForces(delta);
+        ApplyExternalForces(delta);
 
         // 2. Execute the move
-        this._controller.Move();
+        _controller.Move();
     }
 
     /// <summary>
@@ -87,6 +92,7 @@ public class MovementProcessor2D
     ///     This is the primary method for all impulse-based mechanics.
     /// </summary>
     /// <param name="impulse">The velocity vector to add to the character's current velocity.</param>
+    /// <remarks>Call BEFORE 'ProcessMovement'</remarks>
     public void ApplyImpulse(Vector2 impulse)
     {
         _frameImpulses += impulse;
@@ -106,7 +112,7 @@ public class MovementProcessor2D
         // }
 
         // TODO: this force receiver should also handle gravity, instead of being hardcoded above.
-        var externalForce = this._forceReceiver2D.GetTotalForce(this._owner);
-        this._controller.AddVelocity(externalForce * delta);
+        var externalForce = _forceReceiver2D.GetTotalForce(_owner);
+        _controller.AddVelocity(externalForce * delta);
     }
 }

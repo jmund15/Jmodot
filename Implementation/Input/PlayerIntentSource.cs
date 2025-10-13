@@ -6,7 +6,7 @@ using Godot.Collections;
 using Input = Godot.Input;
 
 [GlobalClass]
-public partial class PlayerIntentSource : Node, IIntentSource
+public partial class PlayerIntentSource : IntentSourceNode, IIntentSource
 {
     private readonly System.Collections.Generic.Dictionary<InputAction, IntentData> _currentIntents = new();
 
@@ -28,7 +28,7 @@ public partial class PlayerIntentSource : Node, IIntentSource
     ///     Returns a snapshot of the intents captured during the last _Process frame.
     ///     This method is safe to call from _PhysicsProcess.
     /// </summary>
-    public IReadOnlyDictionary<InputAction, IntentData> GetIntents()
+    public override IReadOnlyDictionary<InputAction, IntentData> GetProcessIntents()
     {
         return _currentIntents;
     }

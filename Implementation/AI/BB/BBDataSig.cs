@@ -5,13 +5,15 @@ namespace Jmodot.Implementation.AI.BB;
 ///     Using a static registry combines the performance benefits of StringName with the discoverability and
 ///     typo-prevention of enums.
 /// </summary>
-public static class BBDataSig
+public static partial class BBDataSig
 {
     #region CORE_PROPERTIES
 
     public static readonly StringName Agent = new("Agent");
     public static readonly StringName Sprite = new("Sprite");
     public static readonly StringName Anim = new("Anim");
+    public static readonly StringName CharacterController = new("CharacterController");
+    public static readonly StringName MovementProcessor = new("MovementProcessor");
     public static readonly StringName CurrentTarget = new("CurrentTarget");
     public static readonly StringName MoveComp = new("MoveComp");
     public static readonly StringName VelComp = new("VelComp");
