@@ -3,11 +3,14 @@ namespace Jmodot.Core.Stats;
 using System;
 using System.Collections.Generic;
 using Implementation.Modifiers.CalculationStrategies;
+using Implementation.Registry;
 using Implementation.Shared;
 using Mechanics;
 using Microsoft.CSharp.RuntimeBinder;
 using Modifiers;
 using Modifiers.CalculationStrategies;
+using Jmodot.Implementation.Modifiers;
+using PushinPotions.Global;
 
 /// <summary>
 ///     The definitive runtime "character sheet" and single source of truth for all of an entity's
@@ -20,17 +23,10 @@ using Modifiers.CalculationStrategies;
 public partial class StatController : Node, IStatProvider
 {
     /// <summary>
-    ///     Stores stats that are specific to a particular MovementMode. These provide the context-specific
-    ///     overrides and properties needed for different states of motion.
-    ///     Example: Ground Max Speed, Air Acceleration, Swim Friction.
-    /// </summary>
-    private readonly Dictionary<StatContext, Dictionary<Attribute, IModifiableProperty>> _contextualStats =
-        new();
-    /// <summary>
     ///     Stores all universal stats that apply to the entity regardless of its state.
     ///     Example: Max Health, Strength, Intelligence.
     /// </summary>
-    private readonly Dictionary<Attribute, IModifiableProperty> _universalStats = new();
+    private readonly Dictionary<Attribute, IModifiableProperty> _stats = new();
     // A dedicated library for mechanics.
     // Buffs/debuffs can change a mechanic's data at runtime (e.g., a "Jump Power" Attribute).
     private readonly Dictionary<MechanicType, MechanicData> _mechanicLibrary = new();
@@ -38,6 +34,10 @@ public partial class StatController : Node, IStatProvider
     // Default strategies (can make static if we make the get calc strat static)
     private readonly FloatCalculationStrategy _defaultFloatCalcStrat = new();
     private readonly BoolOverrideStrategy _defaultBoolCalcStrat = new();
+
+    private readonly HashSet<StatContext> _activeContexts = new();
+
+    private EntityStatSheet _archetype = null!;
 
     // --- Initialization ---
 
@@ -49,6 +49,8 @@ public partial class StatController : Node, IStatProvider
     /// <param name="archetype">The data template used to define this entity's stats.</param>
     public void InitializeFromArchetype(EntityStatSheet archetype)
     {
+        _archetype = archetype;
+
         // --- 1. Initialize Universal Stats ---
         foreach (var entry in archetype.UniversalAttributes)
         {
@@ -58,29 +60,11 @@ public partial class StatController : Node, IStatProvider
             // Look up the specific strategy assigned in the archetype for this attribute.
             archetype.UniversalAttributeStrategies.TryGetValue(attribute, out var specificStrategy);
 
-            _universalStats[attribute] = GetAttributeStrategy(attribute, baseValue, specificStrategy);
+            _stats[attribute] = GetAttributeStrategy(attribute, baseValue, specificStrategy);
         }
 
-        // --- 2. Initialize Contextual Movement Stats ---
-        foreach (var modeEntry in archetype.ContextualProfiles)
-        {
-            var mode = modeEntry.Key;
-            var profile = modeEntry.Value;
-            this._contextualStats[mode] = new Dictionary<Attribute, IModifiableProperty>();
 
-            foreach (var attrEntry in profile.Attributes)
-            {
-                var attribute = attrEntry.Key;
-                var baseValue = attrEntry.Value;
-
-                // Check if the VelocityProfile provides a specific strategy override for this attribute.
-                profile.AttributeStrategies.TryGetValue(attribute, out var specificStrategy);
-
-                _contextualStats[mode][attribute] = GetAttributeStrategy(attribute, baseValue, specificStrategy);
-            }
-        }
-
-        // 3. Initialize Mechanic Library
+        // --- 2. Initialize Mechanic Library ---
         foreach (var (mechanicType, mechanicData) in archetype.MechanicLibrary)
         {
             _mechanicLibrary[mechanicType] = mechanicData;
@@ -88,7 +72,7 @@ public partial class StatController : Node, IStatProvider
 
         // --- 3. Post-Initialization Notification ---
         // Emit an initial change event for all stats so listening systems can sync their initial state.
-        foreach (var stat in this._universalStats)
+        foreach (var stat in this._stats)
         {
             OnStatChanged?.Invoke(stat.Key, stat.Value.GetValueAsVariant());
         }
@@ -116,26 +100,12 @@ public partial class StatController : Node, IStatProvider
     /// <param name="attribute">The attribute to retrieve the property for.</param>
     /// <param name="context">Optional: The current MovementMode. If provided, will search for a contextual stat first.</param>
     /// <returns>The ModifiableProperty object, or null if the entity does not have the specified attribute.</returns>
-    public ModifiableProperty<T> GetStat<T>(Attribute attribute, StatContext? context = null)
+    public ModifiableProperty<T> GetStat<T>(Attribute attribute)
     {
-        // First, attempt to find the most specific, contextual version of the stat.
-        if (context != null && this._contextualStats.TryGetValue(context, out var modeStats) &&
-            modeStats.TryGetValue(attribute, out var contextualProp))
-        {
-            if (contextualProp is ModifiableProperty<T> typedProp)
-            {
-                return typedProp;
-            }
-            JmoLogger.LogAndRethrow(
-                new InvalidCastException($"value for attribute {attribute} is not of type {typeof(T)}"),
-                this
-            );
-        }
-
         // If no contextual version exists, fall back to the universal version.
-        if (this._universalStats.TryGetValue(attribute, out var universalProp))
+        if (this._stats.TryGetValue(attribute, out var prop))
         {
-            if (universalProp is ModifiableProperty<T> typedProp)
+            if (prop is ModifiableProperty<T> typedProp)
             {
                 return typedProp;
             }
@@ -167,18 +137,17 @@ public partial class StatController : Node, IStatProvider
     /// </summary>
     /// <typeparam name="T">The expected type of the stat's value (e.g., float, bool, Vector3).</typeparam>
     /// <param name="attribute">The attribute whose value is being requested.</param>
-    /// <param name="context">Optional: The current MovementMode for contextual lookups.</param>
     /// <param name="defaultValue">The value to return if the stat doesn't exist or if a type mismatch occurs.</param>
     /// <returns>The final calculated value of the stat, or the default value on failure.</returns>
-    public T GetStatValue<[MustBeVariant] T>(Attribute attribute, StatContext? context = null,
-        T defaultValue = default(T))
+    public T GetStatValue<[MustBeVariant] T>(Attribute attribute, T defaultValue = default(T))
     {
-        // TODO: make and use trygetstat
-        var prop = GetStat<T>(attribute, context);
-
-        return prop.Value;
-
-        // The stat was not found in any context.
+        if (_stats.TryGetValue(attribute, out var prop))
+        {
+            if (prop is ModifiableProperty<T> typedProp)
+            {
+                return typedProp.Value;
+            }
+        }
         return defaultValue;
     }
 
@@ -192,28 +161,39 @@ public partial class StatController : Node, IStatProvider
         return null;
     }
 
-    /// <summary>
-    /// The "Gatekeeper" method. It takes a generic modifier resource and safely applies it
-    /// to the correct, strongly-typed ModifiableProperty using the 'dynamic' keyword.
-    /// </summary>
-    public bool TryAddModifier(Attribute attribute, Resource modifierResource, StatContext context = null)
+    public bool TryAddModifier(Attribute attribute, Resource modifierResource, object owner, out ModifierHandle? handle)
     {
-        // TODO: add to context if given
-
-        if (!_universalStats.TryGetValue(attribute, out var prop))
+        if (_stats.TryGetValue(attribute, out var property))
         {
-            JmoLogger.Error(this, $"StatController: Attempted to add modifier to non-existent attribute '{attribute.AttributeName}'.");
-            return false;
+            // 1. Delegate the actual modification to the specialized property.
+            // It returns a unique internal ID for this specific application.
+            Guid newId = property.AddModifier(modifierResource, owner);
+
+            if (newId != Guid.Empty)
+            {
+                // 2. As the Facade, the StatController is responsible for creating the
+                // public-facing handle, packaging the internal ID with the routing
+                // information (the property itself). This is the correct separation of concerns.
+                handle = new ModifierHandle(property, newId);
+                return true;
+            }
+        }
+        handle = null;
+        return false; // Indicates failure
+    }
+    public ModifierHandle AddModifier(Attribute attribute, Resource modifierResource, object owner)
+    {
+        if (TryAddModifier(attribute, modifierResource, owner, out var handle))
+        {
+            return handle!;
         }
 
-        if (!prop.TryAddModifier(modifierResource))
-        {
-            JmoLogger.Error(this, $"StatController: Attempted to add modifier of incompatible type '{modifierResource.GetType().FullName}' for attribute '{attribute.AttributeName}'.");
-            return false;
-        }
-
-        return true;
-
+        throw JmoLogger.LogAndRethrow(
+            new InvalidOperationException(
+                $"unable to add modifier {modifierResource.ResourcePath} to attribute {attribute.AttributeName}"),
+            this
+        );
+    }
         // try
         // {
         //     // The 'dynamic' keyword defers the type check until runtime.
@@ -235,32 +215,45 @@ public partial class StatController : Node, IStatProvider
         //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifierResource.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
         //     return false;
         // }
-    }
 
-    /// <summary>
-    /// The "Gatekeeper" method. It takes a generic modifier resource and safely applies it
-    /// to the correct, strongly-typed ModifiableProperty using the 'dynamic' keyword.
-    /// </summary>
-    public bool TryRemoveModifier(Attribute attribute, Resource modifierResource, StatContext context = null)
-    {
-        // TODO: add to context if given
-
-        if (!_universalStats.TryGetValue(attribute, out var prop))
+        public void RemoveModifier(ModifierHandle handle)
         {
-            JmoLogger.Error(this,
-                $"StatController: Attempted to add modifier to non-existent attribute '{attribute.AttributeName}'.");
-            return false;
+            if (handle == null) return;
+
+            // The handle provides all the necessary information for a direct, efficient removal.
+            // We know exactly which property to talk to and which ID to remove. No searching is needed.
+            handle.Property.RemoveModifier(handle.ModifierId);
         }
 
-        if (!prop.TryRemoveModifier(modifierResource))
+        public void RemoveAllModifiersFromSource(object owner)
         {
-            JmoLogger.Error(this,
-                $"StatController: Attempted to remove modifier of type '{modifierResource.GetType().FullName}' for attribute '{attribute.AttributeName}'.");
-            return false;
+            // Broadcast the declarative cleanup request to all properties. Each property
+            // is responsible for checking its own list and removing relevant modifiers.
+            foreach (var property in _stats.Values)
+            {
+                property.RemoveAllModifiersFromSource(owner);
+            }
+        }
+        public void AddActiveContext(StatContext context)
+        {
+            _activeContexts.Add(context);
+            if (GlobalRegistry.DB.StatContextProfiles.TryGetValue(context, out var profile))
+            {
+                foreach (var (attribute, modifier) in profile.Modifiers)
+                {
+                    // The context resource itself acts as the owner. We don't need to store the
+                    // returned handle because we'll use the declarative RemoveActiveContext for cleanup.
+                    AddModifier(attribute, modifier, context);
+                }
+            }
         }
 
-        return true;
-    }
+        public void RemoveActiveContext(StatContext context)
+        {
+            _activeContexts.Remove(context);
+            // This is a simple, powerful shorthand for the most common cleanup operation.
+            RemoveAllModifiersFromSource(context);
+        }
 
     /// <summary>
     /// Gets the attribute value's Type
@@ -272,7 +265,7 @@ public partial class StatController : Node, IStatProvider
     {
         // First, attempt to find the most specific, contextual version of the stat.
         // If no contextual version exists, fall back to the universal version.
-        if (_universalStats.TryGetValue(attribute, out var universalProp))
+        if (_stats.TryGetValue(attribute, out var universalProp))
         {
             return universalProp.GetValueAsVariant().Obj!.GetType();
         }

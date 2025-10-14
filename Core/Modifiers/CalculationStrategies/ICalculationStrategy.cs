@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Modifiers.CalculationStrategies;
 
 using System.Collections.Generic;
+using Stats;
 
 /// <summary>
 ///     Defines a contract for a swappable strategy that calculates a final
@@ -8,5 +9,5 @@ using System.Collections.Generic;
 /// </summary>
 public interface ICalculationStrategy<T>
 {
-    T Calculate(T baseValue, List<IModifier<T>> modifiers);
+    T Calculate(T baseValue, IReadOnlyList<IModifier<T>> activeModifiers);
 }

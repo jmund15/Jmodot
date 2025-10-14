@@ -8,5 +8,5 @@ public abstract partial class BaseMovementStrategy2D : Resource, IMovementStrate
 {
     public BaseMovementStrategy2D() { }
     public abstract Vector2 CalculateVelocity(Vector2 currentVelocity, Vector2 desiredDirection,
-        IStatProvider stats, StatContext activeContext, float delta);
+        IStatProvider stats, float delta);
 }

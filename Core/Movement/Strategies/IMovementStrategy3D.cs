@@ -13,6 +13,5 @@ public interface IMovementStrategy3D
     /// <param name="activeContext">The definitive movement context. This is NOT optional.</param>
     /// <param name="delta">The physics frame delta time.</param>
     /// <returns>The new velocity vector reflecting character-driven movement.</returns>
-    Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats,
-        StatContext activeContext, float delta);
+    Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta);
 }

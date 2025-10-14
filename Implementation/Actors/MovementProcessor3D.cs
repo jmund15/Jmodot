@@ -40,13 +40,13 @@ public class MovementProcessor3D
     ///     The main update loop for continuous movement. It is called by the active State,
     ///     which provides all necessary contextual information.
     /// </summary>
-    public void ProcessMovement(IMovementStrategy3D strategy3D, MovementMode activeMode, Vector3 desiredDirection,
+    public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection,
         float delta)
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
-            strategy3D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, activeMode, delta);
+            strategy3D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, delta);
         _controller.SetVelocity(characterVelocity
             ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
 

@@ -1,31 +1,34 @@
 namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 using System.Collections.Generic;
+using System.Linq;
 using Core.Modifiers;
 using Core.Modifiers.CalculationStrategies;
+using Core.Stats;
 
 public partial class FloatCalculationStrategy : Resource, ICalculationStrategy<float>
 {
-    public float Calculate(float baseValue, List<IModifier<float>> modifiers)
+    public float Calculate(float baseValue, IReadOnlyList<IModifier<float>> modifiers)
     {
+        var activeModifiers = modifiers.OfType<IFloatModifier>();
         // --- Stage 1: BaseAdd ---
-        foreach (var mod in modifiers)
+        foreach (var mod in activeModifiers)
         {
             // Check if the modifier is the correct type to have a 'Stage'
-            if (mod is FloatAttributeModifier fam && fam.Stage == CalculationStage.BaseAdd)
+            if (mod.Stage == CalculationStage.BaseAdd)
             {
-                baseValue = fam.Modify(baseValue);
+                baseValue = mod.Modify(baseValue);
             }
         }
 
         // --- Stage 2: PercentAdd ---
         var totalPercentBonus = 0f;
-        foreach (var mod in modifiers)
+        foreach (var mod in activeModifiers)
         {
-            if (mod is FloatAttributeModifier fam && fam.Stage == CalculationStage.PercentAdd)
+            if (mod.Stage == CalculationStage.PercentAdd)
             {
                 // For this stage, Modify() returns the percentage value itself.
-                totalPercentBonus += fam.Modify(0f);
+                totalPercentBonus += mod.Modify(0f);
             }
         }
 
@@ -33,11 +36,11 @@ public partial class FloatCalculationStrategy : Resource, ICalculationStrategy<f
 
 
         // --- Stage 3: FinalMultiply ---
-        foreach (var mod in modifiers)
+        foreach (var mod in activeModifiers)
         {
-            if (mod is FloatAttributeModifier fam && fam.Stage == CalculationStage.FinalMultiply)
+            if (mod.Stage == CalculationStage.FinalMultiply)
             {
-                baseValue = fam.Modify(baseValue);
+                baseValue = mod.Modify(baseValue);
             }
         }
 

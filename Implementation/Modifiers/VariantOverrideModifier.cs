@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Modifiers;
 
+using Core.Stats;
 using Jmodot.Core.Modifiers;
 using Godot.Collections;
 
@@ -12,8 +13,10 @@ public partial class VariantOverrideModifier : Resource, IModifier<Variant>
 {
     [Export] public Variant Value { get; private set; }
     [Export] public int Priority { get; private set; }
-    [Export] public Array<string> Tags { get; private set; } = new();
-    [Export] public Array<string> CancelsTags { get; private set; } = new();
+    [Export] public Array<string> EffectTags { get; private set; } = new();
+    [Export] public Array<string> CancelsEffectTags { get; private set; } = new();
+    [Export] public Array<string> ContextTags { get; private set; } = new();
+    [Export] public Array<string> RequiredContextTags { get; private set; } = new();
 
     /// <summary>
     /// For an override, the Modify method simply ignores the input value

@@ -6,7 +6,7 @@ using GCol = Godot.Collections;
 using Input = Godot.Input;
 
 [GlobalClass]
-public partial class PlayerIntentSource : IntentSourceNode, IIntentSource
+public partial class PlayerIntentSource : IntentSourceNode
 {
     // Dictionary for _Process consumers (e.g., UI). Rebuilt every frame.
     private Dictionary<InputAction, IntentData> _processIntents = new();
@@ -47,7 +47,7 @@ public partial class PlayerIntentSource : IntentSourceNode, IIntentSource
     ///     This method is safe to call from _PhysicsProcess.
     /// </summary>
     /// <remarks>Ideal for physics inputs.</remarks>
-    public IReadOnlyDictionary<InputAction, IntentData> GetPhysicsIntents()
+    public override IReadOnlyDictionary<InputAction, IntentData> GetPhysicsIntents()
     {
         return _physicsIntents;
     }

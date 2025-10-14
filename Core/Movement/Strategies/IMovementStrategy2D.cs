@@ -13,6 +13,5 @@ public interface IMovementStrategy2D
     /// <param name="activeContext">The movement context.</param>
     /// <param name="delta">The physics frame delta time.</param>
     /// <returns>The new velocity vector reflecting character-driven movement.</returns>
-    Vector2 CalculateVelocity(Vector2 currentVelocity, Vector2 desiredDirection, IStatProvider stats,
-        StatContext activeContext, float delta);
+    Vector2 CalculateVelocity(Vector2 currentVelocity, Vector2 desiredDirection, IStatProvider stats, float delta);
 }

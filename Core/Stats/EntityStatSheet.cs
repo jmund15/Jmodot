@@ -23,12 +23,12 @@ public partial class EntityStatSheet : Resource
     [Export]
     public GColl.Dictionary<Attribute, Resource> UniversalAttributeStrategies { get; private set; } = new();
 
-    /// <summary>
-    ///     A dictionary mapping the character's available movement modes to their physics profiles.
-    /// </summary>
-    [ExportGroup("Contextual Movement")]
-    [Export]
-    public GColl.Dictionary<StatContext, StatProfile> ContextualProfiles { get; private set; } = new();
+    // /// <summary>
+    // ///     A dictionary mapping the character's available movement modes to their physics profiles.
+    // /// </summary>
+    // [ExportGroup("Contextual Movement")]
+    // [Export]
+    // public GColl.Dictionary<StatContext, StatProfile> StatContextProfiles { get; private set; } = new();
 
 
     /// <summary>

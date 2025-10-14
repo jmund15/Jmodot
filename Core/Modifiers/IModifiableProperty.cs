@@ -1,9 +1,11 @@
 namespace Jmodot.Core.Modifiers;
 
+using System;
+
 /// <summary>
-/// A non-generic interface for ModifiableProperty<T>.
-/// This allows different types of modifiable properties (float, bool, etc.)
-/// to be stored in a single collection, with their final value retrieved as a Variant.
+/// The internal, non-generic contract for a ModifiableProperty.
+/// This is used by the StatController to interact with its collection of stat
+/// properties in a type-agnostic way. It should not be used by external systems.
 /// </summary>
 public interface IModifiableProperty
 {
@@ -13,12 +15,18 @@ public interface IModifiableProperty
     Variant GetValueAsVariant();
 
     /// <summary>
-    /// A non-generic gatekeeper method to add a modifier from a Resource.
-    /// The implementation is responsible for validating and casting the resource
-    /// to the correct, strongly-typed IModifier<T>.
+    /// Adds a modifier from a generic Resource and a given owner.
     /// </summary>
-    /// <param name="modifierResource">The modifier resource to add.</param>
-    /// <returns>True if the modifier was of the correct type and was added, false otherwise.</returns>
-    bool TryAddModifier(Resource modifierResource);
-    bool TryRemoveModifier(Resource modifierResource);
+    /// <returns>A unique Guid for this specific modifier application, or Guid.Empty on failure.</returns>
+    Guid AddModifier(Resource modifierResource, object owner);
+
+    /// <summary>
+    /// Removes a single modifier application using its unique ID.
+    /// </summary>
+    void RemoveModifier(Guid modifierId);
+
+    /// <summary>
+    /// Removes all modifiers that were applied by a specific owner.
+    /// </summary>
+    void RemoveAllModifiersFromSource(object owner);
 }

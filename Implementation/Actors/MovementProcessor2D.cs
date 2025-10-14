@@ -47,7 +47,7 @@ public class MovementProcessor2D
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
-            strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, activeMode, delta);
+            strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, _stats, delta);
         _controller.SetVelocity(characterVelocity
             ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
 
@@ -74,6 +74,9 @@ public class MovementProcessor2D
     public void ProcessExternalForcesOnly(float delta)
     {
         // 1. No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
+        // Still apply any impulses that might occur
+        _controller.AddVelocity(_frameImpulses);
+        _frameImpulses = Vector2.Zero;
 
         // 2. Apply external forces
         this.ApplyExternalForces(delta);

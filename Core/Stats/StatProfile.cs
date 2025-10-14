@@ -11,18 +11,11 @@ using Jmodot.Implementation.Modifiers.CalculationStrategies;
 [GlobalClass]
 public sealed partial class StatProfile : Resource
 {
-    [Export] public string VelocityProfileName { get; private set; } = "Unnamed Velocity Profile";
-
-    /// <summary>
-    ///     A library of all physics attributes for this profile. Movement Strategies
-    ///     will query this dictionary for the specific attributes they need to perform
-    ///     their calculations.
-    /// </summary>
+    // a clear list of targeted attribute modifications.
     [Export]
-    public Dictionary<Attribute, Variant> Attributes { get; private set; } = new();
+    public Dictionary<Attribute, Resource> Modifiers { get; private set; } = new();
 
-    // OPTIONAL: Override the calculation strategy for specific attributes in this profile.
-    // If an attribute is not in this dictionary, the StatController will use a default.
-    [Export]
-    public Dictionary<Attribute, Resource> AttributeStrategies { get; private set; } = new();
+    // // --- Random Attribute Modifiers (Attribute is chosen at runtime) ---
+    // [Export(PropertyHint.TypeString, "RandomAttributeModifierGroup")]
+    // public Array<RandomAttributeModifierGroup> RandomAttributeModifiers { get; private set; } = new();
 }

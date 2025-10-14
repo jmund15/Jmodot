@@ -4,7 +4,7 @@ using Godot;
 using System.Collections.Generic;
 using Core.Modifiers;
 using Core.Modifiers.CalculationStrategies;
-
+using Core.Stats;
 
 /// <summary>
 /// A non-Resource, generic class that contains the core logic for a priority-based
@@ -13,12 +13,13 @@ using Core.Modifiers.CalculationStrategies;
 /// </summary>
 public class GenericOverrideCalculation<T> : ICalculationStrategy<T>
 {
-    public T Calculate(T baseValue, List<IModifier<T>> modifiers)
+    // TODO: Add universal calculation function for filtering out required contexts
+    public T Calculate(T baseValue, IReadOnlyList<IModifier<T>> activeModifiers)
     {
-        if (modifiers.Count > 0)
+        if (activeModifiers.Count > 0)
         {
             // The list is pre-sorted by priority in ModifiableProperty, so the first one wins.
-            return modifiers[0].Modify(baseValue);
+            return activeModifiers[0].Modify(baseValue);
         }
         return baseValue;
     }

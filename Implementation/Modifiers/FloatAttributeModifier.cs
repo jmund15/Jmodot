@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Modifiers;
 
 using Godot.Collections;
+using Stats;
 
 /// <summary>
 ///     Resource for modifying a float value. This is the primary tool
@@ -24,12 +25,11 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
 
     [Export] public int Priority { get; private set; }
 
-    [ExportGroup("Tags & Cancellation")]
-    [Export]
-    public Array<string> Tags { get; private set; } = new();
-
-    [Export] public Array<string> CancelsTags { get; private set; } = new();
-
+    [ExportGroup("EffectTags & Cancellation")]
+    [Export] public Array<string> EffectTags { get; private set; } = new();
+    [Export] public Array<string> CancelsEffectTags { get; private set; } = new();
+    [Export] public Array<string> ContextTags { get; private set; } = new();
+    [Export] public Array<string> RequiredContextTags { get; private set; } = new();
     public float Modify(float currentValue)
     {
         // The Modify method knows how to interpret its own Value based on its Stage.

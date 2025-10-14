@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Modifiers.CalculationStrategies;
 
 using Godot;
 using System.Collections.Generic;
+using Core.Stats;
 using Jmodot.Core.Modifiers;
 using Jmodot.Core.Modifiers.CalculationStrategies;
 
@@ -13,8 +14,8 @@ public partial class BoolOverrideStrategy : Resource, ICalculationStrategy<bool>
 {
     private readonly GenericOverrideCalculation<bool> _logic = new();
 
-    public bool Calculate(bool baseValue, List<IModifier<bool>> modifiers)
+    public bool Calculate(bool baseValue, IReadOnlyList<IModifier<bool>> activeModifiers)
     {
-        return _logic.Calculate(baseValue, modifiers);
+        return _logic.Calculate(baseValue, activeModifiers);
     }
 }
