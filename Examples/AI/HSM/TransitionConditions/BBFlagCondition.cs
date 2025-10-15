@@ -1,6 +1,7 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
 using Core.AI.HSM;
+using Implementation.Shared;
 
 /// <summary>
 /// A transition condition that checks for a boolean "flag" on the blackboard.
@@ -8,29 +9,30 @@ using Core.AI.HSM;
 /// ensuring the transition is only triggered once per event.
 /// </summary>
 [GlobalClass]
-public partial class FlagTransitionCondition : TransitionCondition
+public partial class BBFlagCondition : TransitionCondition
 {
     /// <summary>
     /// The key/name of the boolean variable on the blackboard to check.
     /// </summary>
     [Export]
-    public string BlackboardFlagName { get; private set; }
+    public StringName BBFlagSignature { get; private set; } = null!;
 
     public override bool Check()
     {
-        if (string.IsNullOrEmpty(BlackboardFlagName))
+        if (string.IsNullOrEmpty(BBFlagSignature))
         {
+            JmoLogger.Warning(this, $"Can't check for transition condition, BBSignature is null or empty!");
             return false;
         }
 
         // Get the primitive variable from the blackboard.
-        var flag = BB.GetPrimVar<bool>(BlackboardFlagName);
+        var flag = BB.GetPrimVar<bool>(BBFlagSignature);
 
         // Check if the flag exists and is true.
         if (flag != null && flag.Value)
         {
             // The flag is set. Consume it immediately.
-            BB.SetPrimVar(BlackboardFlagName, false);
+            BB.SetPrimVar(BBFlagSignature, false);
 
             // Allow the transition.
             return true;
@@ -43,7 +45,7 @@ public partial class FlagTransitionCondition : TransitionCondition
     // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
     public string[] GetResourceConfigurationWarnings()
     {
-        if (string.IsNullOrEmpty(BlackboardFlagName))
+        if (string.IsNullOrEmpty(BBFlagSignature))
         {
             return new[] { "'Blackboard Flag Name' cannot be empty." };
         }

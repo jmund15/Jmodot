@@ -23,7 +23,7 @@ public abstract partial class TransitionCondition : Resource
         OnInit();
     }
 
-    public virtual void OnInit() { }
+    protected virtual void OnInit() { }
 
     /// <summary>
     /// The core logic of the condition. Evaluates the condition and returns the result.
