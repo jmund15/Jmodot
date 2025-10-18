@@ -16,7 +16,12 @@ using System.Collections.Generic;
 public partial class Blackboard : Node, IBlackboard
 {
     protected IBlackboard? ParentBB { get; set; }
-    protected Dictionary<StringName, Variant> BBData { get; set; } = new();
+    //protected Dictionary<StringName, Variant> BBData { get; set; } = new();
+    // For Godot-compatible types (GodotObject, primitives, engine structs)
+    private Dictionary<StringName, Variant> _variantData = new();
+
+    // For pure C# objects (POCOs)
+    private Dictionary<StringName, object> _pocoData = new();
 
 
     // May have to use Action<object> because the Godot C# source generator cannot handle a Godot-specific
@@ -24,7 +29,7 @@ public partial class Blackboard : Node, IBlackboard
     // The Variant is "boxed" as an object when the event is invoked.
     // This field is not serialized, so either Godot.Collections or System.Collections.Generic is fine.
     // We use Godot.Collections for consistency within the class.
-    protected Dictionary<StringName, Action<Variant>> Subscriptions { get; set; } = new();
+    protected Dictionary<StringName, Action<object>> Subscriptions { get; set; } = new();
     /// <summary>
     ///     Establishes a parent blackboard, allowing this blackboard to fall back to the parent
     ///     for data retrieval if a key is not found locally.
@@ -42,110 +47,148 @@ public partial class Blackboard : Node, IBlackboard
     /// <typeparam name="T">The expected object type, must be a class.</typeparam>
     /// <param name="key">The StringName identifier for the data.</param>
     /// <returns>The requested object, or null if it does not exist or has a mismatched type.</returns>
-    public T? GetVar<T>(StringName key) where T : class
-    {
-        if (this.BBData.TryGetValue(key, out var val))
-        {
-            if (val.Obj is T tVal)
-            {
-                return tVal;
-            }
-
-            JmoLogger.Error(this, $"Requested data for key '{key}' exists, but the requested type '{typeof(T).Name}' does not match the stored type '{val.Obj?.GetType().Name}'.");
-            return null;
-        }
-
-        if (this.ParentBB != null) { return this.ParentBB.GetVar<T>(key); }
-
-        JmoLogger.Warning(this, $"Requested data with key '{key}' does not exist in this or any parent blackboard.");
-        return null;
-    }
-
     /// <summary>
-    ///     Sets a reference type value in the blackboard. The new value must match the type of an existing value if present.
-    ///     The value is also propagated down to any child blackboard.
+    /// Sets a value in the blackboard. It intelligently stores the value
+    /// either as a Variant (for Godot types) or a direct object reference (for POCOs).
     /// </summary>
-    /// <typeparam name="T">The type of the object, must be a class.</typeparam>
-    /// <param name="key">The StringName identifier for the data.</param>
-    /// <param name="val">The object to store.</param>
-    /// <returns>Error.Ok on success, Error.InvalidData if a type mismatch occurs.</returns>
-    public Error SetVar<T>(StringName key, T val) where T : class
+    public Error Set<T>(StringName key, T val)
     {
-        BBData.TryGetValue(key, out var oldVal);
-
-        if (oldVal.Obj != null && val != null && oldVal.Obj.GetType() != val.GetType())
+        // Null values can be tricky, let's handle them explicitly.
+        // We'll store them in the variant dictionary as a Nil variant.
+        if (val == null)
         {
-            JmoLogger.Error(this, $"Inconsistent data type for key '{key}'. Original was '{oldVal.Obj.GetType().Name}', but attempted to set '{typeof(T).Name}'.");
-            return Error.InvalidData;
+            _pocoData.Remove(key);
+            _variantData[key] = default; // Variant.Type.Nil
+            NotifySubscribers(key, default);
+            return Error.Ok;
         }
 
-        if (Equals(oldVal.Obj, val))
+        // The key distinction: Does T inherit from GodotObject?
+        if (val is GodotObject godotObj)
         {
-            return Error.Ok; // No change, no event
+            // This is a Godot type, use the Variant dictionary.
+            _pocoData.Remove(key); // Ensure no key collision.
+            if (_variantData.TryGetValue(key, out var oldVal) && oldVal.Obj == godotObj)
+            {
+                return Error.Ok; // No change
+            }
+            Variant v = Variant.From(godotObj);
+            _variantData[key] = v;
+            NotifySubscribers(key, v);
+        }
+        else if (typeof(T).IsValueType)
+        {
+             // This is a struct (int, float, Vector2, etc.).
+             // Godot can convert most common structs to Variant.
+            _pocoData.Remove(key);
+            Variant v = Variant.From(val); // This will work for types with [MustBeVariant]
+            if (_variantData.TryGetValue(key, out var oldVal) && oldVal.Equals(v))
+            {
+                 return Error.Ok; // No change
+            }
+            _variantData[key] = v;
+            NotifySubscribers(key, v);
+        }
+        else
+        {
+            // This is a POCO (like your CharacterBodyController2D).
+            // Use the object dictionary.
+            _variantData.Remove(key); // Ensure no key collision.
+            if (_pocoData.TryGetValue(key, out var oldVal) && ReferenceEquals(oldVal, val))
+            {
+                return Error.Ok; // No change
+            }
+            _pocoData[key] = val;
+            // Note: POCOs can't be easily sent through the subscription system
+            // unless you change its signature to Action<object>.
+            // For now, we'll notify with a null variant.
+            NotifySubscribers(key, default);
         }
 
-        this.BBData[key] = Variant.From(val);
-        NotifySubscribers(key, Variant.From(val));
         return Error.Ok;
     }
 
     /// <summary>
-    ///     Retrieves a value type (struct) from the blackboard.
-    ///     Performs a recursive lookup through parent blackboards if the key is not found locally.
+    /// Tries to retrieve a value from the blackboard. This method is safe and will not throw exceptions
+    /// for missing keys or type mismatches.
     /// </summary>
-    /// <typeparam name="T">The expected struct type.</typeparam>
     /// <param name="key">The StringName identifier for the data.</param>
-    /// <returns>A nullable struct. Returns the value if found, or null if it does not exist or has a mismatched type.</returns>
-    public T? GetPrimVar<[MustBeVariant] T>(StringName key) where T : struct
+    /// <param name="value">When this method returns, contains the requested value if the key was found
+    /// and the type was correct; otherwise, the default value for the type T.</param>
+    /// <returns>true if the key was found and the value was successfully cast; otherwise, false.</returns>
+    public bool TryGet<T>(StringName key, out T? value)
     {
-        if (this.BBData.TryGetValue(key, out var val))
+        // Initialize the out parameter
+        value = default;
+
+        // 1. Check for a POCO
+        if (_pocoData.TryGetValue(key, out var pocoVal))
         {
-            if (val.Obj is T tVal)
+            if (pocoVal is T typedPoco)
             {
-                return tVal;
+                value = typedPoco;
+                return true;
             }
-            JmoLogger.Error(this, $"Requested primitive data for key '{key}' exists, but the requested type '{typeof(T).Name}' does not match the stored type '{val.GetType()}'.");
-            return null;
+            // Key exists, but type is wrong. This is a failure.
+            JmoLogger.Error(this, $"TryGet failed for key '{key}': Stored POCO type '{pocoVal?.GetType().Name}' does not match requested type '{typeof(T).Name}'.");
+            return false;
         }
 
-        if (this.ParentBB != null)
+        // 2. Check for a Variant
+        if (_variantData.TryGetValue(key, out var variantVal))
         {
-            return this.ParentBB.GetPrimVar<T>(key);
+            if (variantVal.Obj is T typedValue)
+            {
+                value = typedValue;
+                return true;
+            }
+
+            // Key exists, but type is wrong. This is a failure (unless it's just Nil).
+            if (variantVal.VariantType != Variant.Type.Nil)
+            {
+                JmoLogger.Error(this, $"TryGet failed for key '{key}': Stored Variant type '{variantVal.Obj?.GetType().Name}' does not match requested type '{typeof(T).Name}'.");
+            }
+            return false;
         }
 
-        JmoLogger.Warning(this, $"Requested primitive data with key '{key}' does not exist in this or any parent blackboard.");
-        return null;
-    }
+        // 3. Recurse to parent
+        if (ParentBB != null)
+        {
+            return ParentBB.TryGet(key, out value);
+        }
 
+        // 4. Key not found anywhere
+        return false;
+    }
     /// <summary>
-    ///     Sets a value type (struct) in the blackboard. The new value must match the type of an existing value if present.
-    ///     The value is also propagated down to any child blackboard.
+    /// Retrieves a value from the blackboard, assuming it exists. Use this method when the absence
+    /// of the key or a type mismatch should be considered a critical, program-breaking error.
     /// </summary>
-    /// <typeparam name="T">The type of the struct.</typeparam>
-    /// <param name="key">The StringName identifier for the data.</param>
-    /// <param name="val">The struct to store.</param>
-    /// <returns>Error.Ok on success, Error.InvalidData if a type mismatch occurs.</returns>
-    public Error SetPrimVar<[MustBeVariant] T>(StringName key, T val) where T : struct
+    /// <exception cref="KeyNotFoundException">Thrown if the key does not exist in this blackboard or any of its parents.</exception>
+    /// <exception cref="InvalidCastException">Thrown if a value is found for the key, but it cannot be cast to the requested type T.</exception>
+    public T Get<T>(StringName key)
     {
-        BBData.TryGetValue(key, out var oldVal);
-
-        if (oldVal.VariantType != Variant.Type.Nil && oldVal.Obj is not T)
+        if (TryGet<T>(key, out T? value))
         {
-            JmoLogger.Error(this, $"Inconsistent primitive data type for key '{key}'. Original was '{oldVal.GetType()}', but attempted to set '{typeof(T).Name}'.");
-            return Error.InvalidData;
+            // Null is a valid value, but if T is a non-nullable value type,
+            // 'value' can't be null here. If T is a reference type, it can be.
+            // We return it as is.
+            return value!; // Using null-forgiving operator as TryGet succeeded.
         }
 
-        if (oldVal.VariantType != Variant.Type.Nil && oldVal.Obj is T tVal &&
-            tVal.Equals(val))
+        // If TryGet failed, we need to find out why to throw the correct exception.
+        // This adds a bit of redundant lookup, but it's necessary for good error reporting.
+        if (_pocoData.ContainsKey(key) || _variantData.ContainsKey(key))
         {
-            return Error.Ok; // No change, no event
+            // The key exists, so the failure must have been a type mismatch.
+            object? storedValue = _pocoData.TryGetValue(key, out var pVal) ? pVal : _variantData[key].Obj;
+            throw new InvalidCastException($"The value for key '{key}' is of type '{storedValue?.GetType().Name}', which cannot be cast to '{typeof(T).Name}'.");
         }
 
-        this.BBData[key] = Variant.From(val);
-        NotifySubscribers(key, Variant.From(val));
-        return Error.Ok;
+        // If we are here, the key truly doesn't exist.
+        throw new KeyNotFoundException($"The key '{key}' was not found in the blackboard.");
     }
-    public void Subscribe(StringName key, Action<Variant> callback)
+    public void Subscribe(StringName key, Action<object> callback)
     {
         if (Subscriptions.ContainsKey(key))
         {
@@ -157,7 +200,7 @@ public partial class Blackboard : Node, IBlackboard
         }
     }
 
-    public void Unsubscribe(StringName key, Action<Variant> callback)
+    public void Unsubscribe(StringName key, Action<object> callback)
     {
         if (Subscriptions.ContainsKey(key))
         {
@@ -169,7 +212,7 @@ public partial class Blackboard : Node, IBlackboard
         }
     }
 
-    private void NotifySubscribers(StringName key, Variant newValue)
+    private void NotifySubscribers(StringName key, object newValue)
     {
         if (Subscriptions.TryGetValue(key, out var callbacks))
         {

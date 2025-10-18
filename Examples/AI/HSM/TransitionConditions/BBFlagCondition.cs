@@ -26,13 +26,13 @@ public partial class BBFlagCondition : TransitionCondition
         }
 
         // Get the primitive variable from the blackboard.
-        var flag = BB.GetPrimVar<bool>(BBFlagSignature);
+        var flag = BB.Get<bool>(BBFlagSignature);
 
         // Check if the flag exists and is true.
-        if (flag != null && flag.Value)
+        if (flag != null && flag)
         {
             // The flag is set. Consume it immediately.
-            BB.SetPrimVar(BBFlagSignature, false);
+            BB.Set(BBFlagSignature, false);
 
             // Allow the transition.
             return true;

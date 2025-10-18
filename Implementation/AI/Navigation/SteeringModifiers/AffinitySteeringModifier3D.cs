@@ -27,11 +27,11 @@ public partial class AffinitySteeringModifier3D : SteeringConsiderationModifier3
         {
             JmoLogger.Error(this,
                 "Modifier is misconfigured. Either 'Affinity To Measure' or 'Response Curve' is not set. It will be skipped.",
-                blackboard.GetVar<Node>(BBDataSig.Agent));
+                blackboard.Get<Node>(BBDataSig.Agent));
             return;
         }
 
-        var affinities = blackboard.GetVar<AIAffinitiesComponent>(BBDataSig.Affinities);
+        var affinities = blackboard.Get<AIAffinitiesComponent>(BBDataSig.Affinities);
         if (affinities == null)
         {
             return; // Agent will have logged this critical error already.
@@ -44,7 +44,7 @@ public partial class AffinitySteeringModifier3D : SteeringConsiderationModifier3
             JmoLogger.Warning(
                 this,
                 "AffinitySteeringModifier could not find the affinity '{0}' in the AIAffinitiesComponent. It will be skipped.",
-                blackboard.GetVar<Node>(BBDataSig.Agent), this._affinityToMeasure.AffinityName);
+                blackboard.Get<Node>(BBDataSig.Agent), this._affinityToMeasure.AffinityName);
             return;
         }
 

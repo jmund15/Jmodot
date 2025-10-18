@@ -6,7 +6,7 @@ namespace Jmodot.Core.Input;
 ///     type-safe way, without being coupled to physical buttons or Godot's InputMap strings.
 ///     Its primary purpose is to serve as a reliable key in dictionaries and for tooling.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public sealed partial class InputAction : Resource // Sealed to prevent inheritance; it's a pure data key.
 {
     /// <summary>

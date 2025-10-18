@@ -40,7 +40,7 @@ public readonly struct IntentData
             throw JmoLogger.LogAndRethrow(
                 new InvalidOperationException($"Cannot get bool from intent data  '{_value}'"), this);
         }
-        return b;
+        return b!.Value;
     }
     /// <summary>
     ///     Safely retrieves the value if it is a bool. This is the primary and safest
@@ -48,7 +48,7 @@ public readonly struct IntentData
     /// </summary>
     /// <param name="value">The retrieved boolean value, if successful.</param>
     /// <returns>True if the held data was a bool, otherwise false.</returns>
-    public bool TryGetBool(out bool value)
+    public bool TryGetBool(out bool? value)
     {
         if (this._value is bool boolValue)
         {
@@ -56,7 +56,7 @@ public readonly struct IntentData
             return true;
         }
 
-        value = default;
+        value = null;
         return false;
     }
 
@@ -67,12 +67,12 @@ public readonly struct IntentData
             throw JmoLogger.LogAndRethrow(
                 new InvalidOperationException($"Cannot get float from intent data  '{_value}'"), this);
         }
-        return f;
+        return f!.Value;
     }
     /// <summary>
     ///     Safely retrieves the value if it is a float.
     /// </summary>
-    public bool TryGetFloat(out float value)
+    public bool TryGetFloat(out float? value)
     {
         if (this._value is float floatValue)
         {
@@ -80,7 +80,7 @@ public readonly struct IntentData
             return true;
         }
 
-        value = default;
+        value = null;
         return false;
     }
 
@@ -91,12 +91,12 @@ public readonly struct IntentData
             throw JmoLogger.LogAndRethrow(
                 new InvalidOperationException($"Cannot get Vector2 from intent data  '{_value}'"), this);
         }
-        return vec2;
+        return vec2!.Value;
     }
     /// <summary>
     ///     Safely retrieves the value if it is a Vector2.
     /// </summary>
-    public bool TryGetVector2(out Vector2 value)
+    public bool TryGetVector2(out Vector2? value)
     {
         if (this._value is Vector2 vector2Value)
         {
@@ -104,7 +104,7 @@ public readonly struct IntentData
             return true;
         }
 
-        value = default;
+        value = null;
         return false;
     }
 

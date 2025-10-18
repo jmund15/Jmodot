@@ -12,12 +12,14 @@ public static partial class BBDataSig
 
     public static readonly StringName Agent = new("Agent");
     public static readonly StringName Sprite = new("Sprite");
-    public static readonly StringName Anim = new("Anim");
+    public static readonly StringName AnimationComponent = new("AnimationComponent");
+    public static readonly StringName IntentSource = new("IntentSource");
     public static readonly StringName CurrentTarget = new("CurrentTarget");
     public static readonly StringName CharacterController = new("CharacterController");
     public static readonly StringName MovementProcessor = new("MovementProcessor");
     public static readonly StringName MoveComp = new("MoveComp");
     public static readonly StringName VelComp = new("VelComp");
+    public static readonly StringName Stats = new("Stats");
     public static readonly StringName HealthComp = new("HealthComp");
     public static readonly StringName HurtboxComp = new("HurtboxComp");
     public static readonly StringName HitboxComp = new("HitboxComp");

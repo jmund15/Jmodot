@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Actors;
 
+using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
 using Core.Stats;
@@ -11,7 +12,7 @@ using Core.Stats;
 ///     final velocity command for the IMovementController. It is a reusable, stateless service
 ///     called by the character's State Machine.
 /// </summary>
-public class MovementProcessor2D
+public class MovementProcessor2D : IMovementProcessor2D
 {
     private readonly ICharacterController2D _controller;
     private readonly ExternalForceReceiver2D _forceReceiver2D;
@@ -41,8 +42,7 @@ public class MovementProcessor2D
     ///     The main update loop for continuous movement. It is called by the active State,
     ///     which provides all necessary contextual information.
     /// </summary>
-    public void ProcessMovement(IMovementStrategy2D strategy2D, MovementMode activeMode, Vector2 desiredDirection,
-        float delta)
+    public void ProcessMovement(IMovementStrategy2D strategy2D, Vector2 desiredDirection, float delta)
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         // The strategy does the heavy lifting of getting stats.
@@ -51,7 +51,6 @@ public class MovementProcessor2D
         _controller.SetVelocity(characterVelocity
             ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
 
-        // The strategy now returns the full vector including Y
 
         // TODO: currently adding to keep 'ApplyImpulse' functionality, but should probably be set and add impulses after
         //GD.Print($"moving with vec: {characterVelocity}");
@@ -98,15 +97,6 @@ public class MovementProcessor2D
 
     private void ApplyExternalForces(float delta)
     {
-        // if (!this._controller.IsOnFloor)
-        // {
-        //     // A better way to get gravity settings.
-        //     // TODO: still bad, should be used by ForceReceiver too.
-        //     var gravityVec = ProjectSettings.GetSetting("physics/2d/default_gravity_vector").AsVector2();
-        //     var gravityMag = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
-        //     _controller.AddVelocity(gravityVec * gravityMag * delta * 5f);
-        // }
-
         // TODO: this force receiver should also handle gravity, instead of being hardcoded above.
         var externalForce = this._forceReceiver2D.GetTotalForce(this._owner);
         this._controller.AddVelocity(externalForce * delta);

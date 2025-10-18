@@ -29,7 +29,7 @@ public partial class BBBoolCondition : TransitionCondition
         }
 
         // Get the boolean variable from the blackboard.
-        var bbVal = BB.GetPrimVar<bool>(BBSignature);
+        var bbVal = BB.Get<bool>(BBSignature);
 
         if (bbVal == null)
         {
@@ -38,7 +38,7 @@ public partial class BBBoolCondition : TransitionCondition
         }
 
         // Check if the flag exists and is true.
-        if (bbVal.Value == Value)
+        if (bbVal == Value)
         {
             // Allow the transition.
             return true;

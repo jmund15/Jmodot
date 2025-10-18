@@ -22,7 +22,7 @@ public partial class CheckBBValue : BTCondition
     {
         // try to fix
 
-        // var bbVal = BB.GetPrimVar<Variant>(_key);
+        // var bbVal = BB.Get<Variant>(_key);
         // if (bbVal.HasValue() && bbVal.Value == _value)
         // {
         //

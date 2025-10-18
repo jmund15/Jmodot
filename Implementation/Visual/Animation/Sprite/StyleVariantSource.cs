@@ -34,5 +34,5 @@ public partial class StyleVariantSource : AnimVariantSource
             _currentVariant = styleName;
         }
     }
-    public override string GetVariant() => _currentVariant;
+    public override string Getiant() => _currentVariant;
 }

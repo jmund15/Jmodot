@@ -17,10 +17,10 @@ public partial class SetBBValue : BehaviorAction
     {
         base.OnEnter();
 
-        // Note: This does not distinguish between SetVar and SetPrimVar.
+        // Note: This does not distinguish between Set and Set.
         // A more robust implementation might have separate fields or use reflection,
         // but for a simple example, this works with Godot's Variant system.
-        BB.SetPrimVar(Key, Value); // Assuming primitive for simplicity. Use SetVar for objects.
+        BB.Set(Key, Value); // Assuming primitive for simplicity. Use Set for objects.
 
         Status = TaskStatus.SUCCESS;
     }

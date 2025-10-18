@@ -35,20 +35,20 @@ public partial class AffinityCurveModifier : ConsiderationModifier
             JmoLogger.Warning(
                 this,
                 "AffinityCurveModifier on {0} is missing a ResponseCurve resource. Returning base score unmodified.",
-                blackboard.GetVar<Node>(BBDataSig.Agent),
-                blackboard.GetVar<Node>(BBDataSig.Agent)!.Name);
+                blackboard.Get<Node>(BBDataSig.Agent),
+                blackboard.Get<Node>(BBDataSig.Agent)!.Name);
             return baseScore;
         }
 
         // Get the affinities component from the blackboard.
-        var affinities = blackboard.GetVar<AIAffinitiesComponent>(BBDataSig.Affinities);
+        var affinities = blackboard.Get<AIAffinitiesComponent>(BBDataSig.Affinities);
         if (affinities == null)
         {
             JmoLogger.Warning(
                 this,
                 "AffinityCurveModifier on {0} could not find an AIAffinitiesComponent in the blackboard. Returning base score unmodified.",
-                blackboard.GetVar<Node>(BBDataSig.Agent),
-                blackboard.GetVar<Node>(BBDataSig.Agent)!.Name);
+                blackboard.Get<Node>(BBDataSig.Agent),
+                blackboard.Get<Node>(BBDataSig.Agent)!.Name);
             // If this AI has no affinities, there's nothing to measure, so we don't modify.
             return baseScore;
         }
@@ -59,8 +59,8 @@ public partial class AffinityCurveModifier : ConsiderationModifier
             JmoLogger.Warning(
                 this,
                 "AffinityCurveModifier on {0} could not find the affinity '{1}' in the AIAffinitiesComponent. Returning base score unmodified.",
-                blackboard.GetVar<Node>(BBDataSig.Agent),
-                blackboard.GetVar<Node>(BBDataSig.Agent)!.Name, this._affinityToMeasure.AffinityName);
+                blackboard.Get<Node>(BBDataSig.Agent),
+                blackboard.Get<Node>(BBDataSig.Agent)!.Name, this._affinityToMeasure.AffinityName);
             return baseScore;
         }
 

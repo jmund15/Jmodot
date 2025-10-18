@@ -73,7 +73,7 @@ public partial class AIAgent3D : Node3D
     public override void _PhysicsProcess(double delta)
     {
         // High-level logic (e.g., a Behavior Tree) is assumed to have run, updating the blackboard.
-        //_blackboard.GetPrimVar<Vector3>(BBDataSig.TargetPosition, out var highLevelTarget);
+        //_blackboard.Get<Vector3>(BBDataSig.TargetPosition, out var highLevelTarget);
         // =======================================================
         // PHASE 1: STRATEGIC DECISION (The "Big Brain")
         // =======================================================
@@ -120,7 +120,7 @@ public partial class AIAgent3D : Node3D
     private void OnTargetReached()
     {
         // Example: Let the Behavior Tree know that the movement is complete.
-        _blackboard.SetVar("MovementResult", "Success");
+        _blackboard.Set("MovementResult", "Success");
     }
 
     #region GRANULAR_CONTROLS & SETUP
@@ -169,9 +169,9 @@ public partial class AIAgent3D : Node3D
 
         private void RegisterComponentsOnBlackboard()
         {
-            _blackboard.SetVar(BBDataSig.PerceptionComp, _perceptionManager3D);
-            _blackboard.SetVar(BBDataSig.Affinities, _affinities);
-            _blackboard.SetVar(BBDataSig.AINavComp, _navigator);
+            _blackboard.Set(BBDataSig.PerceptionComp, _perceptionManager3D);
+            _blackboard.Set(BBDataSig.Affinities, _affinities);
+            _blackboard.Set(BBDataSig.AINavComp, _navigator);
         }
         #endregion
 }

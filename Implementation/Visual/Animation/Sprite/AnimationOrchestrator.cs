@@ -86,7 +86,7 @@ public partial class AnimationOrchestrator : Node
 
         var variants = VariantSources
             .OrderBy(s => s.Order)
-            .Select(s => s.GetVariant());
+            .Select(s => s.Getiant());
 
         return NamingConvention.GetFullAnimationName(_baseAnimName, variants);
     }

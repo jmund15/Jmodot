@@ -58,7 +58,7 @@ public partial class LagQueue : BehaviorAction
 
     protected virtual void OnLagTimeout()
     {
-        if (this.BB.GetPrimVar<bool>(BBDataSig.QueuedNextAttack).Value)
+        if (this.BB.Get<bool>(BBDataSig.QueuedNextAttack))
         {
             this.Status = TaskStatus.SUCCESS;
         }

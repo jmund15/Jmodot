@@ -23,10 +23,10 @@ public abstract partial class BehaviorAction : BehaviorTask
         switch (this.SelfInterruptible)
         {
             case InterruptibleChange.True:
-                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, true);
+                this.BB.Set(BBDataSig.SelfInteruptible, true);
                 break;
             case InterruptibleChange.False:
-                this.BB.SetPrimVar(BBDataSig.SelfInteruptible, false);
+                this.BB.Set(BBDataSig.SelfInteruptible, false);
                 break;
         }
     }

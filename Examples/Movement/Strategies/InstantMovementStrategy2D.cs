@@ -6,7 +6,7 @@ using Jmodot.Implementation.Movement.Strategies;
 using Jmodot.Implementation.Registry;
 using PushinPotions.Global;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class InstantMovementStrategy2D : BaseMovementStrategy2D, IMovementStrategy2D
 {
     public override Vector2 CalculateVelocity(Vector2 currentVelocity, Vector2 desiredDirection, IStatProvider stats, float delta)

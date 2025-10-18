@@ -88,9 +88,9 @@ public partial class State : Node, IState
         switch (SelfInteruptible)
         {
             case InterruptibleChange.True:
-                BB.SetPrimVar(BBDataSig.SelfInteruptible, true); break;
+                BB.Set(BBDataSig.SelfInteruptible, true); break;
             case InterruptibleChange.False:
-                BB.SetPrimVar(BBDataSig.SelfInteruptible, false); break;
+                BB.Set(BBDataSig.SelfInteruptible, false); break;
         }
 
         OnEnter();
