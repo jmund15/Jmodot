@@ -52,6 +52,8 @@ public partial class State : Node, IState
     [Export]
     protected GColl.Array<StateTransition> Transitions { get; private set; } = new();
 
+    protected List<StateTransition> UniqueTransitions { get; private set; } = new();
+
     /// <summary>
     /// Modifies the agent's 'SelfInterruptible' property on the blackboard when this state is active.
     /// </summary>
@@ -68,9 +70,14 @@ public partial class State : Node, IState
         Agent = agent;
         BB = bb;
 
+        // --- IMPORTANT ---
+        // manually deep duplicate every transition (and therefore condition)
+        // otherwise instantiated scenes will share the same resource, which will cripple transition logic
         foreach (var transition in Transitions.Where(t => t.IsValid()))
         {
-            foreach (var condition in transition.Conditions.Where(c => c.IsValid())) // CHECK: make sure this works for resources
+            var dupedTransition = (StateTransition)transition.DuplicateDeep(Resource.DeepDuplicateMode.Internal); // TODO: ensure this is the correct duplicate mode! may need 'All'
+            UniqueTransitions.Add(dupedTransition!);
+            foreach (var condition in dupedTransition.Conditions.Where(c => c.IsValid()))
             {
                 condition.Init(agent, bb);
             }
@@ -170,23 +177,35 @@ public partial class State : Node, IState
     /// </summary>
     private void CheckTransitions()
     {
-        foreach (var transition in Transitions)
+        foreach (var transition in UniqueTransitions)
         {
-            if (!transition.IsValid()) continue;
+            if (!transition.IsValid())
+            {
+                continue;
+            }
 
             // A transition with an empty path is invalid.
-            if (transition.TargetStatePath == null || transition.TargetStatePath.IsEmpty) continue;
+            if (transition.TargetStatePath == null || transition.TargetStatePath.IsEmpty)
+            {
+                continue;
+            }
 
             // A transition with no conditions is not checked automatically.
             // It must be triggered manually by emitting the TransitionState signal from state logic.
-            if (transition.Conditions.Count == 0) continue;
+            if (transition.Conditions.Count == 0)
+            {
+                continue;
+            }
 
             bool allConditionsMet = transition.Conditions
                 .Where(c => c.IsValid())
                 .All(c => c.Check());
 
+
             if (allConditionsMet)
             {
+                JmoLogger.Info(this, $"all conditions met for {transition.ResourceName}!");
+
                 // Resolve the NodePath to get the actual State node instance.
                 var targetState = GetNode<State>(transition.TargetStatePath);
 

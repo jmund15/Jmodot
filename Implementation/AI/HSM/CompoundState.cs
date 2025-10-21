@@ -126,6 +126,7 @@ using Shared.GodotExceptions;
         {
             base.OnProcessPhysics(delta);
             PrimarySubState?.ProcessPhysics(delta);
+
             foreach (var parallelState in ParallelSubStates.Where(ps => ps.Value))
             {
                 parallelState.Key.ProcessPhysics(delta);
@@ -157,6 +158,7 @@ using Shared.GodotExceptions;
                 return;
             }
 
+            JmoLogger.Info(this, $"Transition from '{oldSubState.Name}' to '{newSubState.Name}'.");
             PrimarySubState.Exit();
             FiniteSubStates[PrimarySubState] = false;
 
