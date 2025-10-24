@@ -60,4 +60,21 @@ public static class MiscUtils
     {
         return Enum.GetValues(typeof(T)).Cast<T>();
     }
+
+    public static void DisableProcessing(Node node)
+    {
+        node.SetProcess(false);
+        node.SetPhysicsProcess(false);
+
+        if (node is Node2D node2D)
+        {
+            node2D.SetProcessInput(false);
+            node2D.SetProcessUnhandledInput(false);
+        }
+        else if (node is Node3D node3D)
+        {
+            node3D.SetProcessInput(false);
+            node3D.SetProcessUnhandledInput(false);
+        }
+    }
 }

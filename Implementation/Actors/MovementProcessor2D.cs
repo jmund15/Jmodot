@@ -49,7 +49,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         var characterVelocity =
             strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, _stats, delta);
         _controller.SetVelocity(characterVelocity
-            ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
+            );
 
 
         // TODO: currently adding to keep 'ApplyImpulse' functionality, but should probably be set and add impulses after
@@ -72,8 +72,8 @@ public class MovementProcessor2D : IMovementProcessor2D
     /// </summary>
     public void ProcessExternalForcesOnly(float delta)
     {
-        // 1. No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
-        // Still apply any impulses that might occur
+        // No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
+        // 1. Still apply any impulses that might occur
         _controller.AddVelocity(_frameImpulses);
         _frameImpulses = Vector2.Zero;
 

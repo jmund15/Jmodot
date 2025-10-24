@@ -6,14 +6,14 @@ using Jmodot.Implementation.AI.BB;
 
 
 [GlobalClass]
-public partial class VelocityMagnitudeCondition : TransitionCondition
+public partial class VelocityMagnitudeCondition3D : TransitionCondition
 {
-    private ICharacterController2D _charController = null!;
+    private ICharacterController3D _charController = null!;
     [Export] private float _velocityThreshold;
     [Export] private NumericalConditionType _numericalCondition;
     protected override void OnInit()
     {
-        _charController = BB.Get<ICharacterController2D>(BBDataSig.CharacterController)!;
+        _charController = BB.Get<ICharacterController3D>(BBDataSig.CharacterController)!;
     }
 
     public override bool Check()

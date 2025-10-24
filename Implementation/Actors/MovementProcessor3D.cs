@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Actors;
 
+using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
 using Core.Stats;
@@ -11,7 +12,7 @@ using Core.Stats;
 ///     final velocity command for the IMovementController. It is a reusable, stateless service
 ///     called by the character's State Machine.
 /// </summary>
-public class MovementProcessor3D
+public class MovementProcessor3D : IMovementProcessor3D
 {
     private readonly ICharacterController3D _controller;
     private readonly ExternalForceReceiver3D _forceReceiver3D;
@@ -40,20 +41,14 @@ public class MovementProcessor3D
     ///     The main update loop for continuous movement. It is called by the active State,
     ///     which provides all necessary contextual information.
     /// </summary>
-    public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection,
-        float delta)
+    public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection, float delta)
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
             strategy3D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, delta);
         _controller.SetVelocity(characterVelocity
-            ); // TODO: FIXXXXXXX, should strategy be in charge of handling jump/y velocity?
-
-        // The strategy now returns the full vector including Y
-
-        // TODO: currently adding to keep 'ApplyImpulse' functionality, but should probably be set and add impulses after
-        //GD.Print($"moving with vec: {characterVelocity}");
+            );
 
         // --- 2. Apply Impulses
         _controller.AddVelocity(_frameImpulses);
@@ -72,12 +67,15 @@ public class MovementProcessor3D
     /// </summary>
     public void ProcessExternalForcesOnly(float delta)
     {
-        // 1. No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
+        // No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
+        // 1. Still apply any impulses that might occur
+        _controller.AddVelocity(_frameImpulses);
+        _frameImpulses = Vector3.Zero;
 
         // 2. Apply external forces
         this.ApplyExternalForces(delta);
 
-        // 3. Execute the move
+        // 2. Execute the move
         this._controller.Move();
     }
 
@@ -94,15 +92,15 @@ public class MovementProcessor3D
 
     private void ApplyExternalForces(float delta)
     {
-        if (!this._controller.IsOnFloor)
-        {
-            // A better way to get gravity settings.
-            // TODO: still bad, should be used by ForceReceiver too.
-            var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
-            var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
-            //GD.Print($"gravity vec: {gravityVec * gravityMag * delta}");
-            _controller.AddVelocity(gravityVec * gravityMag * delta * 5f);
-        }
+        // if (!this._controller.IsOnFloor)
+        // {
+        //     // A better way to get gravity settings.
+        //     // TODO: still bad, should be used by ForceReceiver too.
+        //     var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
+        //     var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
+        //     //GD.Print($"gravity vec: {gravityVec * gravityMag * delta}");
+        //     _controller.AddVelocity(gravityVec * gravityMag * delta * 5f);
+        // }
 
         // TODO: this force receiver should also handle gravity, instead of being hardcoded above.
         var externalForce = this._forceReceiver3D.GetTotalForce(this._owner);

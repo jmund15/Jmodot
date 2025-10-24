@@ -58,9 +58,9 @@ public partial class AffinityCurveModifier : ConsiderationModifier
         {
             JmoLogger.Warning(
                 this,
-                "AffinityCurveModifier on {0} could not find the affinity '{1}' in the AIAffinitiesComponent. Returning base score unmodified.",
-                blackboard.Get<Node>(BBDataSig.Agent),
-                blackboard.Get<Node>(BBDataSig.Agent)!.Name, this._affinityToMeasure.AffinityName);
+                $"AffinityCurveModifier on {blackboard.Get<Node>(BBDataSig.Agent)!.Name} could not find the affinity '{this._affinityToMeasure.AffinityName}' in the AIAffinitiesComponent. Returning base score unmodified.",
+                blackboard.Get<Node>(BBDataSig.Agent)
+                );
             return baseScore;
         }
 

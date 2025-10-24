@@ -106,7 +106,9 @@ public partial class PlayerIntentSource : IntentSourceNode
                 InputActionPollType.JustReleased => isJustReleased,
                 _ => false
             };
-            if (processResult) _processIntents[binding.Action] = new IntentData(processResult);
+
+            // add to map
+            _processIntents[binding.Action] = new IntentData(processResult);
 
             // 2. Update the physics buffer.
             // For continuous states, always set the latest value.
