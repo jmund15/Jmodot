@@ -52,6 +52,11 @@ public partial class PlayerIntentSource : IntentSourceNode
         return _physicsIntents;
     }
 
+    public override T GetIntent<T>(InputAction inputAction)
+    {
+        return (T)_processIntents[inputAction].GetValue();
+    }
+
     /// <summary>
     ///     Input polling happens in _Process to ensure no inputs are missed.
     /// </summary>

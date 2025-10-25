@@ -17,5 +17,5 @@ public abstract partial class AnimationNamingConvention : Resource
     /// <param name="baseName">The core animation name (e.g., "run", "attack").</param>
     /// <param name="variants">An ordered list of variant strings (e.g., ["N", "sword"]).</param>
     /// <returns>The final animation name to be played (e.g., "run_N_sword").</returns>
-    public abstract string GetFullAnimationName(string baseName, IEnumerable<string> variants);
+    public abstract StringName GetFullAnimationName(StringName baseName, IEnumerable<string> variants);
 }

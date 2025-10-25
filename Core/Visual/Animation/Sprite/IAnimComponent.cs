@@ -11,16 +11,16 @@ using Shared;
 /// </summary>
 public interface IAnimComponent : IGodotNodeInterface
 {
-    event Action<string> AnimStarted;
-    event Action<string> AnimFinished;
+    event Action<StringName> AnimStarted;
+    event Action<StringName> AnimFinished;
 
-    void StartAnim(string animName);
+    void StartAnim(StringName animName);
     void PauseAnim();
     void StopAnim();
-    void UpdateAnim(string animName);
+    void UpdateAnim(StringName animName);
     bool IsPlaying();
-    bool HasAnimation(string animName);
-    string GetCurrAnimation();
+    bool HasAnimation(StringName animName);
+    StringName GetCurrAnimation();
     float GetSpeedScale();
     void SetSpeedScale(float speedScale);
 }

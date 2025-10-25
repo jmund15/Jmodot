@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
+using System;
 using Godot;
 using Godot.Collections;
 using System.Linq;
@@ -11,7 +12,7 @@ using Jmodot.Core.Visual.Animation.Sprite;
 /// to construct and play the final animation on a target IAnimComponent.
 /// </summary>
 [GlobalClass]
-public partial class AnimationOrchestrator : Node
+public partial class AnimationOrchestrator : Node, IAnimComponent
 {
     [Export] private NodePath _targetAnimatorPath;
     [Export] public AnimationNamingConvention NamingConvention { get; set; }
@@ -22,7 +23,7 @@ public partial class AnimationOrchestrator : Node
     [Export] public Array<AnimVariantSource> VariantSources { get; set; } = new();
 
     private IAnimComponent _targetAnimator;
-    private string _baseAnimName = "";
+    private StringName _baseAnimName = "";
 
     public override void _Ready()
     {
@@ -34,27 +35,27 @@ public partial class AnimationOrchestrator : Node
         }
     }
 
-    /// <summary>
-    /// Plays an animation by combining the base name with all registered variants.
-    /// This is the primary method your state machine or controller should call.
-    /// </summary>
-    public void Play(string baseAnimName)
-    {
-        _baseAnimName = baseAnimName;
-        string finalAnimName = BuildFinalAnimationName();
-        if (_targetAnimator.GetCurrAnimation() != finalAnimName)
-        {
-             _targetAnimator.StartAnim(finalAnimName);
-        }
-    }
-
+    // /// <summary>
+    // /// Plays an animation by combining the base name with all registered variants.
+    // /// This is the primary method your state machine or controller should call.
+    // /// </summary>
+    // public void Play(StringName baseAnimName)
+    // {
+    //     _baseAnimName = baseAnimName;
+    //     StringName finalAnimName = BuildFinalAnimationName();
+    //     if (_targetAnimator.GetCurrAnimation() != finalAnimName)
+    //     {
+    //          _targetAnimator.StartAnim(finalAnimName);
+    //     }
+    // }
+    //
     /// <summary>
     /// Updates the currently playing animation if the variants have changed,
     /// while attempting to preserve the animation's progress.
     /// </summary>
-    public void Update()
+    private void Update()
     {
-        string finalAnimName = BuildFinalAnimationName();
+        StringName finalAnimName = BuildFinalAnimationName();
         _targetAnimator.UpdateAnim(finalAnimName);
     }
 
@@ -67,27 +68,100 @@ public partial class AnimationOrchestrator : Node
         {
             source.UpdateDirection(direction);
         }
+
+        Update();
     }
 
     /// <summary>
     /// Provides a new style to all registered StyleVariantSource resources.
     /// </summary>
-    public void SetStyle(string style)
+    public void SetStyle(StringName style)
     {
         foreach (var source in VariantSources.OfType<StyleVariantSource>())
         {
             source.UpdateStyle(style);
         }
+
+        Update();
     }
 
-    private string BuildFinalAnimationName()
+    private StringName BuildFinalAnimationName()
     {
         if (NamingConvention == null) { GD.PrintErr($"AnimationOrchestrator '{Name}' has no NamingConvention resource assigned."); return _baseAnimName; }
 
         var variants = VariantSources
             .OrderBy(s => s.Order)
-            .Select(s => s.Getiant());
+            .Select(s => s.GetAnimVariant());
 
         return NamingConvention.GetFullAnimationName(_baseAnimName, variants);
+    }
+
+    public Node GetUnderlyingNode()
+    {
+        return this;
+    }
+
+    public event Action<StringName>? AnimStarted
+    {
+        add => _targetAnimator.AnimStarted += value;
+        remove => _targetAnimator.AnimStarted -= value;
+    }
+
+    public event Action<StringName>? AnimFinished
+    {
+        add => _targetAnimator.AnimFinished += value;
+        remove => _targetAnimator.AnimFinished -= value;
+    }
+
+    public void StartAnim(StringName animName)
+    {
+        _baseAnimName = animName;
+        StringName finalAnimName = BuildFinalAnimationName();
+        if (_targetAnimator.GetCurrAnimation() != finalAnimName)
+        {
+            _targetAnimator.StartAnim(finalAnimName);
+        }
+    }
+
+    public void PauseAnim()
+    {
+        _targetAnimator.PauseAnim();
+    }
+
+    public void StopAnim()
+    {
+        _targetAnimator.StopAnim();
+    }
+
+    public void UpdateAnim(StringName animName)
+    {
+        StringName finalAnimName = BuildFinalAnimationName();
+        _targetAnimator.UpdateAnim(finalAnimName);
+    }
+
+    public bool IsPlaying()
+    {
+        return _targetAnimator.IsPlaying();
+    }
+
+    public bool HasAnimation(StringName animName)
+    {
+        var fullAnimName = BuildFinalAnimationName();
+        return _targetAnimator.HasAnimation(fullAnimName);
+    }
+
+    public StringName GetCurrAnimation()
+    {
+        return _targetAnimator.GetCurrAnimation();
+    }
+
+    public float GetSpeedScale()
+    {
+        return _targetAnimator.GetSpeedScale();
+    }
+
+    public void SetSpeedScale(float speedScale)
+    {
+        _targetAnimator.SetSpeedScale(speedScale);
     }
 }

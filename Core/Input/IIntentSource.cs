@@ -17,6 +17,8 @@ public interface IIntentSource
     /// <returns>A read-only dictionary of InputAction keys and their corresponding IntentData values.</returns>
     IReadOnlyDictionary<InputAction, IntentData> GetProcessIntents();
     IReadOnlyDictionary<InputAction, IntentData> GetPhysicsIntents();
+
+    T GetIntent<T>(InputAction inputAction);
 }
 
 public static class IntentSourceExtensions

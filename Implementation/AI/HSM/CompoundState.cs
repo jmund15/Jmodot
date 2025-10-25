@@ -158,7 +158,6 @@ using Shared.GodotExceptions;
                 return;
             }
 
-            JmoLogger.Info(this, $"Transition from '{oldSubState.Name}' to '{newSubState.Name}'.");
             PrimarySubState.Exit();
             FiniteSubStates[PrimarySubState] = false;
 

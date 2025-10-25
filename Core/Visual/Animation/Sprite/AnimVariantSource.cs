@@ -22,5 +22,5 @@ public abstract partial class AnimVariantSource : Resource
     /// This value is calculated and cached internally when state is updated.
     /// </summary>
     /// <returns>The animation variant string (e.g., "_N"), or an empty string if not applicable.</returns>
-    public abstract string Getiant();
+    public abstract string GetAnimVariant();
 }

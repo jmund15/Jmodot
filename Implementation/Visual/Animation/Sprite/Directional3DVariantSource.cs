@@ -32,5 +32,5 @@ public partial class Directional3DVariantSource : AnimVariantSource
         _currentVariant = DirectionLabels.TryGetValue(closestDir, out string label) ? label : "";
     }
 
-    public override string Getiant() => _currentVariant;
+    public override string GetAnimVariant() => _currentVariant;
 }

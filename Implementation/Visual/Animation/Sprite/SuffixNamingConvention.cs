@@ -14,7 +14,7 @@ public partial class SuffixNamingConvention : AnimationNamingConvention
 {
     [Export] public string Separator { get; set; } = "_";
 
-    public override string GetFullAnimationName(string baseName, IEnumerable<string> variants)
+    public override StringName GetFullAnimationName(StringName baseName, IEnumerable<string> variants)
     {
         if (string.IsNullOrEmpty(baseName)) return "";
 
@@ -22,6 +22,6 @@ public partial class SuffixNamingConvention : AnimationNamingConvention
         if (!validVariants.Any()) return baseName;
 
         // Using Concat for performance with many variants.
-        return baseName + string.Concat(validVariants.Select(v => Separator + v));
+        return new StringName(baseName + string.Concat(validVariants.Select(v => Separator + v)));
     }
 }

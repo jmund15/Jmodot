@@ -16,8 +16,8 @@ using Core.Visual.Sprite;
 public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponent, ISpriteComponent
 {
     // --- IAnimComponent Events ---
-    public event Action<string> AnimStarted;
-    public event Action<string> AnimFinished;
+    public event Action<StringName> AnimStarted;
+    public event Action<StringName> AnimFinished;
 
     public override void _Ready()
     {
@@ -31,7 +31,7 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
 
     // --- IAnimComponent Implementation ---
 
-    public void StartAnim(string animName)
+    public void StartAnim(StringName animName)
     {
         // Add a check for robustness to prevent Godot errors for non-existent animations.
         if (this.SpriteFrames.HasAnimation(animName))
@@ -44,7 +44,7 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         }
     }
 
-    public void UpdateAnim(string animName)
+    public void UpdateAnim(StringName animName)
     {
         // If the requested animation is already playing, do nothing.
         if (this.Animation == animName) return;
@@ -65,8 +65,8 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
     public void PauseAnim() => this.Pause();
     public void StopAnim() => this.Stop();
     public bool IsPlaying() => this.IsPlaying();
-    public bool HasAnimation(string animName) => this.SpriteFrames.HasAnimation(animName);
-    public string GetCurrAnimation() => this.Animation;
+    public bool HasAnimation(StringName animName) => this.SpriteFrames.HasAnimation(animName);
+    public StringName GetCurrAnimation() => this.Animation;
     public float GetSpeedScale() => this.SpeedScale;
     public void SetSpeedScale(float speedScale) => this.SpeedScale = speedScale;
 

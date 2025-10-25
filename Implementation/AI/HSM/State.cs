@@ -75,12 +75,18 @@ public partial class State : Node, IState
         // otherwise instantiated scenes will share the same resource, which will cripple transition logic
         foreach (var transition in Transitions.Where(t => t.IsValid()))
         {
+            // transition.ResourceLocalToScene = true;
+            // foreach (var condition in transition.Conditions)
+            // {
+            //     condition.ResourceLocalToScene = true;
+            // }
             var dupedTransition = (StateTransition)transition.DuplicateDeep(Resource.DeepDuplicateMode.Internal); // TODO: ensure this is the correct duplicate mode! may need 'All'
-            UniqueTransitions.Add(dupedTransition!);
+
             foreach (var condition in dupedTransition.Conditions.Where(c => c.IsValid()))
             {
                 condition.Init(agent, bb);
             }
+            UniqueTransitions.Add(dupedTransition!);
         }
 
         IsInitialized = true;
@@ -204,8 +210,6 @@ public partial class State : Node, IState
 
             if (allConditionsMet)
             {
-                JmoLogger.Info(this, $"all conditions met for {transition.ResourceName}!");
-
                 // Resolve the NodePath to get the actual State node instance.
                 var targetState = GetNode<State>(transition.TargetStatePath);
 

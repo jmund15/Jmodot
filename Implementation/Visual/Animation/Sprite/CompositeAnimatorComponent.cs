@@ -14,8 +14,8 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     public List<IAnimComponent> Animators { get; private set; } = new();
     public List<ISpriteComponent> Sprites { get; private set; } = new();
 
-    public event Action<string> AnimStarted;
-    public event Action<string> AnimFinished;
+    public event Action<StringName> AnimStarted;
+    public event Action<StringName> AnimFinished;
 
     public override void _Ready()
     {
@@ -31,15 +31,15 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         Animators[0].AnimFinished += animName => AnimFinished?.Invoke(animName);
     }
 
-    public void StartAnim(string animName) => Animators.ForEach(a => a.StartAnim(animName));
-    public void UpdateAnim(string animName) => Animators.ForEach(a => a.UpdateAnim(animName));
+    public void StartAnim(StringName animName) => Animators.ForEach(a => a.StartAnim(animName));
+    public void UpdateAnim(StringName animName) => Animators.ForEach(a => a.UpdateAnim(animName));
     public void StopAnim() => Animators.ForEach(a => a.StopAnim());
     public void PauseAnim() => Animators.ForEach(a => a.PauseAnim());
     public void SetSpeedScale(float speedScale) => Animators.ForEach(a => a.SetSpeedScale(speedScale));
 
-    public string GetCurrAnimation() => Animators.FirstOrDefault()?.GetCurrAnimation() ?? "";
+    public StringName GetCurrAnimation() => Animators.FirstOrDefault()?.GetCurrAnimation() ?? "";
     public bool IsPlaying() => Animators.FirstOrDefault()?.IsPlaying() ?? false;
-    public bool HasAnimation(string animName) => Animators.FirstOrDefault()?.HasAnimation(animName) ?? false;
+    public bool HasAnimation(StringName animName) => Animators.FirstOrDefault()?.HasAnimation(animName) ?? false;
     public float GetSpeedScale() => Animators.FirstOrDefault()?.GetSpeedScale() ?? 1.0f;
     public Node GetUnderlyingNode() => this;
 }
