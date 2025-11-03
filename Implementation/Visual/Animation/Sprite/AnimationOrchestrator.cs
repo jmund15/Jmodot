@@ -14,7 +14,7 @@ using Jmodot.Core.Visual.Animation.Sprite;
 [GlobalClass]
 public partial class AnimationOrchestrator : Node, IAnimComponent
 {
-    [Export] private NodePath _targetAnimatorPath;
+    [Export] private Node _targetAnimatorNode;
     [Export] public AnimationNamingConvention NamingConvention { get; set; }
 
     /// <summary>
@@ -27,10 +27,10 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
     public override void _Ready()
     {
-        _targetAnimator = GetNode<Node>(_targetAnimatorPath) as IAnimComponent;
+        _targetAnimator = _targetAnimatorNode as IAnimComponent;
         if (_targetAnimator == null)
         {
-            GD.PrintErr($"AnimationOrchestrator '{Name}': Target animator at '{_targetAnimatorPath}' is not a valid IAnimComponent.");
+            GD.PrintErr($"AnimationOrchestrator '{Name}': Target animator at '{_targetAnimatorNode}' is not a valid IAnimComponent.");
             SetProcess(false);
         }
     }

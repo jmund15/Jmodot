@@ -10,7 +10,7 @@ using Shared;
 public interface IEntityComponent : IGodotNodeInterface
 {
     // TODO:
-    //  - Add an initialized propert or check here
+    //  - Add an initialized property or check here
     //    We need to know in the component if it's been initialized yet, before it starts doing anything.
 
     // /// <summary>
