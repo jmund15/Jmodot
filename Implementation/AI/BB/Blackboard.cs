@@ -157,7 +157,7 @@ public partial class Blackboard : Node, IBlackboard
             return ParentBB.TryGet(key, out value);
         }
 
-        // 4. Key not found anywhere
+        // 4. Key isn't found anywhere
         return false;
     }
     /// <summary>

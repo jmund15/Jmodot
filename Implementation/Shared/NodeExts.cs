@@ -251,7 +251,7 @@ public static class NodeExts
         return childArray;
     }
 
-    public static List<T> GetChildrenOfInterface<T>(this Node root, bool includeSubChildren = true) where T : class
+    public static IEnumerable<T> GetChildrenOfInterface<T>(this Node root, bool includeSubChildren = true) where T : class
     {
         var childArray = new List<T>();
         if (!includeSubChildren)
@@ -340,7 +340,7 @@ public static class NodeExts
         //includeSubChildren ? currentScene.GetAllNodesOfType<T>() : currentScene.GetChildrenOfType<T>();
     }
 
-    public static List<T> GetAllNodesOfInterfaceInScene<T>(bool includeSubChildren = true) where T : class
+    public static IEnumerable<T> GetAllNodesOfInterfaceInScene<T>(bool includeSubChildren = true) where T : class
     {
         var currentScene = (Engine.GetMainLoop() as SceneTree)?.CurrentScene;
         return currentScene == null ? new List<T>() : currentScene.GetChildrenOfInterface<T>(includeSubChildren);
