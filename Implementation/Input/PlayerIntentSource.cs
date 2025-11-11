@@ -24,7 +24,22 @@ public partial class PlayerIntentSource : IntentSourceNode
     private GCol.Array<ActionBinding> _actionBindings = new();
 
     [Export] private GCol.Array<VectorActionBinding> _vectorBindings = new();
+    [Export] private InputMappingProfile _inputProfile = null!;
     [Export] public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// This is the public method for configuring the input source on-the-fly.
+    /// </summary>
+    public void ApplyMappingProfile(InputMappingProfile profile)
+    {
+        if (profile == null)
+        {
+            GD.PrintErr("Attempted to apply a null InputMappingProfile.");
+            return;
+        }
+        _actionBindings = profile.ActionBindings;
+        _vectorBindings = profile.VectorBindings;
+    }
 
     public override void _Ready()
     {

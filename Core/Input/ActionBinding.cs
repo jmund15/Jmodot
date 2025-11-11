@@ -4,13 +4,13 @@ namespace Jmodot.Core.Input;
 [GlobalClass]
 public partial class ActionBinding : Resource
 {
-    [Export] public InputAction Action { get; private set; } = null!;
+    [Export] public InputAction Action { get; set; } = null!;
 
     /// <summary>
     ///     The name of the action as defined in Godot's InputMap.
     /// </summary>
     [Export]
-    public string GodotActionName { get; private set; } = "";
+    public string GodotActionName { get; set; } = "";
 
-    [Export] public InputActionPollType PollType { get; private set; } = InputActionPollType.JustPressed;
+    [Export] public InputActionPollType PollType { get; set; } = InputActionPollType.JustPressed;
 }
