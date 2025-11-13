@@ -1,6 +1,6 @@
 namespace Jmodot.Core.Input;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VectorActionBinding : Resource
 {
     [Export] public InputAction Action { get; set; } = null!;

@@ -1,7 +1,7 @@
 namespace Jmodot.Core.Input;
 
 /// <summary>Defines the link between an abstract action and a Godot InputMap string.</summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ActionBinding : Resource
 {
     [Export] public InputAction Action { get; set; } = null!;
