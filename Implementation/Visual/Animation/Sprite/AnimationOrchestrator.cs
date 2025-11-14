@@ -5,6 +5,7 @@ using Godot;
 using Godot.Collections;
 using System.Linq;
 using Jmodot.Core.Visual.Animation.Sprite;
+using Shared;
 
 /// <summary>
 /// The central controller for the sprite animation system. It takes a base animation name
@@ -93,6 +94,10 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             .OrderBy(s => s.Order)
             .Select(s => s.GetAnimVariant());
 
+
+        // JmoLogger.Info(this, $"variants found for full animation name: {variants.Count()}" +
+        //                      $"\nFIRST VARIANT: '{variants.First()}'");
+
         return NamingConvention.GetFullAnimationName(_baseAnimName, variants);
     }
 
@@ -146,7 +151,14 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
     public bool HasAnimation(StringName animName)
     {
-        var fullAnimName = BuildFinalAnimationName();
+        // Use the provided animName as the base
+        if (NamingConvention == null) return false;
+
+        var variants = VariantSources
+            .OrderBy(s => s.Order)
+            .Select(s => s.GetAnimVariant());
+
+        var fullAnimName = NamingConvention.GetFullAnimationName(animName, variants);
         return _targetAnimator.HasAnimation(fullAnimName);
     }
 
