@@ -17,10 +17,31 @@ public interface IAnimComponent : IGodotNodeInterface
     void StartAnim(StringName animName);
     void PauseAnim();
     void StopAnim();
+    /// <summary>
+    /// Switch animation, attempting to preserve relative progress if applicable.
+    /// </summary>
     void UpdateAnim(StringName animName);
     bool IsPlaying();
     bool HasAnimation(StringName animName);
     StringName GetCurrAnimation();
     float GetSpeedScale();
     void SetSpeedScale(float speedScale);
+
+    /// <summary>
+    /// Seeks to a specific time in seconds.
+    /// For AnimatedSprite, this maps to: Frame = Time * FPS.
+    /// </summary>
+    void SeekPos(float time, bool updateNow = true);
+
+    /// <summary>
+    /// Returns total duration in seconds.
+    /// For AnimatedSprite: FrameCount / FPS.
+    /// </summary>
+    float GetCurrAnimationLength();
+
+    /// <summary>
+    /// Returns current progress in seconds.
+    /// For AnimatedSprite: CurrentFrame / FPS.
+    /// </summary>
+    float GetCurrAnimationPosition();
 }

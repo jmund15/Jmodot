@@ -46,15 +46,22 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
 
     public void UpdateAnim(StringName animName)
     {
-        // If the requested animation is already playing, do nothing.
-        if (this.Animation == animName) return;
+        if (this.Animation == animName) { return; }
+        if (SpriteFrames == null) { return; }
 
-        if (this.SpriteFrames.HasAnimation(animName))
+        if (SpriteFrames.HasAnimation(animName))
         {
-            // Preserve the frame index to maintain visual continuity when switching animations.
+            // Preserve the frame index to maintain visual continuity.
+            // We clamp the frame to ensure we don't exceed the new animation's frame count.
             var currentFrame = this.Frame;
+            var newFrameCount = SpriteFrames.GetFrameCount(animName);
+
             this.Play(animName);
-            this.Frame = currentFrame;
+
+            if (newFrameCount > 0)
+            {
+                this.Frame = Mathf.Min(currentFrame, newFrameCount - 1);
+            }
         }
         else
         {
@@ -69,6 +76,44 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
     public StringName GetCurrAnimation() => this.Animation;
     public float GetSpeedScale() => this.SpeedScale;
     public void SetSpeedScale(float speedScale) => this.SpeedScale = speedScale;
+
+    // --- Time-Based Synchronization (Frame <-> Time Mapping) ---
+    public void SeekPos(float time, bool updateNow = true)
+    {
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return;
+
+        float fps = (float)SpriteFrames.GetAnimationSpeed(Animation);
+        if (fps <= 0) return;
+
+        // Convert Time (seconds) -> Frame Index
+        int targetFrame = Mathf.FloorToInt(time * fps);
+        int maxFrame = SpriteFrames.GetFrameCount(Animation) - 1;
+
+        // Clamp to ensure we don't crash or loop unexpectedly during a seek
+        this.Frame = Mathf.Clamp(targetFrame, 0, maxFrame);
+    }
+
+    public float GetCurrAnimationLength()
+    {
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return 0f;
+
+        float fps = (float)SpriteFrames.GetAnimationSpeed(Animation);
+        if (fps <= 0) return 0f;
+
+        // Length = Total Frames / FPS
+        return SpriteFrames.GetFrameCount(Animation) / fps;
+    }
+
+    public float GetCurrAnimationPosition()
+    {
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return 0f;
+
+        float fps = (float)SpriteFrames.GetAnimationSpeed(Animation);
+        if (fps <= 0) return 0f;
+
+        // Position = Current Frame / FPS
+        return this.Frame / fps;
+    }
 
     // --- ISpriteComponent Implementation ---
 

@@ -4,18 +4,11 @@ using Godot.Collections;
 
 namespace Jmodot.Core.Combat;
 
-
 /// <summary>
-/// A generic data packet representing a single effect to be applied.
+/// Base class for all data-driven combate logic (Damage, Stun, Knockback).
 /// </summary>
-public class CombatEffect
+[GlobalClass]
+public abstract partial class CombatEffect : Resource
 {
-    public CombatEffectType Type { get; }
-    public Variant Value { get; }
-
-    public CombatEffect(CombatEffectType type, Variant value)
-    {
-        Type = type;
-        Value = value;
-    }
+    public abstract void Apply(ICombatant target, HitContext context);
 }

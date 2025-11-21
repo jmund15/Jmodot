@@ -7,10 +7,12 @@ using Core.Combat;
 public class AnnotatedAttackPayload : IAttackPayload
 {
     public Node Attacker { get; }
+    public Node Source { get; }
     public System.Collections.Generic.IReadOnlyList<CombatEffect> Effects { get; }
-    public AnnotatedAttackPayload(Node attacker, List<CombatEffect> effects)
+    public AnnotatedAttackPayload(Node attacker, Node source, List<CombatEffect> effects)
     {
         Attacker = attacker;
+        Source = source;
         Effects = effects;
     }
 }

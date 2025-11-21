@@ -1,166 +1,211 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
+using Jmodot.Core.AI.BB;
 
 namespace Jmodot.Implementation.Combat;
 
-using Core.AI.BB;
-using Core.Combat;
+using AI.BB;
 
 /// <summary>
-/// A generic, reusable collision volume that detects interactions with HurtboxComponent3D nodes.
-/// This component's sole responsibility is to act as a "sensor" for an attack. It becomes
-/// active with a specific IAttackPayload and reports any valid hurtboxes it overlaps with.
-/// It handles multi-hit prevention to ensure one attack swing doesn't hit the same target multiple times.
-/// </summary>
-[GlobalClass]
-public partial class HitboxComponent3D : Area3D, IComponent
-{
-    #region Events
-
-    /// <summary>
-    /// Fired when this hitbox, while active, detects a valid HurtboxComponent3D.
-    /// This is the primary event that the Hurtbox listens to in order to initiate the
-    /// damage processing handshake.
+    /// A generic collision sensor that delivers attack payloads to Hurtboxes.
+    ///
+    /// Responsibilities:
+    /// - Detect Overlaps (AreaEntered).
+    /// - Debounce (Prevent multi-hits on the same frame/attack cycle).
+    /// - Deliver Payload (Call Hurtbox.ProcessHit).
+    ///
+    /// Modes:
+    /// - Standard: Hits target once per StartAttack().
+    /// - Continuous: Hits targets repeatedly based on TickInterval.
     /// </summary>
-    public event Action<HurtboxComponent3D, IAttackPayload> OnHurtboxDetected = delegate { };
-
-    /// <summary>
-    /// A cosmetic event fired when StartAttack() is called. Useful for triggering sounds or visuals.
-    /// </summary>
-    public event Action OnAttackStarted = delegate { };
-
-    /// <summary>
-    /// A cosmetic event fired when EndAttack() is called.
-    /// </summary>
-    public event Action OnAttackFinished = delegate { };
-
-    #endregion
-
-    #region Public Properties
-
-    public bool IsActive { get; private set; }
-    public IAttackPayload CurrentPayload { get; private set; }
-
-    #endregion
-
-    #region Private State
-
-    private readonly HashSet<HurtboxComponent3D> _hitHurtboxes = new();
-
-    #endregion
-
-    #region IComponent Implementation
-
-    public bool IsInitialized { get; private set; }
-
-    public bool Initialize(IBlackboard bb)
+    [GlobalClass]
+    public partial class HitboxComponent3D : Area3D, IComponent
     {
-        // This component is self-contained and doesn't require blackboard dependencies.
-        // We implement the interface for architectural consistency.
-        IsInitialized = true;
-        return true;
-    }
+        #region Events
+        /// <summary>
+        /// Fired when a hit is successfully validated and accepted by a hurtbox.
+        /// Useful for spawning Hit VFX (Sparks, Blood) at the hitbox location.
+        /// </summary>
+        public event Action<HurtboxComponent3D, IAttackPayload> OnHitRegistered = delegate { };
 
-    public void OnPostInitialize() { }
+        public event Action OnAttackStarted = delegate { };
+        public event Action OnAttackFinished = delegate { };
+        #endregion
 
-    public Node GetUnderlyingNode() => this;
+        #region Configuration
+        [ExportGroup("Hit Behavior")]
 
-    #endregion
+        /// <summary>
+        /// If true, targets remaining in the hitbox will be hit repeatedly.
+        /// </summary>
+        [Export]
+        public bool IsContinuous { get; set; } = false;
 
-    #region Godot Lifecycle
+        /// <summary>
+        /// Seconds between hits in Continuous mode. 0 = Every Physics Frame.
+        /// </summary>
+        [Export]
+        public float ContinuousTickInterval { get; set; } = 0.1f;
+        #endregion
 
-    public override void _Ready()
-    {
-        AreaEntered += OnAreaEntered;
-        // Hitboxes should always start inactive.
-        Monitoring = false;
-        Monitorable = false;
-    }
+        #region Public State
+        public bool IsActive { get; private set; }
+        public IAttackPayload CurrentPayload { get; private set; }
+        #endregion
 
-    #endregion
+        #region Private State
 
-    #region Public API
+        private HurtboxComponent3D? _selfHurtbox = null;
+        // Tracks targets hit during the current session/tick to prevent duplicates.
+        private readonly HashSet<HurtboxComponent3D> _hitHurtboxes = new();
+        private double _tickTimer = 0.0;
+        #endregion
 
-    /// <summary>
-    /// Activates the hitbox with a specific attack payload, making it "hot".
-    /// It clears the multi-hit tracking and immediately checks for any targets already inside it.
-    /// </summary>
-    public void StartAttack(IAttackPayload payload)
-    {
-        if (!IsInitialized) return;
+        #region IComponent Implementation
+        public bool IsInitialized { get; private set; }
 
-        CurrentPayload = payload;
-        IsActive = true;
-        _hitHurtboxes.Clear();
-
-        SetDeferred(PropertyName.Monitoring, true);
-        SetDeferred(PropertyName.Monitorable, true);
-
-        OnAttackStarted?.Invoke();
-
-        // **ROBUSTNESS**: Immediately check for any hurtboxes already inside the area.
-        // This handles lingering attacks (e.g., activating an aura) where OnAreaEntered would not fire.
-        ProcessOverlappingAreas();
-    }
-
-    /// <summary>
-    /// Deactivates the hitbox, making it "cold" and unable to detect hits.
-    /// </summary>
-    public void EndAttack()
-    {
-        if (!IsInitialized || !IsActive) return;
-
-        CurrentPayload = null;
-        IsActive = false;
-
-        SetDeferred(PropertyName.Monitoring, false);
-        SetDeferred(PropertyName.Monitorable, false);
-
-        OnAttackFinished?.Invoke();
-    }
-
-    #endregion
-
-    #region Core Logic
-
-    private void OnAreaEntered(Area3D area)
-    {
-        if (area is HurtboxComponent3D hurtbox)
+        public bool Initialize(IBlackboard bb)
         {
-            ProcessHit(hurtbox);
-        }
-    }
+            bb.TryGet(BBDataSig.HitboxComp, out _selfHurtbox);
 
-    private void ProcessOverlappingAreas()
-    {
-        foreach (var area in GetOverlappingAreas())
+            // Hitbox is generally autonomous, receiving data from its controller.
+            IsInitialized = true;
+            OnPostInitialize();
+            return true;
+        }
+
+        public void OnPostInitialize()
+        {
+            AreaEntered += OnAreaEntered;
+        }
+
+        public Node GetUnderlyingNode() => this;
+        #endregion
+
+        #region Godot Lifecycle
+        public override void _Ready()
+        {
+            // Start "Cold"
+            Monitoring = false;
+            Monitorable = false;
+            IsActive = false;
+            SetPhysicsProcess(false);
+        }
+
+        public override void _PhysicsProcess(double delta)
+        {
+            // Only runs if IsContinuous == true and StartAttack() was called.
+            if (!IsActive) { return; }
+
+            _tickTimer += delta;
+
+            if (_tickTimer >= ContinuousTickInterval)
+            {
+                _tickTimer = 0.0;
+
+                // Reset tracking to allow re-hitting targets inside the volume.
+                _hitHurtboxes.Clear();
+
+                // Manually scan for targets currently inside.
+                ProcessOverlappingAreas();
+            }
+        }
+        #endregion
+
+        #region Public API
+
+        public void StartAttack(IAttackPayload payload)
+        {
+            if (!IsInitialized) { return; }
+
+            CurrentPayload = payload;
+            IsActive = true;
+            _hitHurtboxes.Clear();
+            _tickTimer = 0.0;
+
+            // Activate Physics.
+            // SetDeferred ensures we don't crash if called during a physics callback.
+            SetDeferred(PropertyName.Monitoring, true);
+            SetDeferred(PropertyName.Monitorable, true);
+
+            OnAttackStarted?.Invoke();
+
+            // Attempt to hit anything already inside the volume.
+            // Note: If this node was previously Monitoring=False, GetOverlappingAreas
+            // might rely on the *next* physics frame to update.
+            ProcessOverlappingAreas();
+
+            if (IsContinuous)
+            {
+                SetPhysicsProcess(true);
+            }
+        }
+
+        public void EndAttack()
+        {
+            if (!IsInitialized || !IsActive) return;
+
+            CurrentPayload = null;
+            IsActive = false;
+            _hitHurtboxes.Clear();
+
+            SetDeferred(PropertyName.Monitoring, false);
+            SetDeferred(PropertyName.Monitorable, false);
+
+            if (IsContinuous)
+            {
+                SetPhysicsProcess(false);
+            }
+
+            OnAttackFinished?.Invoke();
+        }
+        #endregion
+
+        #region Core Logic
+
+        private void OnAreaEntered(Area3D area)
         {
             if (area is HurtboxComponent3D hurtbox)
             {
-                ProcessHit(hurtbox);
+                TryHitHurtbox(hurtbox);
             }
         }
+
+        private void ProcessOverlappingAreas()
+        {
+            // Check all currently overlapping areas.
+            // Essential for "Spawn on top" or "Beam" logic.
+            var areas = GetOverlappingAreas();
+            foreach (var area in areas)
+            {
+                if (area is HurtboxComponent3D hurtbox)
+                {
+                    TryHitHurtbox(hurtbox);
+                }
+            }
+        }
+
+        private void TryHitHurtbox(HurtboxComponent3D hurtbox)
+        {
+            if (!IsActive || CurrentPayload == null) { return; }
+
+            // 1. Self-Hit Prevention
+            if (hurtbox == _selfHurtbox) { return; }
+            //if (CurrentPayload.Attacker != null && hurtbox.Owner == CurrentPayload.Attacker) return;
+
+            // 2. Debounce / Multi-Hit Check
+            // If hurtbox is already in the set, we skip it.
+            if (!_hitHurtboxes.Add(hurtbox)) return;
+
+            // 3. The Handshake (Direct Method Call)
+            bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
+
+            if (wasAccepted)
+            {
+                OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
+            }
+        }
+        #endregion
     }
-
-    /// <summary>
-    /// The central validation logic for any potential hit.
-    /// </summary>
-    private void ProcessHit(HurtboxComponent3D hurtbox)
-    {
-        // 1. Check if the hitbox is active.
-        if (!IsActive) return;
-
-        // 2. Check if the hurtbox's owner is the same as the attacker to prevent self-damage.
-        if (CurrentPayload?.Attacker != null && hurtbox.Owner == CurrentPayload.Attacker) return;
-
-        // 3. CRITICAL: Check the HashSet to prevent multi-hitting. .Add() returns false if the item already exists.
-        if (!_hitHurtboxes.Add(hurtbox)) return;
-
-        // 4. If all checks pass, this is a valid, new hit. Broadcast the event.
-        OnHurtboxDetected?.Invoke(hurtbox, CurrentPayload);
-    }
-
-    #endregion
-}

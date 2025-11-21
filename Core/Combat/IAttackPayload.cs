@@ -1,11 +1,22 @@
+using System.Collections.Generic;
+
 namespace Jmodot.Core.Combat;
 
-
-/// <summary>
-/// The payload of an attack, containing the attacker's identity and a list of effects to apply.
-/// </summary>
 public interface IAttackPayload
 {
+    /// <summary>
+    /// The Entity responsible for the attack.
+    /// </summary>
     Node Attacker { get; }
-    System.Collections.Generic.IReadOnlyList<CombatEffect> Effects { get; }
+
+    /// <summary>
+    /// The specific object (Weapon/Projectile) representing the attack.
+    /// </summary>
+    Node Source { get; }
+
+    /// <summary>
+    /// The list of logic instructions (Damage, Stun, etc.) to apply.
+    /// </summary>
+    IReadOnlyList<CombatEffect> Effects { get; }
 }
+

@@ -1,179 +1,118 @@
 namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
 using System;
+using Core.Movement;
+using Core.Visual.Animation.Sprite;
 using Godot;
 using Godot.Collections;
-using System.Linq;
-using Jmodot.Core.Visual.Animation.Sprite;
 using Shared;
 
 /// <summary>
-/// The central controller for the sprite animation system. It takes a base animation name
-/// and combines it with variants from its collection of AnimVariantSource resources
-/// to construct and play the final animation on a target IAnimComponent.
+/// Coordinates the high-level animation state (e.g. "run_left").
+/// Combines a Base Name (State) with a Direction Suffix.
 /// </summary>
 [GlobalClass]
 public partial class AnimationOrchestrator : Node, IAnimComponent
 {
-    [Export] private Node _targetAnimatorNode;
-    [Export] public AnimationNamingConvention NamingConvention { get; set; }
+    [Export] private Node _targetAnimatorNode = null!;
+    [Export] public string DirectionSuffixSeparator { get; set; } = "_";
 
-    /// <summary>
-    /// The collection of AnimVariantSource resources that will contribute to the final animation name.
-    /// </summary>
-    [Export] public Array<AnimVariantSource> VariantSources { get; set; } = new();
+    // Helper resource to map Vector3 -> "left", "down_right", etc.
+    // If null, direction logic is skipped.
+    [Export] public DirectionSet3D DirectionSet { get; set; } = null!;
+    [Export] public Dictionary<Vector3, string> DirectionLabels { get; set; } = new();
 
-    private IAnimComponent _targetAnimator;
-    private StringName _baseAnimName = "";
+    private IAnimComponent _targetAnimator = null!;
+    private StringName _baseAnimName = "idle";
+    private string _currentDirectionLabel = "down";
+
+    public event Action<StringName> AnimStarted = delegate { };
+    public event Action<StringName> AnimFinished = delegate { };
 
     public override void _Ready()
     {
         _targetAnimator = _targetAnimatorNode as IAnimComponent;
         if (_targetAnimator == null)
         {
-            GD.PrintErr($"AnimationOrchestrator '{Name}': Target animator at '{_targetAnimatorNode}' is not a valid IAnimComponent.");
+            GD.PrintErr($"Orchestrator '{Name}': Target is not an IAnimComponent.");
             SetProcess(false);
+            return;
         }
-    }
 
-    // /// <summary>
-    // /// Plays an animation by combining the base name with all registered variants.
-    // /// This is the primary method your state machine or controller should call.
-    // /// </summary>
-    // public void Play(StringName baseAnimName)
-    // {
-    //     _baseAnimName = baseAnimName;
-    //     StringName finalAnimName = BuildFinalAnimationName();
-    //     if (_targetAnimator.GetCurrAnimation() != finalAnimName)
-    //     {
-    //          _targetAnimator.StartAnim(finalAnimName);
-    //     }
-    // }
-    //
-    /// <summary>
-    /// Updates the currently playing animation if the variants have changed,
-    /// while attempting to preserve the animation's progress.
-    /// </summary>
-    private void Update()
-    {
-        StringName finalAnimName = BuildFinalAnimationName();
-        _targetAnimator.UpdateAnim(finalAnimName);
+        // Forward events
+        _targetAnimator.AnimStarted += n => AnimStarted?.Invoke(n);
+        _targetAnimator.AnimFinished += n => AnimFinished?.Invoke(n);
     }
 
     /// <summary>
-    /// Provides a new direction to all registered DirectionalVariantSource resources.
+    /// Updates the direction. Triggers a smooth update to preserve animation time.
     /// </summary>
     public void SetDirection(Vector3 direction)
     {
-        foreach (var source in VariantSources.OfType<Directional3DVariantSource>())
+        if (DirectionSet == null || direction.IsZeroApprox())
         {
-            source.UpdateDirection(direction);
+            return;
         }
 
-        Update();
+        var closestDir = DirectionSet.GetClosestDirection(direction);
+        if (!DirectionLabels.TryGetValue(closestDir, out var newLabel))
+        {
+            JmoLogger.Error(this, $"Direction Set '{DirectionSet.ResourceName}' does not contain direction '{closestDir}");
+            return;
+        }
+
+        if (newLabel != _currentDirectionLabel)
+        {
+            _currentDirectionLabel = newLabel;
+            UpdateInternal(forceReset: false);
+        }
     }
 
     /// <summary>
-    /// Provides a new style to all registered StyleVariantSource resources.
+    /// Sets the base state (e.g., "run", "attack"). Triggers a hard reset of the animation.
     /// </summary>
-    public void SetStyle(StringName style)
+    public void StartAnim(StringName baseName)
     {
-        foreach (var source in VariantSources.OfType<StyleVariantSource>())
+        _baseAnimName = baseName;
+        UpdateInternal(forceReset: true);
+    }
+
+    private void UpdateInternal(bool forceReset)
+    {
+        var finalName = BuildFinalName();
+
+        if (forceReset)
         {
-            source.UpdateStyle(style);
+            _targetAnimator.StartAnim(finalName);
         }
-
-        Update();
-    }
-
-    private StringName BuildFinalAnimationName()
-    {
-        if (NamingConvention == null) { GD.PrintErr($"AnimationOrchestrator '{Name}' has no NamingConvention resource assigned."); return _baseAnimName; }
-
-        var variants = VariantSources
-            .OrderBy(s => s.Order)
-            .Select(s => s.GetAnimVariant());
-
-
-        // JmoLogger.Info(this, $"variants found for full animation name: {variants.Count()}" +
-        //                      $"\nFIRST VARIANT: '{variants.First()}'");
-
-        return NamingConvention.GetFullAnimationName(_baseAnimName, variants);
-    }
-
-    public Node GetUnderlyingNode()
-    {
-        return this;
-    }
-
-    public event Action<StringName>? AnimStarted
-    {
-        add => _targetAnimator.AnimStarted += value;
-        remove => _targetAnimator.AnimStarted -= value;
-    }
-
-    public event Action<StringName>? AnimFinished
-    {
-        add => _targetAnimator.AnimFinished += value;
-        remove => _targetAnimator.AnimFinished -= value;
-    }
-
-    public void StartAnim(StringName animName)
-    {
-        _baseAnimName = animName;
-        StringName finalAnimName = BuildFinalAnimationName();
-        if (_targetAnimator.GetCurrAnimation() != finalAnimName)
+        else
         {
-            _targetAnimator.StartAnim(finalAnimName);
+            // UpdateAnim maintains the current playback position (e.g. switching Run_Left to Run_Right)
+            _targetAnimator.UpdateAnim(finalName);
         }
     }
 
-    public void PauseAnim()
+    private StringName BuildFinalName()
     {
-        _targetAnimator.PauseAnim();
+        if (string.IsNullOrEmpty(_currentDirectionLabel) || DirectionSet == null)
+        {
+            return _baseAnimName;
+        }
+
+        return new StringName($"{_baseAnimName}{DirectionSuffixSeparator}{_currentDirectionLabel}");
     }
 
-    public void StopAnim()
-    {
-        _targetAnimator.StopAnim();
-    }
-
-    public void UpdateAnim(StringName animName)
-    {
-        StringName finalAnimName = BuildFinalAnimationName();
-        _targetAnimator.UpdateAnim(finalAnimName);
-    }
-
-    public bool IsPlaying()
-    {
-        return _targetAnimator.IsPlaying();
-    }
-
-    public bool HasAnimation(StringName animName)
-    {
-        // Use the provided animName as the base
-        if (NamingConvention == null) return false;
-
-        var variants = VariantSources
-            .OrderBy(s => s.Order)
-            .Select(s => s.GetAnimVariant());
-
-        var fullAnimName = NamingConvention.GetFullAnimationName(animName, variants);
-        return _targetAnimator.HasAnimation(fullAnimName);
-    }
-
-    public StringName GetCurrAnimation()
-    {
-        return _targetAnimator.GetCurrAnimation();
-    }
-
-    public float GetSpeedScale()
-    {
-        return _targetAnimator.GetSpeedScale();
-    }
-
-    public void SetSpeedScale(float speedScale)
-    {
-        _targetAnimator.SetSpeedScale(speedScale);
-    }
+    // --- IAnimComponent Pass-through ---
+    public void StopAnim() => _targetAnimator.StopAnim();
+    public void PauseAnim() => _targetAnimator.PauseAnim();
+    public void UpdateAnim(StringName name) => StartAnim(name);
+    public bool IsPlaying() => _targetAnimator.IsPlaying();
+    public bool HasAnimation(StringName name) => _targetAnimator.HasAnimation(name);
+    public void SeekPos(float time, bool updateNow = true) => _targetAnimator.SeekPos(time, updateNow);
+    public StringName GetCurrAnimation() => _targetAnimator.GetCurrAnimation();
+    public float GetCurrAnimationLength() => _targetAnimator.GetCurrAnimationLength();
+    public float GetCurrAnimationPosition() => _targetAnimator.GetCurrAnimationPosition();
+    public float GetSpeedScale() => _targetAnimator.GetSpeedScale();
+    public void SetSpeedScale(float speedScale) => _targetAnimator.SetSpeedScale(speedScale);
+    public Node GetUnderlyingNode() => this;
 }
