@@ -65,29 +65,36 @@ public partial class State : Node, IState
 
     protected Dictionary<State, bool> ParallelStates { get; private set; } = new();
 
-    public virtual void Init(Node agent, IBlackboard bb)
+    public void Init(Node agent, IBlackboard bb)
     {
         Agent = agent;
         BB = bb;
 
-        // --- IMPORTANT ---
+        // OLD
         // manually deep duplicate every transition (and therefore condition)
         // otherwise instantiated scenes will share the same resource, which will cripple transition logic
+        // transition.ResourceLocalToScene = true;
+        // foreach (var condition in transition.Conditions)
+        // {
+        //     condition.ResourceLocalToScene = true;
+        // }
+        //var dupedTransition = (StateTransition)transition.DuplicateDeep(Resource.DeepDuplicateMode.Internal); // TODO: ensure this is the correct duplicate mode! may need 'All'
+        // foreach (var condition in dupedTransition.Conditions.Where(c => c.IsValid()))
+        // {
+        //     condition.Init(agent, bb);
+        // }
+        // UniqueTransitions.Add(dupedTransition!);
+
+        // --- IMPORTANT ---
+        // Transitions are now stateless resources, so we don't need to duplicate them.
+        // We just add them to the UniqueTransitions list (or just use Transitions directly if UniqueTransitions is redundant).
+        // For now, let's populate UniqueTransitions to keep the rest of the code working.
         foreach (var transition in Transitions.Where(t => t.IsValid()))
         {
-            // transition.ResourceLocalToScene = true;
-            // foreach (var condition in transition.Conditions)
-            // {
-            //     condition.ResourceLocalToScene = true;
-            // }
-            var dupedTransition = (StateTransition)transition.DuplicateDeep(Resource.DeepDuplicateMode.Internal); // TODO: ensure this is the correct duplicate mode! may need 'All'
-
-            foreach (var condition in dupedTransition.Conditions.Where(c => c.IsValid()))
-            {
-                condition.Init(agent, bb);
-            }
-            UniqueTransitions.Add(dupedTransition!);
+            UniqueTransitions.Add(transition);
         }
+
+        OnInit();
 
         IsInitialized = true;
     }
@@ -105,7 +112,6 @@ public partial class State : Node, IState
             case InterruptibleChange.False:
                 BB.Set(BBDataSig.SelfInteruptible, false); break;
         }
-
         OnEnter();
     }
 
@@ -134,13 +140,19 @@ public partial class State : Node, IState
         OnProcessPhysics(delta);
     }
 
+    // DEPRECATED
+    // /// <summary>
+    // /// Template Method: Handles input. Do not override. Override OnHandleInput for custom logic.
+    // /// </summary>
+    // public void HandleInput(InputEvent @event)
+    // {
+    //     OnHandleInput(@event);
+    // }
+
     /// <summary>
-    /// Template Method: Handles input. Do not override. Override OnHandleInput for custom logic.
+    /// Hook for custom initialization logic. Called by Init().
     /// </summary>
-    public void HandleInput(InputEvent @event)
-    {
-        OnHandleInput(@event);
-    }
+    protected virtual void OnInit() { }
 
     /// <summary>
     /// Override to implement custom state entry logic.
@@ -170,12 +182,13 @@ public partial class State : Node, IState
     {
     }
 
-    /// <summary>
-    /// Override to implement custom input handling logic.
-    /// </summary>
-    protected virtual void OnHandleInput(InputEvent @event)
-    {
-    }
+    // DEPRECATED
+    // /// <summary>
+    // /// Override to implement custom input handling logic.
+    // /// </summary>
+    // protected virtual void OnHandleInput(InputEvent @event)
+    // {
+    // }
 
     /// <summary>
     /// Iterates through the exported transitions, resolves their NodePaths,
@@ -205,7 +218,7 @@ public partial class State : Node, IState
 
             bool allConditionsMet = transition.Conditions
                 .Where(c => c.IsValid())
-                .All(c => c.Check());
+                .All(c => c.Check(Agent, BB));
 
 
             if (allConditionsMet)

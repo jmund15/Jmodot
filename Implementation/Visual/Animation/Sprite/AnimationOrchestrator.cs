@@ -20,7 +20,19 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     // Helper resource to map Vector3 -> "left", "down_right", etc.
     // If null, direction logic is skipped.
     [Export] public DirectionSet3D DirectionSet { get; set; } = null!;
-    [Export] public Dictionary<Vector3, string> DirectionLabels { get; set; } = new();
+
+    [Export]
+    public Dictionary<Vector3, string> DirectionLabels { get; set; } = new()
+    {
+        { Vector3.Forward, "up" },
+        { Vector3.Back, "down" },
+        { Vector3.Right, "right" },
+        { Vector3.Left, "left" },
+        { new Vector3(1, 0, -1).Normalized(), "upRight" },
+        { new Vector3(-1, 0, -1).Normalized(), "upLeft" },
+        { new Vector3(1, 0, 1).Normalized(), "downRight" },
+        { new Vector3(-1, 0, 1).Normalized(), "downLeft" }
+    };
 
     private IAnimComponent _targetAnimator = null!;
     private StringName _baseAnimName = "idle";
@@ -49,7 +61,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     /// </summary>
     public void SetDirection(Vector3 direction)
     {
-        if (DirectionSet == null || direction.IsZeroApprox())
+        if (direction.IsZeroApprox())
         {
             return;
         }
@@ -63,6 +75,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
         if (newLabel != _currentDirectionLabel)
         {
+            GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
             _currentDirectionLabel = newLabel;
             UpdateInternal(forceReset: false);
         }

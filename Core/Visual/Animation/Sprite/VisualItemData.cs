@@ -25,7 +25,7 @@ public partial class VisualItemData : Resource
     [Export] public Texture2D? TextureOverride { get; set; }
 
     /// <summary>
-    /// Optional: Forces the Sprite2D to use a specific vertical row (Y).
+    /// Optional: Forces the Sprite to use a specific vertical row (Y).
     /// Use this for Sprite Sheets where Rows = Items and Columns = Animation Frames.
     /// Set to -1 to disable.
     /// NOTE: Your AnimationPlayer must ONLY key 'frame_coords:x', not the full vector.

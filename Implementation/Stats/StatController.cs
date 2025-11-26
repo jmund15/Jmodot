@@ -47,7 +47,7 @@ public partial class StatController : Node, IStatProvider
     ///     assigns the correct calculation strategies, and sets their base values.
     /// </summary>
     /// <param name="archetype">The data template used to define this entity's stats.</param>
-    public void InitializeFromArchetype(EntityStatSheet archetype)
+    public void InitializeFromStatSheet(EntityStatSheet archetype)
     {
         _archetype = archetype;
 
@@ -60,7 +60,12 @@ public partial class StatController : Node, IStatProvider
             // Look up the specific strategy assigned in the archetype for this attribute.
             archetype.UniversalAttributeStrategies.TryGetValue(attribute, out var specificStrategy);
 
-            _stats[attribute] = GetAttributeStrategy(attribute, baseValue, specificStrategy);
+            var prop = GetAttributeStrategy(attribute, baseValue, specificStrategy);
+            _stats[attribute] = prop;
+
+            // Subscribe to the property's internal change event so we can forward it
+            // to the central OnStatChanged event and any specific subscribers.
+            prop.OnValueChanged += (newValue) => NotifySubscribers(attribute, newValue);
         }
 
 
@@ -89,6 +94,44 @@ public partial class StatController : Node, IStatProvider
     /// <param name="attribute">The attribute whose value has changed.</param>
     /// <param name="newValue">The new final calculated value.</param>
     public event Action<Attribute, Variant> OnStatChanged = null!;
+
+    private readonly Dictionary<Attribute, Action<Variant>> _subscriptions = new();
+
+    public void Subscribe(Attribute attribute, Action<Variant> callback)
+    {
+        if (_subscriptions.ContainsKey(attribute))
+        {
+            _subscriptions[attribute] += callback;
+        }
+        else
+        {
+            _subscriptions[attribute] = callback;
+        }
+    }
+
+    public void Unsubscribe(Attribute attribute, Action<Variant> callback)
+    {
+        if (_subscriptions.ContainsKey(attribute))
+        {
+            _subscriptions[attribute] -= callback;
+            if (_subscriptions[attribute] == null)
+            {
+                _subscriptions.Remove(attribute);
+            }
+        }
+    }
+
+    private void NotifySubscribers(Attribute attribute, Variant newValue)
+    {
+        // 1. Invoke the global event (legacy support + global listeners)
+        OnStatChanged?.Invoke(attribute, newValue);
+
+        // 2. Invoke specific subscribers
+        if (_subscriptions.TryGetValue(attribute, out var callback))
+        {
+            callback?.Invoke(newValue);
+        }
+    }
 
     // --- Public API ---
 

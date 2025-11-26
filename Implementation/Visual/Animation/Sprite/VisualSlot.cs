@@ -1,6 +1,8 @@
 namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
 using Core.Visual.Animation.Sprite;
+using Godot;
+using Shared;
 
 /// <summary>
 /// Helper class representing a runtime slot.
@@ -24,7 +26,10 @@ public class VisualSlot
 
     public void Equip(VisualItemData item)
     {
-        if (CurrentItem == item) return;
+        if (CurrentItem == item)
+        {
+            return;
+        }
 
         // 1. Cleanup existing
         Unequip(force: false);
@@ -84,32 +89,70 @@ public class VisualSlot
 
     private void ApplyOverrides(Node instance, VisualItemData item)
     {
-        // Robustly find the sprite
-        var sprite = instance as Sprite2D
-                     ?? instance.GetNodeOrNull<Sprite2D>("Sprite")
-                     ?? instance.FindChild("*", true, false) as Sprite2D;
-
-        if (sprite != null)
+        // Robustly find the sprite (2D or 3D)
+        // Check 2D first
+        var sprite2D = instance as Sprite2D;
+        if (sprite2D != null || instance.TryGetFirstChildOfType<Sprite2D>(out sprite2D))
         {
-            // Texture Swap
-            if (item.TextureOverride != null)
-                sprite.Texture = item.TextureOverride;
-
-            // Sprite Sheet Row Selection
-            // We only set the Y coordinate. We preserve X so animations don't reset.
-            if (item.SpriteSheetRowOverride >= 0)
-            {
-                sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
-            }
-
-            // Tint
-            if (item.ModulateOverride != Colors.White)
-                sprite.Modulate = item.ModulateOverride;
+            ApplyOverrides2D(sprite2D!, item);
+            return;
         }
+
+        // Check 3D (SpriteBase3D covers both Sprite3D and AnimatedSprite3D)
+        var sprite3D = instance as Sprite3D;
+
+        if (sprite3D != null || instance.TryGetFirstChildOfType<Sprite3D>(out sprite3D))
+        {
+            ApplyOverrides2D(sprite2D!, item);
+        }
+    }
+
+    private void ApplyOverrides2D(Sprite2D sprite, VisualItemData item)
+    {
+        // Texture Swap
+        if (item.TextureOverride != null)
+            sprite.Texture = item.TextureOverride;
+
+        // Sprite Sheet Row Selection
+        // We only set the Y coordinate. We preserve X so animations don't reset.
+        if (item.SpriteSheetRowOverride >= 0)
+        {
+            sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
+        }
+
+        // Tint
+        if (item.ModulateOverride != Colors.White)
+            sprite.Modulate = item.ModulateOverride;
+    }
+
+    private void ApplyOverrides3D(Sprite3D sprite, VisualItemData item)
+    {
+        // Texture Swap
+        if (item.TextureOverride != null)
+            sprite.Texture = item.TextureOverride;
+
+        // Sprite Sheet Row Selection
+        if (item.SpriteSheetRowOverride >= 0)
+        {
+            sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
+        }
+
+        // Tint
+        if (item.ModulateOverride != Colors.White)
+            sprite.Modulate = item.ModulateOverride;
     }
 
     private IAnimComponent GetAnimComponent(Node node)
     {
-        return node as IAnimComponent ?? node.GetNodeOrNull<Node>("AnimationPlayerComponent") as IAnimComponent;
+        // 1. Check if the node itself is an IAnimComponent
+        if (node is IAnimComponent anim) return anim;
+
+        // 2. Use NodeExts to find the first child implementing the interface
+        if (node.TryGetFirstChildOfInterface<IAnimComponent>(out var childAnim))
+        {
+            return childAnim;
+        }
+
+        return null;
     }
 }

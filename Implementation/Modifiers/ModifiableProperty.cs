@@ -41,14 +41,27 @@ public class ModifiableProperty<T> : IModifiableProperty
     protected T _cachedValue;
     protected bool _isDirty = true;
 
+    public event Action<Variant> OnValueChanged = null!;
+
     public ModifiableProperty(T baseValue, ICalculationStrategy<T> calculationStrategy)
     {
-        BaseValue = baseValue;
+        _baseValue = baseValue;
         _cachedValue = baseValue;
         _calculationStrategy = calculationStrategy;
     }
 
-    public T BaseValue { get; set; }
+    private T _baseValue;
+    public T BaseValue
+    {
+        get => _baseValue;
+        set
+        {
+            if (EqualityComparer<T>.Default.Equals(_baseValue, value)) return;
+            _baseValue = value;
+            _isDirty = true;
+            CheckValueChanged();
+        }
+    }
     public virtual T Value => GetValue();
 
     /// <summary>
@@ -61,6 +74,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         var newEntry = new ModifierEntry(modifier, owner);
         _modifierEntries.Add(newEntry);
         _isDirty = true;
+        CheckValueChanged();
         return newEntry.Id;
     }
 
@@ -73,6 +87,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         if (removedCount > 0)
         {
             _isDirty = true;
+            CheckValueChanged();
         }
     }
 
@@ -86,6 +101,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         if (removedCount > 0)
         {
             _isDirty = true;
+            CheckValueChanged();
         }
     }
 
@@ -142,6 +158,25 @@ public class ModifiableProperty<T> : IModifiableProperty
                 m.RequiredContextTags.Any(collectedContextTags.Contains)).ToList();
 
         return postRequiredMods;
+    }
+
+    protected void CheckValueChanged()
+    {
+        // We need to calculate the new value to see if it actually changed.
+        // We can't just rely on _isDirty because adding a modifier might not change the final value
+        // (e.g. +0 damage, or a modifier that gets cancelled).
+        
+        // Save the old value
+        T oldValue = _cachedValue;
+        
+        // Force a recalculation
+        T newValue = GetValue();
+
+        // Compare
+        if (!EqualityComparer<T>.Default.Equals(oldValue, newValue))
+        {
+            OnValueChanged?.Invoke(Variant.From(newValue));
+        }
     }
 
     #region Interface Implementation

@@ -2,10 +2,9 @@
 
 ## High Level Instructions
 
+These are tough architectural questions for game design in Godot 4.5, so think through all use cases and scenarios thoroughly and deeply before coming to a conclusion. 
 Don't cave in immediately to worries or suggestions. Deeply dive into issues, and come to objective, best solutions & answers, based on facts and not just user input.
-Explain reasoning thoroughly. 
-These are tough architectural questions, so think through all use cases in scenarios before coming to a conclusion.
-Similarly, this is a LARGE library. Thoroughly analyze all possible references and possiblities before coming to a conclusion.
+When requested for full scripts, do NOT, EVER, skimp on output lines or comments due to a large amount of code. Treat each file as its own important piece with care.
 The core principles are code scalability, robustness, and intuitiveness.
 
 
@@ -134,3 +133,9 @@ Static String Keys: When you use a string-keyed dictionary, the key "Enemy" is s
 4. Extensibility for Other Systems
 Because the StringName approach decouples the blackboard, other systems can interact with it in ways an enum would prevent. For example, you could write a generic animation event system where an animator can type a string key into the animation track (e.g., "SetBlackboardVar"), and a value, and have it directly set a variable on an entity's blackboard without the animation system needing to know anything about BBDataSig.
 
+### HSM and Behavior Tree Design Principles
+
+#### State Transitions
+Hybrid Transitions: It is perfectly fine and recommended to use both EmitSignal and TransitionConditions depending on the situation.
+* EmitSignal: Use for Internal Logic Completion (e.g., "I finished my animation", "I am fully charged"). The State knows it's done.
+* TransitionConditions: Use for External Interrupts (e.g., "Player pressed Cancel", "Player took damage"). The State doesn't need to know about these; the transition system handles them.

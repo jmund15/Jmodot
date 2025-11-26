@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Core.AI.BB;
 using Core.AI.HSM;
 using Implementation.Shared;
 
@@ -17,7 +18,7 @@ public partial class BBFlagCondition : TransitionCondition
     [Export]
     public StringName BBFlagSignature { get; private set; } = null!;
 
-    public override bool Check()
+    public override bool Check(Node agent, IBlackboard bb)
     {
         if (string.IsNullOrEmpty(BBFlagSignature))
         {
@@ -26,13 +27,13 @@ public partial class BBFlagCondition : TransitionCondition
         }
 
         // Get the primitive variable from the blackboard.
-        var flag = BB.Get<bool>(BBFlagSignature);
+        var flag = bb.Get<bool>(BBFlagSignature);
 
         // Check if the flag exists and is true.
         if (flag != null && flag)
         {
             // The flag is set. Consume it immediately.
-            BB.Set(BBFlagSignature, false);
+            bb.Set(BBFlagSignature, false);
 
             // Allow the transition.
             return true;

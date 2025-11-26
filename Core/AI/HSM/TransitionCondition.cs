@@ -10,25 +10,12 @@ using BB;
 [GlobalClass, Tool]
 public abstract partial class TransitionCondition : Resource
 {
-    protected Node Agent { get; private set; } = null!;
-    protected IBlackboard BB { get; private set; } = null!;
-
-    /// <summary>
-    /// Initializes the condition with the agent and blackboard context.
-    /// </summary>
-    public void Init(Node agent, IBlackboard bb)
-    {
-        Agent = agent;
-        BB = bb;
-        OnInit();
-    }
-
-    protected virtual void OnInit() { }
-
     /// <summary>
     /// The core logic of the condition. Evaluates the condition and returns the result.
     /// This method should be fast and avoid side effects.
     /// </summary>
+    /// <param name="agent">The agent node.</param>
+    /// <param name="bb">The blackboard.</param>
     /// <returns>True if the transition is allowed, otherwise false.</returns>
-    public abstract bool Check();
+    public abstract bool Check(Node agent, IBlackboard bb);
 }

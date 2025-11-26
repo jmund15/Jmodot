@@ -6,8 +6,9 @@ namespace Jmodot.Core.Stats;
 ///     in dictionaries, replacing brittle enums or strings and allowing designers
 ///     to define new stats without changing code.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class Attribute : Resource
 {
     [Export] public string AttributeName { get; private set; } = "Unnamed Attribute";
+    public static Attribute CreateTestAttribute(string testName) => new() { AttributeName = testName };
 }

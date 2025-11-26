@@ -50,10 +50,8 @@ using Shared.GodotExceptions;
         [Signal]
         public delegate void TransitionedSubStateEventHandler(State oldState, State newState);
 
-        public override void Init(Node agent, IBlackboard bb)
+        protected override void OnInit()
         {
-            base.Init(agent, bb);
-
             if (_enableDebugView && !Engine.IsEditorHint())
             {
                 _debugComponent = new DebugSMComponent();
@@ -62,7 +60,7 @@ using Shared.GodotExceptions;
 
             foreach (var child in GetChildren().OfType<State>())
             {
-                child.Init(agent, bb);
+                child.Init(Agent, BB);
                 child.TransitionState += TransitionFiniteSubState;
                 child.AddParallelState += AddParallelSubState;
                 child.RemoveParallelState += RemoveParallelSubState;
@@ -133,15 +131,16 @@ using Shared.GodotExceptions;
             }
         }
 
-        protected override void OnHandleInput(InputEvent @event)
-        {
-            base.OnHandleInput(@event);
-            PrimarySubState?.HandleInput(@event);
-            foreach (var parallelState in ParallelSubStates.Where(ps => ps.Value))
-            {
-                parallelState.Key.HandleInput(@event);
-            }
-        }
+        // DEPRECATED
+        // protected override void OnHandleInput(InputEvent @event)
+        // {
+        //     base.OnHandleInput(@event);
+        //     PrimarySubState?.HandleInput(@event);
+        //     foreach (var parallelState in ParallelSubStates.Where(ps => ps.Value))
+        //     {
+        //         parallelState.Key.HandleInput(@event);
+        //     }
+        // }
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState)
         {

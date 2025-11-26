@@ -15,6 +15,12 @@ public interface IModifiableProperty
     Variant GetValueAsVariant();
 
     /// <summary>
+    /// Fired when the calculated value of this property changes.
+    /// The payload is the new value boxed in a Variant.
+    /// </summary>
+    event Action<Variant> OnValueChanged;
+
+    /// <summary>
     /// Adds a modifier from a generic Resource and a given owner.
     /// </summary>
     /// <returns>A unique Guid for this specific modifier application, or Guid.Empty on failure.</returns>

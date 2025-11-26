@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Core.AI.BB;
 using Core.AI.HSM;
 using Implementation.Shared;
 
@@ -15,12 +16,7 @@ public partial class BBBoolCondition : TransitionCondition
     /// </summary>
     [Export] public StringName BBSignature { get; private set; } = null!;
     [Export] public bool Value { get; private set; }
-    protected override void OnInit()
-    {
-        base.OnInit();
-    }
-
-    public override bool Check()
+    public override bool Check(Node agent, IBlackboard bb)
     {
         if (string.IsNullOrEmpty(BBSignature))
         {
@@ -29,7 +25,7 @@ public partial class BBBoolCondition : TransitionCondition
         }
 
         // Get the boolean variable from the blackboard.
-        var bbVal = BB.Get<bool>(BBSignature);
+        var bbVal = bb.Get<bool>(BBSignature);
 
         if (bbVal == null)
         {

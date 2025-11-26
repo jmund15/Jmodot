@@ -56,9 +56,10 @@ public interface IState
     /// <param name="delta">The time elapsed since the last physics frame.</param>
     void ProcessPhysics(float delta);
 
-    /// <summary>
-    /// Allows the state to process Godot input events.
-    /// </summary>
-    /// <param name="event">The input event to handle.</param>
-    void HandleInput(InputEvent @event);
+    // DEPRECATED
+    // /// <summary>
+    // /// Allows the state to process Godot input events.
+    // /// </summary>
+    // /// <param name="event">The input event to handle.</param>
+    // void HandleInput(InputEvent @event);
 }

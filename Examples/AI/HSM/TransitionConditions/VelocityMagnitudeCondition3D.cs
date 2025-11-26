@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Core.AI.BB;
 using Jmodot.Core.AI.HSM;
 using Jmodot.Core.Movement;
 using Jmodot.Implementation.AI.BB;
@@ -8,17 +9,12 @@ using Jmodot.Implementation.AI.BB;
 [GlobalClass]
 public partial class VelocityMagnitudeCondition3D : TransitionCondition
 {
-    private ICharacterController3D _charController = null!;
     [Export] private float _velocityThreshold;
     [Export] private NumericalConditionType _numericalCondition;
-    protected override void OnInit()
+    public override bool Check(Godot.Node agent, IBlackboard bb)
     {
-        _charController = BB.Get<ICharacterController3D>(BBDataSig.CharacterController)!;
-    }
-
-    public override bool Check()
-    {
-        var velocity = _charController.Velocity;
+        var charController = bb.Get<ICharacterController3D>(BBDataSig.CharacterController)!;
+        var velocity = charController.Velocity;
         return _numericalCondition.CalculateFloatCondition(velocity.Length(), _velocityThreshold);
     }
 }

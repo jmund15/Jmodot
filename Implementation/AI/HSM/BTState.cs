@@ -30,15 +30,14 @@ using Shared.GodotExceptions;
 
         private BehaviorTree _tree;
 
-        public override void Init(Node agent, IBlackboard bb)
+        protected override void OnInit()
         {
-            base.Init(agent, bb);
             if (!this.TryGetFirstChildOfType<BehaviorTree>(out _tree, false))
             {
                 throw new NodeConfigurationException($"BTState '{Name}' requires a child node of type BehaviorTree.", this);
             }
 
-            _tree.Init(agent, bb);
+            _tree.Init(Agent, BB);
             _tree.TreeFinishedLoop += OnTreeFinishLoop;
         }
 

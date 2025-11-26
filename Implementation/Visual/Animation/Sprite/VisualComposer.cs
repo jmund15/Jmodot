@@ -36,7 +36,9 @@ public partial class VisualComposer : Node
             // Equip Default
             if (config.DefaultItem != null)
             {
+                GD.Print($"VisualComposer: Equiping default item '{config.DefaultItem.Id}' into slot '{config.SlotName}'.");
                 slot.Equip(config.DefaultItem);
+                GD.Print($"VisualComposer: Equiped default item '{config.DefaultItem.Id}' into slot '{config.SlotName}'.");
             }
         }
     }
@@ -61,7 +63,7 @@ public partial class VisualComposer : Node
         }
     }
 
-    public VisualItemData GetEquippedItem(string slotName)
+    public VisualItemData? GetEquippedItem(string slotName)
     {
         return _slots.TryGetValue(slotName, out var slot) ? slot.CurrentItem : null;
     }

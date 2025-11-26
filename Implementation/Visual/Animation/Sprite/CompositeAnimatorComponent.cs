@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 using Core.Visual.Animation.Sprite;
+using Shared;
 
 /// <summary>
 /// Acts as a single Animator but broadcasts commands to a dynamic list of children.
@@ -13,6 +14,18 @@ using Core.Visual.Animation.Sprite;
 [GlobalClass]
 public partial class CompositeAnimatorComponent : Node, IAnimComponent
 {
+    /// <summary>
+    /// If true, automatically finds and registers all IAnimComponent children on _Ready.
+    /// Useful for simple "Plug and Play" setups (e.g. Snowball) without a VisualComposer.
+    /// </summary>
+    [Export] public bool AutoFindChildren { get; set; } = false;
+
+    /// <summary>
+    /// Optional: Manually assign the Master Animator (Time Source) in the editor.
+    /// If set, this animator will dictate the duration/seek of the composite.
+    /// </summary>
+    [Export] public Node MasterAnimatorNode { get; set; }
+
     private readonly List<IAnimComponent> _activeAnimators = new();
     private IAnimComponent _masterAnimator; // The time source (e.g. Body)
 
@@ -22,6 +35,39 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     public event Action<StringName> AnimStarted;
     public event Action<StringName> AnimFinished;
 
+    public override void _Ready()
+    {
+        // 1. Register Manual Master
+        if (MasterAnimatorNode != null)
+        {
+            if (MasterAnimatorNode is IAnimComponent masterAnim)
+            {
+                RegisterAnimator(masterAnim, isMaster: true);
+            }
+            else
+            {
+                JmoLogger.Error(this, $"Assigned MasterAnimatorNode '{MasterAnimatorNode.Name}' is not an IAnimComponent.");
+            }
+        }
+
+        // 2. Auto-Discovery
+        if (AutoFindChildren)
+        {
+            // Use NodeExts to find all children implementing IAnimComponent
+            var children = this.GetChildrenOfInterface<IAnimComponent>(includeSubChildren: true);
+            foreach (var child in children)
+            {
+                // Don't register self if we somehow found ourselves (unlikely with GetChildren, but safe)
+                if (ReferenceEquals(child, this)) continue;
+
+                // Don't re-register the master we just added
+                if (_activeAnimators.Contains(child)) continue;
+
+                RegisterAnimator(child, isMaster: false);
+            }
+        }
+    }
+
     /// <summary>
     /// Adds an animator to the composite.
     /// </summary>
@@ -29,7 +75,13 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// <param name="isMaster">If true, this animator dictates timing (duration/seek).</param>
     public void RegisterAnimator(IAnimComponent animator, bool isMaster = false)
     {
-        if (_activeAnimators.Contains(animator)) return;
+        if (_activeAnimators.Contains(animator))
+        {
+            // If re-registering as master, update status
+            if (isMaster) SetMaster(animator);
+            return;
+        }
+
         _activeAnimators.Add(animator);
 
         if (isMaster || _masterAnimator == null)
