@@ -114,6 +114,10 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         // Position = Current Frame / FPS
         return this.Frame / fps;
     }
+    public string[] GetAnimationList()
+    {
+        return SpriteFrames.GetAnimationNames();
+    }
 
     // --- ISpriteComponent Implementation ---
 

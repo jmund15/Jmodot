@@ -10,6 +10,14 @@ using System;
 public interface IModifiableProperty
 {
     /// <summary>
+    /// Creates a Copy of the Property.
+    /// Implementations will likely copy oover modifiers shallowly
+    /// (i.e. not creating direct copies of the GUIDs of the mods or the mods themselves)
+    /// </summary>
+    /// <returns></returns>
+    IModifiableProperty Clone();
+
+    /// <summary>
     /// Gets the final, calculated value of the property, boxed into a Variant.
     /// </summary>
     Variant GetValueAsVariant();

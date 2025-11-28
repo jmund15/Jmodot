@@ -27,4 +27,6 @@ public partial class StateTransition : Resource
     /// </summary>
     [Export]
     public Array<TransitionCondition> Conditions { get; private set; } = new();
+
+    [Export] public bool CanPropagateUp { get; private set; } = false;
 }

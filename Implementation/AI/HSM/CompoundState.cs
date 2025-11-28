@@ -142,11 +142,18 @@ using Shared.GodotExceptions;
         //     }
         // }
 
-        public virtual void TransitionFiniteSubState(State oldSubState, State newSubState)
+        public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool canPropagateUp = false)
         {
+            GD.Print($"Attempting to transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
             if (!newSubState.IsValid())
             {
                 JmoLogger.Error(this, $"Attempted to transition from '{oldSubState.Name}' to a null or invalid state.");
+                return;
+            }
+
+            if (canPropagateUp && !FiniteSubStates.ContainsKey(newSubState))
+            {
+                EmitSignal(SignalName.TransitionState, this, newSubState, true);
                 return;
             }
 

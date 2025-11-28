@@ -44,4 +44,10 @@ public interface IAnimComponent : IGodotNodeInterface
     /// For AnimatedSprite: CurrentFrame / FPS.
     /// </summary>
     float GetCurrAnimationPosition();
+
+    /// <summary>
+    /// Returns a list of all valid animation names this component supports.
+    /// Used for editor tools and validation.
+    /// </summary>
+    string[] GetAnimationList();
 }

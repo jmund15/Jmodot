@@ -18,7 +18,7 @@ using Shared;
 public partial class State : Node, IState
 {
     [Signal]
-    public delegate void TransitionStateEventHandler(State oldState, State newState);
+    public delegate void TransitionStateEventHandler(State oldState, State newState, bool canPropagateUp = false);
 
     [Signal]
     public delegate void AddParallelStateEventHandler(State parallelState);
@@ -232,7 +232,7 @@ public partial class State : Node, IState
                     continue; // Try the next transition
                 }
 
-                EmitSignal(SignalName.TransitionState, this, targetState);
+                EmitSignal(SignalName.TransitionState, this, targetState, transition.CanPropagateUp);
                 return; // Stop after the first valid transition is found.
             }
         }

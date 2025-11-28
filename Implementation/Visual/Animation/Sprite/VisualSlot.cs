@@ -24,7 +24,7 @@ public class VisualSlot
         _slotRoot = slotRoot;
     }
 
-    public void Equip(VisualItemData item)
+    public void Equip(VisualItemData? item)
     {
         if (CurrentItem == item)
         {
@@ -32,9 +32,16 @@ public class VisualSlot
         }
 
         // 1. Cleanup existing
-        Unequip(force: false);
+        // If we are providing a new item (item != null), we force the unequip.
+        // This prevents Unequip() from triggering its "Mandatory Slot" logic
+        // which recursively calls Equip() again.
+        bool isReplacing = (item != null);
+        Unequip(force: isReplacing);
 
-        if (item == null) return; // Unequip complete
+        if (item == null)
+        {
+            return; // Unequip complete
+        }
 
         CurrentItem = item;
 
@@ -50,6 +57,7 @@ public class VisualSlot
             // 4. Register with Composite
             // We look for an IAnimComponent on the root or children
             var anim = GetAnimComponent(_currentInstance);
+            GD.Print($"VisualSlot: Item '{item.Id}' found anim component: {anim}.");
             if (anim != null)
             {
                 _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
@@ -78,7 +86,10 @@ public class VisualSlot
         if (_currentInstance != null)
         {
             var anim = GetAnimComponent(_currentInstance);
-            if (anim != null) _composite?.UnregisterAnimator(anim);
+            if (anim != null)
+            {
+                _composite?.UnregisterAnimator(anim);
+            }
 
             _currentInstance.QueueFree();
             _currentInstance = null;
@@ -103,7 +114,7 @@ public class VisualSlot
 
         if (sprite3D != null || instance.TryGetFirstChildOfType<Sprite3D>(out sprite3D))
         {
-            ApplyOverrides2D(sprite2D!, item);
+            ApplyOverrides3D(sprite3D!, item);
         }
     }
 

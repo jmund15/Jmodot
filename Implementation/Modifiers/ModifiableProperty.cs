@@ -165,10 +165,10 @@ public class ModifiableProperty<T> : IModifiableProperty
         // We need to calculate the new value to see if it actually changed.
         // We can't just rely on _isDirty because adding a modifier might not change the final value
         // (e.g. +0 damage, or a modifier that gets cancelled).
-        
+
         // Save the old value
         T oldValue = _cachedValue;
-        
+
         // Force a recalculation
         T newValue = GetValue();
 
@@ -180,6 +180,33 @@ public class ModifiableProperty<T> : IModifiableProperty
     }
 
     #region Interface Implementation
+    /// <summary>
+    /// Creates a deep copy of this property's state.
+    /// It preserves the BaseValue, Strategy, and exact Modifier IDs.
+    /// </summary>
+    public IModifiableProperty Clone()
+    {
+        // 1. Create the new instance with the same BaseValue and Strategy
+        // Note: Strategies are typically stateless logic classes, so sharing the reference is correct.
+        var clone = new ModifiableProperty<T>(this._baseValue, this._calculationStrategy);
+
+        // 2. Deep Copy Modifiers (Preserving IDs)
+        // We access the private '_modifierEntries' of the clone directly.
+        // Since ModifierEntry is a struct, adding it creates a copy of the data (ID, Owner ref, Modifier ref).
+        // Preserving the Guid is critical so that cloned ModifierHandles remain valid.
+        foreach (var entry in this._modifierEntries)
+        {
+            clone._modifierEntries.Add(entry);
+        }
+
+        // 3. Copy Optimization State
+        // We copy the cache state so the clone doesn't need to recalculate immediately
+        // if the original was already clean.
+        clone._cachedValue = this._cachedValue;
+        clone._isDirty = this._isDirty;
+
+        return clone;
+    }
     public Variant GetValueAsVariant()
     {
         return Variant.From(Value);

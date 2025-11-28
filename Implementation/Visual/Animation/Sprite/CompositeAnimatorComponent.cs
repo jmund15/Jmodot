@@ -34,6 +34,10 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     public event Action<StringName> AnimStarted;
     public event Action<StringName> AnimFinished;
+    public override void _PhysicsProcess(double delta)
+    {
+        base._PhysicsProcess(delta);
+    }
 
     public override void _Ready()
     {
@@ -75,10 +79,20 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// <param name="isMaster">If true, this animator dictates timing (duration/seek).</param>
     public void RegisterAnimator(IAnimComponent animator, bool isMaster = false)
     {
+        GD.Print($"Registering {((Node)animator).Name} to {this.Name}.\nIsMaster = {isMaster}");
+        // Prevent self-registration which causes infinite recursion loops
+        if (ReferenceEquals(animator, this))
+        {
+            return;
+        }
+
         if (_activeAnimators.Contains(animator))
         {
             // If re-registering as master, update status
-            if (isMaster) SetMaster(animator);
+            if (isMaster)
+            {
+                SetMaster(animator);
+            }
             return;
         }
 
@@ -87,6 +101,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         if (isMaster || _masterAnimator == null)
         {
             SetMaster(animator);
+            //GD.Print($"Set new anim {((Node)animator).Name} as master");
         }
 
         // Apply current state to new child
@@ -118,7 +133,10 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     private void SetMaster(IAnimComponent newMaster)
     {
-        if (_masterAnimator != null) UnhookMaster(_masterAnimator);
+        if (_masterAnimator != null)
+        {
+            UnhookMaster(_masterAnimator);
+        }
         _masterAnimator = newMaster;
         HookMaster(_masterAnimator);
     }
@@ -221,4 +239,5 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     public float GetCurrAnimationLength() => _masterAnimator?.GetCurrAnimationLength() ?? 0f;
     public float GetCurrAnimationPosition() => _masterAnimator?.GetCurrAnimationPosition() ?? 0f;
     public void SeekPos(float time, bool update = true) => _activeAnimators.ForEach(a => a.SeekPos(time, update));
+    public string[] GetAnimationList() => _masterAnimator?.GetAnimationList() ?? [];
 }

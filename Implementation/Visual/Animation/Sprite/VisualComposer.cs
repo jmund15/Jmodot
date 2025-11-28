@@ -36,7 +36,6 @@ public partial class VisualComposer : Node
             // Equip Default
             if (config.DefaultItem != null)
             {
-                GD.Print($"VisualComposer: Equiping default item '{config.DefaultItem.Id}' into slot '{config.SlotName}'.");
                 slot.Equip(config.DefaultItem);
                 GD.Print($"VisualComposer: Equiped default item '{config.DefaultItem.Id}' into slot '{config.SlotName}'.");
             }

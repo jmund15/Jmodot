@@ -4,6 +4,7 @@ using Godot;
 using System;
 using Core.Visual.Animation.Sprite;
 
+[Tool]
 [GlobalClass]
 public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
 {

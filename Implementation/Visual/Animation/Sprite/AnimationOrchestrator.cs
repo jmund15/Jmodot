@@ -94,7 +94,8 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     {
         var finalName = BuildFinalName();
 
-        if (forceReset)
+        GD.Print($"Anim Orch playing anim '{finalName}'");
+        if (forceReset || !IsPlaying())
         {
             _targetAnimator.StartAnim(finalName);
         }
@@ -127,5 +128,6 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     public float GetCurrAnimationPosition() => _targetAnimator.GetCurrAnimationPosition();
     public float GetSpeedScale() => _targetAnimator.GetSpeedScale();
     public void SetSpeedScale(float speedScale) => _targetAnimator.SetSpeedScale(speedScale);
+    public string[] GetAnimationList() => _targetAnimator.GetAnimationList();
     public Node GetUnderlyingNode() => this;
 }

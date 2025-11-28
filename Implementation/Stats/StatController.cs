@@ -2,6 +2,7 @@ namespace Jmodot.Core.Stats;
 
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Implementation.Modifiers.CalculationStrategies;
 using Implementation.Registry;
 using Implementation.Shared;
@@ -11,6 +12,7 @@ using Modifiers;
 using Modifiers.CalculationStrategies;
 using Jmodot.Implementation.Modifiers;
 using PushinPotions.Global;
+using Shared;
 
 /// <summary>
 ///     The definitive runtime "character sheet" and single source of truth for all of an entity's
@@ -20,7 +22,7 @@ using PushinPotions.Global;
 ///     needing to query or modify character data.
 /// </summary>
 [GlobalClass]
-public partial class StatController : Node, IStatProvider
+public partial class StatController : Node, IStatProvider, IRuntimeCopyable<StatController>
 {
     /// <summary>
     ///     Stores all universal stats that apply to the entity regardless of its state.
@@ -194,6 +196,17 @@ public partial class StatController : Node, IStatProvider
         return defaultValue;
     }
 
+    public void LogAllStatValues()
+    {
+        StringBuilder sb = new();
+        sb.AppendLine("Stats:");
+        foreach (var (attr, value) in _stats)
+        {
+            sb.AppendLine($"\tattr: {attr.AttributeName}, value: {value.GetValueAsVariant()}");
+        }
+        JmoLogger.Info(this, sb.ToString());
+    }
+
     public T GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData
     {
         if (_mechanicLibrary.TryGetValue(mechanicType, out var data))
@@ -364,6 +377,71 @@ public partial class StatController : Node, IStatProvider
             default:
                 throw JmoLogger.LogAndRethrow(new InvalidCastException($"StatController: No handler for attribute '{attribute.AttributeName}' of type '{baseValue.VariantType}'."),
                     this);
+        }
+    }
+
+    /// <summary>
+    /// Performs a deep copy of the runtime state from the original controller.
+    /// This includes current stat values, active modifiers, mechanic data, and active contexts.
+    /// External subscriptions (Listeners) are NOT copied.
+    /// </summary>
+    public void CopyStateFrom(StatController original)
+    {
+        // 1. Copy Configuration
+        _archetype = original._archetype; // StatSheet is a Resource (Shared)
+
+        // 2. Clear current state to ensure a clean slate
+        _stats.Clear();
+        _mechanicLibrary.Clear();
+        _activeContexts.Clear();
+        // Note: We do NOT clear _subscriptions here, as this instance might be new
+        // and already have its own listeners attached via _Ready().
+
+        // 3. Deep Copy Stats
+        foreach (var kvp in original._stats)
+        {
+            Attribute attribute = kvp.Key;
+            IModifiableProperty originalProp = kvp.Value;
+
+            // Clone the property to copy its BaseValue, Strategy, and current Modifiers.
+            IModifiableProperty newProp = originalProp.Clone();
+
+            // CRITICAL: Re-wire the internal event listener.
+            // The cloned property doesn't know about this new StatController.
+            newProp.OnValueChanged += (newValue) => NotifySubscribers(attribute, newValue);
+
+            _stats[attribute] = newProp;
+        }
+
+        // 4. Deep Copy Mechanics
+        foreach (var kvp in original._mechanicLibrary)
+        {
+            MechanicType type = kvp.Key;
+            MechanicData originalData = kvp.Value;
+
+            // Duplicate the Resource with sub-resources (true) to ensure
+            // runtime changes to the mechanic (e.g., Cooldowns, Ammo) are unique to this clone.
+            if (originalData.Duplicate(true) is MechanicData newData)
+            {
+                _mechanicLibrary[type] = newData;
+            }
+        }
+
+        // 5. Copy Active Contexts
+        // Contexts act as tags/flags, so shallow copying the list is sufficient
+        // (Assuming StatContext is a shared Resource)
+        foreach (var context in original._activeContexts)
+        {
+            _activeContexts.Add(context);
+        }
+
+        // 6. Notify Initial State
+        // Let any listeners attached to *this* controller know the values have been updated.
+        // NOTE: we have no way to know all the subscribers to the original controller, so we can't connect them here
+        // Normally this is not desired behavior anyway.
+        foreach (var stat in _stats)
+        {
+            NotifySubscribers(stat.Key, stat.Value.GetValueAsVariant());
         }
     }
 }
