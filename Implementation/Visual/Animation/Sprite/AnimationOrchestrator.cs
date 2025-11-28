@@ -94,7 +94,8 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     {
         var finalName = BuildFinalName();
 
-        GD.Print($"Anim Orch playing anim '{finalName}'");
+        //GD.Print($"Anim Orch playing anim '{finalName}'");
+
         if (forceReset || !IsPlaying())
         {
             _targetAnimator.StartAnim(finalName);
@@ -106,6 +107,20 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
         }
     }
 
+    public bool HasAnimationBase(StringName baseName)
+    {
+        var checkName = CheckFinalName(baseName);
+        return HasAnimation(checkName);
+    }
+
+    private StringName CheckFinalName(StringName baseName)
+    {
+        if (string.IsNullOrEmpty(_currentDirectionLabel) || DirectionSet == null)
+        {
+            return baseName;
+        }
+        return new StringName($"{baseName}{DirectionSuffixSeparator}{_currentDirectionLabel}");
+    }
     private StringName BuildFinalName()
     {
         if (string.IsNullOrEmpty(_currentDirectionLabel) || DirectionSet == null)

@@ -26,6 +26,13 @@ using Shared.GodotExceptions;
         [Export]
         public State InitialSubState { get; protected set; }
 
+        /// <summary>
+        /// If false, when re-entering this CompoundState, it will resume the last active PrimarySubState
+        /// instead of resetting to InitialSubState.
+        /// </summary>
+        [Export]
+        public bool ResetsOnEntry { get; set; } = true;
+
         [ExportGroup("Debugging")]
         /// <summary>
         /// If true, a debug overlay will be instantiated to visualize the state machine's activity.
@@ -39,7 +46,6 @@ using Shared.GodotExceptions;
         public State PrimarySubState { get; protected set; }
 
         public Dictionary<State, bool> FiniteSubStates { get; protected set; } = new();
-        public Dictionary<State, bool> ParallelSubStates { get; protected set; } = new();
 
         private DebugSMComponent _debugComponent;
 
@@ -62,17 +68,7 @@ using Shared.GodotExceptions;
             {
                 child.Init(Agent, BB);
                 child.TransitionState += TransitionFiniteSubState;
-                child.AddParallelState += AddParallelSubState;
-                child.RemoveParallelState += RemoveParallelSubState;
-
-                if (child is IParallelState)
-                {
-                    ParallelSubStates.Add(child, false);
-                }
-                else
-                {
-                    FiniteSubStates.Add(child, false);
-                }
+                FiniteSubStates.Add(child, false);
             }
         }
 
@@ -84,9 +80,18 @@ using Shared.GodotExceptions;
                 throw new NodeConfigurationException($"CompoundState '{Name}' has no valid InitialSubState assigned.", this);
             }
 
-            PrimarySubState = InitialSubState;
-            FiniteSubStates[PrimarySubState] = true;
-            PrimarySubState.Enter(ParallelSubStates);
+            // History State: If ResetsOnEntry is false and PrimarySubState is valid, resume it.
+            if (!ResetsOnEntry && PrimarySubState.IsValid())
+            {
+                FiniteSubStates[PrimarySubState] = true;
+                PrimarySubState.Enter();
+            }
+            else
+            {
+                PrimarySubState = InitialSubState;
+                FiniteSubStates[PrimarySubState] = true;
+                PrimarySubState.Enter();
+            }
 
             EmitSignal(SignalName.EnteredCompoundState);
             _debugComponent?.OnEnteredCompoundState(PrimarySubState);
@@ -100,11 +105,7 @@ using Shared.GodotExceptions;
             {
                 FiniteSubStates[PrimarySubState] = false;
             }
-
-            foreach (var parallelState in ParallelSubStates.Where(ps => ps.Value))
-            {
-                parallelState.Key.Exit();
-            }
+            // Note: We don't set PrimarySubState to null here to support History States.
 
             EmitSignal(SignalName.ExitedCompoundState);
             _debugComponent?.OnExitedCompoundState();
@@ -114,21 +115,12 @@ using Shared.GodotExceptions;
         {
             base.OnProcessFrame(delta);
             PrimarySubState?.ProcessFrame(delta);
-            foreach (var parallelState in ParallelSubStates.Where(ps => ps.Value))
-            {
-                parallelState.Key.ProcessFrame(delta);
-            }
         }
 
         protected override void OnProcessPhysics(float delta)
         {
             base.OnProcessPhysics(delta);
             PrimarySubState?.ProcessPhysics(delta);
-
-            foreach (var parallelState in ParallelSubStates.Where(ps => ps.Value))
-            {
-                parallelState.Key.ProcessPhysics(delta);
-            }
         }
 
         // DEPRECATED
@@ -142,7 +134,7 @@ using Shared.GodotExceptions;
         //     }
         // }
 
-        public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool canPropagateUp = false)
+        public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
             GD.Print($"Attempting to transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
             if (!newSubState.IsValid())
@@ -153,10 +145,12 @@ using Shared.GodotExceptions;
 
             if (canPropagateUp && !FiniteSubStates.ContainsKey(newSubState))
             {
-                EmitSignal(SignalName.TransitionState, this, newSubState, true);
+                EmitSignal(SignalName.TransitionState, this, newSubState, urgent, true);
                 return;
             }
 
+            // Transition Guard: If not urgent, check if the old state allows exiting.
+            // Primarily used for exported StateTransitions in the inspector that don't have all the contextual informtion about the running state.
             if (PrimarySubState != oldSubState)
             {
                 // This can happen if a transition signal arrives late, after another transition has already occurred.
@@ -169,45 +163,13 @@ using Shared.GodotExceptions;
 
             PrimarySubState = newSubState;
             FiniteSubStates[PrimarySubState] = true;
-            PrimarySubState.Enter(ParallelSubStates);
+            PrimarySubState.Enter();
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
         }
 
-        public virtual void AddParallelSubState(State state)
-        {
-            if (state is not IParallelState)
-            {
-                JmoLogger.Error(this, $"Attempted to add '{state.Name}' as a parallel state, but it does not implement IParallelState.");
-                return;
-            }
-            if (ParallelSubStates.ContainsKey(state) && ParallelSubStates[state])
-            {
-                JmoLogger.Warning(this, $"Cannot add parallel state '{state.Name}' because it is already active.");
-                return;
-            }
 
-            ParallelSubStates[state] = true;
-            state.Enter(ParallelSubStates);
-        }
-
-        public virtual void RemoveParallelSubState(State state)
-        {
-            if (state is not IParallelState)
-            {
-                JmoLogger.Error(this, $"Attempted to remove '{state.Name}' as a parallel state, but it does not implement IParallelState.");
-                return;
-            }
-            if (!ParallelSubStates.ContainsKey(state) || !ParallelSubStates[state])
-            {
-                JmoLogger.Warning(this, $"Cannot remove parallel state '{state.Name}' because it is not active.");
-                return;
-            }
-
-            ParallelSubStates[state] = false;
-            state.Exit();
-        }
 
         public override string[] _GetConfigurationWarnings()
         {

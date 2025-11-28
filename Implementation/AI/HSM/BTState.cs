@@ -64,7 +64,7 @@ using Shared.GodotExceptions;
                         JmoLogger.Warning(this, "Tree failed, but OnTreeFailureState is not set. The BT will restart in this state.");
                         return;
                     }
-                    EmitSignal(SignalName.TransitionState, this, OnTreeFailureState, true);
+                    EmitSignal(SignalName.TransitionState, this, OnTreeFailureState, false, true);
                     break;
                 case TaskStatus.SUCCESS:
                     if (!OnTreeSuccessState.IsValid())
@@ -72,7 +72,7 @@ using Shared.GodotExceptions;
                         JmoLogger.Warning(this, "Tree succeeded, but OnTreeSuccessState is not set. The BT will restart in this state.");
                         return;
                     }
-                    EmitSignal(SignalName.TransitionState, this, OnTreeSuccessState, true);
+                    EmitSignal(SignalName.TransitionState, this, OnTreeSuccessState, false, true);
                     break;
                 case TaskStatus.RUNNING or TaskStatus.FRESH:
                     JmoLogger.Error(this, "TreeFinishedLoop signal was emitted with a non-terminal status. This indicates a logic error in the BehaviorTree.");

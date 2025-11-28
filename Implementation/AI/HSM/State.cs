@@ -18,31 +18,13 @@ using Shared;
 public partial class State : Node, IState
 {
     [Signal]
-    public delegate void TransitionStateEventHandler(State oldState, State newState, bool canPropagateUp = false);
-
-    [Signal]
-    public delegate void AddParallelStateEventHandler(State parallelState);
-
-    [Signal]
-    public delegate void RemoveParallelStateEventHandler(State parallelState);
+    public delegate void TransitionStateEventHandler(State oldState, State newState, bool urgent = false, bool canPropagateUp = false);
 
     // Explicit interface implementation for events
     event TransitionStateEventHandler IState.TransitionState
     {
         add => TransitionState += value;
         remove => TransitionState -= value;
-    }
-
-    event AddParallelStateEventHandler IState.AddParallelState
-    {
-        add => AddParallelState += value;
-        remove => AddParallelState -= value;
-    }
-
-    event RemoveParallelStateEventHandler IState.RemoveParallelState
-    {
-        add => RemoveParallelState += value;
-        remove => RemoveParallelState -= value;
     }
 
     /// <summary>
@@ -53,6 +35,7 @@ public partial class State : Node, IState
     protected GColl.Array<StateTransition> Transitions { get; private set; } = new();
 
     protected List<StateTransition> UniqueTransitions { get; private set; } = new();
+    private Dictionary<StateTransition, State> _resolvedTransitions = new();
 
     /// <summary>
     /// Modifies the agent's 'SelfInterruptible' property on the blackboard when this state is active.
@@ -62,8 +45,6 @@ public partial class State : Node, IState
     public IBlackboard BB { get; protected set; }
     public Node Agent { get; protected set; }
     public bool IsInitialized { get; protected set; }
-
-    protected Dictionary<State, bool> ParallelStates { get; private set; } = new();
 
     public void Init(Node agent, IBlackboard bb)
     {
@@ -94,6 +75,18 @@ public partial class State : Node, IState
             UniqueTransitions.Add(transition);
         }
 
+        foreach (var t in Transitions) {
+            var target = GetNodeOrNull<State>(t.TargetStatePath);
+            if (target != null)
+            {
+                _resolvedTransitions[t] = target;
+            }
+            else
+            {
+                JmoLogger.Error(this, $"Transition '{t.ResourceName}'s NodePath {t.TargetStatePath}) was not found!");
+            }
+        }
+
         OnInit();
 
         IsInitialized = true;
@@ -102,9 +95,8 @@ public partial class State : Node, IState
     /// <summary>
     /// Template Method: Enters the state. Do not override. Override OnEnter for custom logic.
     /// </summary>
-    public void Enter(Dictionary<State, bool> parallelStates)
+    public void Enter()
     {
-        this.ParallelStates = parallelStates;
         switch (SelfInteruptible)
         {
             case InterruptibleChange.True:
@@ -182,13 +174,13 @@ public partial class State : Node, IState
     {
     }
 
-    // DEPRECATED
-    // /// <summary>
-    // /// Override to implement custom input handling logic.
-    // /// </summary>
-    // protected virtual void OnHandleInput(InputEvent @event)
-    // {
-    // }
+    /// <summary>
+    /// Checks if this state can be exited. Override to implement custom transition guards.
+    /// </summary>
+    public virtual bool CanExit()
+    {
+        return true;
+    }
 
     /// <summary>
     /// Iterates through the exported transitions, resolves their NodePaths,
@@ -221,10 +213,10 @@ public partial class State : Node, IState
                 .All(c => c.Check(Agent, BB));
 
 
-            if (allConditionsMet)
+            if (allConditionsMet && _resolvedTransitions.TryGetValue(transition, out State targetState))
             {
-                // Resolve the NodePath to get the actual State node instance.
-                var targetState = GetNode<State>(transition.TargetStatePath);
+                // // Resolve the NodePath to get the actual State node instance.
+                //var targetState = GetNode<State>(transition.TargetStatePath);
 
                 if (!targetState.IsValid())
                 {
@@ -232,7 +224,7 @@ public partial class State : Node, IState
                     continue; // Try the next transition
                 }
 
-                EmitSignal(SignalName.TransitionState, this, targetState, transition.CanPropagateUp);
+                EmitSignal(SignalName.TransitionState, this, targetState, transition.Urgent, transition.CanPropagateUp);
                 return; // Stop after the first valid transition is found.
             }
         }

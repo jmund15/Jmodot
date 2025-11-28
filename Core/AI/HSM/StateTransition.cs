@@ -29,4 +29,10 @@ public partial class StateTransition : Resource
     public Array<TransitionCondition> Conditions { get; private set; } = new();
 
     [Export] public bool CanPropagateUp { get; private set; } = false;
+
+    /// <summary>
+    /// If true, this transition bypasses the old state's CanExit() and ExitHandshake().
+    /// Use for urgent transitions like being hit, damaged, or interrupted.
+    /// </summary>
+    [Export] public bool Urgent { get; private set; } = false;
 }

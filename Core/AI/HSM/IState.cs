@@ -1,6 +1,5 @@
 namespace Jmodot.Core.AI.HSM;
 
-using System.Collections.Generic;
 using BB;
 using Implementation.AI.HSM;
 
@@ -12,19 +11,11 @@ public interface IState
 {
     /// <summary>
     /// Fired when this state determines a transition to a new state is required.
-    /// The state machine controller (typically a CompoundState) listens for this.
     /// </summary>
+    /// <param name="oldState">The state requesting the transition.</param>
+    /// <param name="newState">The target state to transition to.</param>
+    /// <param name="urgent">If true, bypasses CanExit() and ExitHandshake().</param>
     event State.TransitionStateEventHandler TransitionState;
-
-    /// <summary>
-    /// Fired when a new parallel state should be activated alongside the current primary state.
-    /// </summary>
-    event State.AddParallelStateEventHandler AddParallelState;
-
-    /// <summary>
-    /// Fired when an active parallel state should be deactivated.
-    /// </summary>
-    event State.RemoveParallelStateEventHandler RemoveParallelState;
 
     /// <summary>
     /// Initializes the state with the agent and blackboard context. Called once when the state machine is set up.
@@ -36,8 +27,7 @@ public interface IState
     /// <summary>
     /// Called when the state machine enters this state.
     /// </summary>
-    /// <param name="parallelStates">A dictionary of all parallel states in the current context and their active status.</param>
-    void Enter(Dictionary<State, bool> parallelStates);
+    void Enter();
 
     /// <summary>
     /// Called when the state machine exits this state.
@@ -62,4 +52,10 @@ public interface IState
     // /// </summary>
     // /// <param name="event">The input event to handle.</param>
     // void HandleInput(InputEvent @event);
+
+    /// <summary>
+    /// Checks if this state can be exited. Used for transition guards.
+    /// </summary>
+    /// <returns>True if the state allows exiting, false otherwise.</returns>
+    bool CanExit();
 }
