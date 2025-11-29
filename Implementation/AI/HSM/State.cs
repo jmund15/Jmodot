@@ -177,7 +177,8 @@ public partial class State : Node, IState
     /// <summary>
     /// Checks if this state can be exited. Override to implement custom transition guards.
     /// </summary>
-    public virtual bool CanExit()
+    /// <param name="newState"></param>
+    public virtual bool CanExit(State newState)
     {
         return true;
     }

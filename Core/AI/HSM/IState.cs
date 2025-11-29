@@ -56,6 +56,7 @@ public interface IState
     /// <summary>
     /// Checks if this state can be exited. Used for transition guards.
     /// </summary>
+    /// <param name="newState"></param>
     /// <returns>True if the state allows exiting, false otherwise.</returns>
-    bool CanExit();
+    bool CanExit(State newState);
 }

@@ -24,6 +24,7 @@ public static partial class BBDataSig
     public static readonly StringName HealthComp = new("HealthComp");
     public static readonly StringName HurtboxComp = new("HurtboxComp");
     public static readonly StringName HitboxComp = new("HitboxComp");
+    public static readonly StringName StatusEffects = new("StatusEffectComponent");
     public static readonly StringName AINavComp = new("AINavComp");
     public static readonly StringName DetectComp = new("DetectComp");
     public static readonly StringName SquadComp = new("SquadComp");
