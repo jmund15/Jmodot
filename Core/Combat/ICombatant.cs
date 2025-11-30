@@ -1,8 +1,9 @@
 namespace Jmodot.Core.Combat;
 
 using AI.BB;
+using Shared;
 
-public interface ICombatant
+public interface ICombatant : IGodotNodeInterface
 {
     Node OwnerNode { get; }
 
@@ -12,6 +13,7 @@ public interface ICombatant
     /// </summary>
     IBlackboard Blackboard { get; }
     //bool TryGetSystem<T>(out T system) where T : class;
+    // TODO: in the future, use a service locater dedicated to the combat system instead of a generic blackboard
 
     /// <summary>
     /// The entry point for processing a validated hit.

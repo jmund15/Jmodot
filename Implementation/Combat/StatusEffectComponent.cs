@@ -4,29 +4,34 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
-using Jmodot.Implementation.AI.BB; // For BBDataSig if needed, though we use strings for keys mostly
+using Jmodot.Implementation.Combat.Status;
 
 namespace Jmodot.Implementation.Combat;
 
 /// <summary>
-/// Manages active status effects (DoTs, Buffs, Debuffs) on an entity.
-/// Ticks them every frame and handles their lifecycle.
+/// Manages active status effects (Runners) on an entity.
+/// Acts as a container for StatusRunner nodes and a registry for active Tags.
 /// </summary>
 [GlobalClass]
 public partial class StatusEffectComponent : Node, IComponent
 {
     #region Events
-    public event Action<ActiveStatus> OnStatusAdded = delegate { };
-    public event Action<ActiveStatus> OnStatusRemoved = delegate { };
+    public event Action<StatusRunner> OnStatusAdded = delegate { };
+    public event Action<StatusRunner> OnStatusRemoved = delegate { };
     
-    // Specific signals for common states that other systems (HSM) might need to know about immediately
-    public event Action OnStunned = delegate { };
-    public event Action OnStunCleared = delegate { };
+    /// <summary>
+    /// Fired when a specific tag count goes from 0 to 1.
+    /// </summary>
+    public event Action<string> OnTagStarted = delegate { };
+
+    /// <summary>
+    /// Fired when a specific tag count goes from 1 to 0.
+    /// </summary>
+    public event Action<string> OnTagEnded = delegate { };
     #endregion
 
     #region Private State
-    private readonly List<ActiveStatus> _activeStatuses = new();
-    private readonly List<ActiveStatus> _statusesToRemove = new();
+    private readonly Dictionary<string, int> _activeTags = new();
     private IBlackboard _blackboard;
     #endregion
 
@@ -45,84 +50,73 @@ public partial class StatusEffectComponent : Node, IComponent
     public Node GetUnderlyingNode() => this;
     #endregion
 
-    #region Godot Lifecycle
-    public override void _Process(double delta)
+    #region Public API
+    public void AddStatus(StatusRunner runner)
     {
-        if (!IsInitialized) return;
-
-        // Tick all active statuses
-        foreach (var status in _activeStatuses)
+        if (!IsInitialized)
         {
-            status.OnTick(delta);
-            if (status.IsFinished)
-            {
-                _statusesToRemove.Add(status);
-            }
+            runner.QueueFree();
+            return;
         }
 
-        // Cleanup finished statuses
-        if (_statusesToRemove.Count > 0)
-        {
-            foreach (var status in _statusesToRemove)
-            {
-                RemoveStatus(status);
-            }
-            _statusesToRemove.Clear();
-        }
+        AddChild(runner);
+        RegisterTags(runner.Tags);
+        
+        runner.OnStatusFinished += RemoveStatus;
+        runner.Start();
+        
+        OnStatusAdded?.Invoke(runner);
+    }
+
+    public void RemoveStatus(StatusRunner runner)
+    {
+        runner.OnStatusFinished -= RemoveStatus;
+        UnregisterTags(runner.Tags);
+        
+        // Runner handles its own QueueFree in Stop(), but we ensure it's removed from our logic here
+        OnStatusRemoved?.Invoke(runner);
+    }
+
+    public bool HasTag(string tag)
+    {
+        return _activeTags.TryGetValue(tag, out int count) && count > 0;
     }
     #endregion
 
-    #region Public API
-    public void AddStatus(ActiveStatus status)
+    #region Internal Logic
+    private void RegisterTags(string[] tags)
     {
-        if (!IsInitialized) return;
-
-        _activeStatuses.Add(status);
-        status.OnApply();
-        OnStatusAdded?.Invoke(status);
-
-        // Check for specific flags to emit convenience signals
-        // In a more complex system, this could be data-driven via tags
-        if (status is Status.StunStatus)
+        foreach (var tag in tags)
         {
-            OnStunned?.Invoke();
-        }
-    }
-
-    public void RemoveStatus(ActiveStatus status)
-    {
-        if (_activeStatuses.Remove(status))
-        {
-            status.OnRemove();
-            OnStatusRemoved?.Invoke(status);
-
-             if (status is Status.StunStatus)
+            if (!_activeTags.ContainsKey(tag))
             {
-                // Check if any other stuns remain
-                if (!HasStatus<Status.StunStatus>())
-                {
-                    OnStunCleared?.Invoke();
-                }
+                _activeTags[tag] = 0;
+            }
+
+            _activeTags[tag]++;
+
+            if (_activeTags[tag] == 1)
+            {
+                OnTagStarted?.Invoke(tag);
             }
         }
     }
 
-    public bool HasStatus<T>() where T : ActiveStatus
+    private void UnregisterTags(string[] tags)
     {
-        foreach (var status in _activeStatuses)
+        foreach (var tag in tags)
         {
-            if (status is T) return true;
+            if (_activeTags.ContainsKey(tag))
+            {
+                _activeTags[tag]--;
+
+                if (_activeTags[tag] <= 0)
+                {
+                    _activeTags.Remove(tag);
+                    OnTagEnded?.Invoke(tag);
+                }
+            }
         }
-        return false;
-    }
-    
-    public T? GetStatus<T>() where T : ActiveStatus
-    {
-         foreach (var status in _activeStatuses)
-        {
-            if (status is T tStatus) return tStatus;
-        }
-        return null;
     }
     #endregion
 }

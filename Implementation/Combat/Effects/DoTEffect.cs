@@ -6,19 +6,15 @@ using Jmodot.Implementation.AI.BB;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
-[GlobalClass]
-public partial class DoTEffect : CombatEffect
+using System;
+
+public struct DoTEffect(float duration, float tickInterval, float damagePerTick) : ICombatEffect
 {
-    [Export]
-    public float Duration { get; set; } = 3f;
+    public float Duration = duration;
+    public float TickInterval = tickInterval;
+    public float DamagePerTick = damagePerTick;
 
-    [Export]
-    public float TickInterval { get; set; } = 1f;
-
-    [Export]
-    public float DamagePerTick { get; set; } = 5f;
-
-    public override void Apply(ICombatant target, HitContext context)
+    public void Apply(ICombatant target, HitContext context)
     {
         if (target.Blackboard.TryGet(BBDataSig.StatusEffects, out StatusEffectComponent statusComp))
         {
@@ -26,4 +22,11 @@ public partial class DoTEffect : CombatEffect
             statusComp.AddStatus(status);
         }
     }
+
+    public void Cancel()
+    {
+        EffectCompleted?.Invoke(this);
+    }
+
+    public event Action<ICombatEffect>? EffectCompleted;
 }

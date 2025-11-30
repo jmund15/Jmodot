@@ -6,13 +6,13 @@ using Jmodot.Implementation.AI.BB;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
-[GlobalClass]
-public partial class StunEffect : CombatEffect
-{
-    [Export]
-    public float Duration { get; set; } = 2f;
+using System;
 
-    public override void Apply(ICombatant target, HitContext context)
+public struct StunEffect(float duration) : ICombatEffect
+{
+    public float Duration = duration;
+
+    public void Apply(ICombatant target, HitContext context)
     {
         if (target.Blackboard.TryGet(BBDataSig.StatusEffects, out StatusEffectComponent statusComp))
         {
@@ -20,4 +20,9 @@ public partial class StunEffect : CombatEffect
             statusComp.AddStatus(status);
         }
     }
+    public void Cancel()
+    {
+        EffectCompleted?.Invoke(this);
+    }
+    public event Action<ICombatEffect>? EffectCompleted;
 }

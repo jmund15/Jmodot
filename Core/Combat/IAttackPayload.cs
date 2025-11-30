@@ -17,6 +17,6 @@ public interface IAttackPayload
     /// <summary>
     /// The list of logic instructions (Damage, Stun, etc.) to apply.
     /// </summary>
-    IReadOnlyList<CombatEffect> Effects { get; }
+    IReadOnlyList<ICombatEffect> Effects { get; }
 }
 

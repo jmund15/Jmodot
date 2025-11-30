@@ -6,18 +6,30 @@ using Jmodot.Implementation.AI.BB;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
-[GlobalClass]
-public partial class DamageEffect : CombatEffect
-{
-    [Export]
-    public float DamageAmount { get; set; } = 10f;
+using System;
+using Shared;
 
-    public override void Apply(ICombatant target, HitContext context)
+public struct DamageEffect(float damageAmount) : ICombatEffect
+{
+    public readonly float DamageAmount = damageAmount;
+
+    public void Apply(ICombatant target, HitContext context)
     {
         // Use Blackboard to get HealthComponent
-        if (target.Blackboard.TryGet(BBDataSig.HealthComp, out HealthComponent health))
+        if (target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComp, out var health))
         {
-            health.TakeDamage(DamageAmount, context.Source);
+            health!.TakeDamage(DamageAmount, context.Source);
+            EffectCompleted?.Invoke(this);
+        }
+        else
+        {
+            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
         }
     }
+    public void Cancel()
+    {
+        EffectCompleted?.Invoke(this);
+    }
+
+    public event Action<ICombatEffect> EffectCompleted;
 }
