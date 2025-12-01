@@ -15,6 +15,12 @@ public interface ICombatEffect
     void Cancel();
 
     /// <summary>
+    /// Tags associated with this effect (e.g., "Fire", "HeavyHit").
+    /// Used for reaction prioritization and state machine integration.
+    /// </summary>
+    GameplayTag[] Tags { get; }
+
+    /// <summary>
     /// Event triggered when an effect is completed.
     /// </summary>
     /// <remarks>

@@ -21,9 +21,9 @@ public static partial class BBDataSig
     public static readonly StringName MoveComp = new("MoveComp");
     public static readonly StringName VelComp = new("VelComp");
     public static readonly StringName Stats = new("Stats");
-    public static readonly StringName HealthComp = new("HealthComp");
-    public static readonly StringName HurtboxComp = new("HurtboxComp");
-    public static readonly StringName HitboxComp = new("HitboxComp");
+    public static readonly StringName HealthComponent = new("HealthComponent");
+    public static readonly StringName HurtboxComponent = new("HurtboxComponent");
+    public static readonly StringName HitboxComponent = new("HitboxComponent");
     public static readonly StringName StatusEffects = new("StatusEffectComponent");
     public static readonly StringName AINavComp = new("AINavComp");
     public static readonly StringName DetectComp = new("DetectComp");

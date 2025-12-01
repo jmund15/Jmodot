@@ -35,19 +35,16 @@ using AI.BB;
         #endregion
 
         #region Configuration
-        [ExportGroup("Hit Behavior")]
-
         /// <summary>
         /// If true, targets remaining in the hitbox will be hit repeatedly.
         /// </summary>
-        [Export]
-        public bool IsContinuous { get; set; } = false;
+        [ExportGroup("Hit Behavior")]
+        [Export] public bool IsContinuous { get; set; } = false;
 
         /// <summary>
         /// Seconds between hits in Continuous mode. 0 = Every Physics Frame.
         /// </summary>
-        [Export]
-        public float ContinuousTickInterval { get; set; } = 0.1f;
+        [Export] public float ContinuousTickInterval { get; set; } = 0.1f;
         #endregion
 
         #region Public State
@@ -68,7 +65,7 @@ using AI.BB;
 
         public bool Initialize(IBlackboard bb)
         {
-            bb.TryGet(BBDataSig.HitboxComp, out _selfHurtbox);
+            bb.TryGet(BBDataSig.HitboxComponent, out _selfHurtbox);
 
             // Hitbox is generally autonomous, receiving data from its controller.
             IsInitialized = true;

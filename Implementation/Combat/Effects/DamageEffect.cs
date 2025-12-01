@@ -9,17 +9,24 @@ namespace Jmodot.Implementation.Combat.Effects;
 using System;
 using Shared;
 
-public struct DamageEffect(float damageAmount) : ICombatEffect
+public struct DamageEffect : ICombatEffect
 {
-    public readonly float DamageAmount = damageAmount;
+    public readonly float DamageAmount;
+    public GameplayTag[] Tags { get; private set; }
+
+    public DamageEffect(float damageAmount, GameplayTag[] tags)
+    {
+        DamageAmount = damageAmount;
+        Tags = tags ?? Array.Empty<GameplayTag>();
+    }
 
     public void Apply(ICombatant target, HitContext context)
     {
         // Use Blackboard to get HealthComponent
-        if (target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComp, out var health))
+        if (target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health))
         {
             health!.TakeDamage(DamageAmount, context.Source);
-            EffectCompleted?.Invoke(this);
+            EffectCompleted?.Invoke(this, true);
         }
         else
         {
@@ -28,8 +35,8 @@ public struct DamageEffect(float damageAmount) : ICombatEffect
     }
     public void Cancel()
     {
-        EffectCompleted?.Invoke(this);
+        EffectCompleted?.Invoke(this, false);
     }
 
-    public event Action<ICombatEffect> EffectCompleted;
+    public event Action<ICombatEffect, bool> EffectCompleted;
 }

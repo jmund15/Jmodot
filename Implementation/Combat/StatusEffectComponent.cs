@@ -22,16 +22,16 @@ public partial class StatusEffectComponent : Node, IComponent
     /// <summary>
     /// Fired when a specific tag count goes from 0 to 1.
     /// </summary>
-    public event Action<string> OnTagStarted = delegate { };
+    public event Action<GameplayTag> OnTagStarted = delegate { };
 
     /// <summary>
     /// Fired when a specific tag count goes from 1 to 0.
     /// </summary>
-    public event Action<string> OnTagEnded = delegate { };
+    public event Action<GameplayTag> OnTagEnded = delegate { };
     #endregion
 
     #region Private State
-    private readonly Dictionary<string, int> _activeTags = new();
+    private readonly Dictionary<GameplayTag, int> _activeTags = new();
     private IBlackboard _blackboard;
     #endregion
 
@@ -77,17 +77,19 @@ public partial class StatusEffectComponent : Node, IComponent
         OnStatusRemoved?.Invoke(runner);
     }
 
-    public bool HasTag(string tag)
+    public bool HasTag(GameplayTag tag)
     {
         return _activeTags.TryGetValue(tag, out int count) && count > 0;
     }
     #endregion
 
     #region Internal Logic
-    private void RegisterTags(string[] tags)
+    private void RegisterTags(GameplayTag[] tags)
     {
         foreach (var tag in tags)
         {
+            if (tag == null) continue;
+
             if (!_activeTags.ContainsKey(tag))
             {
                 _activeTags[tag] = 0;
@@ -102,10 +104,12 @@ public partial class StatusEffectComponent : Node, IComponent
         }
     }
 
-    private void UnregisterTags(string[] tags)
+    private void UnregisterTags(GameplayTag[] tags)
     {
         foreach (var tag in tags)
         {
+            if (tag == null) continue;
+
             if (_activeTags.ContainsKey(tag))
             {
                 _activeTags[tag]--;

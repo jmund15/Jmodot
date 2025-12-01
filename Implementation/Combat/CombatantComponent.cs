@@ -61,7 +61,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
         // Register components to Blackboard for Effects to find
         if (Health != null)
         {
-            Blackboard.Set(BBDataSig.HealthComp, Health);
+            Blackboard.Set(BBDataSig.HealthComponent, Health);
         }
         else
         {
