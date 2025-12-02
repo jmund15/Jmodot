@@ -6,12 +6,12 @@ namespace Jmodot.Implementation.Combat.Status;
 public partial class DurationStatusRunner : StatusRunner
 {
     private readonly float _duration;
-    private readonly CombatEffectFactory _onStartEffect;
-    private readonly CombatEffectFactory _onEndEffect;
+    private readonly ICombatEffect _onStartEffect;
+    private readonly ICombatEffect _onEndEffect;
 
     private Timer _durationTimer;
 
-    public DurationStatusRunner(float duration, CombatEffectFactory onStartEffect, CombatEffectFactory onEndEffect)
+    public DurationStatusRunner(float duration, ICombatEffect onStartEffect, ICombatEffect onEndEffect)
     {
         _duration = duration;
         _onStartEffect = onStartEffect;
@@ -23,10 +23,10 @@ public partial class DurationStatusRunner : StatusRunner
         base.Start();
 
         // Apply Start Effect
+        // Apply Start Effect
         if (_onStartEffect != null)
         {
-            var effect = _onStartEffect.Create();
-            effect.Apply(Target, Context);
+            _onStartEffect.Apply(Target, Context);
         }
 
         // Setup Timer
@@ -51,10 +51,10 @@ public partial class DurationStatusRunner : StatusRunner
     public override void Stop()
     {
         // Apply End Effect
+        // Apply End Effect
         if (_onEndEffect != null)
         {
-            var effect = _onEndEffect.Create();
-            effect.Apply(Target, Context);
+            _onEndEffect.Apply(Target, Context);
         }
 
         if (_durationTimer != null) _durationTimer.Stop();

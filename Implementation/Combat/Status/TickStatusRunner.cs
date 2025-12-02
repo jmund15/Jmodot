@@ -7,16 +7,16 @@ public partial class TickStatusRunner : StatusRunner
 {
     private readonly float _duration;
     private readonly float _interval;
-    private readonly CombatEffectFactory _effectFactory;
+    private readonly ICombatEffect _effect;
 
     private Timer _tickTimer;
     private Timer _durationTimer;
 
-    public TickStatusRunner(float duration, float interval, CombatEffectFactory effectFactory, GameplayTag[] tags)
+    public TickStatusRunner(float duration, float interval, ICombatEffect effect, GameplayTag[] tags)
     {
         _duration = duration;
         _interval = interval;
-        _effectFactory = effectFactory;
+        _effect = effect;
         // We need to store tags so Apply() can use them in Initialize()
         // But Initialize takes tags as an argument?
         // Let's look at StatusRunner.Apply():
@@ -52,7 +52,7 @@ public partial class TickStatusRunner : StatusRunner
         }
 
         // Setup Tick Timer
-        if (_interval > 0 && _effectFactory != null)
+        if (_interval > 0 && _effect != null)
         {
             _tickTimer = new Timer();
             _tickTimer.WaitTime = _interval;
@@ -82,10 +82,9 @@ public partial class TickStatusRunner : StatusRunner
             AddChild(visual);
         }
 
-        if (_effectFactory != null)
+        if (_effect != null)
         {
-            var effect = _effectFactory.Create();
-            effect.Apply(Target, Context);
+            _effect.Apply(Target, Context);
         }
     }
 

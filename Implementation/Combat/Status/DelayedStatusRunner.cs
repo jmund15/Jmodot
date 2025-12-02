@@ -6,14 +6,14 @@ namespace Jmodot.Implementation.Combat.Status;
 public partial class DelayedStatusRunner : StatusRunner
 {
     private readonly float _delay;
-    private readonly CombatEffectFactory _effectFactory;
+    private readonly ICombatEffect _effect;
 
     private Timer _delayTimer;
 
-    public DelayedStatusRunner(float delay, CombatEffectFactory effectFactory)
+    public DelayedStatusRunner(float delay, ICombatEffect effect)
     {
         _delay = delay;
-        _effectFactory = effectFactory;
+        _effect = effect;
     }
 
     public override void Start()
@@ -37,10 +37,9 @@ public partial class DelayedStatusRunner : StatusRunner
 
     private void OnDelayFinished()
     {
-        if (_effectFactory != null)
+        if (_effect != null)
         {
-            var effect = _effectFactory.Create();
-            effect.Apply(Target, Context);
+            _effect.Apply(Target, Context);
         }
         Stop();
     }

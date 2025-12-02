@@ -15,9 +15,9 @@ public partial class ConditionEffectFactory : CombatEffectFactory
     [Export] public GameplayTag[] Tags { get; set; } = System.Array.Empty<GameplayTag>();
     [Export] public PackedScene PersistentVisuals { get; set; }
 
-    public override ICombatEffect Create()
+    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new ConditionStatusRunner(Condition, CheckInterval, EffectToApplyOnTick, EffectToApplyOnEnd)
+        return new ConditionStatusRunner(Condition, CheckInterval, EffectToApplyOnTick?.Create(stats), EffectToApplyOnEnd?.Create(stats))
         {
             Tags = Tags,
             PersistentVisuals = PersistentVisuals

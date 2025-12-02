@@ -7,12 +7,12 @@ public partial class ConditionStatusRunner : StatusRunner
 {
     private readonly StatusCondition _condition;
     private readonly float _checkInterval;
-    private readonly CombatEffectFactory _onTickEffect;
-    private readonly CombatEffectFactory _onEndEffect;
+    private readonly ICombatEffect _onTickEffect;
+    private readonly ICombatEffect _onEndEffect;
 
     private Timer _checkTimer;
 
-    public ConditionStatusRunner(StatusCondition condition, float checkInterval, CombatEffectFactory onTickEffect, CombatEffectFactory onEndEffect)
+    public ConditionStatusRunner(StatusCondition condition, float checkInterval, ICombatEffect onTickEffect, ICombatEffect onEndEffect)
     {
         _condition = condition;
         _checkInterval = checkInterval;
@@ -52,10 +52,10 @@ public partial class ConditionStatusRunner : StatusRunner
     private void OnCheck()
     {
         // Apply Tick Effect
+        // Apply Tick Effect
         if (_onTickEffect != null)
         {
-            var effect = _onTickEffect.Create();
-            effect.Apply(Target, Context);
+            _onTickEffect.Apply(Target, Context);
         }
 
         // Check Condition
@@ -68,10 +68,10 @@ public partial class ConditionStatusRunner : StatusRunner
     public override void Stop()
     {
         // Apply End Effect
+        // Apply End Effect
         if (_onEndEffect != null)
         {
-            var effect = _onEndEffect.Create();
-            effect.Apply(Target, Context);
+            _onEndEffect.Apply(Target, Context);
         }
 
         if (_checkTimer != null) _checkTimer.Stop();

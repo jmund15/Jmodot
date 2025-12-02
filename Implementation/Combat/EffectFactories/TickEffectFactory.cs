@@ -16,9 +16,9 @@ public partial class TickEffectFactory : CombatEffectFactory
     [Export] public PackedScene PersistentVisuals { get; set; }
     [Export] public PackedScene TickVisuals { get; set; }
 
-    public override ICombatEffect Create()
+    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new TickStatusRunner(Duration, Interval, EffectToApply, Tags)
+        return new TickStatusRunner(Duration, Interval, EffectToApply.Create(stats), Tags)
         {
             PersistentVisuals = PersistentVisuals,
             TickVisuals = TickVisuals
