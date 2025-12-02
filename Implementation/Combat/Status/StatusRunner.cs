@@ -4,7 +4,10 @@ using Jmodot.Core.Combat;
 
 namespace Jmodot.Implementation.Combat.Status;
 
+using System.Collections.Generic;
 using AI.BB;
+
+// TODO: CONVERT CONSTRUCTORS TO INITIALIZE FUNCTIONS AND HAVE FACTORIES CORRECTLY CREATE AND INITIALIZE RUNNER NODES
 
 /// <summary>
 /// Base class for all runtime status logic.
@@ -17,7 +20,7 @@ public abstract partial class StatusRunner : Node, ICombatEffect
     /// Tags associated with this status (e.g., "Stun", "Poison", "Buff").
     /// Used by the StatusEffectComponent to track active states.
     /// </summary>
-    public GameplayTag[] Tags { get; set; } = Array.Empty<GameplayTag>();
+    public IEnumerable<GameplayTag> Tags { get; set; } = [];
 
     protected HitContext Context { get; private set; }
     protected ICombatant Target { get; private set; }
@@ -25,12 +28,13 @@ public abstract partial class StatusRunner : Node, ICombatEffect
     public event Action<StatusRunner> OnStatusFinished = delegate { };
     public event Action<ICombatEffect, bool> EffectCompleted;
 
-    public virtual void Initialize(HitContext context, ICombatant target, GameplayTag[] tags)
+    public void Initialize(HitContext context, ICombatant target, IEnumerable<GameplayTag> tags)
     {
         Context = context;
         Target = target;
-        Tags = tags ?? Array.Empty<GameplayTag>();
+        Tags = tags ?? [];
     }
+    public virtual void OnInitialize() { } // OVERRIDE IN ALL RUNNERS
 
     /// <summary>
     /// ICombatEffect Implementation.
@@ -64,7 +68,7 @@ public abstract partial class StatusRunner : Node, ICombatEffect
     /// <summary>
     /// Optional visual scene to spawn and hold for the duration of the status.
     /// </summary>
-    public PackedScene PersistentVisuals { get; set; }
+    public PackedScene? PersistentVisuals { get; set; }
 
     private Node _visualInstance;
 

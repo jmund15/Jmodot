@@ -3,6 +3,8 @@ using Jmodot.Core.Combat;
 
 namespace Jmodot.Implementation.Combat.Status;
 
+using System.Collections.Generic;
+
 public partial class TickStatusRunner : StatusRunner
 {
     private readonly float _duration;
@@ -12,28 +14,12 @@ public partial class TickStatusRunner : StatusRunner
     private Timer _tickTimer;
     private Timer _durationTimer;
 
-    public TickStatusRunner(float duration, float interval, ICombatEffect effect, GameplayTag[] tags)
+    public TickStatusRunner(float duration, float interval, ICombatEffect effect, IEnumerable<GameplayTag> tags)
     {
+        // INITIALIZE
         _duration = duration;
         _interval = interval;
         _effect = effect;
-        // We need to store tags so Apply() can use them in Initialize()
-        // But Initialize takes tags as an argument?
-        // Let's look at StatusRunner.Apply():
-        // Initialize(context, target, Tags);
-        // It uses the property `Tags`.
-        // So we need to set the `Tags` property.
-        // But `Tags` has a private set.
-        // We should probably add a protected setter or a method to set initial data.
-        // Or just let Initialize take the tags from the internal state?
-        // Actually, StatusRunner.Apply() calls Initialize(..., Tags).
-        // This implies `Tags` is already set? No, that's circular.
-        // If `Tags` is null/empty initially, Initialize gets empty.
-        // We need a way to inject Tags from Factory.
-        // Let's add a `SetTags` method or make the property settable.
-        // Or better: Pass tags to constructor and set the backing field/property.
-        // Since `Tags` is defined in base, we can't easily set it if it's private set.
-        // Let's change StatusRunner to allow setting Tags, or pass to constructor.
     }
 
     public override void Start()

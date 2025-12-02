@@ -7,17 +7,18 @@ using Jmodot.Implementation.AI.BB;
 namespace Jmodot.Implementation.Combat.Effects;
 
 using System;
+using System.Collections.Generic;
 using Shared;
 
 public struct DamageEffect : ICombatEffect
 {
     public readonly float DamageAmount;
-    public GameplayTag[] Tags { get; private set; }
+    public IEnumerable<GameplayTag> Tags { get; private set; }
 
-    public DamageEffect(float damageAmount, GameplayTag[] tags)
+    public DamageEffect(float damageAmount, IEnumerable<GameplayTag> tags)
     {
         DamageAmount = damageAmount;
-        Tags = tags ?? Array.Empty<GameplayTag>();
+        Tags = tags ?? [];
     }
 
     public void Apply(ICombatant target, HitContext context)

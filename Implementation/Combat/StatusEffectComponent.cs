@@ -18,7 +18,7 @@ public partial class StatusEffectComponent : Node, IComponent
     #region Events
     public event Action<StatusRunner> OnStatusAdded = delegate { };
     public event Action<StatusRunner> OnStatusRemoved = delegate { };
-    
+
     /// <summary>
     /// Fired when a specific tag count goes from 0 to 1.
     /// </summary>
@@ -61,10 +61,10 @@ public partial class StatusEffectComponent : Node, IComponent
 
         AddChild(runner);
         RegisterTags(runner.Tags);
-        
+
         runner.OnStatusFinished += RemoveStatus;
         runner.Start();
-        
+
         OnStatusAdded?.Invoke(runner);
     }
 
@@ -72,7 +72,7 @@ public partial class StatusEffectComponent : Node, IComponent
     {
         runner.OnStatusFinished -= RemoveStatus;
         UnregisterTags(runner.Tags);
-        
+
         // Runner handles its own QueueFree in Stop(), but we ensure it's removed from our logic here
         OnStatusRemoved?.Invoke(runner);
     }
@@ -84,7 +84,7 @@ public partial class StatusEffectComponent : Node, IComponent
     #endregion
 
     #region Internal Logic
-    private void RegisterTags(GameplayTag[] tags)
+    private void RegisterTags(IEnumerable<GameplayTag> tags)
     {
         foreach (var tag in tags)
         {
@@ -104,7 +104,7 @@ public partial class StatusEffectComponent : Node, IComponent
         }
     }
 
-    private void UnregisterTags(GameplayTag[] tags)
+    private void UnregisterTags(IEnumerable<GameplayTag> tags)
     {
         foreach (var tag in tags)
         {

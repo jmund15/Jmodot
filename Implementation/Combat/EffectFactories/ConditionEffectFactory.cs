@@ -2,6 +2,7 @@ using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
+using GCol = Godot.Collections;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
 
@@ -12,7 +13,7 @@ public partial class ConditionEffectFactory : CombatEffectFactory
     [Export] public float CheckInterval { get; set; } = 0.1f;
     [Export] public CombatEffectFactory EffectToApplyOnTick { get; set; }
     [Export] public CombatEffectFactory EffectToApplyOnEnd { get; set; }
-    [Export] public GameplayTag[] Tags { get; set; } = System.Array.Empty<GameplayTag>();
+    [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
     [Export] public PackedScene PersistentVisuals { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)

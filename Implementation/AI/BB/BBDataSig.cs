@@ -14,6 +14,7 @@ public static partial class BBDataSig
     public static readonly StringName Sprite = new("Sprite");
     public static readonly StringName AnimationOrchestrator = new("AnimationOrchestrator");
     public static readonly StringName AnimationComponent = new("AnimationComponent");
+    public static readonly StringName VisualComposer = new("VisualComposer");
     public static readonly StringName IntentSource = new("IntentSource");
     public static readonly StringName CurrentTarget = new("CurrentTarget");
     public static readonly StringName CharacterController = new("CharacterController");

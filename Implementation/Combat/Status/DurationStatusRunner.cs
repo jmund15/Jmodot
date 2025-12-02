@@ -23,10 +23,10 @@ public partial class DurationStatusRunner : StatusRunner
         base.Start();
 
         // Apply Start Effect
-        // Apply Start Effect
         if (_onStartEffect != null)
         {
             _onStartEffect.Apply(Target, Context);
+            // TODO: do we need to check for on effect completion?
         }
 
         // Setup Timer
@@ -55,6 +55,7 @@ public partial class DurationStatusRunner : StatusRunner
         if (_onEndEffect != null)
         {
             _onEndEffect.Apply(Target, Context);
+            // TODO: do we need to check for on effect completion?
         }
 
         if (_durationTimer != null) _durationTimer.Stop();

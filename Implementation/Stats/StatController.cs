@@ -274,8 +274,10 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
         public void RemoveModifier(ModifierHandle handle)
         {
-            if (handle == null) return;
-
+            if (handle == null)
+            {
+                return;
+            }
             // The handle provides all the necessary information for a direct, efficient removal.
             // We know exactly which property to talk to and which ID to remove. No searching is needed.
             handle.Property.RemoveModifier(handle.ModifierId);

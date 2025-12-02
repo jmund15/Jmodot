@@ -6,7 +6,7 @@ using Godot;
 /// Defines a specific visual item (Sword, Hat, Body Type).
 /// Supports unique prefabs, texture swaps, and sprite sheet row selection.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VisualItemData : Resource
 {
     [Export] public string Id { get; set; } = null!;

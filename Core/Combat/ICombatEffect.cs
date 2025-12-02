@@ -1,7 +1,8 @@
 namespace Jmodot.Core.Combat;
 
 using System;
-
+using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Base class for all data-driven combate logic (Damage, Stun, Knockback).
@@ -18,7 +19,7 @@ public interface ICombatEffect
     /// Tags associated with this effect (e.g., "Fire", "HeavyHit").
     /// Used for reaction prioritization and state machine integration.
     /// </summary>
-    GameplayTag[] Tags { get; }
+    IEnumerable<GameplayTag> Tags { get; }
 
     /// <summary>
     /// Event triggered when an effect is completed.
