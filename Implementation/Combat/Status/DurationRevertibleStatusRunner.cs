@@ -5,33 +5,27 @@ namespace Jmodot.Implementation.Combat.Status;
 
 public partial class DurationRevertibleStatusRunner : StatusRunner
 {
-    private readonly float _duration;
-    private readonly IRevertibleCombatEffect _revertibleEffect;
+    public float Duration { get; set; }
+    public IRevertibleCombatEffect RevertibleEffect { get; set; }
 
     private Timer _durationTimer;
-
-    public DurationRevertibleStatusRunner(float duration, IRevertibleCombatEffect revertibleEffect)
-    {
-        _duration = duration;
-        _revertibleEffect = revertibleEffect;
-    }
 
     public override void Start()
     {
         base.Start();
 
         // Apply Start Effect
-        if (_revertibleEffect != null)
+        if (RevertibleEffect != null)
         {
-            _revertibleEffect.Apply(Target, Context);
+            RevertibleEffect.Apply(Target, Context);
             // TODO: do we need to check for on effect completion?
         }
 
         // Setup Timer
-        if (_duration > 0)
+        if (Duration > 0)
         {
             // TODO: see if scene tree timer oneshot is superior to new Timer Node.
-            GetTree().CreateTimer(_duration).Timeout += Stop;
+            GetTree().CreateTimer(Duration).Timeout += Stop;
             // _durationTimer = new Timer();
             // _durationTimer.WaitTime = _duration;
             // _durationTimer.OneShot = true;
@@ -51,7 +45,7 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
     public override void Stop()
     {
         // Revert effect
-        _revertibleEffect.TryRevert(Target, Context);
+        RevertibleEffect.TryRevert(Target, Context);
         //_durationTimer.Stop();
         base.Stop();
     }

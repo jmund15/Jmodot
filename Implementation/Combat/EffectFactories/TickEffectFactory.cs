@@ -19,8 +19,12 @@ public partial class TickEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new TickStatusRunner(Duration, Interval, EffectToApply.Create(stats), Tags)
+        return new TickStatusRunner
         {
+            Duration = Duration,
+            Interval = Interval,
+            Effect = EffectToApply.Create(stats),
+            Tags = Tags,
             PersistentVisuals = PersistentVisuals,
             TickVisuals = TickVisuals
         };

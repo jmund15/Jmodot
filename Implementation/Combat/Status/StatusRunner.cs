@@ -7,7 +7,7 @@ namespace Jmodot.Implementation.Combat.Status;
 using System.Collections.Generic;
 using AI.BB;
 
-// TODO: CONVERT CONSTRUCTORS TO INITIALIZE FUNCTIONS AND HAVE FACTORIES CORRECTLY CREATE AND INITIALIZE RUNNER NODES
+
 
 /// <summary>
 /// Base class for all runtime status logic.
@@ -28,14 +28,6 @@ public abstract partial class StatusRunner : Node, ICombatEffect
     public event Action<StatusRunner> OnStatusFinished = delegate { };
     public event Action<ICombatEffect, bool> EffectCompleted;
 
-    public void Initialize(HitContext context, ICombatant target, IEnumerable<GameplayTag> tags)
-    {
-        Context = context;
-        Target = target;
-        Tags = tags ?? [];
-    }
-    public virtual void OnInitialize() { } // OVERRIDE IN ALL RUNNERS
-
     /// <summary>
     /// ICombatEffect Implementation.
     /// Adds the runner to the target's StatusEffectComponent and starts it.
@@ -45,7 +37,8 @@ public abstract partial class StatusRunner : Node, ICombatEffect
         if (target.Blackboard.TryGet(BBDataSig.StatusEffects, out StatusEffectComponent statusComp))
         {
             // Initialize before adding to ensure data is ready
-            Initialize(context, target, Tags);
+            Context = context;
+            Target = target;
             statusComp.AddStatus(this);
         }
         else

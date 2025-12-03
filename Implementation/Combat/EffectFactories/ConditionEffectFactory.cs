@@ -18,8 +18,12 @@ public partial class ConditionEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new ConditionStatusRunner(Condition, CheckInterval, EffectToApplyOnTick?.Create(stats), EffectToApplyOnEnd?.Create(stats))
+        return new ConditionStatusRunner
         {
+            Condition = Condition,
+            CheckInterval = CheckInterval,
+            OnTickEffect = EffectToApplyOnTick?.Create(stats),
+            OnEndEffect = EffectToApplyOnEnd?.Create(stats),
             Tags = Tags,
             PersistentVisuals = PersistentVisuals
         };

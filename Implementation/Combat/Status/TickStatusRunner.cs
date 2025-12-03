@@ -7,30 +7,22 @@ using System.Collections.Generic;
 
 public partial class TickStatusRunner : StatusRunner
 {
-    private readonly float _duration;
-    private readonly float _interval;
-    private readonly ICombatEffect _effect;
+    public float Duration { get; set; }
+    public float Interval { get; set; }
+    public ICombatEffect Effect { get; set; }
 
     private Timer _tickTimer;
     private Timer _durationTimer;
-
-    public TickStatusRunner(float duration, float interval, ICombatEffect effect, IEnumerable<GameplayTag> tags)
-    {
-        // INITIALIZE
-        _duration = duration;
-        _interval = interval;
-        _effect = effect;
-    }
 
     public override void Start()
     {
         base.Start();
 
         // Setup Duration Timer
-        if (_duration > 0)
+        if (Duration > 0)
         {
             _durationTimer = new Timer();
-            _durationTimer.WaitTime = _duration;
+            _durationTimer.WaitTime = Duration;
             _durationTimer.OneShot = true;
             _durationTimer.Timeout += Stop;
             AddChild(_durationTimer);
@@ -38,10 +30,10 @@ public partial class TickStatusRunner : StatusRunner
         }
 
         // Setup Tick Timer
-        if (_interval > 0 && _effect != null)
+        if (Interval > 0 && Effect != null)
         {
             _tickTimer = new Timer();
-            _tickTimer.WaitTime = _interval;
+            _tickTimer.WaitTime = Interval;
             _tickTimer.OneShot = false;
             _tickTimer.Timeout += OnTick;
             AddChild(_tickTimer);
@@ -68,9 +60,9 @@ public partial class TickStatusRunner : StatusRunner
             AddChild(visual);
         }
 
-        if (_effect != null)
+        if (Effect != null)
         {
-            _effect.Apply(Target, Context);
+            Effect.Apply(Target, Context);
         }
     }
 

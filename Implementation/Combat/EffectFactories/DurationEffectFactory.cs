@@ -17,8 +17,11 @@ public partial class DurationEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new DurationStatusRunner(Duration, OnStartEffect?.Create(stats), OnEndEffect?.Create(stats))
+        return new DurationStatusRunner
         {
+            Duration = Duration,
+            OnStartEffect = OnStartEffect?.Create(stats),
+            OnEndEffect = OnEndEffect?.Create(stats),
             Tags = Tags,
             PersistentVisuals = PersistentVisuals
         };

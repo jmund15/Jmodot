@@ -24,8 +24,10 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
             JmoLogger.Error(this, $"{RevertibleEffect.ResourcePath}'s effect is not revertible!");
             return null;
         }
-        return new DurationRevertibleStatusRunner(Duration, revertibleEffect)
+        return new DurationRevertibleStatusRunner
         {
+            Duration = Duration,
+            RevertibleEffect = revertibleEffect,
             Tags = Tags,
             PersistentVisuals = PersistentVisuals
         };

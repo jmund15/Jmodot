@@ -5,35 +5,28 @@ namespace Jmodot.Implementation.Combat.Status;
 
 public partial class DurationStatusRunner : StatusRunner
 {
-    private readonly float _duration;
-    private readonly ICombatEffect _onStartEffect;
-    private readonly ICombatEffect _onEndEffect;
+    public float Duration { get; set; }
+    public ICombatEffect OnStartEffect { get; set; }
+    public ICombatEffect OnEndEffect { get; set; }
 
     private Timer _durationTimer;
-
-    public DurationStatusRunner(float duration, ICombatEffect onStartEffect, ICombatEffect onEndEffect)
-    {
-        _duration = duration;
-        _onStartEffect = onStartEffect;
-        _onEndEffect = onEndEffect;
-    }
 
     public override void Start()
     {
         base.Start();
 
         // Apply Start Effect
-        if (_onStartEffect != null)
+        if (OnStartEffect != null)
         {
-            _onStartEffect.Apply(Target, Context);
+            OnStartEffect.Apply(Target, Context);
             // TODO: do we need to check for on effect completion?
         }
 
         // Setup Timer
-        if (_duration > 0)
+        if (Duration > 0)
         {
             _durationTimer = new Timer();
-            _durationTimer.WaitTime = _duration;
+            _durationTimer.WaitTime = Duration;
             _durationTimer.OneShot = true;
             _durationTimer.Timeout += Stop;
             AddChild(_durationTimer);
@@ -52,9 +45,9 @@ public partial class DurationStatusRunner : StatusRunner
     {
         // Apply End Effect
         // Apply End Effect
-        if (_onEndEffect != null)
+        if (OnEndEffect != null)
         {
-            _onEndEffect.Apply(Target, Context);
+            OnEndEffect.Apply(Target, Context);
             // TODO: do we need to check for on effect completion?
         }
 

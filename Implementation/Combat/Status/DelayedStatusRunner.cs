@@ -5,25 +5,19 @@ namespace Jmodot.Implementation.Combat.Status;
 
 public partial class DelayedStatusRunner : StatusRunner
 {
-    private readonly float _delay;
-    private readonly ICombatEffect _effect;
+    public float Delay { get; set; }
+    public ICombatEffect Effect { get; set; }
 
     private Timer _delayTimer;
-
-    public DelayedStatusRunner(float delay, ICombatEffect effect)
-    {
-        _delay = delay;
-        _effect = effect;
-    }
 
     public override void Start()
     {
         base.Start();
 
-        if (_delay > 0)
+        if (Delay > 0)
         {
             _delayTimer = new Timer();
-            _delayTimer.WaitTime = _delay;
+            _delayTimer.WaitTime = Delay;
             _delayTimer.OneShot = true;
             _delayTimer.Timeout += OnDelayFinished;
             AddChild(_delayTimer);
@@ -37,9 +31,9 @@ public partial class DelayedStatusRunner : StatusRunner
 
     private void OnDelayFinished()
     {
-        if (_effect != null)
+        if (Effect != null)
         {
-            _effect.Apply(Target, Context);
+            Effect.Apply(Target, Context);
         }
         Stop();
     }

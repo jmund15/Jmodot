@@ -5,29 +5,21 @@ namespace Jmodot.Implementation.Combat.Status;
 
 public partial class ConditionStatusRunner : StatusRunner
 {
-    private readonly StatusCondition _condition;
-    private readonly float _checkInterval;
-    private readonly ICombatEffect _onTickEffect;
-    private readonly ICombatEffect _onEndEffect;
+    public StatusCondition Condition { get; set; }
+    public float CheckInterval { get; set; }
+    public ICombatEffect OnTickEffect { get; set; }
+    public ICombatEffect OnEndEffect { get; set; }
 
     private Timer _checkTimer;
-
-    public ConditionStatusRunner(StatusCondition condition, float checkInterval, ICombatEffect onTickEffect, ICombatEffect onEndEffect)
-    {
-        _condition = condition;
-        _checkInterval = checkInterval;
-        _onTickEffect = onTickEffect;
-        _onEndEffect = onEndEffect;
-    }
 
     public override void Start()
     {
         base.Start();
 
-        if (_checkInterval > 0)
+        if (CheckInterval > 0)
         {
             _checkTimer = new Timer();
-            _checkTimer.WaitTime = _checkInterval;
+            _checkTimer.WaitTime = CheckInterval;
             _checkTimer.OneShot = false;
             _checkTimer.Timeout += OnCheck;
             AddChild(_checkTimer);
@@ -43,7 +35,7 @@ public partial class ConditionStatusRunner : StatusRunner
 
     public override void _Process(double delta)
     {
-        if (_checkInterval <= 0)
+        if (CheckInterval <= 0)
         {
             OnCheck();
         }
@@ -53,13 +45,13 @@ public partial class ConditionStatusRunner : StatusRunner
     {
         // Apply Tick Effect
         // Apply Tick Effect
-        if (_onTickEffect != null)
+        if (OnTickEffect != null)
         {
-            _onTickEffect.Apply(Target, Context);
+            OnTickEffect.Apply(Target, Context);
         }
 
         // Check Condition
-        if (_condition != null && _condition.Check(Target, Context))
+        if (Condition != null && Condition.Check(Target, Context))
         {
             Stop();
         }
@@ -69,9 +61,9 @@ public partial class ConditionStatusRunner : StatusRunner
     {
         // Apply End Effect
         // Apply End Effect
-        if (_onEndEffect != null)
+        if (OnEndEffect != null)
         {
-            _onEndEffect.Apply(Target, Context);
+            OnEndEffect.Apply(Target, Context);
         }
 
         if (_checkTimer != null) _checkTimer.Stop();

@@ -16,8 +16,10 @@ public partial class DelayedEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new DelayedStatusRunner(Delay, EffectToApply?.Create(stats))
+        return new DelayedStatusRunner
         {
+            Delay = Delay,
+            Effect = EffectToApply?.Create(stats),
             Tags = Tags,
             PersistentVisuals = PersistentVisuals
         };
