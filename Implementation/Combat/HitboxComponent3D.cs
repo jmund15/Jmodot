@@ -192,12 +192,13 @@ using AI.BB;
             if (!IsActive || CurrentPayload == null) { return; }
 
             // 1. Self-Hit Prevention
-            if (hurtbox == _selfHurtbox) { return; }
+            if (_selfHurtbox != null &&
+                hurtbox == _selfHurtbox) { return; }
             //if (CurrentPayload.Attacker != null && hurtbox.Owner == CurrentPayload.Attacker) return;
 
             // 2. Debounce / Multi-Hit Check
             // If hurtbox is already in the set, we skip it.
-            if (!_hitHurtboxes.Add(hurtbox)) return;
+            if (!_hitHurtboxes.Add(hurtbox)) { return; }
 
             // 3. The Handshake (Direct Method Call)
             bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);

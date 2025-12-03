@@ -126,7 +126,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Initialize health to its starting maximum value from the stat sheet.
         _currentHealth = MaxHealth;
         IsInitialized = true;
-
+        OnPostInitialize();
         return true;
     }
 
