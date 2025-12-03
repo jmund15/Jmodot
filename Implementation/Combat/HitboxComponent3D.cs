@@ -65,7 +65,7 @@ using AI.BB;
 
         public bool Initialize(IBlackboard bb)
         {
-            bb.TryGet(BBDataSig.HitboxComponent, out _selfHurtbox);
+            bb?.TryGet(BBDataSig.HurtboxComponent, out _selfHurtbox);
 
             // Hitbox is generally autonomous, receiving data from its controller.
             IsInitialized = true;
@@ -138,6 +138,8 @@ using AI.BB;
             {
                 SetPhysicsProcess(true);
             }
+
+            GD.Print($"Hitbox '{Name} Starting Attack!");
         }
 
         public void EndAttack()
@@ -164,6 +166,7 @@ using AI.BB;
 
         private void OnAreaEntered(Area3D area)
         {
+            GD.Print($"Area {area.Name} entered Hitbox {Name}");
             if (area is HurtboxComponent3D hurtbox)
             {
                 TryHitHurtbox(hurtbox);

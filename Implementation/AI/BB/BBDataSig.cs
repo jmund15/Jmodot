@@ -30,7 +30,7 @@ public static partial class BBDataSig
     public static readonly StringName DetectComp = new("DetectComp");
     public static readonly StringName SquadComp = new("SquadComp");
     public static readonly StringName Affinities = new("Affinities");
-    public static readonly StringName CombatComp = new("CombatComp");
+    public static readonly StringName CombatantComponent = new("CombatantComponent");
     public static readonly StringName MovementSM = new("MovementSM");
     public static readonly StringName AISM = new("AISM");
     public static readonly StringName QueuedNextAttack = new("QueuedNextAttack");

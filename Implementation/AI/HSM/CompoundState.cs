@@ -33,15 +33,13 @@ using Shared.GodotExceptions;
         [Export]
         public bool ResetsOnEntry { get; set; } = true;
 
-        [ExportGroup("Debugging")]
         /// <summary>
         /// If true, a debug overlay will be instantiated to visualize the state machine's activity.
         /// This should typically only be enabled on the root-most CompoundState.
         /// </summary>
-        [Export]
-        private bool _enableDebugView = false;
-        [Export]
-        private DebugViewPosition _debugViewPosition = DebugViewPosition.TopRight;
+        [ExportGroup("Debugging")]
+        [Export] private bool _enableDebugView = false;
+        [Export] private DebugViewPosition _debugViewPosition = DebugViewPosition.TopRight;
 
         public State PrimarySubState { get; protected set; }
 
@@ -173,6 +171,8 @@ using Shared.GodotExceptions;
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
+
+            GD.Print($"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }
 
 

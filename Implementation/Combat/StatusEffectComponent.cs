@@ -31,6 +31,7 @@ public partial class StatusEffectComponent : Node, IComponent
     #endregion
 
     #region Private State
+    // TODO: why is the int relative to amount of tags? where is priority here?
     private readonly Dictionary<GameplayTag, int> _activeTags = new();
     private IBlackboard _blackboard;
     #endregion

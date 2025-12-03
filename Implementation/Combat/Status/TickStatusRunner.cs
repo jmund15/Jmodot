@@ -68,8 +68,8 @@ public partial class TickStatusRunner : StatusRunner
 
     public override void Stop()
     {
-        if (_tickTimer != null) _tickTimer.Stop();
-        if (_durationTimer != null) _durationTimer.Stop();
+        _tickTimer.Stop();
+        _durationTimer.Stop();
         base.Stop();
     }
 }

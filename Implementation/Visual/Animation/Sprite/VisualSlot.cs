@@ -49,7 +49,10 @@ public class VisualSlot
         {
             // 2. Instantiate
             _currentInstance = item.Prefab.Instantiate();
-            _slotRoot.AddChild(_currentInstance);
+
+            _slotRoot.CallDeferred(Node.MethodName.AddChild, _currentInstance);
+
+            // BELOW MAY NOT WORK AS ADDING CHILD IS DEFERRED
 
             // 3. Apply Overrides (Texture, Row, Tint)
             ApplyOverrides(_currentInstance, item);
@@ -67,6 +70,13 @@ public class VisualSlot
         {
             GD.PrintErr($"VisualSlot: Item '{item.Id}' has no Prefab assigned.");
         }
+    }
+
+    private void InstantiateEquippedItem(VisualItemData item)
+    {
+        _slotRoot.AddChild(_currentInstance);
+
+
     }
 
     public void Unequip(bool force = false)

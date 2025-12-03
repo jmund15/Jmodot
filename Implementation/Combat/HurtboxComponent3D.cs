@@ -44,7 +44,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent
     {
         // Retrieve the Combatant dependency directly from the Blackboard.
         // This ensures decoupling; the Hurtbox doesn't care *how* the Combatant is implemented.
-        if (!bb.TryGet("ICombatant", out _combatant))
+        if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant))
         {
             // Fail initialization if the Brain (Combatant) is missing.
             return false;

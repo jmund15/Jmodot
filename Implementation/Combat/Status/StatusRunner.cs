@@ -6,8 +6,7 @@ namespace Jmodot.Implementation.Combat.Status;
 
 using System.Collections.Generic;
 using AI.BB;
-
-
+using Shared;
 
 /// <summary>
 /// Base class for all runtime status logic.
@@ -39,10 +38,11 @@ public abstract partial class StatusRunner : Node, ICombatEffect
             // Initialize before adding to ensure data is ready
             Context = context;
             Target = target;
-            statusComp.AddStatus(this);
+            statusComp!.AddStatus(this);
         }
         else
         {
+            JmoLogger.Warning(this, $"Can't apply status as '{target.GetUnderlyingNode().Name}' has no StatusEffectComponent!");
             // Failed to apply (no component), so we just finish immediately
             EffectCompleted?.Invoke(this, false);
             QueueFree();

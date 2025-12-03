@@ -31,8 +31,10 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
 
     public void ProcessPayload(IAttackPayload payload, HitContext context)
     {
-        if (payload.Effects == null || payload.Effects.Count == 0) return;
-
+        if (payload.Effects == null || payload.Effects.Count == 0)
+        {
+            return;
+        }
         foreach (var effect in payload.Effects)
         {
             effect.Apply(this, context);
@@ -50,34 +52,16 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
         // If dependencies aren't assigned in Inspector, try to find them
         if (Health == null)
         {
-            Health = GetParent().GetNodeOrNull<HealthComponent>("HealthComponent");
+            Health = bb.Get<HealthComponent>(BBDataSig.HealthComponent);
         }
 
         if (StatusComponent == null)
         {
-             StatusComponent = GetParent().GetNodeOrNull<StatusEffectComponent>("StatusEffectComponent");
-        }
-
-        // Register components to Blackboard for Effects to find
-        if (Health != null)
-        {
-            Blackboard.Set(BBDataSig.HealthComponent, Health);
-        }
-        else
-        {
-             GD.PrintErr($"{nameof(CombatantComponent)} on {Name}: HealthComponent is missing!");
-        }
-
-        if (StatusComponent != null)
-        {
-            Blackboard.Set(BBDataSig.StatusEffects, StatusComponent);
-        }
-        else
-        {
-             GD.PrintErr($"{nameof(CombatantComponent)} on {Name}: StatusEffectComponent is missing!");
+             StatusComponent = bb.Get<StatusEffectComponent>(BBDataSig.StatusEffects);
         }
 
         IsInitialized = true;
+        OnPostInitialize();
         return true;
     }
 
