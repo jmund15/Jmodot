@@ -37,6 +37,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     private IAnimComponent _targetAnimator = null!;
     private StringName _baseAnimName = "idle";
     private string _currentDirectionLabel = "down";
+    public Vector3 CurrentAnimationDirection { get; private set; }
 
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
@@ -75,35 +76,54 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
         if (newLabel != _currentDirectionLabel)
         {
-            GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
+            CurrentAnimationDirection = closestDir;
+            //GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
             _currentDirectionLabel = newLabel;
-            UpdateInternal(forceReset: false);
+            // HACK: if not playing just update the anim and position, then pause.
+            //  this is a bit jank but possibly ok.
+            bool pauseAfter = !IsPlaying();
+            UpdateAnim(_baseAnimName, AnimUpdateMode.MaintainTime);
+            if (pauseAfter)
+            {
+                SeekPos(GetCurrAnimationPosition(), true);
+                PauseAnim();
+            }
         }
     }
 
     /// <summary>
     /// Sets the base state (e.g., "run", "attack"). Triggers a hard reset of the animation.
     /// </summary>
+    /// <summary>
+    /// Sets the base state (e.g., "run", "attack"). Triggers a hard reset of the animation.
+    /// </summary>
     public void StartAnim(StringName baseName)
     {
-        _baseAnimName = baseName;
-        UpdateInternal(forceReset: true);
+        UpdateAnim(baseName, AnimUpdateMode.Reset);
     }
 
-    private void UpdateInternal(bool forceReset)
+    public void UpdateAnim(StringName baseName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
+        _baseAnimName = baseName;
         var finalName = BuildFinalName();
 
-        //GD.Print($"Anim Orch playing anim '{finalName}'");
+        //GD.Print($"Anim Orch playing anim '{finalName}' with mode {mode}");
 
-        if (forceReset || !IsPlaying())
+        if (mode == AnimUpdateMode.Reset || !IsPlaying())
         {
-            _targetAnimator.StartAnim(finalName);
+            if (_targetAnimator.HasAnimation(finalName))
+            {
+                _targetAnimator.StartAnim(finalName);
+            }
+            else {
+                GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name}'");
+            }
+            // Else: Silently fail or log warning? For now, silent to avoid spam if "idle" is missing.
         }
         else
         {
-            // UpdateAnim maintains the current playback position (e.g. switching Run_Left to Run_Right)
-            _targetAnimator.UpdateAnim(finalName);
+            // Delegate the update logic (MaintainTime / MaintainPercent) to the child animator
+            _targetAnimator.UpdateAnim(finalName, mode);
         }
     }
 
@@ -134,7 +154,9 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     // --- IAnimComponent Pass-through ---
     public void StopAnim() => _targetAnimator.StopAnim();
     public void PauseAnim() => _targetAnimator.PauseAnim();
-    public void UpdateAnim(StringName name) => StartAnim(name);
+
+    // UpdateAnim is now implemented above
+    // public void UpdateAnim(StringName name) => StartAnim(name);
     public bool IsPlaying() => _targetAnimator.IsPlaying();
     public bool HasAnimation(StringName name) => _targetAnimator.HasAnimation(name);
     public void SeekPos(float time, bool updateNow = true) => _targetAnimator.SeekPos(time, updateNow);

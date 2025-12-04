@@ -61,11 +61,13 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
         }
 
         IsInitialized = true;
+        Initialized?.Invoke();
         OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize() { }
+    public event Action? Initialized;
 
     public Node GetUnderlyingNode() => this;
     #endregion

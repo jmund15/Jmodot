@@ -44,23 +44,37 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         }
     }
 
-    public void UpdateAnim(StringName animName)
+    public void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
-        if (this.Animation == animName) { return; }
+        if (this.Animation == animName && mode != AnimUpdateMode.Reset) { return; }
         if (SpriteFrames == null) { return; }
 
         if (SpriteFrames.HasAnimation(animName))
         {
-            // Preserve the frame index to maintain visual continuity.
-            // We clamp the frame to ensure we don't exceed the new animation's frame count.
-            var currentFrame = this.Frame;
-            var newFrameCount = SpriteFrames.GetFrameCount(animName);
+            // Capture state before switching
+            float currentPos = GetCurrAnimationPosition();
+            float currentLen = GetCurrAnimationLength();
+            float normalizedPos = (currentLen > 0) ? (currentPos / currentLen) : 0f;
 
             this.Play(animName);
 
-            if (newFrameCount > 0)
+            switch (mode)
             {
-                this.Frame = Mathf.Min(currentFrame, newFrameCount - 1);
+                case AnimUpdateMode.Reset:
+                    // Play() defaults to frame 0, so we're good.
+                    break;
+
+                case AnimUpdateMode.MaintainTime:
+                    SeekPos(currentPos);
+                    break;
+
+                case AnimUpdateMode.MaintainPercent:
+                    float newLen = GetCurrAnimationLength();
+                    if (newLen > 0)
+                    {
+                        SeekPos(normalizedPos * newLen);
+                    }
+                    break;
             }
         }
         else

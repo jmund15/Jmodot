@@ -62,7 +62,7 @@ using Shared.GodotExceptions;
                 AddChild(_debugComponent);
             }
 
-            foreach (var child in GetChildren().OfType<State>())
+            foreach (var child in this.GetChildrenOfType<State>(false))
             {
                 child.Init(Agent, BB);
                 child.TransitionState += TransitionFiniteSubState;
@@ -134,7 +134,7 @@ using Shared.GodotExceptions;
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
-            GD.Print($"Attempting to transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
+            //GD.Print($"Attempting to transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
             if (!newSubState.IsValid())
             {
                 JmoLogger.Error(this, $"Attempted to transition from '{oldSubState.Name}' to a null or invalid state.");
@@ -143,6 +143,7 @@ using Shared.GodotExceptions;
 
             if (canPropagateUp && !FiniteSubStates.ContainsKey(newSubState))
             {
+                //JmoLogger.Info(this, $"Couldn't find '{newSubState.Name}' as a child of {Name}. Going up the hierarchy.");
                 EmitSignal(SignalName.TransitionState, this, newSubState, urgent, true);
                 return;
             }
@@ -172,7 +173,7 @@ using Shared.GodotExceptions;
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
 
-            GD.Print($"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
+            //GD.Print($"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }
 
 

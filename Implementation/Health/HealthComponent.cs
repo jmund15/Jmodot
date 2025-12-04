@@ -126,6 +126,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Initialize health to its starting maximum value from the stat sheet.
         _currentHealth = MaxHealth;
         IsInitialized = true;
+        Initialized?.Invoke();
         OnPostInitialize();
         return true;
     }
@@ -139,6 +140,8 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Emit initial values for any listeners that are set up during their own Initialize phase.
         OnMaxHealthChanged?.Invoke(MaxHealth);
     }
+
+    public event Action? Initialized;
 
     #endregion
 

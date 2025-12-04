@@ -29,15 +29,37 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
         }
     }
     public void StopAnim() => this.Stop();
-    public void UpdateAnim(StringName animName)
+    public void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
-        if (CurrentAnimation == animName) return;
+        if (CurrentAnimation == animName && mode != AnimUpdateMode.Reset) return;
 
         if (HasAnimation(animName))
         {
-            var currentPos = CurrentAnimationPosition;
+            // Capture state
+            double currentPos = CurrentAnimationPosition;
+            double currentLen = CurrentAnimationLength;
+            double normalizedPos = (currentLen > 0) ? (currentPos / currentLen) : 0.0;
+
             Play(animName);
-            Seek(currentPos, true);
+
+            switch (mode)
+            {
+                case AnimUpdateMode.Reset:
+                    // Play defaults to start
+                    break;
+
+                case AnimUpdateMode.MaintainTime:
+                    Seek(currentPos, true);
+                    break;
+
+                case AnimUpdateMode.MaintainPercent:
+                    double newLen = CurrentAnimationLength;
+                    if (newLen > 0)
+                    {
+                        Seek(normalizedPos * newLen, true);
+                    }
+                    break;
+            }
         }
         else
         {

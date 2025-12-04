@@ -60,6 +60,13 @@ public partial class AnimationVisibilityCoordinator : Node
         if (AutoRegisterNodes)
         {
             RegisterChildrenRecursive(GetParent());
+            
+            // Connect to ChildEnteredTree to detect dynamically added nodes
+            var parent = GetParent();
+            if (parent != null)
+            {
+                parent.ChildEnteredTree += OnChildEnteredTree;
+            }
         }
 
         SetupAnimatorConnection();
@@ -80,29 +87,77 @@ public partial class AnimationVisibilityCoordinator : Node
         }
     }
 
+    /// <summary>
+    /// Called when a new child is added to the parent at runtime.
+    /// Registers the new node if it matches our criteria.
+    /// </summary>
+    private void OnChildEnteredTree(Node node)
+    {
+        if (Engine.IsEditorHint()) return;
+        
+        GD.Print($"[AnimVis] ChildEnteredTree fired for: {node.Name}");
+        
+        // Register the new node and all its children recursively
+        RegisterChildrenRecursive(node);
+        
+        // If we're currently playing an animation, update visibility for the new nodes
+        if (_targetAnimComponent != null && _targetAnimComponent.IsPlaying())
+        {
+            var currentAnim = _targetAnimComponent.GetCurrAnimation();
+            GD.Print($"[AnimVis] Animation is playing: {currentAnim}, calling OnAnimStarted");
+            OnAnimStarted(currentAnim);
+        }
+        else
+        {
+            GD.Print($"[AnimVis] No animation playing, skipping visibility update");
+        }
+    }
+
     private void RegisterChildrenRecursive(Node parent)
     {
+        // First, check if the parent itself is a visual node
+        RegisterNodeIfValid(parent);
+        
+        // Then recursively check all children
         foreach (var child in parent.GetChildren())
         {
-            // Check for BOTH CanvasItem (2D/UI) and Node3D (3D)
-            bool isVisualNode = child is CanvasItem || child is Node3D;
+            RegisterChildrenRecursive(child);
+        }
+    }
+    
+    /// <summary>
+    /// Checks if a node should be registered and adds it to the visibility system.
+    /// </summary>
+    private void RegisterNodeIfValid(Node node)
+    {
+        // Check for BOTH CanvasItem (2D/UI) and Node3D (3D)
+        bool isVisualNode = node is CanvasItem || node is Node3D;
 
-            if (isVisualNode && child.Name.ToString().StartsWith(NodePrefix))
+        if (isVisualNode && node.Name.ToString().StartsWith(NodePrefix))
+        {
+            // Prevent duplicate registration
+            if (_allManagedNodes.Contains(node))
             {
-                // Parse Name: "View_Run" -> "Run" (lowercased for consistency)
-                string rawName = child.Name.ToString().Substring(NodePrefix.Length);
-                StringName animKey = rawName.ToLower();
-
-                if (!_visibilityCache.ContainsKey(animKey))
-                {
-                    _visibilityCache[animKey] = new List<Node>();
-                }
-
-                _visibilityCache[animKey].Add(child);
-                _allManagedNodes.Add(child);
-
-                SetNodeVisible(child, false);
+                GD.Print($"[AnimVis] Skipping duplicate registration: {node.Name}");
+                return;
             }
+            
+            // Parse Name: "Vis_Run" -> "Run" (lowercased for consistency)
+            string rawName = node.Name.ToString().Substring(NodePrefix.Length);
+            StringName animKey = rawName.ToLower();
+
+            if (!_visibilityCache.ContainsKey(animKey))
+            {
+                _visibilityCache[animKey] = new List<Node>();
+            }
+
+            _visibilityCache[animKey].Add(node);
+            _allManagedNodes.Add(node);
+            
+            GD.Print($"[AnimVis] Registered node: {node.Name} with key: {animKey}");
+
+            // Initially hide new nodes - they'll be shown if they match the current animation
+            SetNodeVisible(node, false);
         }
     }
 

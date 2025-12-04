@@ -2,6 +2,10 @@ namespace Jmodot.Implementation.Shared;
 
 public static class MovementExtensions
 {
+    #region VECTOR_EXTENSIONS
+    public static Vector2 GetFlattenedVector2(this Vector3 vec) => new(vec.X, vec.Z);
+    public static Vector3 GetFlatVector3(this Vector2 vec) => new(vec.X, 0f, vec.Y);
+    #endregion
     #region VELOCITY_EXTENSIONS
 
     public const float DEFAULT_WEIGHT_PERCENTAGE = 0.075f;

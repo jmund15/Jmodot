@@ -8,8 +8,7 @@ using Jmodot.Core.Stats;
 [GlobalClass]
 public partial class RandomAttributeModifierGroup : Resource
 {
-    [Export(PropertyHint.TypeString, "Attribute")]
-    public Array<Attribute> PossibleAttributes { get; private set; } = new();
+    [Export] public Array<Attribute> PossibleAttributes { get; private set; } = new();
 
     // The modifier that will be applied to the chosen attribute.
     // We are specific with the type because we know these stats are floats.

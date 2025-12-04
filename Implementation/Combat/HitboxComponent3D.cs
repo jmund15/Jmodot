@@ -69,6 +69,7 @@ using AI.BB;
 
             // Hitbox is generally autonomous, receiving data from its controller.
             IsInitialized = true;
+            Initialized?.Invoke();
             OnPostInitialize();
             return true;
         }
@@ -77,6 +78,8 @@ using AI.BB;
         {
             AreaEntered += OnAreaEntered;
         }
+
+        public event Action? Initialized;
 
         public Node GetUnderlyingNode() => this;
         #endregion
@@ -124,15 +127,17 @@ using AI.BB;
 
             // Activate Physics.
             // SetDeferred ensures we don't crash if called during a physics callback.
-            SetDeferred(PropertyName.Monitoring, true);
-            SetDeferred(PropertyName.Monitorable, true);
+            SetDeferred(Area3D.PropertyName.Monitoring, true);
+            SetDeferred(Area3D.PropertyName.Monitorable, true);
 
             OnAttackStarted?.Invoke();
 
             // Attempt to hit anything already inside the volume.
             // Note: If this node was previously Monitoring=False, GetOverlappingAreas
             // might rely on the *next* physics frame to update.
-            ProcessOverlappingAreas();
+            // We defer this call to ensure that the 'Monitoring' property update (which is also deferred)
+            // has been processed by the engine before we try to query overlaps.
+            Callable.From(ProcessOverlappingAreas).CallDeferred();
 
             if (IsContinuous)
             {

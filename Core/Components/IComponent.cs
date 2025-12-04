@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Components;
 
+using System;
 using Core.AI.BB;
 using Shared;
 
@@ -17,4 +18,5 @@ public interface IComponent : IGodotNodeInterface
     /// </summary>
     bool Initialize(IBlackboard bb);
     void OnPostInitialize();
+    event Action Initialized;
 }

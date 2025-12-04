@@ -24,13 +24,12 @@ public partial class HurtboxComponent3D : Area3D, IComponent
     #endregion
 
     #region Configuration
-    [ExportGroup("State")]
 
     /// <summary>
     /// If true, this entity ignores all hits cheaply (Gatekeeper).
     /// </summary>
-    [Export]
-    public bool IsInvulnerable { get; set; } = false;
+    [ExportGroup("State")]
+    [Export] public bool IsInvulnerable { get; set; } = false;
     #endregion
 
     #region State
@@ -51,11 +50,13 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         }
 
         IsInitialized = true;
+        Initialized?.Invoke();
         OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize() { }
+    public event Action? Initialized;
 
     public Node GetUnderlyingNode() => this;
     #endregion

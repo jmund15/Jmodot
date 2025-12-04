@@ -20,7 +20,7 @@ public interface IAnimComponent : IGodotNodeInterface
     /// <summary>
     /// Switch animation, attempting to preserve relative progress if applicable.
     /// </summary>
-    void UpdateAnim(StringName animName);
+    void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime);
     bool IsPlaying();
     bool HasAnimation(StringName animName);
     StringName GetCurrAnimation();

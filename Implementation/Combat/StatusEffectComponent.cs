@@ -43,10 +43,13 @@ public partial class StatusEffectComponent : Node, IComponent
     {
         _blackboard = bb;
         IsInitialized = true;
+        Initialized?.Invoke();
+        OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize() { }
+    public event Action? Initialized;
 
     public Node GetUnderlyingNode() => this;
     #endregion

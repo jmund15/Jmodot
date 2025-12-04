@@ -173,26 +173,15 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         }
     }
 
-    public void UpdateAnim(StringName animName)
+    public void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
         _lastRequestedAnim = animName;
-
-        // Capture master normalized time
-        float normalizedTime = GetMasterNormalizedTime();
 
         foreach (var anim in _activeAnimators)
         {
             if (anim.HasAnimation(animName))
             {
-                anim.UpdateAnim(animName);
-
-                // Force sync if lengths differ significantly
-                if (normalizedTime > 0 && anim.GetCurrAnimationLength() > 0)
-                {
-                    // Note: Standard UpdateAnim logic usually seeks absolute time.
-                    // If switching animations with different lengths, we might want to force normalized seek here.
-                    // For now, we rely on the child's UpdateAnim logic, but SyncChildToMaster can be forced if needed.
-                }
+                anim.UpdateAnim(animName, mode);
             }
         }
     }

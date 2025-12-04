@@ -75,8 +75,6 @@ public class VisualSlot
     private void InstantiateEquippedItem(VisualItemData item)
     {
         _slotRoot.AddChild(_currentInstance);
-
-
     }
 
     public void Unequip(bool force = false)
