@@ -39,6 +39,17 @@ public partial class PlayerIntentSource : IntentSourceNode
         }
         _actionBindings = profile.ActionBindings;
         _vectorBindings = profile.VectorBindings;
+
+        GD.Print("Applied Mapping Profile to Intent Source.\nAction Bindings:");
+        foreach (var actionBinding in _actionBindings)
+        {
+            GD.Print($"action: {actionBinding.Action.ActionName}; godot action binding: {actionBinding.GodotActionName}");
+        }
+        GD.Print($"Vector Bindings:");
+        foreach (var vectorBinding in _vectorBindings)
+        {
+            GD.Print($"action: {vectorBinding.Action.ActionName}; godot vector binding DOWN: {vectorBinding.Down}");
+        }
     }
 
     public override void _Ready()
