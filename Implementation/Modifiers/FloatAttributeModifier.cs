@@ -22,7 +22,6 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     /// </summary>
     [Export]
     public float Value { get; private set; }
-
     [Export] public int Priority { get; private set; }
 
     [ExportGroup("EffectTags & Cancellation")]
@@ -49,5 +48,15 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
             // TODO: error logging could be added here.
             _ => currentValue
         };
+    }
+    public FloatAttributeModifier()
+    {
+        // Default constructor for editor use.
+    }
+    public FloatAttributeModifier(float value, CalculationStage stage, int priority)
+    {
+        Value = value;
+        Stage = stage;
+        Priority = priority;
     }
 }
