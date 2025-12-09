@@ -18,16 +18,20 @@ namespace Jmodot.Implementation.Combat;
 public partial class CombatantComponent : Node, IComponent, ICombatant
 {
     #region Dependencies
-    [Export]
-    public HealthComponent Health { get; private set; }
+    [Export] public HealthComponent Health { get; private set; } = null!;
+    [Export] public StatusEffectComponent StatusComponent { get; private set; } = null!;
+    #endregion
 
-    [Export]
-    public StatusEffectComponent StatusComponent { get; private set; }
+    #region Node Overrides
+    public override void _Ready()
+    {
+
+    }
     #endregion
 
     #region ICombatant Implementation
     public Node OwnerNode => GetOwner();
-    public IBlackboard Blackboard { get; private set; }
+    public IBlackboard Blackboard { get; private set; } = null!;
 
     public void ProcessPayload(IAttackPayload payload, HitContext context)
     {
@@ -37,9 +41,15 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
         }
         foreach (var effect in payload.Effects)
         {
+            effect.EffectCompleted += OnEffectCompleted;
             effect.Apply(this, context);
         }
     }
+
+    private void OnEffectCompleted(ICombatEffect effect, bool naturallyCompleted)
+    {
+    }
+
     #endregion
 
     #region IComponent Implementation
@@ -66,7 +76,9 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
         return true;
     }
 
-    public void OnPostInitialize() { }
+    public void OnPostInitialize()
+    {
+    }
     public event Action? Initialized;
 
     public Node GetUnderlyingNode() => this;
