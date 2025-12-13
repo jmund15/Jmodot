@@ -3,6 +3,8 @@ using Jmodot.Core.Combat;
 
 namespace Jmodot.Implementation.Combat.Status;
 
+using System.Collections.Generic;
+
 public partial class DelayedStatusRunner : StatusRunner
 {
     public float Delay { get; set; }
@@ -10,17 +12,31 @@ public partial class DelayedStatusRunner : StatusRunner
 
     private Timer _delayTimer;
 
-    public override void Start()
+    public void Setup(float delay,
+        ICombatEffect effect,
+        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
     {
-        base.Start();
+        Delay = delay;
+        Effect = effect;
+        PersistentVisuals = persistantVisuals;
+        Tags = tags;
+    }
+
+    public override void _Ready()
+    {
+        _delayTimer = GetNode<Timer>("DelayTimer");
+        _delayTimer.OneShot = true;
+        _delayTimer.Autostart = false;
+    }
+
+    public override void Start(ICombatant target, HitContext context)
+    {
+        base.Start(target, context);
 
         if (Delay > 0)
         {
-            _delayTimer = new Timer();
             _delayTimer.WaitTime = Delay;
-            _delayTimer.OneShot = true;
             _delayTimer.Timeout += OnDelayFinished;
-            AddChild(_delayTimer);
             _delayTimer.Start();
         }
         else
@@ -31,16 +47,13 @@ public partial class DelayedStatusRunner : StatusRunner
 
     private void OnDelayFinished()
     {
-        if (Effect != null)
-        {
-            Effect.Apply(Target, Context);
-        }
+        Target.ApplyEffect(Effect, Context);
         Stop();
     }
 
-    public override void Stop()
+    public override void Stop(bool wasDispelled = false)
     {
-        if (_delayTimer != null) _delayTimer.Stop();
-        base.Stop();
+        _delayTimer.Stop();
+        base.Stop(wasDispelled);
     }
 }

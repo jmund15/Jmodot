@@ -3,35 +3,46 @@ using Jmodot.Core.Combat;
 
 namespace Jmodot.Implementation.Combat.Status;
 
+using System.Collections.Generic;
+
 public partial class DurationRevertibleStatusRunner : StatusRunner
 {
-    public float Duration { get; set; }
-    public IRevertibleCombatEffect RevertibleEffect { get; set; }
+    public float Duration { get; private set; }
+    public IRevertibleCombatEffect RevertibleEffect { get; private set; } = null!;
 
-    private Timer _durationTimer;
+    private Timer _durationTimer = null!;
 
-    public override void Start()
+    public void Setup(float duration, IRevertibleCombatEffect revertibleEffect,
+        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
     {
-        base.Start();
+        Duration = duration;
+        RevertibleEffect = revertibleEffect;
+        PersistentVisuals = persistantVisuals;
+        Tags = tags;
+    }
+    public override void _Ready()
+    {
+        _durationTimer = GetNode<Timer>("DurationTimer");
+        _durationTimer.OneShot = true;
+        _durationTimer.Autostart = false;
+    }
+
+    public override void Start(ICombatant target, HitContext context)
+    {
+        base.Start(target, context);
 
         // Apply Start Effect
-        if (RevertibleEffect != null)
-        {
-            RevertibleEffect.Apply(Target, Context);
-            // TODO: do we need to check for on effect completion?
-        }
+        RevertibleEffect.Apply(Target, Context);
 
         // Setup Timer
         if (Duration > 0)
         {
             // TODO: see if scene tree timer oneshot is superior to new Timer Node.
-            GetTree().CreateTimer(Duration).Timeout += Stop;
-            // _durationTimer = new Timer();
-            // _durationTimer.WaitTime = _duration;
-            // _durationTimer.OneShot = true;
-            // _durationTimer.Timeout += Stop;
-            // AddChild(_durationTimer);
-            // _durationTimer.Start();
+            //GetTree().CreateTimer(Duration).Timeout += () => Stop();
+
+            _durationTimer.WaitTime = Duration;
+            _durationTimer.Timeout += () => Stop();
+            _durationTimer.Start();
         }
         else
         {
@@ -42,11 +53,13 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
         }
     }
 
-    public override void Stop()
+    public override void Stop(bool wasDispelled = false)
     {
         // Revert effect
-        RevertibleEffect.TryRevert(Target, Context);
-        //_durationTimer.Stop();
-        base.Stop();
+        var revertEffect = RevertibleEffect.GetRevertEffect(Target, Context);
+        Target.ApplyEffect(revertEffect!, Context);
+        _durationTimer.Stop();
+
+        base.Stop(wasDispelled);
     }
 }

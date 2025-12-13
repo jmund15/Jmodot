@@ -7,44 +7,59 @@ using System.Collections.Generic;
 
 public partial class TickStatusRunner : StatusRunner
 {
-    public float Duration { get; set; }
-    public float Interval { get; set; }
-    public ICombatEffect Effect { get; set; }
-
-    private Timer _tickTimer;
-    private Timer _durationTimer;
-
-    public override void Start()
-    {
-        base.Start();
-
-        // Setup Duration Timer
-        if (Duration > 0)
-        {
-            _durationTimer = new Timer();
-            _durationTimer.WaitTime = Duration;
-            _durationTimer.OneShot = true;
-            _durationTimer.Timeout += Stop;
-            AddChild(_durationTimer);
-            _durationTimer.Start();
-        }
-
-        // Setup Tick Timer
-        if (Interval > 0 && Effect != null)
-        {
-            _tickTimer = new Timer();
-            _tickTimer.WaitTime = Interval;
-            _tickTimer.OneShot = false;
-            _tickTimer.Timeout += OnTick;
-            AddChild(_tickTimer);
-            _tickTimer.Start();
-        }
-    }
+    public float Duration { get; private set; }
+    public float Interval { get; private set; }
+    public ICombatEffect TickEffect { get; private set; }
 
     /// <summary>
     /// Optional visual scene to spawn on each tick.
     /// </summary>
-    public PackedScene TickVisuals { get; set; }
+    public PackedScene? TickVisuals { get; set; }
+
+    private Timer _tickTimer;
+    private Timer _durationTimer;
+
+    public void Setup(float duration, float interval, ICombatEffect tickEffect, PackedScene? tickVisuals,
+        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
+    {
+        Duration = duration;
+        Interval = interval;
+        TickEffect = tickEffect;
+        TickVisuals = tickVisuals;
+        PersistentVisuals = persistantVisuals;
+        Tags = tags;
+    }
+    public override void _Ready()
+    {
+        _tickTimer = GetNode<Timer>("TickTimer");
+        _durationTimer = GetNode<Timer>("DurationTimer");
+
+        _tickTimer.OneShot = false;
+        _tickTimer.Autostart = false;
+        _durationTimer.OneShot = true;
+        _durationTimer.Autostart = false;
+    }
+
+    public override void Start(ICombatant target, HitContext context)
+    {
+        base.Start(target, context);
+
+        // Setup Duration Timer
+        if (Duration > 0)
+        {
+            _durationTimer.WaitTime = Duration;
+            _durationTimer.Timeout += () => Stop();
+            _durationTimer.Start();
+        }
+
+        // Setup Tick Timer
+        if (Interval > 0)
+        {
+            _tickTimer.WaitTime = Interval;
+            _tickTimer.Timeout += OnTick;
+            _tickTimer.Start();
+        }
+    }
 
     private void OnTick()
     {
@@ -52,24 +67,19 @@ public partial class TickStatusRunner : StatusRunner
         if (TickVisuals != null)
         {
             var visual = TickVisuals.Instantiate();
-            // Add to target or self? Usually target root or self if self is attached to target.
-            // Self is attached to StatusEffectComponent, which is on the Entity.
-            // If we add to self, it might move with entity.
-            // If visuals are particles, they might need to be independent if one-shot.
-            // For now, add to self.
             AddChild(visual);
         }
 
-        if (Effect != null)
+        if (TickEffect != null)
         {
-            Effect.Apply(Target, Context);
+            TickEffect.Apply(Target, Context);
         }
     }
 
-    public override void Stop()
+    public override void Stop(bool wasDispelled = false)
     {
         _tickTimer.Stop();
         _durationTimer.Stop();
-        base.Stop();
+        base.Stop(wasDispelled);
     }
 }

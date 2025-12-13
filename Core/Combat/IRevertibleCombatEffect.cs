@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Combat;
 
 using System;
+using Reactions;
 
 public interface IRevertibleCombatEffect : ICombatEffect
 {
@@ -9,7 +10,6 @@ public interface IRevertibleCombatEffect : ICombatEffect
     /// </summary>
     /// <param name="target"></param>
     /// <param name="context"></param>
-    /// <returns>True if succesfully reverted, false if not (means effect wasn't applied)</returns>
-    bool TryRevert(ICombatant target, HitContext context);
-    event Action<IRevertibleCombatEffect> EffectReverted;
+    /// <returns></returns>
+    ICombatEffect? GetRevertEffect(ICombatant target, HitContext context);
 }

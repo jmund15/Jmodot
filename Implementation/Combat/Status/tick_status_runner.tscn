@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://bm3dikfipxmb"]
+
+[ext_resource type="Script" uid="uid://b55shj3a64n21" path="res://Jmodot/Implementation/Combat/Status/TickStatusRunner.cs" id="1_nucmi"]
+
+[node name="TickStatusRunner" type="Node"]
+script = ExtResource("1_nucmi")
+
+[node name="TickTimer" type="Timer" parent="."]
+
+[node name="DurationTmier" type="Timer" parent="."]

@@ -6,24 +6,28 @@ using GCol = Godot.Collections;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
 
+using Core.Combat.EffectDefinitions;
+using Effects.StatusEffects;
+
 [GlobalClass]
 public partial class DurationEffectFactory : CombatEffectFactory
 {
-    [Export] public float Duration { get; set; } = 1.0f;
-    [Export] public CombatEffectFactory OnStartEffect { get; set; }
-    [Export] public CombatEffectFactory OnEndEffect { get; set; }
+    [Export] public PackedScene Runner { get; set; } = null!;
+    [Export] public FloatEffectDefinition Duration { get; set; } = new(1.0f);
+    [Export] public CombatEffectFactory OnStartEffect { get; set; } = null!;
+    [Export] public CombatEffectFactory OnEndEffect { get; set; } = null!;
     [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
-    [Export] public PackedScene PersistentVisuals { get; set; }
+    [Export] public PackedScene? PersistentVisuals { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        return new DurationStatusRunner
-        {
-            Duration = Duration,
-            OnStartEffect = OnStartEffect?.Create(stats),
-            OnEndEffect = OnEndEffect?.Create(stats),
-            Tags = Tags,
-            PersistentVisuals = PersistentVisuals
-        };
+        return new DurationEffect(
+            Runner,
+            Duration.ResolveFloatValue(stats),
+            OnStartEffect.Create(stats),
+            OnEndEffect.Create(stats),
+            PersistentVisuals,
+            Tags = Tags
+        );
     }
 }

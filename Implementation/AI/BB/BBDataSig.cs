@@ -30,12 +30,17 @@ public static partial class BBDataSig
     public static readonly StringName DetectComp = new("DetectComp");
     public static readonly StringName SquadComp = new("SquadComp");
     public static readonly StringName Affinities = new("Affinities");
-    public static readonly StringName CombatantComponent = new("CombatantComponent");
     public static readonly StringName MovementSM = new("MovementSM");
     public static readonly StringName AISM = new("AISM");
     public static readonly StringName QueuedNextAttack = new("QueuedNextAttack");
     public static readonly StringName SelfInteruptible = new("SelfInteruptible");
 
+    #endregion
+
+    #region Combat
+    public static readonly StringName CombatantComponent = new("CombatantComponent");
+    public static readonly StringName LastCombatEffectResult = new("LastCombatEffectResult");
+    public static readonly StringName LastDamageEffectResult = new("LastDamageEffectResult");
     #endregion
 
     #region ROBBER_PROPERTIES

@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using AI.BB;
 using Core.Combat;
+using Core.Combat.Reactions;
 using Core.Modifiers;
 using Core.Stats;
 using Health;
@@ -12,12 +13,12 @@ using Shared;
 using Attribute = Core.Stats.Attribute;
 using GCol = Godot.Collections;
 
-public enum RevertableEffectStatus // add in progress statuses?
-{
-    Fresh,
-    Applied,
-    Reverted
-}
+// public enum RevertableEffectStatus // add in progress statuses?
+// {
+//     Fresh,
+//     Applied,
+//     Reverted
+// }
 
 /// <summary>
 /// Combat Effect that applies a stat modifier
@@ -28,7 +29,6 @@ public struct StatEffect : IRevertibleCombatEffect
     public readonly Attribute Attribute;
     public Resource Modifier;
     public ModifierHandle? Handle;
-    public RevertableEffectStatus Status;
     public IEnumerable<GameplayTag> Tags { get; private set; }
 
     public StatEffect(Attribute attribute, Resource modifier, IEnumerable<GameplayTag>? tags = null)
@@ -37,59 +37,41 @@ public struct StatEffect : IRevertibleCombatEffect
         Modifier = modifier;
         Tags = tags ?? [];
         Handle = null;
-        Status =  RevertableEffectStatus.Fresh;
     }
 
-    public void Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context)
     {
-        if (Status == RevertableEffectStatus.Applied)
-        {
-            JmoLogger.Error(this, $"Can not apply StatEffect as it has already been applied!");
-            return;
-        }
         // Use Blackboard
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))
         {
             JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
-            return;
+            return null;
         }
         if (!stats!.TryAddModifier(Attribute, Modifier, this, out var handle))
         {
             JmoLogger.Error(this, $"StatEffect was unable to apply stat modification!");
-            return;
+            return null;
         }
         Handle = handle!;
-        EffectCompleted?.Invoke(this, true);
-        Status =  RevertableEffectStatus.Applied;
-    }
-
-    public void Cancel()
-    {
-        if (Status == RevertableEffectStatus.Fresh)
+        return new StatResult()
         {
-            EffectCompleted?.Invoke(this, false);
-        }
-        // otherwise what?? honestly i have no idea what this function should do haha
+            Source = context.Source,
+            Target = target.OwnerNode,
+            Tags = Tags
+        };
     }
-
-    public bool TryRevert(ICombatant target, HitContext context)
+    public ICombatEffect? GetRevertEffect(ICombatant target, HitContext context)
     {
-        if (Status != RevertableEffectStatus.Applied)
+        if (Handle == null)
         {
-            return false;
+            JmoLogger.Error(this, $"Can't get revert effect as stat effect hasn't been applied yet!");
+            return null;
         }
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))
         {
             JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
-            return false;
+            return null;
         }
-
-        stats!.RemoveModifier(Handle!);
-        EffectReverted?.Invoke(this);
-        Status = RevertableEffectStatus.Reverted;
-        return true;
+        return new RevertStatEffect(Handle, Tags);
     }
-
-    public event Action<ICombatEffect, bool> EffectCompleted;
-    public event Action<IRevertibleCombatEffect> EffectReverted;
 }

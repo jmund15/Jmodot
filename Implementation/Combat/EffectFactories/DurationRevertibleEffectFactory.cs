@@ -6,12 +6,15 @@ using GCol = Godot.Collections;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
 
+using Core.Combat.EffectDefinitions;
+using Effects.StatusEffects;
 using Shared;
 
 [GlobalClass]
 public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 {
-    [Export] public float Duration { get; set; } = 1.0f;
+    [Export] public PackedScene Runner { get; set; } = null!;
+    [Export] public FloatEffectDefinition Duration { get; set; } = new(1.0f);
     [Export] public CombatEffectFactory RevertibleEffect { get; set; } = null!;
     [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
@@ -24,12 +27,12 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
             JmoLogger.Error(this, $"{RevertibleEffect.ResourcePath}'s effect is not revertible!");
             return null;
         }
-        return new DurationRevertibleStatusRunner
-        {
-            Duration = Duration,
-            RevertibleEffect = revertibleEffect,
-            Tags = Tags,
-            PersistentVisuals = PersistentVisuals
-        };
+        return new DurationRevertEffect(
+            Runner,
+            Duration.ResolveFloatValue(stats),
+            revertibleEffect,
+            PersistentVisuals,
+            Tags
+        );
     }
 }

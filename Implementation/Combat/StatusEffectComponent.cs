@@ -8,6 +8,9 @@ using Jmodot.Implementation.Combat.Status;
 
 namespace Jmodot.Implementation.Combat;
 
+using AI.BB;
+using Shared;
+
 /// <summary>
 /// Manages active status effects (Runners) on an entity.
 /// Acts as a container for StatusRunner nodes and a registry for active Tags.
@@ -16,24 +19,24 @@ namespace Jmodot.Implementation.Combat;
 public partial class StatusEffectComponent : Node, IComponent
 {
     #region Events
-    public event Action<StatusRunner> OnStatusAdded = delegate { };
-    public event Action<StatusRunner> OnStatusRemoved = delegate { };
+    public event Action<StatusRunner> StatusAdded = delegate { };
+    public event Action<StatusRunner, bool> StatusRemoved = delegate { };
 
     /// <summary>
     /// Fired when a specific tag count goes from 0 to 1.
     /// </summary>
-    public event Action<GameplayTag> OnTagStarted = delegate { };
+    public event Action<GameplayTag> TagStarted = delegate { };
 
     /// <summary>
     /// Fired when a specific tag count goes from 1 to 0.
     /// </summary>
-    public event Action<GameplayTag> OnTagEnded = delegate { };
+    public event Action<GameplayTag> TagEnded = delegate { };
     #endregion
 
     #region Private State
     // TODO: why is the int relative to amount of tags? where is priority here?
     private readonly Dictionary<GameplayTag, int> _activeTags = new();
-    private IBlackboard _blackboard;
+    private IBlackboard _blackboard = null!;
     #endregion
 
     #region IComponent Implementation
@@ -42,6 +45,11 @@ public partial class StatusEffectComponent : Node, IComponent
     public bool Initialize(IBlackboard bb)
     {
         _blackboard = bb;
+        // if (!bb.TryGet<ICombatant>(BBDataSig.CombatantComponent, out _combatant))
+        // {
+        //     JmoLogger.Error(this, $"Combatant not found in {Name}'s blackboard");
+        //     return false;
+        // }
         IsInitialized = true;
         Initialized?.Invoke();
         OnPostInitialize();
@@ -55,30 +63,21 @@ public partial class StatusEffectComponent : Node, IComponent
     #endregion
 
     #region Public API
-    public void AddStatus(StatusRunner runner)
+    public bool AddStatus(StatusRunner runner, ICombatant combatant, HitContext context)
     {
         if (!IsInitialized)
         {
-            runner.QueueFree();
-            return;
+            return false;
         }
 
         AddChild(runner);
         RegisterTags(runner.Tags);
 
-        runner.OnStatusFinished += RemoveStatus;
-        runner.Start();
+        runner.OnStatusFinished += HandleStatusFinished;
+        runner.Start(combatant, context);
 
-        OnStatusAdded?.Invoke(runner);
-    }
-
-    public void RemoveStatus(StatusRunner runner)
-    {
-        runner.OnStatusFinished -= RemoveStatus;
-        UnregisterTags(runner.Tags);
-
-        // Runner handles its own QueueFree in Stop(), but we ensure it's removed from our logic here
-        OnStatusRemoved?.Invoke(runner);
+        StatusAdded?.Invoke(runner);
+        return true;
     }
 
     public bool HasTag(GameplayTag tag)
@@ -88,6 +87,18 @@ public partial class StatusEffectComponent : Node, IComponent
     #endregion
 
     #region Internal Logic
+    private void HandleStatusFinished(StatusRunner runner, bool completedNaturally)
+    {
+        // Unsubscribe to prevent memory leaks
+        runner.OnStatusFinished -= HandleStatusFinished;
+
+        UnregisterTags(runner.Tags);
+
+        // This will notify the combatant
+        StatusRemoved?.Invoke(runner, completedNaturally);
+
+        // Note: runner.QueueFree() is called inside runner.Stop()
+    }
     private void RegisterTags(IEnumerable<GameplayTag> tags)
     {
         foreach (var tag in tags)
@@ -103,7 +114,7 @@ public partial class StatusEffectComponent : Node, IComponent
 
             if (_activeTags[tag] == 1)
             {
-                OnTagStarted?.Invoke(tag);
+                TagStarted?.Invoke(tag);
             }
         }
     }
@@ -121,7 +132,7 @@ public partial class StatusEffectComponent : Node, IComponent
                 if (_activeTags[tag] <= 0)
                 {
                     _activeTags.Remove(tag);
-                    OnTagEnded?.Invoke(tag);
+                    TagEnded?.Invoke(tag);
                 }
             }
         }
