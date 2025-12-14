@@ -122,7 +122,10 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
 
     public void OnPostInitialize()
     {
-        StatusComponent.StatusRemoved += StatusRemoved;
+        if (StatusComponent != null)
+        {
+            StatusComponent.StatusRemoved += StatusRemoved;
+        }
     }
     public event Action? Initialized;
 

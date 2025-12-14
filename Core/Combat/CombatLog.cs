@@ -48,9 +48,11 @@ public class CombatLog
     {
         var currTimeContext = GetCurrentTimeContext();
 
-        // We iterate backwards to find recent events, but return them in order if needed.
-        // Also cleans up old events implicitly or explicit cleanup can be done separately.
-        return _resultsByTime[currTimeContext].OfType<T>();
+        if (_resultsByTime.TryGetValue(currTimeContext, out var results))
+        {
+            return results.OfType<T>();
+        }
+        return Enumerable.Empty<T>();
     }
 
     /// <summary>
@@ -59,7 +61,13 @@ public class CombatLog
     public bool HasEvent<T>(System.Func<T, bool> predicate = null) where T : CombatResult
     {
         var currTimeContext = GetCurrentTimeContext();
-        var query = _resultsByTime[currTimeContext].Where(e => e is T);
+
+        if (!_resultsByTime.TryGetValue(currTimeContext, out var results))
+        {
+            return false;
+        }
+
+        var query = results.Where(e => e is T);
 
         if (predicate != null)
         {
@@ -73,10 +81,15 @@ public class CombatLog
     public void PruneAllButCurrentFrame()
     {
         var currTimeContext = GetCurrentTimeContext();
-        var currList = _resultsByTime[currTimeContext];
+
+        if (!_resultsByTime.TryGetValue(currTimeContext, out var currList))
+        {
+            _resultsByTime.Clear();
+            return;
+        }
+
         _resultsByTime.Clear();
         _resultsByTime[currTimeContext] = currList;
-        // TODO: check if there's a more efficient way?
     }
 
     public void PruneOldEventsByFrameCutoff(ulong frameCutoff)

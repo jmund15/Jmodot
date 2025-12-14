@@ -18,7 +18,7 @@ public abstract partial class StatusRunner : Node
 {
     // Fired when this runner is done (for any reason).
     // The StatusComponent listens to this to clean up.
-    // bool is if the status ended naturally (true) or manually dispelled (false)
+    // wasDispelled: true = manually stopped/dispelled, false = completed naturally
     public event Action<StatusRunner, bool> OnStatusFinished = delegate { };
 
     /// <summary>

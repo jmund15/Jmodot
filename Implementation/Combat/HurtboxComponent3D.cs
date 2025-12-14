@@ -4,10 +4,9 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 
-namespace Jmodot.Core.Combat;
+namespace Jmodot.Implementation.Combat;
 
 using Implementation.AI.BB;
-using Implementation.Combat;
 
 /// <summary>
 /// Represents the damageable zone of an entity.

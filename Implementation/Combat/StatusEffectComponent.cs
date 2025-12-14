@@ -87,7 +87,7 @@ public partial class StatusEffectComponent : Node, IComponent
     #endregion
 
     #region Internal Logic
-    private void HandleStatusFinished(StatusRunner runner, bool completedNaturally)
+    private void HandleStatusFinished(StatusRunner runner, bool wasDispelled)
     {
         // Unsubscribe to prevent memory leaks
         runner.OnStatusFinished -= HandleStatusFinished;
@@ -95,7 +95,7 @@ public partial class StatusEffectComponent : Node, IComponent
         UnregisterTags(runner.Tags);
 
         // This will notify the combatant
-        StatusRemoved?.Invoke(runner, completedNaturally);
+        StatusRemoved?.Invoke(runner, wasDispelled);
 
         // Note: runner.QueueFree() is called inside runner.Stop()
     }
