@@ -16,9 +16,9 @@ using Shared;
 public struct RevertStatEffect : ICombatEffect
 {
     public readonly ModifierHandle ModifierToRevert;
-    public IEnumerable<GameplayTag> Tags { get; private set; }
+    public IEnumerable<CombatTag> Tags { get; private set; }
 
-    public RevertStatEffect(ModifierHandle modifierToRevert, IEnumerable<GameplayTag>? tags = null)
+    public RevertStatEffect(ModifierHandle modifierToRevert, IEnumerable<CombatTag>? tags = null)
     {
         ModifierToRevert = modifierToRevert;
         Tags = tags ?? [];

@@ -18,14 +18,14 @@ public class DelayEffect : ICombatEffect
     public float Delay { get; private init; }
     public ICombatEffect DelayedEffect { get; private init; }
     public PackedScene? PersistantVisuals { get; private init; }
-    public IEnumerable<GameplayTag> Tags { get; private init; }
+    public IEnumerable<CombatTag> Tags { get; private init; }
 
     public DelayEffect(
         PackedScene prefab,
         float delay,
         ICombatEffect delayedEffect,
         PackedScene? persistantVisuals,
-        IEnumerable<GameplayTag> tags)
+        IEnumerable<CombatTag> tags)
     {
         Prefab = prefab;
         Delay = delay;

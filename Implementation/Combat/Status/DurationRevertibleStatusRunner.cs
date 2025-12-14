@@ -13,7 +13,7 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
     private Timer _durationTimer = null!;
 
     public void Setup(float duration, IRevertibleCombatEffect revertibleEffect,
-        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
     {
         Duration = duration;
         RevertibleEffect = revertibleEffect;

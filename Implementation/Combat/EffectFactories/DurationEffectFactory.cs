@@ -16,7 +16,7 @@ public partial class DurationEffectFactory : CombatEffectFactory
     [Export] public FloatEffectDefinition Duration { get; set; } = new(1.0f);
     [Export] public CombatEffectFactory OnStartEffect { get; set; } = null!;
     [Export] public CombatEffectFactory OnEndEffect { get; set; } = null!;
-    [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
+    [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)

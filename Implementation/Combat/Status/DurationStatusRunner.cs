@@ -15,7 +15,7 @@ public partial class DurationStatusRunner : StatusRunner
 
     public void Setup(float duration,
         ICombatEffect startEffect, ICombatEffect endEffect,
-        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
     {
         Duration = duration;
         OnStartEffect = startEffect;

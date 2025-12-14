@@ -18,7 +18,7 @@ public partial class TickEffectFactory : CombatEffectFactory
     [Export] public FloatEffectDefinition Duration { get; set; } = new(1.0f);
     [Export] public FloatEffectDefinition Interval { get; set; } = new(1.0f);
     [Export] public CombatEffectFactory PerTickEffect { get; set; } = null!;
-    [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
+    [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
     // TODO: should this be a property of the 'PerTickEffect'?
     [Export] public PackedScene? TickVisuals { get; set; }

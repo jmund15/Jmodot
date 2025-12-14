@@ -29,9 +29,9 @@ public struct StatEffect : IRevertibleCombatEffect
     public readonly Attribute Attribute;
     public Resource Modifier;
     public ModifierHandle? Handle;
-    public IEnumerable<GameplayTag> Tags { get; private set; }
+    public IEnumerable<CombatTag> Tags { get; private set; }
 
-    public StatEffect(Attribute attribute, Resource modifier, IEnumerable<GameplayTag>? tags = null)
+    public StatEffect(Attribute attribute, Resource modifier, IEnumerable<CombatTag>? tags = null)
     {
         Attribute = attribute;
         Modifier = modifier;

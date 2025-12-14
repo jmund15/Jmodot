@@ -16,7 +16,7 @@ public partial class StatEffectFactory : CombatEffectFactory
 {
     [Export] public Attribute Attribute { get; set; } = null!;
     [Export] public Resource Modifier { get; set; } = null!;
-    [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
+    [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
         return new StatEffect(Attribute, Modifier, Tags);

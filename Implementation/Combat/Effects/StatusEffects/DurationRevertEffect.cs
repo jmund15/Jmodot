@@ -17,14 +17,14 @@ public class DurationRevertEffect : ICombatEffect
     public float Duration { get; private init; }
     public IRevertibleCombatEffect RevertEffect { get; private init; }
     public PackedScene? PersistantVisuals { get; private init; }
-    public IEnumerable<GameplayTag> Tags { get; private init; }
+    public IEnumerable<CombatTag> Tags { get; private init; }
 
     public DurationRevertEffect(
         PackedScene prefab,
         float duration,
         IRevertibleCombatEffect revertEffect,
         PackedScene? persistantVisuals,
-        IEnumerable<GameplayTag> tags)
+        IEnumerable<CombatTag> tags)
     {
         Prefab = prefab;
         Duration = duration;

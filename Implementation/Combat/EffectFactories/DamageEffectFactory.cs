@@ -12,7 +12,7 @@ using GCol = Godot.Collections;
 public partial class DamageEffectFactory : CombatEffectFactory
 {
     [Export] private FloatEffectDefinition _floatEffectDefinition = null!;
-    [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
+    [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {

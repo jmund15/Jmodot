@@ -23,5 +23,5 @@ public interface ICombatEffect
     /// Tags associated with this effect (e.g., "Fire", "HeavyHit").
     /// Used for reaction prioritization and state machine integration.
     /// </summary>
-    IEnumerable<GameplayTag> Tags { get; }
+    IEnumerable<CombatTag> Tags { get; }
 }

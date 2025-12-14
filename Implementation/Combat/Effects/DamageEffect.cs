@@ -14,9 +14,9 @@ using Shared;
 public struct DamageEffect : ICombatEffect
 {
     public readonly float DamageAmount;
-    public IEnumerable<GameplayTag> Tags { get; private set; }
+    public IEnumerable<CombatTag> Tags { get; private set; }
 
-    public DamageEffect(float damageAmount, IEnumerable<GameplayTag> tags)
+    public DamageEffect(float damageAmount, IEnumerable<CombatTag> tags)
     {
         DamageAmount = damageAmount;
         Tags = tags ?? [];

@@ -21,14 +21,14 @@ public class TickEffect : ICombatEffect
     public PackedScene? PersistantVisuals { get; private init; }
     public PackedScene? TickVisuals { get; private init; }
 
-    public IEnumerable<GameplayTag> Tags { get; private init; }
+    public IEnumerable<CombatTag> Tags { get; private init; }
 
     public TickEffect(
         PackedScene prefab,
         float duration, float interval,
         ICombatEffect perTickEffect,
         PackedScene? tickVisuals, PackedScene? persistantVisuals,
-        IEnumerable<GameplayTag> tags)
+        IEnumerable<CombatTag> tags)
     {
         Prefab = prefab;
         Duration = duration;

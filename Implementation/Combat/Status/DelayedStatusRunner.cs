@@ -14,7 +14,7 @@ public partial class DelayedStatusRunner : StatusRunner
 
     public void Setup(float delay,
         ICombatEffect effect,
-        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
     {
         Delay = delay;
         Effect = effect;

@@ -19,14 +19,14 @@ public class DurationEffect : ICombatEffect
     public ICombatEffect StartEffect { get; private init; }
     public ICombatEffect EndEffect { get; private init; }
     public PackedScene? PersistantVisuals { get; private init; }
-    public IEnumerable<GameplayTag> Tags { get; private init; }
+    public IEnumerable<CombatTag> Tags { get; private init; }
 
     public DurationEffect(
         PackedScene prefab,
         float duration,
         ICombatEffect startEffect, ICombatEffect endEffect,
         PackedScene? persistantVisuals,
-        IEnumerable<GameplayTag> tags)
+        IEnumerable<CombatTag> tags)
     {
         Prefab = prefab;
         Duration = duration;

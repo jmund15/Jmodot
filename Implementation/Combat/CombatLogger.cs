@@ -26,7 +26,7 @@ public partial class CombatLogger : Node, IComponent
     /// Set to true to enable verbose logging of combat events to the Godot console.
     /// Toggle this during debugging/testing sessions.
     /// </summary>
-    public static bool VerboseLoggingEnabled { get; set; } = false;
+    public static bool VerboseLoggingEnabled { get; set; } = true;
 
     private CombatLog _log;
 
@@ -60,7 +60,7 @@ public partial class CombatLogger : Node, IComponent
 
     private void HandleCombatResultEvent(CombatResult result)
     {
-        _log?.Log(result);
+        _log.Log(result);
 
         if (VerboseLoggingEnabled)
         {
@@ -71,7 +71,7 @@ public partial class CombatLogger : Node, IComponent
     public override void _PhysicsProcess(double delta)
     {
         // Optional: Keep memory usage low
-        //_log?.PruneAllButCurrentFrame();
+        _log.UpdateCombatTime((float)delta);
     }
 
     public override void _ExitTree()

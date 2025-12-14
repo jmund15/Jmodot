@@ -25,17 +25,17 @@ public partial class StatusEffectComponent : Node, IComponent
     /// <summary>
     /// Fired when a specific tag count goes from 0 to 1.
     /// </summary>
-    public event Action<GameplayTag> TagStarted = delegate { };
+    public event Action<CombatTag> TagStarted = delegate { };
 
     /// <summary>
     /// Fired when a specific tag count goes from 1 to 0.
     /// </summary>
-    public event Action<GameplayTag> TagEnded = delegate { };
+    public event Action<CombatTag> TagEnded = delegate { };
     #endregion
 
     #region Private State
     // TODO: why is the int relative to amount of tags? where is priority here?
-    private readonly Dictionary<GameplayTag, int> _activeTags = new();
+    private readonly Dictionary<CombatTag, int> _activeTags = new();
     private IBlackboard _blackboard = null!;
     #endregion
 
@@ -80,7 +80,7 @@ public partial class StatusEffectComponent : Node, IComponent
         return true;
     }
 
-    public bool HasTag(GameplayTag tag)
+    public bool HasTag(CombatTag tag)
     {
         return _activeTags.TryGetValue(tag, out int count) && count > 0;
     }
@@ -99,7 +99,7 @@ public partial class StatusEffectComponent : Node, IComponent
 
         // Note: runner.QueueFree() is called inside runner.Stop()
     }
-    private void RegisterTags(IEnumerable<GameplayTag> tags)
+    private void RegisterTags(IEnumerable<CombatTag> tags)
     {
         foreach (var tag in tags)
         {
@@ -119,7 +119,7 @@ public partial class StatusEffectComponent : Node, IComponent
         }
     }
 
-    private void UnregisterTags(IEnumerable<GameplayTag> tags)
+    private void UnregisterTags(IEnumerable<CombatTag> tags)
     {
         foreach (var tag in tags)
         {

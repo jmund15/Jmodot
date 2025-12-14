@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bhc5hs5fvaoc8"]
+
+[ext_resource type="Script" uid="uid://c44duciaqng6q" path="res://Jmodot/Implementation/Combat/Status/DurationStatusRunner.cs" id="1_hjsy3"]
+
+[node name="DurationStatusRunner" type="Node"]
+script = ExtResource("1_hjsy3")
+
+[node name="DurationTmier" type="Timer" parent="."]

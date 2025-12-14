@@ -12,12 +12,12 @@ public static class ReactionResolver
     /// Returns the GameplayTag with the highest priority from all effects in the payload.
     /// Returns null if no tags are found.
     /// </summary>
-    public static GameplayTag GetHighestPriorityTag(IAttackPayload payload)
+    public static CombatTag GetHighestPriorityTag(IAttackPayload payload)
     {
         if (payload == null || payload.Effects == null || payload.Effects.Count == 0)
             return null;
 
-        GameplayTag highestPriorityTag = null;
+        CombatTag highestPriorityTag = null;
         int maxPriority = int.MinValue;
 
         foreach (var effect in payload.Effects)

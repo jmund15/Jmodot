@@ -11,7 +11,7 @@ public abstract record CombatResult
 {
     public Node Source { get; init; }
     public Node Target { get; init; }
-    public IEnumerable<GameplayTag> Tags { get; init; }
+    public IEnumerable<CombatTag> Tags { get; init; }
 }
 
 public record DamageResult : CombatResult

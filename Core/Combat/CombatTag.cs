@@ -7,7 +7,7 @@ namespace Jmodot.Core.Combat;
 /// Used to tag Status Effects and drive State Machine transitions.
 /// </summary>
 [GlobalClass]
-public partial class GameplayTag : Resource
+public partial class CombatTag : Resource
 {
     /// <summary>
     /// String Identifier of the GameTag. Used for matching in combat effects

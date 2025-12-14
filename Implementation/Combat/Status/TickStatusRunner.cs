@@ -20,7 +20,7 @@ public partial class TickStatusRunner : StatusRunner
     private Timer _durationTimer;
 
     public void Setup(float duration, float interval, ICombatEffect tickEffect, PackedScene? tickVisuals,
-        PackedScene? persistantVisuals, IEnumerable<GameplayTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
     {
         Duration = duration;
         Interval = interval;
