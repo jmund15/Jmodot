@@ -8,15 +8,56 @@ using Core.Combat.EffectDefinitions;
 using Core.Stats;
 using GCol = Godot.Collections;
 
+
+/// <summary>
+/// Factory for creating DamageEffect instances.
+/// Rolls for critical hit at creation time based on attacker's stats.
+/// </summary>
 [GlobalClass]
 public partial class DamageEffectFactory : CombatEffectFactory
 {
     [Export] private FloatEffectDefinition _floatEffectDefinition = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 
+    /// <summary>
+    /// Attribute for crit chance (0.0 - 1.0). If null, crit is disabled.
+    /// </summary>
+    [ExportGroup("Critical Hit")]
+    [Export] public Attribute CritChanceAttribute { get; set; } = null!;
+
+    /// <summary>
+    /// Attribute for crit damage multiplier. Falls back to DefaultCritMultiplier if null.
+    /// </summary>
+    [Export] public Attribute CritMultiplierAttribute { get; set; } = null!;
+
+    /// <summary>
+    /// Default crit multiplier if CritMultiplierAttribute is not set.
+    /// </summary>
+    [Export] public float DefaultCritMultiplier { get; set; } = 1.5f;
+
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        float damage = _floatEffectDefinition.ResolveFloatValue(stats);
-        return new DamageEffect(damage, Tags);
+        float baseDamage = _floatEffectDefinition.ResolveFloatValue(stats);
+
+        bool isCritical = false;
+        float finalDamage = baseDamage;
+
+        // Roll for crit if CritChanceAttribute is configured (not default/null resource)
+        if (CritChanceAttribute != null && stats != null)
+        {
+            float critChance = stats.GetStatValue<float>(CritChanceAttribute);
+            isCritical = System.Random.Shared.NextSingle() < critChance;
+
+            if (isCritical)
+            {
+                float multiplier = CritMultiplierAttribute != null
+                    ? stats.GetStatValue<float>(CritMultiplierAttribute)
+                    : DefaultCritMultiplier;
+
+                finalDamage = baseDamage * multiplier;
+            }
+        }
+
+        return new DamageEffect(finalDamage, Tags, isCritical);
     }
 }

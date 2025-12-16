@@ -6,12 +6,15 @@ using GCol = Godot.Collections;
 using System.Linq;
 using Core.Visual.Animation.Sprite;
 
+using System;
+using Core.Visual.Effects;
+
 /// <summary>
 /// Manages the visual composition of the character.
 /// Handles equipping items into Slots and configuring the CompositeAnimator.
 /// </summary>
 [GlobalClass]
-public partial class VisualComposer : Node
+public partial class VisualComposer : Node, IVisualSpriteProvider
 {
     [Export] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
     [Export] public GCol.Array<VisualSlotConfig> SlotConfigs { get; set; } = new();
@@ -32,6 +35,9 @@ public partial class VisualComposer : Node
 
             var slot = new VisualSlot(config, CompositeAnimator, slotRoot);
             _slots[config.SlotName] = slot;
+            
+            // Subscribe to effects changes for bubbling
+            slot.VisualNodesChanged += OnSlotVisualNodesChanged;
 
             // Equip Default
             if (config.DefaultItem != null)
@@ -66,4 +72,25 @@ public partial class VisualComposer : Node
     {
         return _slots.TryGetValue(slotName, out var slot) ? slot.CurrentItem : null;
     }
+
+    #region IVisualSpriteProvider Implementation
+
+    public event Action VisualNodesChanged;
+
+    public IReadOnlyList<Node> GetActiveVisualNodes()
+    {
+        var nodes = new List<Node>();
+        foreach (var slot in _slots.Values)
+        {
+            nodes.AddRange(slot.GetCurrentVisualNodes());
+        }
+        return nodes;
+    }
+
+    private void OnSlotVisualNodesChanged()
+    {
+        VisualNodesChanged?.Invoke();
+    }
+
+    #endregion
 }

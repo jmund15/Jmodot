@@ -2,14 +2,16 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
 using Godot;
 using GCol = Godot.Collections;
+using System;
 using System.Collections.Generic;
 using Shared;
 using System.Linq;
-using Core.Visual.Animation.Sprite; // Used for easier array checking in Editor logic
+using Core.Visual.Animation.Sprite;
+using Core.Visual.Effects;
 
 [Tool]
 [GlobalClass]
-public partial class AnimationVisibilityCoordinator : Node
+public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvider
 {
     private NodePath _targetAnimatorPath;
     [Export] public NodePath TargetAnimatorPath
@@ -51,6 +53,11 @@ public partial class AnimationVisibilityCoordinator : Node
     private Dictionary<StringName, List<Node>> _visibilityCache = new();
     private List<Node> _allManagedNodes = new();
     private IAnimComponent _targetAnimComponent = null!;
+
+    /// <summary>
+    /// Fired when the set of visible nodes changes (animation change, node added/removed).
+    /// </summary>
+    public event Action VisualNodesChanged;
 
     public override void _Ready()
     {
@@ -203,7 +210,27 @@ public partial class AnimationVisibilityCoordinator : Node
                 SetNodeVisible(node, true);
             }
         }
+
+        // Notify listeners that visible nodes have changed
+        VisualNodesChanged?.Invoke();
     }
+
+    #region IVisualSpriteProvider Implementation
+
+    /// <summary>
+    /// Returns all currently VISIBLE managed nodes.
+    /// </summary>
+    public IReadOnlyList<Node> GetActiveVisualNodes()
+    {
+        return _allManagedNodes.Where(IsNodeVisible).ToList();
+    }
+
+    private bool IsNodeVisible(Node node)
+    {
+        return (node is Node3D n3d && n3d.Visible) || (node is CanvasItem ci && ci.Visible);
+    }
+
+    #endregion
 
     /// <summary>
     /// Helper to handle the fact that Node3D and CanvasItem don't share a 'Visible' interface.

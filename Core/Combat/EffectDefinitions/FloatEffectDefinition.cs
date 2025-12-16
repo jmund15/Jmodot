@@ -1,59 +1,95 @@
 namespace Jmodot.Core.Combat.EffectDefinitions;
 
+using Godot.Collections;
 using PushinPotions.Global;
 using Stats;
 
+/// <summary>
+/// Defines a float value that can be computed from a base amount and zero or more
+/// Attribute + Operation pairs. Each modifier is applied sequentially.
+/// If no modifiers are specified, the base amount is returned as a static value.
+/// </summary>
 [GlobalClass]
 public partial class FloatEffectDefinition : Resource
 {
+    /// <summary>
+    /// The starting value before any attribute modifiers are applied.
+    /// </summary>
     [Export] public float BaseAmount { get; set; } = 10f;
-    [Export] public Attribute? Attribute { get; set; }
-    [Export] public AttributeOperation AttributeOperation { get; set; } = AttributeOperation.Override;
+
+    /// <summary>
+    /// An array of Attribute + Operation pairs that modify the base amount.
+    /// Applied sequentially in order. Empty array = static value (just BaseAmount).
+    /// </summary>
+    [Export] public Array<AttributeModifier> Modifiers { get; set; } = new();
 
     public FloatEffectDefinition() { }
 
+    /// <summary>
+    /// Constructor for a static value with no attribute modifiers.
+    /// </summary>
     public FloatEffectDefinition(float baseAmount)
     {
         BaseAmount = baseAmount;
-        Attribute = null;
-        AttributeOperation = AttributeOperation.Override; //irrelevant, but can't make nullable for godot reasons
-    }
-    public FloatEffectDefinition(float baseAmount, Attribute attribute, AttributeOperation attributeOperation)
-    {
-        BaseAmount = baseAmount;
-        Attribute = attribute;
-        AttributeOperation = attributeOperation;
+        Modifiers = new Array<AttributeModifier>();
     }
 
     /// <summary>
-    /// Constructor for attribute only value (i.e. no base value, stat's value of attribute IS the value)
+    /// Constructor with a single attribute modifier.
     /// </summary>
-    /// <param name="attribute"></param>
+    public FloatEffectDefinition(float baseAmount, Attribute attribute, AttributeOperation operation)
+    {
+        BaseAmount = baseAmount;
+        Modifiers = new Array<AttributeModifier>
+        {
+            new AttributeModifier { Attribute = attribute, Operation = operation }
+        };
+    }
+
+    /// <summary>
+    /// Constructor for attribute-only value (base = 0, attribute value is the result).
+    /// Uses Override operation so the attribute value becomes the final value.
+    /// </summary>
     public FloatEffectDefinition(Attribute attribute)
     {
         BaseAmount = 0f;
-        Attribute = attribute;
-        AttributeOperation = AttributeOperation.Override;
+        Modifiers = new Array<AttributeModifier>
+        {
+            new AttributeModifier { Attribute = attribute, Operation = AttributeOperation.Override }
+        };
     }
 
     /// <summary>
-    /// Resolves a float value based on a base value, an optional attribute, and an operation.
+    /// Resolves the final float value by starting with BaseAmount and applying
+    /// each modifier sequentially. If no modifiers or no stats, returns BaseAmount.
     /// </summary>
     public float ResolveFloatValue(IStatProvider? stats)
     {
-        if (stats == null || Attribute == null)
+        float result = BaseAmount;
+
+        if (stats == null || Modifiers.Count == 0)
         {
-            return BaseAmount;
+            return result;
         }
 
-        var statVal = stats.GetStatValue<float>(Attribute);
-
-        return AttributeOperation switch
+        foreach (var modifier in Modifiers)
         {
-            AttributeOperation.Override => statVal,
-            AttributeOperation.Add => BaseAmount + statVal,
-            AttributeOperation.Multiply => BaseAmount * statVal,
-            _ => BaseAmount
-        };
+            if (modifier?.Attribute == null)
+            {
+                continue;
+            }
+
+            var statVal = stats.GetStatValue<float>(modifier.Attribute);
+
+            result = modifier.Operation switch
+            {
+                AttributeOperation.Override => statVal,
+                AttributeOperation.Add => result + statVal,
+                AttributeOperation.Multiply => result * statVal,
+                _ => result
+            };
+        }
+
+        return result;
     }
 }

@@ -14,12 +14,14 @@ using Shared;
 public struct DamageEffect : ICombatEffect
 {
     public readonly float DamageAmount;
+    public readonly bool IsCritical;
     public IEnumerable<CombatTag> Tags { get; private set; }
 
-    public DamageEffect(float damageAmount, IEnumerable<CombatTag> tags)
+    public DamageEffect(float damageAmount, IEnumerable<CombatTag> tags, bool isCritical = false)
     {
         DamageAmount = damageAmount;
         Tags = tags ?? [];
+        IsCritical = isCritical;
     }
 
     public CombatResult? Apply(ICombatant target, HitContext context)
@@ -44,6 +46,7 @@ public struct DamageEffect : ICombatEffect
                 Tags = Tags,
                 OriginalAmount = DamageAmount,
                 FinalAmount = DamageAmount,
+                IsCritical = IsCritical,
                 IsFatal = health.IsDead
             };
         }

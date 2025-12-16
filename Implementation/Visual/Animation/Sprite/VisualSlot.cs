@@ -3,6 +3,9 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 using Core.Visual.Animation.Sprite;
 using Godot;
 using Shared;
+using System;
+using System.Collections.Generic;
+using Core.Visual.Effects;
 
 /// <summary>
 /// Helper class representing a runtime slot.
@@ -16,6 +19,11 @@ public class VisualSlot
     private CompositeAnimatorComponent _composite;
     private Node _slotRoot;
     private Node _currentInstance;
+
+    // Visual Effect Tracking
+    private readonly List<Node> _currentVisualNodes = new();
+    private IVisualSpriteProvider _prefabProvider;
+    public event Action VisualNodesChanged;
 
     public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot)
     {
@@ -65,6 +73,9 @@ public class VisualSlot
             {
                 _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
             }
+            
+            // 5. Track Visual Nodes for Effects
+            DetectVisualNodes(_currentInstance);
         }
         else
         {
@@ -93,6 +104,15 @@ public class VisualSlot
 
         if (_currentInstance != null)
         {
+            // Cleanup visual tracking
+            if (_prefabProvider != null)
+            {
+                _prefabProvider.VisualNodesChanged -= OnPrefabVisualNodesChanged;
+                _prefabProvider = null;
+            }
+            _currentVisualNodes.Clear();
+            VisualNodesChanged?.Invoke();
+
             var anim = GetAnimComponent(_currentInstance);
             if (anim != null)
             {
@@ -174,4 +194,62 @@ public class VisualSlot
 
         return null;
     }
+
+    #region Visual Effect Support
+
+    public IReadOnlyList<Node> GetCurrentVisualNodes() => _currentVisualNodes;
+
+    private void DetectVisualNodes(Node prefabRoot)
+    {
+        _currentVisualNodes.Clear();
+
+        // 1. Check if the prefab has a Coordinator (IVisualSpriteProvider)
+        // This handles dynamic visibility changes (e.g. running animations)
+        if (prefabRoot is IVisualSpriteProvider provider)
+        {
+            _prefabProvider = provider;
+        }
+        else if (prefabRoot.TryGetFirstChildOfInterface<IVisualSpriteProvider>(out provider))
+        {
+            _prefabProvider = provider;
+        }
+
+        if (_prefabProvider != null)
+        {
+            _prefabProvider.VisualNodesChanged += OnPrefabVisualNodesChanged;
+            _currentVisualNodes.AddRange(_prefabProvider.GetActiveVisualNodes());
+        }
+        else
+        {
+            // 2. Fallback: Recursively find all static sprites
+            FindSpritesRecursive(prefabRoot, _currentVisualNodes);
+        }
+
+        VisualNodesChanged?.Invoke();
+    }
+
+    private void OnPrefabVisualNodesChanged()
+    {
+        if (_prefabProvider != null)
+        {
+            _currentVisualNodes.Clear();
+            _currentVisualNodes.AddRange(_prefabProvider.GetActiveVisualNodes());
+            VisualNodesChanged?.Invoke();
+        }
+    }
+
+    private static void FindSpritesRecursive(Node parent, List<Node> results)
+    {
+        if (parent is SpriteBase3D or Sprite2D)
+        {
+            results.Add(parent);
+        }
+
+        foreach (var child in parent.GetChildren())
+        {
+            FindSpritesRecursive(child, results);
+        }
+    }
+
+    #endregion
 }
