@@ -11,13 +11,13 @@ using Shared;
 /// <summary>
 /// Central controller for applying visual effects across all active sprites in an entity.
 /// Manages Tween-based effects, handles dynamic sprite changes mid-effect, and implements priority override.
-/// 
+///
 /// Usage:
 /// 1. Set VisualSources to point to IVisualSpriteProvider nodes (VisualComposer) or direct Sprite nodes
 /// 2. Call PlayEffect(effect) to start an effect
 /// 3. The controller handles aggregating sprites, creating Tweens, and responding to sprite changes
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VisualEffectController : Node
 {
     /// <summary>
@@ -39,9 +39,12 @@ public partial class VisualEffectController : Node
     private readonly List<IVisualSpriteProvider> _providers = new();
 
     /// <summary>
-    /// The currently dominant effect (highest priority, or most recent if tied).
+    /// The currently dominant modulate effect (highest priority, or most recent if tied).
+    /// Only one modulate effect can be active at a time.
     /// </summary>
-    private VisualEffect? _currentDominantEffect;
+    private VisualEffect? _currentDominantModulateEffect;
+
+    // TODO: add shader effects
 
     public override void _Ready()
     {
@@ -71,20 +74,21 @@ public partial class VisualEffectController : Node
         }
 
         // Check priority override
-        if (_currentDominantEffect != null && effect.Priority < _currentDominantEffect.Priority)
+        if (_currentDominantModulateEffect != null && effect.Priority < _currentDominantModulateEffect.Priority)
         {
-            JmoLogger.Trace(this, $"Effect '{effect.ResourceName}' blocked by higher priority effect '{_currentDominantEffect.ResourceName}'");
+            JmoLogger.Info(this, $"Effect '{effect.ResourceName}' blocked by higher priority effect '{_currentDominantModulateEffect.ResourceName}'");
             return;
         }
 
         // Stop current dominant effect if we're replacing it
-        if (_currentDominantEffect != null)
+        if (_currentDominantModulateEffect != null)
         {
-            StopEffect(_currentDominantEffect);
+            StopEffect(_currentDominantModulateEffect);
+            GD.Print($"Stopped current effect '{_currentDominantModulateEffect.ResourceName}' to apply new effect");
         }
 
         // Get all current visual nodes
-        var nodes = GetAllActiveVisualNodes();
+        var nodes = GetAllVisualNodes();
         if (nodes.Count == 0)
         {
             JmoLogger.Warning(this, "No active visual nodes found to apply effect");
@@ -100,28 +104,32 @@ public partial class VisualEffectController : Node
         };
 
         // Capture state and apply effect to each node
-        var tween = CreateTween();
-        tween.SetParallel(true); // All nodes animate in parallel
+        var tween = GetTree().CreateTween();
 
         foreach (var node in nodes)
         {
-            if (!VisualEffect.IsVisualNode(node)) continue;
+            if (!VisualEffect.IsVisualNode(node))
+            {
+                // TODO: should never get here right?
+                JmoLogger.Warning(this, $"UNEXPECTED WARNING: Node '{node.Name}' is not a valid visual node for the current visual effect '{effect.ResourceName}'");
+                continue;
+            }
 
             // Capture original state
             handle.NodeStates[node] = effect.CaptureState(node);
-
-            // Configure tween for this node
-            effect.ConfigureTween(tween, node);
         }
 
-        tween.SetParallel(false);
+        // Configure tween for the nodes
+        effect.ConfigureTween(tween, nodes, 0);
+
+        tween.Play();
         tween.Finished += () => OnEffectFinished(effect);
 
         handle.Tween = tween;
         _activeEffects[effect] = handle;
-        _currentDominantEffect = effect;
+        _currentDominantModulateEffect = effect;
 
-        JmoLogger.Trace(this, $"Started effect '{effect.ResourceName}' on {nodes.Count} nodes");
+        JmoLogger.Info(this, $"Started effect '{effect.ResourceName}' on {nodes.Count} nodes");
     }
 
     /// <summary>
@@ -148,12 +156,12 @@ public partial class VisualEffectController : Node
 
         _activeEffects.Remove(effect);
 
-        if (_currentDominantEffect == effect)
+        if (_currentDominantModulateEffect == effect)
         {
-            _currentDominantEffect = null;
+            _currentDominantModulateEffect = null;
         }
 
-        JmoLogger.Trace(this, $"Stopped effect '{effect.ResourceName}'");
+        JmoLogger.Info(this, $"Stopped effect '{effect.ResourceName}'");
     }
 
     /// <summary>
@@ -188,7 +196,10 @@ public partial class VisualEffectController : Node
             if (source is IVisualSpriteProvider provider)
             {
                 _providers.Add(provider);
-                provider.VisualNodesChanged += OnVisualNodesChanged;
+                GD.Print($"Found visual provider: {source.Name}");
+
+                // CAN USE IN FUTURE, right now just using ALL visual nodes
+                //provider.VisibleNodesChanged += OnVisibleNodesChanged;
             }
         }
     }
@@ -197,71 +208,74 @@ public partial class VisualEffectController : Node
     {
         foreach (var provider in _providers)
         {
-            provider.VisualNodesChanged -= OnVisualNodesChanged;
+            //provider.VisibleNodesChanged -= OnVisibleNodesChanged;
         }
         _providers.Clear();
     }
 
-    private void OnVisualNodesChanged()
-    {
-        // If an effect is playing, we need to handle new/removed nodes
-        if (_currentDominantEffect == null || !_activeEffects.TryGetValue(_currentDominantEffect, out var handle))
-        {
-            return;
-        }
+    // private void OnVisibleNodesChanged()
+    // {
+    //     // If an effect is playing, we need to handle new/removed nodes
+    //     if (_currentDominantModulateEffect == null || !_activeEffects.TryGetValue(_currentDominantModulateEffect, out var handle))
+    //     {
+    //         return;
+    //     }
+    //
+    //     var currentNodes = GetAllActiveVisualNodes();
+    //     var trackedNodes = handle.NodeStates.Keys.ToHashSet();
+    //
+    //     // Find new nodes (in current but not tracked)
+    //     var newNodes = currentNodes.Where(n => !trackedNodes.Contains(n) && VisualEffect.IsVisualNode(n)).ToList();
+    //
+    //     // Find removed nodes (tracked but not in current)
+    //     var removedNodes = trackedNodes.Where(n => !currentNodes.Contains(n)).ToList();
+    //
+    //     // Restore and remove tracking for removed nodes
+    //     foreach (var node in removedNodes)
+    //     {
+    //         GD.Print($"Removing node from effect tracking: {node.Name}");
+    //         if (GodotObject.IsInstanceValid(node) && handle.NodeStates.TryGetValue(node, out var state))
+    //         {
+    //             _currentDominantModulateEffect.RestoreState(node, state);
+    //         }
+    //         handle.NodeStates.Remove(node);
+    //     }
+    //
+    //     foreach (var newNode in newNodes)
+    //     {
+    //         GD.Print($"Adding node to effect tracking: {newNode.Name}");
+    //     }
+    //     // Add new nodes to the running effect
+    //     if (newNodes.Count > 0)
+    //     {
+    //         AddNodesToRunningEffect(handle, newNodes);
+    //     }
+    // }
 
-        var currentNodes = GetAllActiveVisualNodes();
-        var trackedNodes = handle.NodeStates.Keys.ToHashSet();
-
-        // Find new nodes (in current but not tracked)
-        var newNodes = currentNodes.Where(n => !trackedNodes.Contains(n) && VisualEffect.IsVisualNode(n)).ToList();
-
-        // Find removed nodes (tracked but not in current)
-        var removedNodes = trackedNodes.Where(n => !currentNodes.Contains(n)).ToList();
-
-        // Restore and remove tracking for removed nodes
-        foreach (var node in removedNodes)
-        {
-            if (GodotObject.IsInstanceValid(node) && handle.NodeStates.TryGetValue(node, out var state))
-            {
-                _currentDominantEffect.RestoreState(node, state);
-            }
-            handle.NodeStates.Remove(node);
-        }
-
-        // Add new nodes to the running effect
-        if (newNodes.Count > 0)
-        {
-            AddNodesToRunningEffect(handle, newNodes);
-        }
-    }
-
-    private void AddNodesToRunningEffect(ActiveEffectHandle handle, List<Node> newNodes)
-    {
-        // For new nodes joining mid-effect, we start a new tween for just these nodes
-        // This is simpler than trying to sync them to the existing tween's progress
-        var tween = CreateTween();
-        tween.SetParallel(true);
-
-        foreach (var node in newNodes)
-        {
-            handle.NodeStates[node] = handle.Effect.CaptureState(node);
-            handle.Effect.ConfigureTween(tween, node);
-        }
-
-        // Note: This tween runs independently and may finish at a different time
-        // For most effects (flash, tint), this is acceptable behavior
-        JmoLogger.Trace(this, $"Added {newNodes.Count} new nodes to running effect '{handle.Effect.ResourceName}'");
-    }
+    // private void AddNodesToRunningEffect(ActiveEffectHandle handle, List<Node> newNodes)
+    // {
+    //     // For new nodes joining mid-effect, we start a new tween for just these nodes
+    //     // This is simpler than trying to sync them to the existing tween's progress
+    //     var tween = CreateTween();
+    //     tween.SetParallel(true);
+    //
+    //     foreach (var node in newNodes)
+    //     {
+    //         handle.NodeStates[node] = handle.Effect.CaptureState(node);
+    //     }
+    //
+    //     handle.Effect.ConfigureTween(tween, newNodes, 0);;
+    //
+    //     // Note: This tween runs independently and may finish at a different time
+    //     // For most effects (flash, tint), this is acceptable behavior
+    //     JmoLogger.Info(this, $"Added {newNodes.Count} new nodes to running effect '{handle.Effect.ResourceName}'");
+    // }
 
     #endregion
 
     #region Node Aggregation
 
-    /// <summary>
-    /// Gather all active visual nodes from all sources.
-    /// </summary>
-    private List<Node> GetAllActiveVisualNodes()
+    private List<Node> GetAllVisualNodes()
     {
         var nodes = new List<Node>();
 
@@ -272,41 +286,59 @@ public partial class VisualEffectController : Node
             if (source is IVisualSpriteProvider provider)
             {
                 // Use the provider's method
-                nodes.AddRange(provider.GetActiveVisualNodes());
+                nodes.AddRange(provider.GetAllVisualNodes());
             }
-            else if (source is SpriteBase3D or Sprite2D)
+            else
             {
-                // Direct sprite reference
-                nodes.Add(source);
-            }
-            else if (source is Node3D node3D)
-            {
-                // Search for sprite children
-                FindSpritesRecursive(node3D, nodes);
-            }
-            else if (source is CanvasItem canvasItem)
-            {
-                // Search for sprite children in 2D
-                FindSpritesRecursive(canvasItem, nodes);
+                if (source is SpriteBase3D)
+                {
+                    // Direct sprite reference
+                    nodes.Add(source);
+                }
+                nodes.AddRange(
+                    source.GetChildrenOfType<SpriteBase3D>()
+                    );
             }
         }
 
         return nodes;
     }
 
-    private static void FindSpritesRecursive(Node parent, List<Node> results)
-    {
-        foreach (var child in parent.GetChildren())
-        {
-            if (child is SpriteBase3D or Sprite2D)
-            {
-                results.Add(child);
-            }
-
-            // Continue searching in children
-            FindSpritesRecursive(child, results);
-        }
-    }
+    /// <summary>
+    /// Gather all active visual nodes from all sources.
+    /// </summary>
+    // private List<Node> GetAllVisibleNodes()
+    // {
+    //     var nodes = new List<Node>();
+    //
+    //     foreach (var source in VisualSources)
+    //     {
+    //         if (source == null || !GodotObject.IsInstanceValid(source)) continue;
+    //
+    //         if (source is IVisualSpriteProvider provider)
+    //         {
+    //             // Use the provider's method
+    //             nodes.AddRange(provider.GetVisibleNodes());
+    //         }
+    //         else if (source is SpriteBase3D or Sprite2D)
+    //         {
+    //             // Direct sprite reference
+    //             nodes.Add(source);
+    //         }
+    //         else if (source is Node3D node3D)
+    //         {
+    //             // Search for sprite children
+    //             FindSpritesRecursive(node3D, nodes);
+    //         }
+    //         else if (source is CanvasItem canvasItem)
+    //         {
+    //             // Search for sprite children in 2D
+    //             FindSpritesRecursive(canvasItem, nodes);
+    //         }
+    //     }
+    //
+    //     return nodes;
+    // }
 
     #endregion
 
@@ -330,12 +362,12 @@ public partial class VisualEffectController : Node
 
         _activeEffects.Remove(effect);
 
-        if (_currentDominantEffect == effect)
+        if (_currentDominantModulateEffect == effect)
         {
-            _currentDominantEffect = null;
+            _currentDominantModulateEffect = null;
         }
 
-        JmoLogger.Trace(this, $"Effect '{effect.ResourceName}' finished naturally");
+        JmoLogger.Info(this, $"Effect '{effect.ResourceName}' finished naturally");
     }
 
     #endregion
@@ -354,4 +386,26 @@ public partial class VisualEffectController : Node
     }
 
     #endregion
+
+
+    public override string[] _GetConfigurationWarnings()
+    {
+        var warnings = new List<string>();
+
+        if (VisualSources == null || VisualSources.Count == 0)
+        {
+            warnings.Add("No visual sources configured. Add a VisualComposer or AnimationVisibilityCoordinator to the scene.");
+        }
+        else
+        {
+            foreach (var source in VisualSources)
+            {
+                if (source is not IVisualSpriteProvider)
+                {
+                    warnings.Add($"Source '{source?.Name}' is not a valid IVisualSpriteProvider.");
+                }
+            }
+        }
+        return warnings.ToArray();
+    }
 }

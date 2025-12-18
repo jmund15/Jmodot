@@ -21,7 +21,7 @@ public partial class TintEffect : VisualEffect
     /// The remaining portion is spent holding, then fading out symmetrically.
     /// Example: 0.2 means 20% fade in, 60% hold, 20% fade out.
     /// </summary>
-    [Export(PropertyHint.Range, "0.0,0.5,0.05")] 
+    [Export(PropertyHint.Range, "0.0,0.5,0.05")]
     public float FadeRatio { get; set; } = 0.2f;
 
     public override Dictionary<string, Variant> CaptureState(Node node)
@@ -40,21 +40,31 @@ public partial class TintEffect : VisualEffect
         }
     }
 
-    public override void ConfigureTween(Tween tween, Node node)
+    public override void ConfigureTween(Tween tween, List<Node> nodes, float elapsedTime = 0f)
     {
-        var originalColor = GetModulate(node);
-        
         float fadeInDuration = Duration * FadeRatio;
         float holdDuration = Duration * (1.0f - 2.0f * FadeRatio);
         float fadeOutDuration = Duration * FadeRatio;
 
         // Clamp hold duration to avoid negative values if FadeRatio > 0.5
-        if (holdDuration < 0) holdDuration = 0;
+        if (holdDuration < 0)
+        {
+            holdDuration = 0;
+        }
 
         // Fade in to tint color
-        tween.TweenProperty(node, "modulate", TintColor, fadeInDuration)
-            .SetTrans(Tween.TransitionType.Sine)
-            .SetEase(Tween.EaseType.Out);
+        for (int n = 0; n < nodes.Count; n++)
+        {
+            var node = nodes[n];
+
+            if (n == 0) { tween.SetParallel(false); } // first one needs to not be parallel
+            else { tween.SetParallel(true); }
+
+            tween.TweenProperty(node, "modulate", TintColor, fadeInDuration)
+                .SetTrans(Tween.TransitionType.Sine)
+                .SetEase(Tween.EaseType.Out);
+        }
+        tween.SetParallel(false);
 
         // Hold at tint color
         if (holdDuration > 0)
@@ -63,8 +73,19 @@ public partial class TintEffect : VisualEffect
         }
 
         // Fade out to original
-        tween.TweenProperty(node, "modulate", originalColor, fadeOutDuration)
-            .SetTrans(Tween.TransitionType.Sine)
-            .SetEase(Tween.EaseType.In);
+        for (int n = 0; n < nodes.Count; n++)
+        {
+            var node = nodes[n];
+            var originalColor = GetModulate(node);
+
+            if (n == 0) { tween.SetParallel(false); } // first one needs to not be parallel
+            else { tween.SetParallel(true); }
+
+            tween.TweenProperty(node, "modulate", originalColor, fadeOutDuration)
+                .SetTrans(Tween.TransitionType.Sine)
+                .SetEase(Tween.EaseType.In);
+        }
+
+        tween.CustomStep(elapsedTime); // apply elapsed time
     }
 }

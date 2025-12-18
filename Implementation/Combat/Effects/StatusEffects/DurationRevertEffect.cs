@@ -56,7 +56,7 @@ public class DurationRevertEffect : ICombatEffect
         // Note: We cast to TickStatusRunner to access the specific Setup() method.
         if (prefabInst is not DurationRevertibleStatusRunner runner)
         {
-            GD.PrintErr($"Prefab {prefabInst.Name} is not a TickStatusRunner!");
+            GD.PrintErr($"Prefab {prefabInst.Name} is not a DurationRevertibleStatusRunner!");
             return null;
         }
 

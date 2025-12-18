@@ -11,7 +11,7 @@ using Shared;
 /// Acts as a single Animator but broadcasts commands to a dynamic list of children.
 /// Handles time synchronization, ensuring "Slave" animators match the "Master" (Body).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CompositeAnimatorComponent : Node, IAnimComponent
 {
     /// <summary>
@@ -41,6 +41,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     public override void _Ready()
     {
+        if (Engine.IsEditorHint()) return;
         // 1. Register Manual Master
         if (MasterAnimatorNode != null)
         {

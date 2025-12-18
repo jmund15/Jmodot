@@ -11,7 +11,7 @@ using Core.Visual.Effects;
 /// Helper class representing a runtime slot.
 /// Handles instantiation, overrides, and registration.
 /// </summary>
-public class VisualSlot
+public class VisualSlot // TODO: make IVisualSpriteProvider?
 {
     public VisualSlotConfig Config { get; private set; }
     public VisualItemData CurrentItem { get; private set; }
@@ -22,8 +22,10 @@ public class VisualSlot
 
     // Visual Effect Tracking
     private readonly List<Node> _currentVisualNodes = new();
+    private readonly List<Node> _currentVisibleNodes = new();
     private IVisualSpriteProvider _prefabProvider;
     public event Action VisualNodesChanged;
+    public event Action VisibleNodesChanged;
 
     public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot)
     {
@@ -73,7 +75,7 @@ public class VisualSlot
             {
                 _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
             }
-            
+
             // 5. Track Visual Nodes for Effects
             DetectVisualNodes(_currentInstance);
         }
@@ -107,11 +109,13 @@ public class VisualSlot
             // Cleanup visual tracking
             if (_prefabProvider != null)
             {
-                _prefabProvider.VisualNodesChanged -= OnPrefabVisualNodesChanged;
+                _prefabProvider.VisibleNodesChanged -= OnPrefabVisibleNodesChanged;
                 _prefabProvider = null;
             }
             _currentVisualNodes.Clear();
+            _currentVisibleNodes.Clear();
             VisualNodesChanged?.Invoke();
+            VisibleNodesChanged?.Invoke();
 
             var anim = GetAnimComponent(_currentInstance);
             if (anim != null)
@@ -198,10 +202,12 @@ public class VisualSlot
     #region Visual Effect Support
 
     public IReadOnlyList<Node> GetCurrentVisualNodes() => _currentVisualNodes;
+    public IReadOnlyList<Node> GetCurrentVisibleNodes() => _currentVisibleNodes;
 
     private void DetectVisualNodes(Node prefabRoot)
     {
         _currentVisualNodes.Clear();
+        _currentVisibleNodes.Clear();
 
         // 1. Check if the prefab has a Coordinator (IVisualSpriteProvider)
         // This handles dynamic visibility changes (e.g. running animations)
@@ -217,24 +223,43 @@ public class VisualSlot
         if (_prefabProvider != null)
         {
             _prefabProvider.VisualNodesChanged += OnPrefabVisualNodesChanged;
-            _currentVisualNodes.AddRange(_prefabProvider.GetActiveVisualNodes());
+            _prefabProvider.VisibleNodesChanged += OnPrefabVisibleNodesChanged;
+            _currentVisualNodes.AddRange(_prefabProvider.GetAllVisualNodes());
+            _currentVisibleNodes.AddRange(_prefabProvider.GetVisibleNodes());
         }
         else
         {
             // 2. Fallback: Recursively find all static sprites
+            // Currently here visible and visual are treated the same. (TODO: track visiblity of individual sprites here?)
             FindSpritesRecursive(prefabRoot, _currentVisualNodes);
+            FindSpritesRecursive(prefabRoot, _currentVisibleNodes);
         }
 
         VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
     }
 
     private void OnPrefabVisualNodesChanged()
     {
+        // shouldn't be possible, but in case of unequipping race condition?
         if (_prefabProvider != null)
         {
             _currentVisualNodes.Clear();
-            _currentVisualNodes.AddRange(_prefabProvider.GetActiveVisualNodes());
+            _currentVisualNodes.AddRange(_prefabProvider.GetAllVisualNodes());
+
             VisualNodesChanged?.Invoke();
+        }
+    }
+
+    private void OnPrefabVisibleNodesChanged()
+    {
+        // shouldn't be possible, but in case of unequipping race condition?
+        if (_prefabProvider != null)
+        {
+            _currentVisibleNodes.Clear();
+            _currentVisibleNodes.AddRange(_prefabProvider.GetVisibleNodes());
+
+            VisibleNodesChanged?.Invoke();
         }
     }
 

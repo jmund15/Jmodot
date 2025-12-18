@@ -79,14 +79,15 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             CurrentAnimationDirection = closestDir;
             //GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
             _currentDirectionLabel = newLabel;
+
             // HACK: if not playing just update the anim and position, then pause.
             //  this is a bit jank but possibly ok.
             bool pauseAfter = !IsPlaying();
             UpdateAnim(_baseAnimName, AnimUpdateMode.MaintainTime);
             if (pauseAfter)
             {
-                SeekPos(GetCurrAnimationPosition(), true);
-                PauseAnim();
+                //SeekPos(GetCurrAnimationPosition(), true);
+                //PauseAnim();
             }
         }
     }
@@ -116,7 +117,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
                 _targetAnimator.StartAnim(finalName);
             }
             else {
-                GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name}'");
+                GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name}; owner '{_targetAnimator.GetUnderlyingNode().Owner.Name}'");
             }
             // Else: Silently fail or log warning? For now, silent to avoid spam if "idle" is missing.
         }

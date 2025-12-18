@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Visual.Effects;
 
 using System.Collections.Generic;
+using System.Linq;
 using Core.Visual.Effects;
 using Godot;
 
@@ -21,37 +22,75 @@ public partial class FlashEffect : VisualEffect
     /// </summary>
     [Export] public int FlashCount { get; set; } = 4;
 
+    private string _modulateKey = "Modulate";
+
     public override Dictionary<string, Variant> CaptureState(Node node)
     {
         return new Dictionary<string, Variant>
         {
-            ["Modulate"] = GetModulate(node)
+            [_modulateKey] = GetModulate(node)
         };
     }
 
     public override void RestoreState(Node node, Dictionary<string, Variant> state)
     {
-        if (state.TryGetValue("Modulate", out var modulate))
+        if (state.TryGetValue(_modulateKey, out var modulate))
         {
             SetModulate(node, modulate.AsColor());
         }
     }
 
-    public override void ConfigureTween(Tween tween, Node node)
+    public override void ConfigureTween(Tween tween, List<Node> nodes, float elapsedTime = 0f)
     {
-        var originalColor = GetModulate(node);
         float halfFlashDuration = Duration / (FlashCount * 2);
 
-        // Build the flash sequence: flash on, flash off, repeat
-        for (int i = 0; i < FlashCount; i++)
-        {
-            // Flash to FlashColor
-            tween.TweenProperty(node, "modulate", FlashColor, halfFlashDuration)
-                .SetTrans(Tween.TransitionType.Linear);
+        // // Build the flash sequence: flash on, flash off, repeat
+        // for (int i = 0; i < FlashCount; i++)
+        // {
 
-            // Return to original
-            tween.TweenProperty(node, "modulate", originalColor, halfFlashDuration)
-                .SetTrans(Tween.TransitionType.Linear);
+        // START WITH FLASH ON FOR EACH NODE
+        for (int n = 0; n < nodes.Count; n++)
+        {
+            var node = nodes[n];
+
+            if (n == 0)
+            {
+                // Flash to FlashColor
+                tween.TweenProperty(node, "modulate", FlashColor, halfFlashDuration)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
+            else
+            {
+                // Flash to FlashColor
+                tween.Parallel().TweenProperty(node, "modulate", FlashColor, halfFlashDuration)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
         }
+
+        // THEN FLASH OFF FOR EACH NODE
+        // START WITH FLASH ON FOR EACH NODE
+        for (int n = 0; n < nodes.Count; n++)
+        {
+            var node = nodes[n];
+            var originalColor = GetModulate(node);
+
+            if (n == 0)
+            {
+                // Return to original
+                tween.TweenProperty(node, "modulate", originalColor, halfFlashDuration)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
+            else
+            {
+                // Return to original
+                tween.TweenProperty(node, "modulate", originalColor, halfFlashDuration)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
+        }
+
+        //}
+        tween.SetLoops(FlashCount - 1); // -1 because we don't count the first one
+        tween.CustomStep(elapsedTime);
+
     }
 }

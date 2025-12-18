@@ -13,7 +13,7 @@ using Core.Visual.Effects;
 /// Manages the visual composition of the character.
 /// Handles equipping items into Slots and configuring the CompositeAnimator.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VisualComposer : Node, IVisualSpriteProvider
 {
     [Export] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
@@ -23,6 +23,10 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     public override void _Ready()
     {
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
         // Initialize Slots based on Configs
         foreach (var config in SlotConfigs)
         {
@@ -35,9 +39,10 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
             var slot = new VisualSlot(config, CompositeAnimator, slotRoot);
             _slots[config.SlotName] = slot;
-            
+
             // Subscribe to effects changes for bubbling
             slot.VisualNodesChanged += OnSlotVisualNodesChanged;
+            slot.VisibleNodesChanged += OnSlotVisibleNodesChanged;
 
             // Equip Default
             if (config.DefaultItem != null)
@@ -75,9 +80,20 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     #region IVisualSpriteProvider Implementation
 
+    public event Action VisibleNodesChanged;
     public event Action VisualNodesChanged;
 
-    public IReadOnlyList<Node> GetActiveVisualNodes()
+    public IReadOnlyList<Node> GetVisibleNodes()
+    {
+        var nodes = new List<Node>();
+        foreach (var slot in _slots.Values)
+        {
+            nodes.AddRange(slot.GetCurrentVisibleNodes());
+        }
+        return nodes;
+    }
+
+    public IReadOnlyList<Node> GetAllVisualNodes()
     {
         var nodes = new List<Node>();
         foreach (var slot in _slots.Values)
@@ -89,7 +105,12 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     private void OnSlotVisualNodesChanged()
     {
+        VisibleNodesChanged?.Invoke();
         VisualNodesChanged?.Invoke();
+    }
+    private void OnSlotVisibleNodesChanged()
+    {
+        VisibleNodesChanged?.Invoke();
     }
 
     #endregion

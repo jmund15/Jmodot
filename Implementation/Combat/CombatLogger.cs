@@ -18,10 +18,6 @@ using Status;
 public partial class CombatLogger : Node, IComponent
 {
     [Export] public CombatantComponent Combatant { get; private set; }
-
-    // The key where we store the Log object in the BB
-    public const string BB_CombatLog = "CombatLogger";
-
     /// <summary>
     /// Set to true to enable verbose logging of combat events to the Godot console.
     /// Toggle this during debugging/testing sessions.
@@ -33,10 +29,10 @@ public partial class CombatLogger : Node, IComponent
     public bool Initialize(IBlackboard bb)
     {
         // 1. Create or Retrieve the Log
-        if (!bb.TryGet(BB_CombatLog, out _log))
+        if (!bb.TryGet(BBDataSig.CombatLog, out _log))
         {
             _log = new CombatLog();
-            bb.Set(BB_CombatLog, _log);
+            bb.Set(BBDataSig.CombatLog, _log);
         }
 
         // 2. Resolve Dependency

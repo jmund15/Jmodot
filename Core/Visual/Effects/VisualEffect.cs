@@ -40,8 +40,9 @@ public abstract partial class VisualEffect : Resource
     /// The tween is already created; add your TweenProperty/TweenCallback calls.
     /// </summary>
     /// <param name="tween">The Tween to configure</param>
-    /// <param name="node">The visual node to animate</param>
-    public abstract void ConfigureTween(Tween tween, Node node);
+    /// <param name="nodes">The nodes to apply the effect to</param>
+    /// <param name="elapsedTime">How far in the tween should start at. Used when the tween needs to "switch" nodes mid-run (e.g. player moves from idle sprite to run sprite)</param>
+    public abstract void ConfigureTween(Tween tween, List<Node> nodes, float elapsedTime = 0f);
 
     #region Helper Methods for Subclasses
 
@@ -76,7 +77,7 @@ public abstract partial class VisualEffect : Resource
     /// <summary>
     /// Check if a node is a supported visual type.
     /// </summary>
-    protected static bool IsVisualNode(Node node)
+    public static bool IsVisualNode(Node node)
     {
         return node is SpriteBase3D or CanvasItem;
     }

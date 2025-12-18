@@ -57,6 +57,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     /// <summary>
     /// Fired when the set of visible nodes changes (animation change, node added/removed).
     /// </summary>
+    public event Action VisibleNodesChanged;
     public event Action VisualNodesChanged;
 
     public override void _Ready()
@@ -67,22 +68,23 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         if (AutoRegisterNodes)
         {
             RegisterChildrenRecursive(GetParent());
-            
+
             // Connect to ChildEnteredTree to detect dynamically added nodes
             var parent = GetParent();
             if (parent != null)
             {
                 parent.ChildEnteredTree += OnChildEnteredTree;
+                // TODO: add exit tree handler
             }
         }
 
         SetupAnimatorConnection();
 
         // ToDO: doesn't work????
-        // if (Engine.IsEditorHint())
-        // {
-        //     GetTree().TreeChanged += UpdateConfigurationWarnings;
-        // }
+        if (Engine.IsEditorHint())
+        {
+            (Engine.GetMainLoop() as SceneTree).TreeChanged += UpdateConfigurationWarnings;
+        }
     }
 
     public override void _PhysicsProcess(double delta)
@@ -101,12 +103,12 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     private void OnChildEnteredTree(Node node)
     {
         if (Engine.IsEditorHint()) return;
-        
-        GD.Print($"[AnimVis] ChildEnteredTree fired for: {node.Name}");
-        
+
+        //GD.Print($"[AnimVis] ChildEnteredTree fired for: {node.Name}");
+
         // Register the new node and all its children recursively
         RegisterChildrenRecursive(node);
-        
+
         // If we're currently playing an animation, update visibility for the new nodes
         if (_targetAnimComponent != null && _targetAnimComponent.IsPlaying())
         {
@@ -116,7 +118,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         }
         else
         {
-            GD.Print($"[AnimVis] No animation playing, skipping visibility update");
+            //GD.Print($"[AnimVis] No animation playing, skipping visibility update");
         }
     }
 
@@ -124,14 +126,14 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     {
         // First, check if the parent itself is a visual node
         RegisterNodeIfValid(parent);
-        
+
         // Then recursively check all children
         foreach (var child in parent.GetChildren())
         {
             RegisterChildrenRecursive(child);
         }
     }
-    
+
     /// <summary>
     /// Checks if a node should be registered and adds it to the visibility system.
     /// </summary>
@@ -145,10 +147,10 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
             // Prevent duplicate registration
             if (_allManagedNodes.Contains(node))
             {
-                GD.Print($"[AnimVis] Skipping duplicate registration: {node.Name}");
+                //GD.Print($"[AnimVis] Skipping duplicate registration: {node.Name}");
                 return;
             }
-            
+
             // Parse Name: "Vis_Run" -> "Run" (lowercased for consistency)
             string rawName = node.Name.ToString().Substring(NodePrefix.Length);
             StringName animKey = rawName.ToLower();
@@ -160,11 +162,12 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
 
             _visibilityCache[animKey].Add(node);
             _allManagedNodes.Add(node);
-            
-            GD.Print($"[AnimVis] Registered node: {node.Name} with key: {animKey}");
+
+            //GD.Print($"[AnimVis] Registered node: {node.Name} with key: {animKey}");
 
             // Initially hide new nodes - they'll be shown if they match the current animation
             SetNodeVisible(node, false);
+            VisualNodesChanged?.Invoke();
         }
     }
 
@@ -212,7 +215,8 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         }
 
         // Notify listeners that visible nodes have changed
-        VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
+        //GD.Print($"[AnimVis] Animation started: {animName}, showing nodes: {nodesToShow.Count}");
     }
 
     #region IVisualSpriteProvider Implementation
@@ -220,9 +224,14 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     /// <summary>
     /// Returns all currently VISIBLE managed nodes.
     /// </summary>
-    public IReadOnlyList<Node> GetActiveVisualNodes()
+    public IReadOnlyList<Node> GetVisibleNodes()
     {
         return _allManagedNodes.Where(IsNodeVisible).ToList();
+    }
+
+    public IReadOnlyList<Node> GetAllVisualNodes()
+    {
+        return _allManagedNodes;
     }
 
     private bool IsNodeVisible(Node node)

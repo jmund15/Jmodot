@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cuitwdle7s2wl"]
+
+[ext_resource type="Script" uid="uid://bhsr1j72oxpsg" path="res://Jmodot/Implementation/Combat/Status/DurationRevertibleStatusRunner.cs" id="1_tstli"]
+
+[node name="DurationRevertibleStatusRunner" type="Node"]
+script = ExtResource("1_tstli")
+
+[node name="DurationTimer" type="Timer" parent="."]

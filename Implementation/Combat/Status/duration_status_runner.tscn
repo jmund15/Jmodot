@@ -5,4 +5,4 @@
 [node name="DurationStatusRunner" type="Node"]
 script = ExtResource("1_hjsy3")
 
-[node name="DurationTmier" type="Timer" parent="."]
+[node name="DurationTimer" type="Timer" parent="."]
