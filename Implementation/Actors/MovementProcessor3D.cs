@@ -92,14 +92,14 @@ public class MovementProcessor3D : IMovementProcessor3D
 
     private void ApplyExternalForces(float delta)
     {
-        // if (!this._controller.IsOnFloor)
+        // if (!_controller.IsOnFloor)
         // {
         //     // A better way to get gravity settings.
         //     // TODO: still bad, should be used by ForceReceiver too.
         //     var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
         //     var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
         //     //GD.Print($"gravity vec: {gravityVec * gravityMag * delta}");
-        //     _controller.AddVelocity(gravityVec * gravityMag * delta * 5f);
+        //     _controller.AddVelocity(gravityVec * gravityMag * delta);
         // }
 
         // TODO: this force receiver should also handle gravity, instead of being hardcoded above.

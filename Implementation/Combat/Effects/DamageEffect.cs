@@ -15,13 +15,24 @@ public struct DamageEffect : ICombatEffect
 {
     public readonly float DamageAmount;
     public readonly bool IsCritical;
+    /// <summary>Static force applied regardless of speed.</summary>
+    public readonly float BaseKnockback;
+    /// <summary>Multiplier for converting ImpactVelocity magnitude to extra force.</summary>
+    public readonly float KnockbackVelocityScaling;
     public IEnumerable<CombatTag> Tags { get; private set; }
 
-    public DamageEffect(float damageAmount, IEnumerable<CombatTag> tags, bool isCritical = false)
+    public DamageEffect(
+        float damageAmount,
+        IEnumerable<CombatTag> tags,
+        bool isCritical = false,
+        float baseKnockback = 5f,
+        float knockbackVelocityScaling = 1f)
     {
         DamageAmount = damageAmount;
         Tags = tags ?? [];
         IsCritical = isCritical;
+        BaseKnockback = baseKnockback;
+        KnockbackVelocityScaling = knockbackVelocityScaling;
     }
 
     public CombatResult? Apply(ICombatant target, HitContext context)
@@ -29,6 +40,26 @@ public struct DamageEffect : ICombatEffect
         // Use Blackboard to get HealthComponent
         if (target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health))
         {
+            // Calculate total knockback force
+            // Force = Static Base + (Impact Speed * Scaling)
+            float impactSpeed = context.ImpactVelocity.Length();
+            float totalForceConfig = BaseKnockback + (impactSpeed * KnockbackVelocityScaling);
+
+            GD.Print($"damage result- direction: {context.HitDirection}; force: {totalForceConfig}");
+
+            // Note: We are currently only CALCULATING this value.
+            // The application of this force (Knockback) to the target's movement system
+            // should happen here or be returned in the result for the system to handle.
+            if (totalForceConfig > 0)
+            {
+                // TODO: Apply this force to the target's KnockbackComponent or MovementController.
+                // or do we just let the receiver of the result handle it???
+                // TODO: create a knockback comp that stores knockback for state machine to apply impulse when necessary
+                //  or should knockback apply impulse itself??? actually not a bad idea
+                // target.Blackboard.Get<IKnockbackHandler>(...)?.ApplyKnockback(context.HitDirection, totalForceConfig);
+            }
+
+
             // TODO: add any damage modifiers here!! this includes target's armor, weakness, etc.
 
             // TODO: add in modifier 'modules' in a list to damageeffectfactory, which dictates the
@@ -46,6 +77,8 @@ public struct DamageEffect : ICombatEffect
                 Tags = Tags,
                 OriginalAmount = DamageAmount,
                 FinalAmount = DamageAmount,
+                Direction = context.HitDirection,
+                Force = totalForceConfig,
                 IsCritical = IsCritical,
                 IsFatal = health.IsDead
             };

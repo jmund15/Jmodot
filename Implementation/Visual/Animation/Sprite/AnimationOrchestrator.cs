@@ -116,6 +116,11 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             {
                 _targetAnimator.StartAnim(finalName);
             }
+            else if (_targetAnimator.HasAnimation(_baseAnimName))
+            {
+                _targetAnimator.StartAnim(_baseAnimName);
+                JmoLogger.Info(this, $"Animation '{_baseAnimName}' started due to final name not existing '{finalName}'");
+            }
             else {
                 GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name}; owner '{_targetAnimator.GetUnderlyingNode().Owner.Name}'");
             }

@@ -18,7 +18,8 @@ public class CombatLog
         public float CombatTimeMarker;
     }
     public float CombatTimeElapsed { get; private set; } = 0f;
-    private readonly Dictionary<ResultTimeContext, List<CombatResult>> _resultsByTime = new();
+    private readonly Dictionary<ulong, List<CombatResult>> _resultsByFrame = new(); // ACCURATE
+    private readonly Dictionary<float, List<CombatResult>> _resultsByCombatTime = new(); // for time based calcs
 
     public void UpdateCombatTime(float combatDelta)
     {
@@ -31,14 +32,19 @@ public class CombatLog
     public void Log(CombatResult result)
     {
         var currTimeContext = GetCurrentTimeContext();
-        if (!_resultsByTime.ContainsKey(currTimeContext))
+        GD.Print($"logging result of type '{result.GetType().Name}' at time '{currTimeContext.FrameId}';" +
+                 $" combat time: {currTimeContext.CombatTimeMarker}");
+        if (!_resultsByFrame.ContainsKey(currTimeContext.FrameId))
         {
-            _resultsByTime[currTimeContext] = new List<CombatResult> { result };
+            _resultsByFrame[currTimeContext.FrameId] = new List<CombatResult> { result };
         }
-        else
+        else { _resultsByFrame[currTimeContext.FrameId].Add(result); }
+
+        if (!_resultsByCombatTime.ContainsKey(currTimeContext.CombatTimeMarker))
         {
-            _resultsByTime[currTimeContext].Add(result);
+            _resultsByCombatTime[currTimeContext.CombatTimeMarker] = new List<CombatResult> { result };
         }
+        else { _resultsByCombatTime[currTimeContext.CombatTimeMarker].Add(result); }
     }
 
     /// <summary>
@@ -47,8 +53,9 @@ public class CombatLog
     public IEnumerable<T> GetEvents<T>() where T : CombatResult
     {
         var currTimeContext = GetCurrentTimeContext();
+        //GD.Print($"searching result at frame '{currTimeContext.FrameId}', combat time: {currTimeContext.CombatTimeMarker}");
 
-        if (_resultsByTime.TryGetValue(currTimeContext, out var results))
+        if (_resultsByFrame.TryGetValue(currTimeContext.FrameId, out var results))
         {
             return results.OfType<T>();
         }
@@ -62,7 +69,7 @@ public class CombatLog
     {
         var currTimeContext = GetCurrentTimeContext();
 
-        if (!_resultsByTime.TryGetValue(currTimeContext, out var results))
+        if (!_resultsByFrame.TryGetValue(currTimeContext.FrameId, out var results))
         {
             return false;
         }
@@ -82,14 +89,17 @@ public class CombatLog
     {
         var currTimeContext = GetCurrentTimeContext();
 
-        if (!_resultsByTime.TryGetValue(currTimeContext, out var currList))
+        if (!_resultsByFrame.TryGetValue(currTimeContext.FrameId, out var currList))
         {
-            _resultsByTime.Clear();
+            _resultsByFrame.Clear();
             return;
         }
 
-        _resultsByTime.Clear();
-        _resultsByTime[currTimeContext] = currList;
+        _resultsByFrame.Clear();
+        _resultsByFrame[currTimeContext.FrameId] = currList;
+
+        _resultsByCombatTime.Clear();
+        _resultsByCombatTime[currTimeContext.CombatTimeMarker] = currList;
     }
 
     public void PruneOldEventsByFrameCutoff(ulong frameCutoff)
@@ -104,18 +114,18 @@ public class CombatLog
     public IEnumerable<T> GetAllCombatResultsWithinLastFrameAmount<T>(ulong frameAmt) where T : CombatResult
     {
         var frameCutoff = Engine.GetPhysicsFrames() - frameAmt;
-        var allowedCtxs = _resultsByTime.Keys.Where(ctx => ctx.FrameId >= frameCutoff);
+        var allowedCtxs = _resultsByFrame.Keys.Where(ctx => ctx >= frameCutoff);
         var allResults =
-            _resultsByTime.Where(pair => allowedCtxs.Contains(pair.Key)).Select(pair => pair.Value);
+            _resultsByFrame.Where(pair => allowedCtxs.Contains(pair.Key)).Select(pair => pair.Value);
         return allResults.SelectMany(x => x).OfType<T>();
     }
 
     public IEnumerable<T> GetAllCombatResultsWithinCombatTime<T>(float combatTimeThreshold) where T : CombatResult
     {
         var combatTimeCutoff = CombatTimeElapsed - combatTimeThreshold;
-        var allowedCtxs = _resultsByTime.Keys.Where(ctx => ctx.CombatTimeMarker >= combatTimeCutoff);
+        var allowedCtxs = _resultsByCombatTime.Keys.Where(ctx => ctx >= combatTimeCutoff);
         var allResults =
-            _resultsByTime.Where(pair => allowedCtxs.Contains(pair.Key)).Select(pair => pair.Value);
+            _resultsByCombatTime.Where(pair => allowedCtxs.Contains(pair.Key)).Select(pair => pair.Value);
         return allResults.SelectMany(x => x).OfType<T>();
     }
 

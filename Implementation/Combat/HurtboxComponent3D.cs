@@ -6,6 +6,7 @@ using Jmodot.Core.AI.BB;
 
 namespace Jmodot.Implementation.Combat;
 
+using Core.Movement;
 using Implementation.AI.BB;
 
 /// <summary>
@@ -90,7 +91,9 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         HitContext context = new HitContext
         {
             Attacker = payload.Attacker,
-            Source = payload.Source
+            Source = payload.Source,
+            HitDirection = CalculateHitDirection(payload.Source),
+            ImpactVelocity = CalculateImpactVelocity(payload.Source)
         };
 
         // 4. Forward to Brain
@@ -100,6 +103,45 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         // 5. Feedback
         OnHitReceived?.Invoke(payload, context);
         return true;
+    }
+
+    private Vector3 CalculateHitDirection(Node source)
+    {
+        // POSITION BASED
+        // if (source is Node3D source3D)
+        // {
+        //     return (GlobalPosition - source3D.GlobalPosition).Normalized();
+        // }
+
+        // VELOCITY BASED
+        if (source is IVelocityProvider3D velocityProvider)
+        {
+            return velocityProvider.LinearVelocity.Normalized();
+        }
+
+        if (source is CharacterBody3D cb) return cb.Velocity.Normalized();
+        if (source is RigidBody3D rb) return rb.LinearVelocity.Normalized();
+        if (source is StaticBody3D sb) return sb.ConstantLinearVelocity.Normalized();
+
+        return Vector3.Zero;
+
+    }
+
+    private Vector3 CalculateImpactVelocity(Node source)
+    {
+        // 1. Check for Interface (Preferred)
+        if (source is Core.Movement.IVelocityProvider3D velocityProvider)
+        {
+            return velocityProvider.LinearVelocity;
+        }
+
+        // 2. Legacy Fallback (Casting)
+        if (source is CharacterBody3D cb) return cb.Velocity;
+        if (source is RigidBody3D rb) return rb.LinearVelocity;
+        if (source is StaticBody3D sb) return sb.ConstantLinearVelocity;
+
+        // 3. Default
+        return Vector3.Zero;
     }
     #endregion
 }

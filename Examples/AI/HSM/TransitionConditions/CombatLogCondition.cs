@@ -19,6 +19,7 @@ public abstract partial class CombatLogCondition : TransitionCondition
         // We use the constant key from the Integrator to ensure type safety.
         if (!bb.TryGet(BBDataSig.CombatLog, out CombatLog? log))
         {
+            GD.Print("Couldn't find combat log!");
             // If there is no log, no combat events could have possibly happened.
             return false;
         }

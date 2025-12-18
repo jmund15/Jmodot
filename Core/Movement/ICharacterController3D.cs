@@ -9,7 +9,7 @@ using Shared;
 ///     gameplay logic or complex state buffering, acting as a standardized adapter for any
 ///     3D physics node.
 /// </summary>
-public interface ICharacterController3D : IGodotNodeInterface
+public interface ICharacterController3D : IGodotNodeInterface, IVelocityProvider3D
 {
     // --- Core State (Read-Only) ---
 
@@ -18,6 +18,12 @@ public interface ICharacterController3D : IGodotNodeInterface
 
     /// <summary>Gets the current linear velocity of the physics body.</summary>
     Vector3 Velocity { get; }
+
+    /// <summary>
+    /// Explicit implementation to satisfy IVelocityProvider3D.
+    /// Redirects to the standard 'Velocity' property.
+    /// </summary>
+    Vector3 IVelocityProvider3D.LinearVelocity => Velocity;
 
     /// <summary>Gets whether the physics body is currently considered to be on the floor.</summary>
     bool IsOnFloor { get; }

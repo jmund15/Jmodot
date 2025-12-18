@@ -83,8 +83,8 @@ public partial class VisualEffectController : Node
         // Stop current dominant effect if we're replacing it
         if (_currentDominantModulateEffect != null)
         {
-            StopEffect(_currentDominantModulateEffect);
             GD.Print($"Stopped current effect '{_currentDominantModulateEffect.ResourceName}' to apply new effect");
+            StopEffect(_currentDominantModulateEffect);
         }
 
         // Get all current visual nodes

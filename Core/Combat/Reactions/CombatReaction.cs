@@ -18,6 +18,8 @@ public record DamageResult : CombatResult
 {
     public float FinalAmount { get; init; } // Post-armor
     public float OriginalAmount { get; init; } // Pre-armor
+    public Vector3 Direction { get; init; }
+    public float Force { get; init; }
     public bool IsCritical { get; init; }
     public bool IsFatal { get; init; } // Did this kill them?
 }

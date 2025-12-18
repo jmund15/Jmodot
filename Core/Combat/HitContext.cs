@@ -15,4 +15,16 @@ public class HitContext
     /// The specific object causing the hit (e.g., The Arrow, The Sword, The Trap).
     /// </summary>
     public Node Source { get; set; }
+
+    /// <summary>
+    /// The normalized direction from the Source/Attacker to the Victim.
+    /// Used for determining knockback direction.
+    /// </summary>
+    public Vector3 HitDirection { get; set; }
+
+    /// <summary>
+    /// The linear velocity of the Source at the moment of impact.
+    /// Used for calculating dynamic force (e.g. speed-based knockback).
+    /// </summary>
+    public Vector3 ImpactVelocity { get; set; }
 }

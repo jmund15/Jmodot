@@ -6,7 +6,7 @@ namespace Jmodot.Core.Movement;
 ///     The definitive, low-level interface for applying physics forces to a RigidBody3D.
 ///     Commands correspond to applying forces and impulses within Godot's physics simulation.
 /// </summary>
-public interface IRigidController3D
+public interface IRigidController3D : IVelocityProvider3D
 {
     Vector3 GlobalPosition { get; }
     Vector3 LinearVelocity { get; } // Read-only for rigid bodies
