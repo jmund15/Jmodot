@@ -61,6 +61,7 @@ public class DurationRevertEffect : ICombatEffect
         }
 
         // 4. Inject the Snapshot Data
+        GD.Print($"Setting up DurationRevertEffect on {runner.Name} with Duration: {Duration}");
         runner.Setup(Duration, RevertEffect, PersistantVisuals, Tags);
 
         // 5. Add to System

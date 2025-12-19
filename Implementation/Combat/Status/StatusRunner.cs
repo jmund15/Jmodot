@@ -52,7 +52,9 @@ public abstract partial class StatusRunner : Node
         if (PersistentVisuals != null)
         {
             _visualInstance = PersistentVisuals.Instantiate();
-            AddChild(_visualInstance);
+
+            // TODO: add config for if visuals should be parented to the target or the status effect component
+            target.OwnerNode.AddChild(_visualInstance);
         }
         // Subclasses implement specific logic (Timers, Visuals)
     }

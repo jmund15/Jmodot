@@ -22,7 +22,7 @@ public partial class CombatLogger : Node, IComponent
     /// Set to true to enable verbose logging of combat events to the Godot console.
     /// Toggle this during debugging/testing sessions.
     /// </summary>
-    public static bool VerboseLoggingEnabled { get; set; } = false;
+    public static bool VerboseLoggingEnabled { get; set; } = true;
 
     private CombatLog _log;
 
@@ -172,6 +172,7 @@ public partial class CombatLogger : Node, IComponent
 
             case StatResult stat:
                 sb.AppendLine("║ Stat modification applied (details TODO)");
+                sb.AppendLine($"║ Attribute Affected: {stat.AttributeAffected}.");
                 break;
 
             case EffectResult effect:

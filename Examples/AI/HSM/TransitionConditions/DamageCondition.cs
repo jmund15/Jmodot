@@ -13,14 +13,9 @@ public partial class DamageCondition : CombatLogCondition
 
     protected override bool CheckEvent(CombatLog log)
     {
-        foreach (var damResult in log.GetEvents<DamageResult>())
-        {
-            GD.Print($"found damage result!");
-        }
         // We use the Generic method directly. No casting, no switching.
         return log.HasEvent<DamageResult>(r =>
         {
-            GD.Print($"searching damage result against condition!");
             // 1. Amount Check
             if (r.FinalAmount < MinAmount) return false;
 
@@ -43,7 +38,7 @@ public partial class DamageCondition : CombatLogCondition
                     }
                     if (hasTag) break;
                 }
-                GD.Print($"HAS REQ TAG?? : {hasTag}");
+                //GD.Print($"HAS REQ TAG?? : {hasTag}");
                 if (!hasTag) return false;
             }
 

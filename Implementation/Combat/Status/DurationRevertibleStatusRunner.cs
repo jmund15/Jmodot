@@ -32,7 +32,7 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
         base.Start(target, context);
 
         // Apply Start Effect
-        RevertibleEffect.Apply(Target, Context);
+        Target.ApplyEffect(RevertibleEffect!, Context);
 
         // Setup Timer
         if (Duration > 0)

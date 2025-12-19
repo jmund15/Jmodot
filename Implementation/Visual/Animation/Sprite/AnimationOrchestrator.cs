@@ -55,6 +55,8 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
         // Forward events
         _targetAnimator.AnimStarted += n => AnimStarted?.Invoke(n);
         _targetAnimator.AnimFinished += n => AnimFinished?.Invoke(n);
+
+        _targetAnimator.AnimStarted += n => JmoLogger.Info(this, $"Animation '{n}' started in Orchestrator of '{GetOwner().Name}");
     }
 
     /// <summary>

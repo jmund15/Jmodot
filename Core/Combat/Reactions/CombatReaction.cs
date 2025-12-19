@@ -2,6 +2,7 @@ namespace Jmodot.Core.Combat.Reactions;
 
 using System.Collections.Generic;
 using Implementation.Combat.Status;
+using Stats;
 
 /// <summary>
 /// Base class for anything that happened in combat.
@@ -26,6 +27,7 @@ public record DamageResult : CombatResult
 
 public record StatResult : CombatResult
 {
+    public Attribute? AttributeAffected { get; init; }
     // TODO: fill as needed
 }
 

@@ -47,8 +47,31 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             // Equip Default
             if (config.DefaultItem != null)
             {
-                slot.Equip(config.DefaultItem);
-                GD.Print($"VisualComposer: Equiped default item '{config.DefaultItem.Id}' into slot '{config.SlotName}'.");
+                // Defer the initial equip to avoid "Parent is busy setting up children" errors
+                // since we are currently inside _Ready and the scene tree is locked.
+                CallDeferred(MethodName.EquipDefault, config.SlotName, config.DefaultItem);
+                GD.Print($"VisualComposer: Scheduled default item '{config.DefaultItem.Id}' for slot '{config.SlotName}' (Deferred).");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Helper used by _Ready to safely equip default items.
+    /// Only equips if the slot is still empty (null), respecting any setup done by other components (e.g. HSM) during initialization.
+    /// </summary>
+    private void EquipDefault(string slotName, VisualItemData item)
+    {
+        if (_slots.TryGetValue(slotName, out var slot))
+        {
+            // Only equip default if nothing else has claimed the slot yet
+            if (slot.CurrentItem == null)
+            {
+                slot.Equip(item);
+                GD.Print($"VisualComposer: Executing deferred default equip for '{slotName}' -> '{item.Id}'");
+            }
+            else
+            {
+                GD.Print($"VisualComposer: Skipping deferred default equip for '{slotName}'. Slot already has '{slot.CurrentItem.Id}'.");
             }
         }
     }

@@ -25,7 +25,7 @@ public struct DamageEffect : ICombatEffect
         float damageAmount,
         IEnumerable<CombatTag> tags,
         bool isCritical = false,
-        float baseKnockback = 5f,
+        float baseKnockback = 10f,
         float knockbackVelocityScaling = 1f)
     {
         DamageAmount = damageAmount;

@@ -57,7 +57,8 @@ public struct StatEffect : IRevertibleCombatEffect
         {
             Source = context.Source,
             Target = target.OwnerNode,
-            Tags = Tags
+            Tags = Tags,
+            AttributeAffected = Attribute
         };
     }
     public ICombatEffect? GetRevertEffect(ICombatant target, HitContext context)

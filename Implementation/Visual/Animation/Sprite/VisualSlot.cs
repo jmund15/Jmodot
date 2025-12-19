@@ -60,9 +60,12 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             // 2. Instantiate
             _currentInstance = item.Prefab.Instantiate();
 
-            _slotRoot.CallDeferred(Node.MethodName.AddChild, _currentInstance);
-
-            // BELOW MAY NOT WORK AS ADDING CHILD IS DEFERRED
+            // We use AddChild immediately so that the node is available in the tree THIS frame.
+            // This is critical for systems that want to play an animation immediately after equipping (e.g. VisualSlotCompoundState).
+            // WARNING: If Equip() is called during a Physics Callback (e.g. Area3D.BodyEntered) OR during Initialization (Parent _Ready),
+            // this will throw a "Tree Locked" or "Parent Busy" error.
+            // The caller must ensure they are deferring the Equip call if they are in a dangerous context.
+            _slotRoot.AddChild(_currentInstance);
 
             // 3. Apply Overrides (Texture, Row, Tint)
             ApplyOverrides(_currentInstance, item);
@@ -234,6 +237,8 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             FindSpritesRecursive(prefabRoot, _currentVisualNodes);
             FindSpritesRecursive(prefabRoot, _currentVisibleNodes);
         }
+
+        GD.Print($"Just finished equipping Visual Slot! visual config: {CurrentItem.Id}");
 
         VisualNodesChanged?.Invoke();
         VisibleNodesChanged?.Invoke();
