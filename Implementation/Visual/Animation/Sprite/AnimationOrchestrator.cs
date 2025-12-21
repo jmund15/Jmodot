@@ -35,7 +35,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     };
 
     private IAnimComponent _targetAnimator = null!;
-    private StringName _baseAnimName = "idle";
+    public StringName BaseAnimName { get; private set; } = "idle";
     private string _currentDirectionLabel = "down";
     public Vector3 CurrentAnimationDirection { get; private set; }
 
@@ -85,7 +85,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             // HACK: if not playing just update the anim and position, then pause.
             //  this is a bit jank but possibly ok.
             bool pauseAfter = !IsPlaying();
-            UpdateAnim(_baseAnimName, AnimUpdateMode.MaintainTime);
+            UpdateAnim(BaseAnimName, AnimUpdateMode.MaintainTime);
             if (pauseAfter)
             {
                 //SeekPos(GetCurrAnimationPosition(), true);
@@ -107,7 +107,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
     public void UpdateAnim(StringName baseName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
-        _baseAnimName = baseName;
+        BaseAnimName = baseName;
         var finalName = BuildFinalName();
 
         //GD.Print($"Anim Orch playing anim '{finalName}' with mode {mode}");
@@ -118,10 +118,10 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             {
                 _targetAnimator.StartAnim(finalName);
             }
-            else if (_targetAnimator.HasAnimation(_baseAnimName))
+            else if (_targetAnimator.HasAnimation(BaseAnimName))
             {
-                _targetAnimator.StartAnim(_baseAnimName);
-                JmoLogger.Info(this, $"Animation '{_baseAnimName}' started due to final name not existing '{finalName}'");
+                _targetAnimator.StartAnim(BaseAnimName);
+                JmoLogger.Info(this, $"Animation '{BaseAnimName}' started due to final name not existing '{finalName}'");
             }
             else {
                 GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name}; owner '{_targetAnimator.GetUnderlyingNode().Owner.Name}'");
@@ -153,10 +153,10 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     {
         if (string.IsNullOrEmpty(_currentDirectionLabel) || DirectionSet == null)
         {
-            return _baseAnimName;
+            return BaseAnimName;
         }
 
-        return new StringName($"{_baseAnimName}{DirectionSuffixSeparator}{_currentDirectionLabel}");
+        return new StringName($"{BaseAnimName}{DirectionSuffixSeparator}{_currentDirectionLabel}");
     }
 
     // --- IAnimComponent Pass-through ---
