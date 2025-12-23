@@ -6,7 +6,7 @@ using Godot.Collections;
 /// <summary>
 ///     DirectionSet3D specifically for 4 cardinal directions on the XZ plane.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public sealed partial class Dir4DirectionSet3D : DirectionSet3D
 {
     public Dir4DirectionSet3D()

@@ -11,7 +11,7 @@ using Shared;
 /// Coordinates the high-level animation state (e.g. "run_left").
 /// Combines a Base Name (State) with a Direction Suffix.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AnimationOrchestrator : Node, IAnimComponent
 {
     [Export] private Node _targetAnimatorNode = null!;
@@ -36,14 +36,19 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
     private IAnimComponent _targetAnimator = null!;
     public StringName BaseAnimName { get; private set; } = "idle";
-    private string _currentDirectionLabel = "down";
+    public string CurrentDirectionLabel { get; private set; } = "down";
     public Vector3 CurrentAnimationDirection { get; private set; }
 
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
 
+
     public override void _Ready()
     {
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
         _targetAnimator = _targetAnimatorNode as IAnimComponent;
         if (_targetAnimator == null)
         {
@@ -76,11 +81,11 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             return;
         }
 
-        if (newLabel != _currentDirectionLabel)
+        if (newLabel != CurrentDirectionLabel)
         {
             CurrentAnimationDirection = closestDir;
             //GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
-            _currentDirectionLabel = newLabel;
+            CurrentDirectionLabel = newLabel;
 
             // HACK: if not playing just update the anim and position, then pause.
             //  this is a bit jank but possibly ok.
@@ -117,14 +122,18 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
             if (_targetAnimator.HasAnimation(finalName))
             {
                 _targetAnimator.StartAnim(finalName);
+                //_noDirActive = false;
             }
             else if (_targetAnimator.HasAnimation(BaseAnimName))
             {
                 _targetAnimator.StartAnim(BaseAnimName);
-                JmoLogger.Info(this, $"Animation '{BaseAnimName}' started due to final name not existing '{finalName}'");
+                //_noDirActive = true;
+                //JmoLogger.Info(this, $"Animation '{BaseAnimName}' started due to final name not existing '{finalName}'");
             }
             else {
-                GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name}; owner '{_targetAnimator.GetUnderlyingNode().Owner.Name}'");
+                // GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name};" +
+                //          $"\nparent '{_targetAnimator.GetUnderlyingNode().GetParent().Name}'" +
+                //          $"\nowner '{_targetAnimator.GetUnderlyingNode().Owner.Name}'");
             }
             // Else: Silently fail or log warning? For now, silent to avoid spam if "idle" is missing.
         }
@@ -143,20 +152,20 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
 
     private StringName CheckFinalName(StringName baseName)
     {
-        if (string.IsNullOrEmpty(_currentDirectionLabel) || DirectionSet == null)
+        if (string.IsNullOrEmpty(CurrentDirectionLabel) || DirectionSet == null)
         {
             return baseName;
         }
-        return new StringName($"{baseName}{DirectionSuffixSeparator}{_currentDirectionLabel}");
+        return new StringName($"{baseName}{DirectionSuffixSeparator}{CurrentDirectionLabel}");
     }
     private StringName BuildFinalName()
     {
-        if (string.IsNullOrEmpty(_currentDirectionLabel) || DirectionSet == null)
+        if (string.IsNullOrEmpty(CurrentDirectionLabel) || DirectionSet == null)
         {
             return BaseAnimName;
         }
 
-        return new StringName($"{BaseAnimName}{DirectionSuffixSeparator}{_currentDirectionLabel}");
+        return new StringName($"{BaseAnimName}{DirectionSuffixSeparator}{CurrentDirectionLabel}");
     }
 
     // --- IAnimComponent Pass-through ---

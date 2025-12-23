@@ -7,7 +7,7 @@ using Godot.Collections;
 /// <summary>
 ///     Specialized DirectionSet2D that allows for custom direction vectors to be defined in the Godot Editor.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public sealed partial class CustomDirectionSet2D : DirectionSet2D
 {
     private Array<Vector2> _customDirections = new();

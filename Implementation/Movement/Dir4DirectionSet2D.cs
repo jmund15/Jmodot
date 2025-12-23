@@ -6,7 +6,7 @@ using Godot.Collections;
 /// <summary>
 /// A pre-configured DirectionSet2D for 8 directions (cardinal and inter-cardinal).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public sealed partial class Dir4DirectionSet2D : DirectionSet2D
 {
     public Dir4DirectionSet2D() { Directions = new Array<Vector2> {

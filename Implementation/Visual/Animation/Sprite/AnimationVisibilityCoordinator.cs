@@ -67,7 +67,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
 
         if (AutoRegisterNodes)
         {
-            RegisterChildrenRecursive(GetParent());
+            RegisterChildren(GetParent());
 
             // Connect to ChildEnteredTree to detect dynamically added nodes
             var parent = GetParent();
@@ -107,7 +107,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         //GD.Print($"[AnimVis] ChildEnteredTree fired for: {node.Name}");
 
         // Register the new node and all its children recursively
-        RegisterChildrenRecursive(node);
+        RegisterChildren(node);
 
         // If we're currently playing an animation, update visibility for the new nodes
         if (_targetAnimComponent != null && _targetAnimComponent.IsPlaying())
@@ -122,15 +122,15 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         }
     }
 
-    private void RegisterChildrenRecursive(Node parent)
+    private void RegisterChildren(Node parent)
     {
         // First, check if the parent itself is a visual node
         RegisterNodeIfValid(parent);
 
-        // Then recursively check all children
-        foreach (var child in parent.GetChildren())
+        // Then check all children
+        foreach (var child in parent.GetChildrenOfType<Node>())
         {
-            RegisterChildrenRecursive(child);
+            RegisterNodeIfValid(child);
         }
     }
 
@@ -289,7 +289,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
             var parent = GetParent();
             if (parent != null)
             {
-                foreach (var child in parent.GetChildren())
+                foreach (var child in parent.GetChildrenOfType<Node>())
                 {
                     // Only check nodes matching the prefix
                     string childName = child.Name.ToString();

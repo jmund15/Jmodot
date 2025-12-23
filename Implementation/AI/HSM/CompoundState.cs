@@ -173,7 +173,7 @@ using Shared.GodotExceptions;
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
 
-            GD.Print($"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
+            //GD.Print($"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }
 
 

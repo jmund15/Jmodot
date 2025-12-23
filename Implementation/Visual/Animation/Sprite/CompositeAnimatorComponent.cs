@@ -171,6 +171,10 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             {
                 anim.StartAnim(animName);
             }
+            // else
+            // {
+            //     anim.StopAnim();
+            // }
         }
     }
 
@@ -219,7 +223,9 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         _activeAnimators.ForEach(a => a.SetSpeedScale(scale));
     }
 
-    public bool HasAnimation(StringName animName) => _activeAnimators.Any(a => a.HasAnimation(animName));
+    public bool HasAnimation(StringName animName) =>
+        _masterAnimator.HasAnimation(animName); // master is REQUIRED to say yes, others not needed but should play if available
+        //_activeAnimators.Any(a => a.HasAnimation(animName));
     public bool IsPlaying() => _masterAnimator?.IsPlaying() ?? false;
     public StringName GetCurrAnimation() => _lastRequestedAnim;
     public float GetSpeedScale() => _currentSpeedScale;

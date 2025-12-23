@@ -7,7 +7,9 @@ using System.Linq;
 using Core.Visual.Animation.Sprite;
 
 using System;
+using Core.Movement;
 using Core.Visual.Effects;
+using Shared;
 
 /// <summary>
 /// Manages the visual composition of the character.
@@ -20,6 +22,15 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     [Export] public GCol.Array<VisualSlotConfig> SlotConfigs { get; set; } = new();
 
     private Dictionary<string, VisualSlot> _slots = new();
+
+    private List<Node> _visibleNodes;
+    private List<Node> _visualNodes;
+
+    [ExportGroup("Debug")]
+    [Export] private bool _useFlipHDebug = true;
+    [Export] private AnimationOrchestrator? _debugOrchestrator;
+    [Export] private DirectionSet2D? _flipHDirSet;
+    private bool _noDirActive = false;
 
     public override void _Ready()
     {
@@ -51,6 +62,56 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
                 // since we are currently inside _Ready and the scene tree is locked.
                 CallDeferred(MethodName.EquipDefault, config.SlotName, config.DefaultItem);
                 GD.Print($"VisualComposer: Scheduled default item '{config.DefaultItem.Id}' for slot '{config.SlotName}' (Deferred).");
+            }
+        }
+
+        if (_useFlipHDebug)
+        {
+            _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
+        }
+    }
+
+    public override void _Process(double delta)
+    {
+        base._Process(delta);
+        if (Engine.IsEditorHint()) { return; }
+        if (!_useFlipHDebug)
+        {
+            return;
+        }
+        var flipHDir = _flipHDirSet.GetClosestDirection(
+            _debugOrchestrator.CurrentAnimationDirection.GetFlattenedVector2());
+        if (flipHDir == Vector2.Right)
+        {
+            DebugSetFlipH(false);
+        }
+        else
+        {
+            DebugSetFlipH(true);
+        }
+    }
+
+    private void OnOrchAnimStarted(StringName obj)
+    {
+        var flipHDir = _flipHDirSet.GetClosestDirection(
+                _debugOrchestrator.CurrentAnimationDirection.GetFlattenedVector2());
+        if (flipHDir == Vector2.Right)
+        {
+            DebugSetFlipH(false);
+        }
+        else
+        {
+            DebugSetFlipH(true);
+        }
+    }
+
+    private void DebugSetFlipH(bool flip)
+    {
+        foreach (var visualNode in GetAllVisualNodes())
+        {
+            if (visualNode is SpriteBase3D sprite3D)
+            {
+                sprite3D.FlipH = flip;
             }
         }
     }
@@ -108,32 +169,40 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     public IReadOnlyList<Node> GetVisibleNodes()
     {
-        var nodes = new List<Node>();
-        foreach (var slot in _slots.Values)
-        {
-            nodes.AddRange(slot.GetCurrentVisibleNodes());
-        }
-        return nodes;
+        return _visibleNodes;
     }
 
     public IReadOnlyList<Node> GetAllVisualNodes()
     {
-        var nodes = new List<Node>();
-        foreach (var slot in _slots.Values)
-        {
-            nodes.AddRange(slot.GetCurrentVisualNodes());
-        }
-        return nodes;
+        return _visualNodes;
     }
 
     private void OnSlotVisualNodesChanged()
     {
         VisibleNodesChanged?.Invoke();
         VisualNodesChanged?.Invoke();
+
+        _visualNodes = new List<Node>();
+        foreach (var slot in _slots.Values)
+        {
+            _visualNodes.AddRange(slot.GetCurrentVisualNodes());
+        }
+
+        _visibleNodes = new List<Node>();
+        foreach (var slot in _slots.Values)
+        {
+            _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
+        }
     }
     private void OnSlotVisibleNodesChanged()
     {
         VisibleNodesChanged?.Invoke();
+
+        _visibleNodes = new List<Node>();
+        foreach (var slot in _slots.Values)
+        {
+            _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
+        }
     }
 
     #endregion

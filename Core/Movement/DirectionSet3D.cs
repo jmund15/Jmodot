@@ -8,7 +8,7 @@ using Implementation.Shared;
 ///     This allows game-specific directional models (e.g., 4-way, 8-way) to be created
 ///     in the editor and used by systems to interpret a continuous direction vector.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class DirectionSet3D : Resource
 {
     /// <summary>
