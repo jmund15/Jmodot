@@ -45,7 +45,7 @@ public struct DamageEffect : ICombatEffect
             float impactSpeed = context.ImpactVelocity.Length();
             float totalForceConfig = BaseKnockback + (impactSpeed * KnockbackVelocityScaling);
 
-            GD.Print($"damage result- direction: {context.HitDirection}; force: {totalForceConfig}");
+            //GD.Print($"damage result- direction: {context.HitDirection}; force: {totalForceConfig}");
 
             // Note: We are currently only CALCULATING this value.
             // The application of this force (Knockback) to the target's movement system

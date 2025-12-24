@@ -13,7 +13,7 @@ using Effects.StatusEffects;
 public partial class DelayedEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene Runner { get; set; } = null!;
-    [Export] public FloatEffectDefinition Delay { get; set; } = new(1.0f);
+    [Export] public FloatStatDefinition Delay { get; set; } = new(1.0f);
     [Export] public CombatEffectFactory EffectToApply { get; set; }
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene PersistentVisuals { get; set; }

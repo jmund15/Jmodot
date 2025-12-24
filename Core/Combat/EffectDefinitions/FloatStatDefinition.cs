@@ -10,7 +10,7 @@ using Stats;
 /// If no modifiers are specified, the base amount is returned as a static value.
 /// </summary>
 [GlobalClass]
-public partial class FloatEffectDefinition : Resource
+public partial class FloatStatDefinition : Resource
 {
     /// <summary>
     /// The starting value before any attribute modifiers are applied.
@@ -23,12 +23,12 @@ public partial class FloatEffectDefinition : Resource
     /// </summary>
     [Export] public Array<AttributeModifier> Modifiers { get; set; } = new();
 
-    public FloatEffectDefinition() { }
+    public FloatStatDefinition() { }
 
     /// <summary>
     /// Constructor for a static value with no attribute modifiers.
     /// </summary>
-    public FloatEffectDefinition(float baseAmount)
+    public FloatStatDefinition(float baseAmount)
     {
         BaseAmount = baseAmount;
         Modifiers = new Array<AttributeModifier>();
@@ -37,7 +37,7 @@ public partial class FloatEffectDefinition : Resource
     /// <summary>
     /// Constructor with a single attribute modifier.
     /// </summary>
-    public FloatEffectDefinition(float baseAmount, Attribute attribute, AttributeOperation operation)
+    public FloatStatDefinition(float baseAmount, Attribute attribute, AttributeOperation operation)
     {
         BaseAmount = baseAmount;
         Modifiers = new Array<AttributeModifier>
@@ -50,7 +50,7 @@ public partial class FloatEffectDefinition : Resource
     /// Constructor for attribute-only value (base = 0, attribute value is the result).
     /// Uses Override operation so the attribute value becomes the final value.
     /// </summary>
-    public FloatEffectDefinition(Attribute attribute)
+    public FloatStatDefinition(Attribute attribute)
     {
         BaseAmount = 0f;
         Modifiers = new Array<AttributeModifier>

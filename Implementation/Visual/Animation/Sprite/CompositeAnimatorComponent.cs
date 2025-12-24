@@ -233,6 +233,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     // Queries delegate to Master
     public float GetCurrAnimationLength() => _masterAnimator?.GetCurrAnimationLength() ?? 0f;
+    public float GetAnimationLength(StringName animName) => _masterAnimator?.GetAnimationLength(animName) ?? 0f;
     public float GetCurrAnimationPosition() => _masterAnimator?.GetCurrAnimationPosition() ?? 0f;
     public void SeekPos(float time, bool update = true) => _activeAnimators.ForEach(a => a.SeekPos(time, update));
     public string[] GetAnimationList() => _masterAnimator?.GetAnimationList() ?? [];

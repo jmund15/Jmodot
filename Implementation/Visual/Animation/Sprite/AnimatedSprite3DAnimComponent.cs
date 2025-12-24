@@ -118,6 +118,16 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         return SpriteFrames.GetFrameCount(Animation) / fps;
     }
 
+    public float GetAnimationLength(StringName animName)
+    {
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(animName)) return 0f;
+
+        float fps = (float)SpriteFrames.GetAnimationSpeed(animName);
+        if (fps <= 0) return 0f;
+
+        return SpriteFrames.GetFrameCount(animName) / fps;
+    }
+
     public float GetCurrAnimationPosition()
     {
         if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return 0f;

@@ -78,6 +78,15 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
     public void FastForward(float time) => Advance(time);
     public StringName GetCurrAnimation() => CurrentAnimation;
     public float GetCurrAnimationLength() => (float)CurrentAnimationLength;
+    public float GetAnimationLength(StringName animName)
+    {
+        if (HasAnimation(animName))
+        {
+            var anim = GetAnimation(animName);
+            return (float)anim.Length;
+        }
+        return 0f;
+    }
     public float GetCurrAnimationPosition() => (float)CurrentAnimationPosition;
     //public float GetSpeedScale() => (float)SpeedScale;
     public new void SetSpeedScale(float speedScale) => SpeedScale = speedScale; // 'new' keyword to hide base member

@@ -25,8 +25,14 @@ public interface ICharacterController3D : IGodotNodeInterface, IVelocityProvider
     /// </summary>
     Vector3 IVelocityProvider3D.LinearVelocity => Velocity;
 
-    /// <summary>Gets whether the physics body is currently considered to be on the floor.</summary>
+    /// <summary> Gets whether the physics body is currently considered to be on the floor. </summary>
     bool IsOnFloor { get; }
+
+    /// <summary>
+    /// Gets the velocity of the body as it was *before* the last call to Move().
+    /// Critical for calculating bounce reflections after collisions have resolved velocity.
+    /// </summary>
+    Vector3 PreMoveVelocity { get; }
 
     // --- Core Commands ---
 

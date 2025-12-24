@@ -13,7 +13,7 @@ using Effects.StatusEffects;
 public partial class DurationEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene Runner { get; set; } = null!;
-    [Export] public FloatEffectDefinition Duration { get; set; } = new(1.0f);
+    [Export] public FloatStatDefinition Duration { get; set; } = new(1.0f);
     [Export] public CombatEffectFactory OnStartEffect { get; set; } = null!;
     [Export] public CombatEffectFactory OnEndEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];

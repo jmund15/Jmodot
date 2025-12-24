@@ -40,6 +40,11 @@ public interface IAnimComponent : IGodotNodeInterface
     float GetCurrAnimationLength();
 
     /// <summary>
+    /// Returns total duration of a specific animation in seconds, whether active or not.
+    /// </summary>
+    float GetAnimationLength(StringName animName);
+
+    /// <summary>
     /// Returns current progress in seconds.
     /// For AnimatedSprite: CurrentFrame / FPS.
     /// </summary>

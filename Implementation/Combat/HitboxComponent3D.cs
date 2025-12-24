@@ -144,7 +144,7 @@ using AI.BB;
                 SetPhysicsProcess(true);
             }
 
-            GD.Print($"Hitbox '{Name} Starting Attack!");
+            //GD.Print($"Hitbox '{Name} Starting Attack!");
         }
 
         public void EndAttack()

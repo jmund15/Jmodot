@@ -11,9 +11,9 @@ public sealed partial class Dir4AnimationSuffixes : AnimationDirectionSuffixes
     }
     private List<string> Dir4Suffixes { get; init; } = new()
     {
-        "Right",
-        "Down",
-        "Left",
-        "Up"
+        "up",
+        "right",
+        "down",
+        "left"
     };
 }

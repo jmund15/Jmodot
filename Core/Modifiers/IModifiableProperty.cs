@@ -43,4 +43,10 @@ public interface IModifiableProperty
     /// Removes all modifiers that were applied by a specific owner.
     /// </summary>
     void RemoveAllModifiersFromSource(object owner);
+
+    /// <summary>
+    /// Transfers all active modifiers from this property to a target property.
+    /// This is used for merging stat sheets (e.g. Blueprint -> Instance).
+    /// </summary>
+    void TransferModifiersTo(IModifiableProperty target);
 }

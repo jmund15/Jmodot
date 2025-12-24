@@ -35,6 +35,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
     // Default strategies (can make static if we make the get calc strat static)
     private readonly FloatCalculationStrategy _defaultFloatCalcStrat = new();
+    private readonly IntCalculationStrategy _defaultIntCalcStrat = new();
     private readonly BoolOverrideStrategy _defaultBoolCalcStrat = new();
 
     private readonly HashSet<StatContext> _activeContexts = new();
@@ -217,6 +218,30 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         return null;
     }
 
+    /// <summary>
+    /// Merges stats and modifiers from another controller into this one.
+    /// If an attribute exists in both, only modifiers are transferred.
+    /// If it only exists in the source, the whole property (Base + Strategy + Modifiers) is copied.
+    /// </summary>
+    public void InheritModifiers(StatController source)
+    {
+        foreach (var (attribute, sourceProp) in source._stats)
+        {
+            if (!_stats.TryGetValue(attribute, out var targetProp))
+            {
+                // Case 1: Attribute doesn't exist here. Clone the whole thing.
+                var clonedProp = sourceProp.Clone();
+                _stats[attribute] = clonedProp;
+                clonedProp.OnValueChanged += (newValue) => NotifySubscribers(attribute, newValue);
+            }
+            else
+            {
+                // Case 2: Attribute exists. Transfer ONLY modifiers.
+                sourceProp.TransferModifiersTo(targetProp);
+            }
+        }
+    }
+
     public bool TryAddModifier(Attribute attribute, Resource modifierResource, object owner, out ModifierHandle? handle)
     {
         if (_stats.TryGetValue(attribute, out var property))
@@ -360,6 +385,22 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
                             this);
                 }
                 break;
+            case Variant.Type.Int:
+                switch (specificStrategy)
+                {
+                    case null:
+                        return new ModifiableProperty<int>(
+                            baseValue.AsInt32(),
+                            _defaultIntCalcStrat
+                        );
+                    case  ICalculationStrategy<int> intStrat:
+                        return new ModifiableProperty<int>(
+                            baseValue.AsInt32(),
+                            intStrat);
+                    default:
+                        throw JmoLogger.LogAndRethrow(new InvalidCastException($"Incorrect Strategy Type: '{specificStrategy.GetType().Name}' for Variant type '{baseValue.VariantType}'"),
+                            this);
+                }
             case Variant.Type.Bool:
                 switch (specificStrategy)
                 {

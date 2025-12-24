@@ -61,7 +61,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
         _targetAnimator.AnimStarted += n => AnimStarted?.Invoke(n);
         _targetAnimator.AnimFinished += n => AnimFinished?.Invoke(n);
 
-        _targetAnimator.AnimStarted += n => JmoLogger.Info(this, $"Animation '{n}' started in Orchestrator of '{GetOwner().Name}");
+        //_targetAnimator.AnimStarted += n => JmoLogger.Info(this, $"Animation '{n}' started in Orchestrator of '{GetOwner().Name}");
     }
 
     /// <summary>
@@ -179,6 +179,17 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     public void SeekPos(float time, bool updateNow = true) => _targetAnimator.SeekPos(time, updateNow);
     public StringName GetCurrAnimation() => _targetAnimator.GetCurrAnimation();
     public float GetCurrAnimationLength() => _targetAnimator.GetCurrAnimationLength();
+    public float GetAnimationLength(StringName animName) => _targetAnimator.GetAnimationLength(animName);
+
+    public float GetAnimationLengthBase(StringName baseName)
+    {
+        var finalName = CheckFinalName(baseName);
+        if (HasAnimation(finalName))
+        {
+            return GetAnimationLength(finalName);
+        }
+        return GetAnimationLength(baseName);
+    }
     public float GetCurrAnimationPosition() => _targetAnimator.GetCurrAnimationPosition();
     public float GetSpeedScale() => _targetAnimator.GetSpeedScale();
     public void SetSpeedScale(float speedScale) => _targetAnimator.SetSpeedScale(speedScale);

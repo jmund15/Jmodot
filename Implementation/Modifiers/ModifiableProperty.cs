@@ -221,5 +221,16 @@ public class ModifiableProperty<T> : IModifiableProperty
         throw JmoLogger.LogAndRethrow(new InvalidCastException($"Resource of type {GetType().Name} is not of type {nameof(IModifier<T>)}, cannot cast to modifier for this property!"),
             this);
     }
+
+    public void TransferModifiersTo(IModifiableProperty target)
+    {
+        foreach (var entry in _modifierEntries)
+        {
+            // We use the generic AddModifier via the interface to handle type-casting correctly.
+            // Note: We use the existing Modifier resource and its original Owner.
+            // This ensures that the target property now has a "copy" of the modifier application.
+            target.AddModifier(entry.Modifier as Resource, entry.Owner);
+        }
+    }
     #endregion
 }

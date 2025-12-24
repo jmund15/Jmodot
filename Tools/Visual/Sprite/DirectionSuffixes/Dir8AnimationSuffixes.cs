@@ -11,13 +11,13 @@ public sealed partial class Dir8AnimationSuffixes : AnimationDirectionSuffixes
     }
     private List<string> Dir8Suffixes { get; init; } = new()
     {
-        "UpRight",
-        "Right",
-        "DownRight",
-        "Down",
-        "DownLeft",
-        "Left",
-        "UpLeft",
-        "Up"
+        "up",
+        "upRight",
+        "right",
+        "downRight",
+        "down",
+        "downLeft",
+        "left",
+        "upLeft"
     };
 }

@@ -113,7 +113,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         if (_targetAnimComponent != null && _targetAnimComponent.IsPlaying())
         {
             var currentAnim = _targetAnimComponent.GetCurrAnimation();
-            GD.Print($"[AnimVis] Animation is playing: {currentAnim}, calling OnAnimStarted");
+            //GD.Print($"[AnimVis] Animation is playing: {currentAnim}, calling OnAnimStarted");
             OnAnimStarted(currentAnim);
         }
         else

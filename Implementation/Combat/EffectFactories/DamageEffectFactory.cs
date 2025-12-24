@@ -16,7 +16,9 @@ using GCol = Godot.Collections;
 [GlobalClass]
 public partial class DamageEffectFactory : CombatEffectFactory
 {
-    [Export] private FloatEffectDefinition _floatEffectDefinition = null!;
+    [Export] private FloatStatDefinition _damageDefinition = null!;
+    [Export] private FloatStatDefinition _knockbackDefinition = null!;
+
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 
     /// <summary>
@@ -37,7 +39,8 @@ public partial class DamageEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        float baseDamage = _floatEffectDefinition.ResolveFloatValue(stats);
+        float baseDamage = _damageDefinition.ResolveFloatValue(stats);
+        float baseKnockback = _knockbackDefinition.ResolveFloatValue(stats);
 
         bool isCritical = false;
         float finalDamage = baseDamage;
@@ -58,6 +61,10 @@ public partial class DamageEffectFactory : CombatEffectFactory
             }
         }
 
-        return new DamageEffect(finalDamage, Tags, isCritical);
+        // determines how much the impact speed of the projectile impacts the knockback.
+        // I'm guessing we want to make this a variable at some point?
+        var knockbackVelocityScaling = 1f;
+
+        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, knockbackVelocityScaling);
     }
 }

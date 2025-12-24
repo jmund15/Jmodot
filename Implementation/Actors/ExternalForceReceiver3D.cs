@@ -13,7 +13,8 @@ using Core.Environment;
 public partial class ExternalForceReceiver3D : Area3D
 {
     // Using a HashSet provides efficient add/remove operations and prevents duplicates.
-    private readonly HashSet<IForceProvider3D> _activeForceProviders = new();
+    private readonly HashSet<IForceProvider3D> _activeAreaProviders = new();
+    private readonly HashSet<IForceProvider3D> _internalProviders = new();
 
     public override void _Ready()
     {
@@ -25,11 +26,21 @@ public partial class ExternalForceReceiver3D : Area3D
         this.AreaExited += this.OnProviderExited;
     }
 
+    public void RegisterInternalProvider(IForceProvider3D provider)
+    {
+        _internalProviders.Add(provider);
+    }
+
+    public void UnregisterInternalProvider(IForceProvider3D provider)
+    {
+        _internalProviders.Remove(provider);
+    }
+
     private void OnProviderEntered(Area3D area)
     {
         if (area is IForceProvider3D provider)
         {
-            this._activeForceProviders.Add(provider);
+            this._activeAreaProviders.Add(provider);
         }
     }
 
@@ -37,7 +48,7 @@ public partial class ExternalForceReceiver3D : Area3D
     {
         if (area is IForceProvider3D provider)
         {
-            this._activeForceProviders.Remove(provider);
+            this._activeAreaProviders.Remove(provider);
         }
     }
 
@@ -49,13 +60,14 @@ public partial class ExternalForceReceiver3D : Area3D
     /// <returns>A single Vector3 representing the sum of all external forces for this frame.</returns>
     public Vector3 GetTotalForce(Node3D target)
     {
-        if (this._activeForceProviders.Count == 0)
+        var totalForce = Vector3.Zero;
+
+        foreach (var provider in this._activeAreaProviders)
         {
-            return Vector3.Zero;
+            totalForce += provider.GetForceFor(target);
         }
 
-        var totalForce = Vector3.Zero;
-        foreach (var provider in this._activeForceProviders)
+        foreach (var provider in this._internalProviders)
         {
             totalForce += provider.GetForceFor(target);
         }
