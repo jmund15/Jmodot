@@ -24,11 +24,10 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     [Export]
     public AnimationDirectionSuffixes DirectionSuffixes { get; set; }
 
-    [Export]
-    public Vector2I FrameSize { get; set; } = new(64, 64);
-
-    [Export]
-    public string BaseAnimationName { get; set; } = "idle";
+    [Export] public Vector2I FrameSize { get; set; } = new(64, 64);
+    private readonly Vector2I AllColumns = new(-1, -1);
+    [Export] public Vector2I ColumnsToUse { get; set; } = new(-1, -1);
+    [Export] public string BaseAnimationName { get; set; } = "idle";
 
     [Export]
     public string SeparationSuffix { get; set; } = "_";
@@ -74,6 +73,14 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
         // 3. Generate Animations per row
         float frameDuration = 1.0f / FramesPerSecond;
 
+        int colStart = 0;
+        int colEnd = cols;
+        if (ColumnsToUse != AllColumns)
+        {
+            colStart = ColumnsToUse.X;
+            colEnd = ColumnsToUse.Y + 1; // inclusive
+        }
+
         for (int row = 0; row < rows; row++)
         {
             // Determine direction name
@@ -86,7 +93,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
             // Create Animation
             var anim = new Animation();
             anim.LoopMode = LoopAnimations ? Animation.LoopModeEnum.Linear : Animation.LoopModeEnum.None;
-            anim.Length = frameDuration * cols;
+            anim.Length = frameDuration * (colEnd - colStart);
             anim.Step = frameDuration;
 
             // Create Track for 'frame_coords'
@@ -105,7 +112,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
             anim.TrackSetInterpolationType(trackIdx, Animation.InterpolationType.Nearest); // Pixel art style
 
             // Add Keyframes (Rows are the frames of animation)
-            for (int col = 0; col < cols; col++)
+            for (int col = colStart; col < colEnd; col++)
             {
                 var coordValue = new Vector2I(col, row);
                 anim.TrackInsertKey(trackIdx, col * frameDuration, coordValue);
