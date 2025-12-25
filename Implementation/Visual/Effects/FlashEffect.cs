@@ -1,13 +1,11 @@
 namespace Jmodot.Implementation.Visual.Effects;
 
 using System.Collections.Generic;
-using System.Linq;
 using Core.Visual.Effects;
 using Godot;
 
 /// <summary>
 /// Visual effect that flashes sprites between their original color and a flash color.
-/// Used for invincibility frames, damage feedback, etc.
 /// </summary>
 [GlobalClass]
 public partial class FlashEffect : VisualEffect
@@ -22,75 +20,33 @@ public partial class FlashEffect : VisualEffect
     /// </summary>
     [Export] public int FlashCount { get; set; } = 4;
 
-    private string _modulateKey = "Modulate";
-
-    public override Dictionary<string, Variant> CaptureState(Node node)
+    public FlashEffect()
     {
-        return new Dictionary<string, Variant>
-        {
-            [_modulateKey] = GetModulate(node)
-        };
+        // Default to Override for Flash effects as they typically demand attention
+        // and replacing the color entirely (invincibility/hit frames)
+        BlendMode = VisualEffectBlendMode.Override;
     }
 
-    public override void RestoreState(Node node, Dictionary<string, Variant> state)
+    public override void ConfigureTween(Tween tween, VisualEffectHandle handle)
     {
-        if (state.TryGetValue(_modulateKey, out var modulate))
+        float totalDuration = Duration;
+        float singleFlashDuration = totalDuration / FlashCount;
+        float halfFlashDuration = singleFlashDuration / 2;
+
+        for (int i = 0; i < FlashCount; i++)
         {
-            SetModulate(node, modulate.AsColor());
+            // Flash ON
+            tween.TweenProperty(handle, "Modulate", FlashColor, halfFlashDuration)
+                .SetTrans(Tween.TransitionType.Linear);
+            
+            // Flash OFF (Back to White/Input)
+            // Note: We tween back to White because the Controller multiplies this value.
+            // White = 1.0 = Original Sprite Color.
+            tween.TweenProperty(handle, "Modulate", Colors.White, halfFlashDuration)
+                .SetTrans(Tween.TransitionType.Linear);
         }
     }
-
-    public override void ConfigureTween(Tween tween, List<Node> nodes, float elapsedTime = 0f)
-    {
-        float halfFlashDuration = Duration / (FlashCount * 2);
-
-        // // Build the flash sequence: flash on, flash off, repeat
-        // for (int i = 0; i < FlashCount; i++)
-        // {
-
-        // START WITH FLASH ON FOR EACH NODE
-        for (int n = 0; n < nodes.Count; n++)
-        {
-            var node = nodes[n];
-
-            if (n == 0)
-            {
-                // Flash to FlashColor
-                tween.TweenProperty(node, "modulate", FlashColor, halfFlashDuration)
-                    .SetTrans(Tween.TransitionType.Linear);
-            }
-            else
-            {
-                // Flash to FlashColor
-                tween.Parallel().TweenProperty(node, "modulate", FlashColor, halfFlashDuration)
-                    .SetTrans(Tween.TransitionType.Linear);
-            }
-        }
-
-        // THEN FLASH OFF FOR EACH NODE
-        // START WITH FLASH ON FOR EACH NODE
-        for (int n = 0; n < nodes.Count; n++)
-        {
-            var node = nodes[n];
-            var originalColor = GetModulate(node);
-
-            if (n == 0)
-            {
-                // Return to original
-                tween.TweenProperty(node, "modulate", originalColor, halfFlashDuration)
-                    .SetTrans(Tween.TransitionType.Linear);
-            }
-            else
-            {
-                // Return to original
-                tween.TweenProperty(node, "modulate", originalColor, halfFlashDuration)
-                    .SetTrans(Tween.TransitionType.Linear);
-            }
-        }
-
-        //}
-        tween.SetLoops(FlashCount - 1); // -1 because we don't count the first one
-        tween.CustomStep(elapsedTime);
-
-    }
+    
+    // Explicitly defining this purely to satisfy the abstract requirement if I missed removing it in VisualEffect (I didn't, but being safe)
+    // Actually I removed them from VisualEffect.cs so I DON'T need to implement them.
 }

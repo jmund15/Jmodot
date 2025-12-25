@@ -10,12 +10,7 @@ using Shared;
 
 /// <summary>
 /// Central controller for applying visual effects across all active sprites in an entity.
-/// Manages Tween-based effects, handles dynamic sprite changes mid-effect, and implements priority override.
-///
-/// Usage:
-/// 1. Set VisualSources to point to IVisualSpriteProvider nodes (VisualComposer) or direct Sprite nodes
-/// 2. Call PlayEffect(effect) to start an effect
-/// 3. The controller handles aggregating sprites, creating Tweens, and responding to sprite changes
+/// Manages Tween-based effects using a Virtual Modulate architecture to support blending and overrides.
 /// </summary>
 [GlobalClass, Tool]
 public partial class VisualEffectController : Node
@@ -39,17 +34,16 @@ public partial class VisualEffectController : Node
     private readonly List<IVisualSpriteProvider> _providers = new();
 
     /// <summary>
-    /// The currently dominant modulate effect (highest priority, or most recent if tied).
-    /// Only one modulate effect can be active at a time.
+    /// Maps each visual node to its base modulate color (captured when tracking starts).
     /// </summary>
-    private VisualEffect? _currentDominantModulateEffect;
-
-    // TODO: add shader effects
+    private readonly Dictionary<Node, Color> _nodeBaseModulates = new();
 
     public override void _Ready()
     {
         base._Ready();
         InitializeProviders();
+        RefreshVisualNodes();
+        SetProcess(false); // Only run process when effects are active
     }
 
     public override void _ExitTree()
@@ -59,11 +53,15 @@ public partial class VisualEffectController : Node
         UnsubscribeFromProviders();
     }
 
+    public override void _Process(double delta)
+    {
+        ApplyEffects();
+    }
+
     #region Public API
 
     /// <summary>
-    /// Start playing a visual effect on all active sprites.
-    /// If an effect with higher or equal priority is already playing, this effect takes over.
+    /// Start playing a visual effect.
     /// </summary>
     public void PlayEffect(VisualEffect effect)
     {
@@ -73,67 +71,46 @@ public partial class VisualEffectController : Node
             return;
         }
 
-        // Check priority override
-        if (_currentDominantModulateEffect != null && effect.Priority < _currentDominantModulateEffect.Priority)
+        // Stop existing instance of this effect to restart it
+        if (_activeEffects.ContainsKey(effect))
         {
-            JmoLogger.Info(this, $"Effect '{effect.ResourceName}' blocked by higher priority effect '{_currentDominantModulateEffect.ResourceName}'");
-            return;
+            StopEffect(effect);
         }
 
-        // Stop current dominant effect if we're replacing it
-        if (_currentDominantModulateEffect != null)
-        {
-            GD.Print($"Stopped current effect '{_currentDominantModulateEffect.ResourceName}' to apply new effect");
-            StopEffect(_currentDominantModulateEffect);
-        }
-
-        // Get all current visual nodes
-        var nodes = GetAllVisualNodes();
-        if (nodes.Count == 0)
-        {
-            JmoLogger.Warning(this, "No active visual nodes found to apply effect");
-            return;
-        }
-
-        // Create the effect handle
-        var handle = new ActiveEffectHandle
-        {
-            Effect = effect,
-            NodeStates = new Dictionary<Node, Dictionary<string, Variant>>(),
-            StartTime = Time.GetTicksMsec()
-        };
-
-        // Capture state and apply effect to each node
+        // Create the state handle (the object that gets tweened)
+        var stateHandle = new VisualEffectHandle();
+        
+        // Create the tween
         var tween = GetTree().CreateTween();
-
-        foreach (var node in nodes)
-        {
-            if (!VisualEffect.IsVisualNode(node))
-            {
-                // TODO: should never get here right?
-                JmoLogger.Warning(this, $"UNEXPECTED WARNING: Node '{node.Name}' is not a valid visual node for the current visual effect '{effect.ResourceName}'");
-                continue;
-            }
-
-            // Capture original state
-            handle.NodeStates[node] = effect.CaptureState(node);
-        }
-
-        // Configure tween for the nodes
-        effect.ConfigureTween(tween, nodes, 0);
-
+        
+        // Configure the tween targeting the state handle
+        effect.ConfigureTween(tween, stateHandle);
+        
         tween.Play();
         tween.Finished += () => OnEffectFinished(effect);
 
-        handle.Tween = tween;
+        // Store handle
+        var handle = new ActiveEffectHandle
+        {
+            Effect = effect,
+            Tween = tween,
+            State = stateHandle,
+            StartTime = Time.GetTicksMsec()
+        };
+        
         _activeEffects[effect] = handle;
-        _currentDominantModulateEffect = effect;
+        
+        // Enable processing
+        SetProcess(true);
+        
+        // Immediate update to prevent 1-frame lag
+        ApplyEffects();
 
-        JmoLogger.Info(this, $"Started effect '{effect.ResourceName}' on {nodes.Count} nodes");
+        JmoLogger.Info(this, $"Started effect '{effect.ResourceName}'");
     }
 
     /// <summary>
-    /// Stop a specific effect, restoring all affected nodes to their original state.
+    /// Stop a specific effect.
     /// </summary>
     public void StopEffect(VisualEffect effect)
     {
@@ -142,34 +119,31 @@ public partial class VisualEffectController : Node
             return;
         }
 
-        // Kill the tween
         handle.Tween?.Kill();
-
-        // Restore all node states
-        foreach (var (node, state) in handle.NodeStates)
-        {
-            if (GodotObject.IsInstanceValid(node))
-            {
-                effect.RestoreState(node, state);
-            }
-        }
-
+        handle.State.Free(); // Clean up the Godot Object
         _activeEffects.Remove(effect);
 
-        if (_currentDominantModulateEffect == effect)
+        if (_activeEffects.Count == 0)
         {
-            _currentDominantModulateEffect = null;
+            // Reset all nodes to base color
+            ResetVisuals();
+            SetProcess(false);
+        }
+        else
+        {
+            // Re-evaluate remaining effects
+            ApplyEffects();
         }
 
         JmoLogger.Info(this, $"Stopped effect '{effect.ResourceName}'");
     }
 
     /// <summary>
-    /// Stop all active effects and restore all nodes.
+    /// Stop all active effects.
     /// </summary>
     public void StopAllEffects()
     {
-        // Create a copy since we're modifying the collection
+        // Copy keys to avoid modification exception
         var effects = _activeEffects.Keys.ToList();
         foreach (var effect in effects)
         {
@@ -187,7 +161,64 @@ public partial class VisualEffectController : Node
 
     #endregion
 
-    #region Provider Management
+    #region Core Logic
+
+    private void ApplyEffects()
+    {
+        if (_nodeBaseModulates.Count == 0) return;
+
+        // 1. Calculate the composite effect color
+        Color finalEffectColor = Colors.White;
+
+        // Check for dominant override (Highest Priority, then Newest)
+        var overrideHandle = _activeEffects.Values
+            .Where(h => h.Effect.BlendMode == VisualEffectBlendMode.Override)
+            .OrderByDescending(h => h.Effect.Priority)
+            .ThenByDescending(h => h.StartTime)
+            .FirstOrDefault();
+
+        if (overrideHandle != null)
+        {
+            // Override takes complete control
+            finalEffectColor = overrideHandle.State.Modulate;
+        }
+        else
+        {
+            // Mix mode: Multiply all active mix effects
+            foreach (var handle in _activeEffects.Values)
+            {
+                if (handle.Effect.BlendMode == VisualEffectBlendMode.Mix)
+                {
+                    finalEffectColor *= handle.State.Modulate;
+                }
+            }
+        }
+
+        // 2. Apply to all tracked nodes
+        // We iterate backwards to safely handle invalid nodes
+        foreach (var (node, baseColor) in _nodeBaseModulates)
+        {
+            if (GodotObject.IsInstanceValid(node))
+            {
+                SetModulate(node, baseColor * finalEffectColor);
+            }
+        }
+    }
+
+    private void ResetVisuals()
+    {
+        foreach (var (node, baseColor) in _nodeBaseModulates)
+        {
+            if (GodotObject.IsInstanceValid(node))
+            {
+                SetModulate(node, baseColor);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Provider & Node Management
 
     private void InitializeProviders()
     {
@@ -196,84 +227,45 @@ public partial class VisualEffectController : Node
             if (source is IVisualSpriteProvider provider)
             {
                 _providers.Add(provider);
-                GD.Print($"Found visual provider: {source.Name}");
-
-                // CAN USE IN FUTURE, right now just using ALL visual nodes
-                //provider.VisibleNodesChanged += OnVisibleNodesChanged;
+                // providers.VisibleNodesChanged += RefreshVisualNodes; // Future proofing
             }
         }
     }
 
     private void UnsubscribeFromProviders()
     {
-        foreach (var provider in _providers)
-        {
-            //provider.VisibleNodesChanged -= OnVisibleNodesChanged;
-        }
         _providers.Clear();
     }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    public void RefreshVisualNodes()
+    {
+        // Capture new list of nodes
+        var currentNodes = GetAllVisualNodes();
+        
+        // Remove nodes that are no longer present
+        // (Optional optimization: only remove if not in currentNodes)
+        // For safety/simplicity, we can just rebuild the map or merge.
+        // Let's merge: preserve existing base colors for existing nodes, capture for new ones.
+        
+        // Clean invalid nodes
+        var invalidNodes = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n)).ToList();
+        foreach (var n in invalidNodes) _nodeBaseModulates.Remove(n);
 
-    // private void OnVisibleNodesChanged()
-    // {
-    //     // If an effect is playing, we need to handle new/removed nodes
-    //     if (_currentDominantModulateEffect == null || !_activeEffects.TryGetValue(_currentDominantModulateEffect, out var handle))
-    //     {
-    //         return;
-    //     }
-    //
-    //     var currentNodes = GetAllActiveVisualNodes();
-    //     var trackedNodes = handle.NodeStates.Keys.ToHashSet();
-    //
-    //     // Find new nodes (in current but not tracked)
-    //     var newNodes = currentNodes.Where(n => !trackedNodes.Contains(n) && VisualEffect.IsVisualNode(n)).ToList();
-    //
-    //     // Find removed nodes (tracked but not in current)
-    //     var removedNodes = trackedNodes.Where(n => !currentNodes.Contains(n)).ToList();
-    //
-    //     // Restore and remove tracking for removed nodes
-    //     foreach (var node in removedNodes)
-    //     {
-    //         GD.Print($"Removing node from effect tracking: {node.Name}");
-    //         if (GodotObject.IsInstanceValid(node) && handle.NodeStates.TryGetValue(node, out var state))
-    //         {
-    //             _currentDominantModulateEffect.RestoreState(node, state);
-    //         }
-    //         handle.NodeStates.Remove(node);
-    //     }
-    //
-    //     foreach (var newNode in newNodes)
-    //     {
-    //         GD.Print($"Adding node to effect tracking: {newNode.Name}");
-    //     }
-    //     // Add new nodes to the running effect
-    //     if (newNodes.Count > 0)
-    //     {
-    //         AddNodesToRunningEffect(handle, newNodes);
-    //     }
-    // }
-
-    // private void AddNodesToRunningEffect(ActiveEffectHandle handle, List<Node> newNodes)
-    // {
-    //     // For new nodes joining mid-effect, we start a new tween for just these nodes
-    //     // This is simpler than trying to sync them to the existing tween's progress
-    //     var tween = CreateTween();
-    //     tween.SetParallel(true);
-    //
-    //     foreach (var node in newNodes)
-    //     {
-    //         handle.NodeStates[node] = handle.Effect.CaptureState(node);
-    //     }
-    //
-    //     handle.Effect.ConfigureTween(tween, newNodes, 0);;
-    //
-    //     // Note: This tween runs independently and may finish at a different time
-    //     // For most effects (flash, tint), this is acceptable behavior
-    //     JmoLogger.Info(this, $"Added {newNodes.Count} new nodes to running effect '{handle.Effect.ResourceName}'");
-    // }
-
-    #endregion
-
-    #region Node Aggregation
+        foreach (var node in currentNodes)
+        {
+            if (!_nodeBaseModulates.ContainsKey(node))
+            {
+                // New node found, capture its CURRENT state as base
+                // NOTE: If we are mid-effect, this might capture the effect color as base if we aren't careful.
+                // ideally RefreshVisualNodes is called when no effects are running, OR we calculate the inverse.
+                // For now, assuming base modulate doesn't change implicitly.
+                _nodeBaseModulates[node] = GetModulate(node);
+            }
+        }
+    }
 
     private List<Node> GetAllVisualNodes()
     {
@@ -285,126 +277,66 @@ public partial class VisualEffectController : Node
 
             if (source is IVisualSpriteProvider provider)
             {
-                // Use the provider's method
                 nodes.AddRange(provider.GetAllVisualNodes());
             }
             else
             {
-                if (source is SpriteBase3D)
-                {
-                    // Direct sprite reference
-                    nodes.Add(source);
-                }
-                nodes.AddRange(
-                    source.GetChildrenOfType<SpriteBase3D>()
-                    );
+                if (source is SpriteBase3D) nodes.Add(source);
+                nodes.AddRange(source.GetChildrenOfType<SpriteBase3D>());
+                // Add 2D support?
+                if (source is Node2D) nodes.AddRange(source.GetChildrenOfType<Node2D>().Where(n => n.GetType().Name.Contains("Sprite")));
             }
         }
-
         return nodes;
     }
 
-    /// <summary>
-    /// Gather all active visual nodes from all sources.
-    /// </summary>
-    // private List<Node> GetAllVisibleNodes()
-    // {
-    //     var nodes = new List<Node>();
-    //
-    //     foreach (var source in VisualSources)
-    //     {
-    //         if (source == null || !GodotObject.IsInstanceValid(source)) continue;
-    //
-    //         if (source is IVisualSpriteProvider provider)
-    //         {
-    //             // Use the provider's method
-    //             nodes.AddRange(provider.GetVisibleNodes());
-    //         }
-    //         else if (source is SpriteBase3D or Sprite2D)
-    //         {
-    //             // Direct sprite reference
-    //             nodes.Add(source);
-    //         }
-    //         else if (source is Node3D node3D)
-    //         {
-    //             // Search for sprite children
-    //             FindSpritesRecursive(node3D, nodes);
-    //         }
-    //         else if (source is CanvasItem canvasItem)
-    //         {
-    //             // Search for sprite children in 2D
-    //             FindSpritesRecursive(canvasItem, nodes);
-    //         }
-    //     }
-    //
-    //     return nodes;
-    // }
-
     #endregion
 
-    #region Effect Lifecycle
+    #region Helpers
 
     private void OnEffectFinished(VisualEffect effect)
     {
-        if (!_activeEffects.TryGetValue(effect, out var handle))
+        // Don't kill tween here, it's already finished. Just remove logic.
+        StopEffect(effect); 
+    }
+
+    private static void SetModulate(Node node, Color color)
+    {
+        if (node is SpriteBase3D s3d) s3d.Modulate = color;
+        else if (node is CanvasItem ci) ci.Modulate = color;
+        else if (node is Node3D n3d) 
         {
-            return;
+             // Fallback for some Node3D types?
         }
-
-        // Restore all states
-        foreach (var (node, state) in handle.NodeStates)
-        {
-            if (GodotObject.IsInstanceValid(node))
-            {
-                effect.RestoreState(node, state);
-            }
-        }
-
-        _activeEffects.Remove(effect);
-
-        if (_currentDominantModulateEffect == effect)
-        {
-            _currentDominantModulateEffect = null;
-        }
-
-        JmoLogger.Info(this, $"Effect '{effect.ResourceName}' finished naturally");
+    }
+    
+    private static Color GetModulate(Node node)
+    {
+        if (node is SpriteBase3D s3d) return s3d.Modulate;
+        if (node is CanvasItem ci) return ci.Modulate;
+        return Colors.White;
     }
 
     #endregion
 
     #region Internal Types
 
-    /// <summary>
-    /// Tracks the state of an active effect.
-    /// </summary>
     private class ActiveEffectHandle
     {
         public VisualEffect Effect { get; set; } = null!;
         public Tween? Tween { get; set; }
-        public Dictionary<Node, Dictionary<string, Variant>> NodeStates { get; set; } = new();
+        public VisualEffectHandle State { get; set; } = null!;
         public ulong StartTime { get; set; }
     }
 
     #endregion
-
-
+    
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-
         if (VisualSources == null || VisualSources.Count == 0)
         {
-            warnings.Add("No visual sources configured. Add a VisualComposer or AnimationVisibilityCoordinator to the scene.");
-        }
-        else
-        {
-            foreach (var source in VisualSources)
-            {
-                if (source is not IVisualSpriteProvider)
-                {
-                    warnings.Add($"Source '{source?.Name}' is not a valid IVisualSpriteProvider.");
-                }
-            }
+            warnings.Add("No visual sources configured.");
         }
         return warnings.ToArray();
     }
