@@ -3,7 +3,9 @@ namespace Jmodot.Implementation.Visual.Effects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Core.AI.BB;
 using Core.Visual.Effects;
+using Jmodot.Core.Components;
 using Godot;
 using GCol = Godot.Collections;
 using Shared;
@@ -13,7 +15,7 @@ using Shared;
 /// Manages Tween-based effects using a Virtual Modulate architecture to support blending and overrides.
 /// </summary>
 [GlobalClass, Tool]
-public partial class VisualEffectController : Node
+public partial class VisualEffectController : Node, IComponent
 {
     /// <summary>
     /// Sources of visual nodes. Can be:
@@ -38,13 +40,35 @@ public partial class VisualEffectController : Node
     /// </summary>
     private readonly Dictionary<Node, Color> _nodeBaseModulates = new();
 
+    public bool IsInitialized { get; private set; }
+    public event Action Initialized;
+
     public override void _Ready()
     {
         base._Ready();
-        InitializeProviders();
-        RefreshVisualNodes();
+
+        // In editor, we might want to initialize immediately for tool usage,
+        // but at runtime, we wait for Initialize loop.
+        if (Engine.IsEditorHint())
+        {
+            InitializeProviders();
+            RefreshVisualNodes();
+        }
+
         SetProcess(false); // Only run process when effects are active
     }
+
+    public bool Initialize(IBlackboard bb)
+    {
+        InitializeProviders();
+        RefreshVisualNodes();
+
+        IsInitialized = true;
+        Initialized?.Invoke();
+        return true;
+    }
+
+    public void OnPostInitialize() { }
 
     public override void _ExitTree()
     {
@@ -79,13 +103,13 @@ public partial class VisualEffectController : Node
 
         // Create the state handle (the object that gets tweened)
         var stateHandle = new VisualEffectHandle();
-        
+
         // Create the tween
         var tween = GetTree().CreateTween();
-        
+
         // Configure the tween targeting the state handle
         effect.ConfigureTween(tween, stateHandle);
-        
+
         tween.Play();
         tween.Finished += () => OnEffectFinished(effect);
 
@@ -97,12 +121,12 @@ public partial class VisualEffectController : Node
             State = stateHandle,
             StartTime = Time.GetTicksMsec()
         };
-        
+
         _activeEffects[effect] = handle;
-        
+
         // Enable processing
         SetProcess(true);
-        
+
         // Immediate update to prevent 1-frame lag
         ApplyEffects();
 
@@ -194,14 +218,18 @@ public partial class VisualEffectController : Node
             }
         }
 
+        //GD.Print($"Managed Nodes: {_nodeBaseModulates.Count}");
+        //GD.Print($"Final Effect Color: {finalEffectColor}");
+
         // 2. Apply to all tracked nodes
         // We iterate backwards to safely handle invalid nodes
         foreach (var (node, baseColor) in _nodeBaseModulates)
         {
-            if (GodotObject.IsInstanceValid(node))
+            if (!node.IsValid())
             {
-                SetModulate(node, baseColor * finalEffectColor);
+                continue;
             }
+            SetModulate(node, baseColor * finalEffectColor);
         }
     }
 
@@ -227,7 +255,7 @@ public partial class VisualEffectController : Node
             if (source is IVisualSpriteProvider provider)
             {
                 _providers.Add(provider);
-                // providers.VisibleNodesChanged += RefreshVisualNodes; // Future proofing
+                provider.VisibleNodesChanged += RefreshVisualNodes; // Future proofing
             }
         }
     }
@@ -236,20 +264,20 @@ public partial class VisualEffectController : Node
     {
         _providers.Clear();
     }
-    
+
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public void RefreshVisualNodes()
     {
         // Capture new list of nodes
         var currentNodes = GetAllVisualNodes();
-        
+
         // Remove nodes that are no longer present
         // (Optional optimization: only remove if not in currentNodes)
         // For safety/simplicity, we can just rebuild the map or merge.
         // Let's merge: preserve existing base colors for existing nodes, capture for new ones.
-        
+
         // Clean invalid nodes
         var invalidNodes = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n)).ToList();
         foreach (var n in invalidNodes) _nodeBaseModulates.Remove(n);
@@ -277,7 +305,11 @@ public partial class VisualEffectController : Node
 
             if (source is IVisualSpriteProvider provider)
             {
-                nodes.AddRange(provider.GetAllVisualNodes());
+                var providerNodes = provider.GetAllVisualNodes();
+                if (providerNodes != null)
+                {
+                    nodes.AddRange(providerNodes);
+                }
             }
             else
             {
@@ -297,19 +329,25 @@ public partial class VisualEffectController : Node
     private void OnEffectFinished(VisualEffect effect)
     {
         // Don't kill tween here, it's already finished. Just remove logic.
-        StopEffect(effect); 
+        StopEffect(effect);
     }
 
     private static void SetModulate(Node node, Color color)
     {
-        if (node is SpriteBase3D s3d) s3d.Modulate = color;
-        else if (node is CanvasItem ci) ci.Modulate = color;
-        else if (node is Node3D n3d) 
+        if (node is SpriteBase3D s3d)
+        {
+            s3d.Modulate = color;
+        }
+        else if (node is CanvasItem ci)
+        {
+            ci.Modulate = color;
+        }
+        else if (node is Node3D n3d)
         {
              // Fallback for some Node3D types?
         }
     }
-    
+
     private static Color GetModulate(Node node)
     {
         if (node is SpriteBase3D s3d) return s3d.Modulate;
@@ -330,7 +368,7 @@ public partial class VisualEffectController : Node
     }
 
     #endregion
-    
+
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
@@ -340,4 +378,6 @@ public partial class VisualEffectController : Node
         }
         return warnings.ToArray();
     }
+
+    public Node GetUnderlyingNode() => this;
 }

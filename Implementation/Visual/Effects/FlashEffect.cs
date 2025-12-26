@@ -13,7 +13,7 @@ public partial class FlashEffect : VisualEffect
     /// <summary>
     /// The color to flash to. Default is white for a "hit flash" effect.
     /// </summary>
-    [Export] public Color FlashColor { get; set; } = Colors.White;
+    [Export] public Color FlashColor { get; set; } //= Colors.White;
 
     /// <summary>
     /// Number of complete flash cycles (on-off pairs) during the effect duration.
@@ -38,7 +38,7 @@ public partial class FlashEffect : VisualEffect
             // Flash ON
             tween.TweenProperty(handle, "Modulate", FlashColor, halfFlashDuration)
                 .SetTrans(Tween.TransitionType.Linear);
-            
+
             // Flash OFF (Back to White/Input)
             // Note: We tween back to White because the Controller multiplies this value.
             // White = 1.0 = Original Sprite Color.
@@ -46,7 +46,4 @@ public partial class FlashEffect : VisualEffect
                 .SetTrans(Tween.TransitionType.Linear);
         }
     }
-    
-    // Explicitly defining this purely to satisfy the abstract requirement if I missed removing it in VisualEffect (I didn't, but being safe)
-    // Actually I removed them from VisualEffect.cs so I DON'T need to implement them.
 }
