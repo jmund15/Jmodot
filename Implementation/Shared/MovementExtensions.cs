@@ -3,6 +3,9 @@ namespace Jmodot.Implementation.Shared;
 public static class MovementExtensions
 {
     #region VECTOR_EXTENSIONS
+    /// <summary>
+    /// Gets a Vector2 from a Vector3, ignoring the Y component.
+    /// </summary>
     public static Vector2 GetFlattenedVector2(this Vector3 vec) => new(vec.X, vec.Z);
     public static Vector3 GetFlatVector3(this Vector2 vec) => new(vec.X, 0f, vec.Y);
     #endregion

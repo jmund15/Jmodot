@@ -65,8 +65,12 @@ using Shared.GodotExceptions;
             foreach (var child in this.GetChildrenOfType<State>(false))
             {
                 child.Init(Agent, BB);
+                child.TransitionState -= TransitionFiniteSubState; // Prevent double subscription
                 child.TransitionState += TransitionFiniteSubState;
-                FiniteSubStates.Add(child, false);
+                if (!FiniteSubStates.ContainsKey(child))
+                {
+                    FiniteSubStates.Add(child, false);
+                }
             }
         }
 

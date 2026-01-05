@@ -232,5 +232,17 @@ public class ModifiableProperty<T> : IModifiableProperty
             target.AddModifier(entry.Modifier as Resource, entry.Owner);
         }
     }
+
+    public void SetBaseValue(Variant newBaseValue)
+    {
+        // Convert the Variant to the expected type T
+        // This will throw if the types are incompatible
+        if (newBaseValue.Obj is not T tVal)
+        {
+            JmoLogger.Error(this, $"Attempted to set base value for property of type {typeof(T).Name}, but variant value is of type {newBaseValue.Obj?.GetType().Name}.");
+            return;
+        }
+        BaseValue = tVal;
+    }
     #endregion
 }

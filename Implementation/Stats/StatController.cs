@@ -339,6 +339,36 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
 
     /// <summary>
+    /// Sets the base value of an attribute without removing any active modifiers.
+    /// Modifiers will be recalculated on top of the new base value.
+    /// </summary>
+    /// <typeparam name="T">The type of the attribute's value.</typeparam>
+    /// <param name="attribute">The attribute to modify.</param>
+    /// <param name="newValue">The new base value.</param>
+    public void SetBaseValue(Attribute attribute, Variant newValue)
+    {
+        if (_stats.TryGetValue(attribute, out var property))
+        {
+            property.SetBaseValue(newValue);
+        }
+        else
+        {
+            JmoLogger.Warning(this, $"Attempted to set base value for unknown attribute '{attribute?.AttributeName}'");
+        }
+    }
+    // public void SetBaseValue<[MustBeVariant] T>(Attribute attribute, T newValue)
+    // {
+    //     if (_stats.TryGetValue(attribute, out var property))
+    //     {
+    //         property.SetBaseValue(Variant.From(newValue));
+    //     }
+    //     else
+    //     {
+    //         JmoLogger.Warning(this, $"Attempted to set base value for unknown attribute '{attribute?.AttributeName}'");
+    //     }
+    // }
+
+    /// <summary>
     /// Gets the attribute value's Type
     /// </summary>
     /// <param name="attribute"></param>

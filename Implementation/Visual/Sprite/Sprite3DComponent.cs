@@ -24,7 +24,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     [Export]
     public AnimationDirectionSuffixes DirectionSuffixes { get; set; }
 
-    [Export] public Vector2I FrameSize { get; set; } = new(64, 64);
+    [Export] public Vector2I FrameSize { get; set; } = new(600, 600);
     private readonly Vector2I AllColumns = new(-1, -1);
     [Export] public Vector2I ColumnsToUse { get; set; } = new(-1, -1);
     [Export] public string BaseAnimationName { get; set; } = "idle";

@@ -49,4 +49,11 @@ public interface IModifiableProperty
     /// This is used for merging stat sheets (e.g. Blueprint -> Instance).
     /// </summary>
     void TransferModifiersTo(IModifiableProperty target);
+
+    /// <summary>
+    /// Sets the base value of the property without removing any active modifiers.
+    /// Modifiers will be recalculated on top of the new base value.
+    /// </summary>
+    /// <param name="newBaseValue">The new base value, boxed in a Variant.</param>
+    void SetBaseValue(Variant newBaseValue);
 }

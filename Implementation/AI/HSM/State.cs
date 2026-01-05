@@ -219,6 +219,8 @@ public partial class State : Node, IState
                 // // Resolve the NodePath to get the actual State node instance.
                 //var targetState = GetNode<State>(transition.TargetStatePath);
 
+                GD.Print($"Attempting to transition to {targetState.Name} from {Name} due to transition conditions met.");
+
                 if (!targetState.IsValid())
                 {
                     JmoLogger.Error(this, $"Transition condition met, but NodePath '{transition.TargetStatePath}' did not resolve to a valid State node.");
