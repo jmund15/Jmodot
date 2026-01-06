@@ -23,6 +23,10 @@ public class CharacterBodyController3D : ICharacterController3D
     public Vector3 GlobalPosition => this._body.GlobalPosition;
     public Vector3 Velocity => this._body.Velocity;
     public bool IsOnFloor => this._body.IsOnFloor();
+    public bool IsOnWall => this._body.IsOnWall();
+
+    public Vector3 GetWallNormal() => this._body.GetWallNormal();
+
     public Vector3 PreMoveVelocity { get; private set; }
 
     public void SetVelocity(Vector3 newVelocity)
