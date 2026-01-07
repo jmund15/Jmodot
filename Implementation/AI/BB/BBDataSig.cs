@@ -42,6 +42,7 @@ public static partial class BBDataSig
     public static readonly StringName CombatantComponent = new("CombatantComponent");
     public static readonly StringName CombatLogger = new("CombatLogger");
     public static readonly StringName CombatLog = new("CombatLog");
+    public static readonly StringName KnockbackComponent = new("KnockbackComponent");
     #endregion
 
     #region ROBBER_PROPERTIES

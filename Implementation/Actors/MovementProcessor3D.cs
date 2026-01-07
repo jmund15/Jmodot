@@ -90,6 +90,11 @@ public class MovementProcessor3D : IMovementProcessor3D
         //this._controller.AddVelocity(impulse);
     }
 
+    public void ClearImpulses()
+    {
+        _frameImpulses = Vector3.Zero;
+    }
+
     private void ApplyExternalForces(float delta)
     {
         // if (!_controller.IsOnFloor)

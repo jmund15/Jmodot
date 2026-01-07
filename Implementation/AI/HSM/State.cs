@@ -45,6 +45,7 @@ public partial class State : Node, IState
     public IBlackboard BB { get; protected set; }
     public Node Agent { get; protected set; }
     public bool IsInitialized { get; protected set; }
+    public bool IsActive { get; protected set; }
 
     public void Init(Node agent, IBlackboard bb)
     {
@@ -105,6 +106,7 @@ public partial class State : Node, IState
                 BB.Set(BBDataSig.SelfInteruptible, false); break;
         }
         OnEnter();
+        IsActive = true;
     }
 
     /// <summary>
@@ -112,6 +114,7 @@ public partial class State : Node, IState
     /// </summary>
     public void Exit()
     {
+        IsActive = false;
         OnExit();
     }
 
@@ -121,7 +124,11 @@ public partial class State : Node, IState
     public void ProcessFrame(float delta)
     {
         OnProcessFrame(delta);
-        CheckTransitions();
+        // Process frame shouldn't be called if the state is not active, so may remove later
+        if (IsActive)
+        {
+            CheckTransitions();
+        }
     }
 
     /// <summary>
@@ -219,7 +226,7 @@ public partial class State : Node, IState
                 // // Resolve the NodePath to get the actual State node instance.
                 //var targetState = GetNode<State>(transition.TargetStatePath);
 
-                GD.Print($"Attempting to transition to {targetState.Name} from {Name} due to transition conditions met.");
+                //GD.Print($"Attempting to transition to {targetState.Name} from {Name} due to transition conditions met.");
 
                 if (!targetState.IsValid())
                 {

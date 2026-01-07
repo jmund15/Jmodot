@@ -67,7 +67,7 @@ public struct DamageEffect : ICombatEffect
             //      Potentially, there could be a list of these modules on the target itself, or attached to the effect
             //      if the effect can't be affected by armor (true damage), then it shouldn't have the armor module, etc.
 
-            health!.TakeDamage(DamageAmount, context.Source);
+            health!.TakeDamage(DamageAmount, context.Attacker);
 
             // Result Generation
             return new DamageResult

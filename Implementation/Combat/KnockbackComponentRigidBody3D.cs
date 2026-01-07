@@ -1,32 +1,24 @@
 using Godot;
 using System;
-using GCol = Godot.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
-using Jmodot.Core.Actors;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Implementation.AI.BB;
 
 namespace Jmodot.Implementation.Combat;
 
 /// <summary>
-/// Handles knockback application for CharacterBody3D entities.
-/// Subscribes to CombatantComponent.CombatResultEvent and applies impulses
-/// immediately via MovementProcessor3D when DamageResult contains force.
+/// Placeholder for knockback handling on RigidBody3D entities.
+/// TODO: Implement knockback using RigidBody3D.ApplyCentralImpulse() or ApplyImpulse().
 ///
 /// REQUIRED BLACKBOARD DEPENDENCIES:
-/// - BBDataSig.MovementProcessor (IMovementProcessor3D) - Applies the impulse
 /// - BBDataSig.CombatantComponent (CombatantComponent) - Source of combat events
 /// </summary>
 [GlobalClass]
-public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider
+public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 {
-	#region IBlackboardProvider Implementation
-	public (StringName Key, object Value)? Provision => (BBDataSig.KnockbackComponent, this);
-	#endregion
-
 	#region SIGNALS
 
 	/// <summary>
@@ -38,7 +30,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	#region DEPENDENCIES
 
-	private IMovementProcessor3D _movementProcessor = null!;
+	private RigidBody3D _rigidBody = null!;
 	private CombatantComponent _combatant = null!;
 
 	#endregion
@@ -46,12 +38,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region COMPONENT_VARIABLES
 
 	/// <summary>
-	/// If true, the Y component of knockback is zeroed out (typical for grounded characters).
+	/// Reference to the RigidBody3D to apply impulses to.
 	/// </summary>
-	[Export] public bool FlattenKnockback { get; set; } = true;
+	[Export] public RigidBody3D TargetRigidBody { get; set; } = null!;
 
 	/// <summary>
-	/// Multiplier applied to all knockback forces. Use to tune knockback sensitivity.
+	/// Multiplier applied to all knockback forces.
 	/// </summary>
 	[Export] public float KnockbackMultiplier { get; set; } = 1.0f;
 
@@ -62,7 +54,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override void _Ready()
 	{
 		base._Ready();
-		// The component disables itself until it's initialized.
 		ProcessMode = ProcessModeEnum.Disabled;
 	}
 
@@ -70,10 +61,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	#region COMPONENT_LOGIC
 
-	/// <summary>
-	/// Called when a combat result is received from the CombatantComponent.
-	/// Extracts knockback data from DamageResult and applies impulse.
-	/// </summary>
 	private void OnCombatResult(CombatResult result)
 	{
 		if (result is DamageResult damageResult && damageResult.Force > 0)
@@ -82,25 +69,22 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		}
 	}
 
-	/// <summary>
-	/// Applies a knockback impulse to the MovementProcessor.
-	/// </summary>
-	/// <param name="direction">The normalized direction of the knockback.</param>
-	/// <param name="force">The magnitude of the knockback force.</param>
 	public void ApplyKnockback(Vector3 direction, float force)
 	{
+		if (_rigidBody == null)
+		{
+			GD.PrintErr("[KnockbackComponentRigidBody3D] No RigidBody3D assigned!");
+			return;
+		}
+
 		var finalForce = force * KnockbackMultiplier;
 		var impulse = direction * finalForce;
 
-		if (FlattenKnockback)
-		{
-			impulse = new Vector3(impulse.X, 0f, impulse.Z);
-		}
+		// TODO: Implement actual impulse application
+		// _rigidBody.ApplyCentralImpulse(impulse);
 
-		_movementProcessor.ApplyImpulse(impulse);
 		EmitSignal(SignalName.KnockbackApplied, direction, finalForce);
-
-		GD.Print($"[KnockbackComponent3D] Applied knockback: direction={direction}, force={finalForce}");
+		GD.Print($"[KnockbackComponentRigidBody3D] TODO: Apply impulse {impulse} to RigidBody3D");
 	}
 
 	#endregion
@@ -110,22 +94,15 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public bool IsInitialized { get; private set; }
 	public event Action? Initialized;
 
-	/// <summary>
-	/// Retrieve dependencies from the Blackboard here.
-	/// </summary>
 	public bool Initialize(IBlackboard bb)
 	{
-		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!))
+		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!))
 		{
-			GD.PrintErr("[KnockbackComponent3D] Required dependency BBDataSig.MovementProcessor not found");
+			GD.PrintErr("[KnockbackComponentRigidBody3D] Required dependency BBDataSig.CombatantComponent not found");
 			return false;
 		}
 
-		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!))
-		{
-			GD.PrintErr("[KnockbackComponent3D] Required dependency BBDataSig.CombatantComponent not found");
-			return false;
-		}
+		_rigidBody = TargetRigidBody;
 
 		IsInitialized = true;
 		Initialized?.Invoke();
@@ -133,9 +110,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		return true;
 	}
 
-	/// <summary>
-	/// Perform setup that relies on other components here (e.g., event subscriptions).
-	/// </summary>
 	public void OnPostInitialize()
 	{
 		ProcessMode = ProcessModeEnum.Inherit;
@@ -152,8 +126,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	{
 		var warnings = new List<string>();
 
-		// Configuration warnings will be shown in editor
-		// Dependencies are retrieved from Blackboard at runtime
+		if (TargetRigidBody == null)
+		{
+			warnings.Add("'TargetRigidBody' must be assigned for knockback to work.");
+		}
 
 		return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
 	}

@@ -1,26 +1,35 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
-using System.Linq;
 using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
 
+/// <summary>
+/// A flexible condition for selecting reaction states based on damage and knockback thresholds.
+/// Enables data-driven reaction tiers (flinch/hurt/launch/crumple) via .tres configuration.
+///
+/// Example configurations:
+/// - Flinch: MinForce=0, MaxForce=15, MinDamage=0, MaxDamage=20
+/// - Launch: MinForce=30, MaxForce=∞, MinDamage=0, MaxDamage=∞
+/// - Crumple: MinForce=0, MaxForce=15, MinDamage=50, MaxDamage=∞
+/// </summary>
 [GlobalClass]
-public partial class DamageCondition : CombatLogCondition
+public partial class KnockbackCondition : CombatLogCondition
 {
     /// <summary>
-    /// Minimum damage amount (FinalAmount) required to trigger this condition.
+    /// Minimum knockback force required to trigger this condition.
     /// </summary>
-    [Export] public float MinDamage { get; set; } = 0f;
+    [Export] public float MinForce { get; set; } = 0f;
 
     /// <summary>
-    /// Maximum damage amount (FinalAmount) allowed for this condition.
-    /// Use a very high number for no upper limit.
+    /// Maximum knockback force allowed for this condition.
+    /// Use float.MaxValue (or a very high number in editor) for no upper limit.
     /// </summary>
-    [Export] public float MaxDamage { get; set; } = float.MaxValue;
+    [Export] public float MaxForce { get; set; } = float.MaxValue;
 
     /// <summary>
     /// Optional tags that must be present on the damage result.
+    /// If empty, no tag filtering is applied.
     /// </summary>
     [Export] public Godot.Collections.Array<CombatTag> RequiredTags { get; set; } = [];
 
@@ -28,8 +37,8 @@ public partial class DamageCondition : CombatLogCondition
     {
         return log.HasEvent<DamageResult>(r =>
         {
-            // 1. Damage Threshold Check
-            if (r.FinalAmount < MinDamage || r.FinalAmount > MaxDamage)
+            // 1. Force Threshold Check
+            if (r.Force < MinForce || r.Force > MaxForce)
                 return false;
 
             // 2. Tag Check
