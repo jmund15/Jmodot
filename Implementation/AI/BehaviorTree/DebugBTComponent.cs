@@ -210,6 +210,8 @@ public partial class DebugBTComponent : Tree
         var tween = CreateTween();
         // After a short delay, tween the item's color back to its current "correct" color
         // based on its status (which will be base for success/fail, or running for a parent).
+
+        // TODO: fix unload assembly error using 'Callable.From' leaking
         tween.TweenCallback(Callable.From(() =>
         {
             // Find the task associated with this item to check its current status

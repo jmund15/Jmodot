@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Stats;
+using GCol = Godot.Collections;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -45,6 +47,13 @@ using AI.BB;
         /// Seconds between hits in Continuous mode. 0 = Every Physics Frame.
         /// </summary>
         [Export] public float ContinuousTickInterval { get; set; } = 0.1f;
+
+        [Export] public GCol.Array<CombatEffectFactory> DefaultEffects { get; set; } = new();
+
+        /// <summary>
+        /// If true, the hitbox will automatically start an attack using its DefaultEffects on Ready.
+        /// </summary>
+        [Export] public bool AutoStartWithDefault { get; set; } = false;
         #endregion
 
         #region Public State
@@ -92,6 +101,11 @@ using AI.BB;
             Monitorable = false;
             IsActive = false;
             SetPhysicsProcess(false);
+
+            if (AutoStartWithDefault)
+            {
+                StartDefaultAttack();
+            }
         }
 
         public override void _PhysicsProcess(double delta)
@@ -164,6 +178,30 @@ using AI.BB;
             }
 
             OnAttackFinished?.Invoke();
+        }
+
+        /// <summary>
+        /// Creates a payload from the DefaultEffects list and starts an attack.
+        /// </summary>
+        /// <param name="attacker">The node responsible for the attack (defaults to Owner).</param>
+        /// <param name="source">The specific object representing the attack (defaults to this Hitbox or Owner).</param>
+        /// <param name="stats">The stat provider used to scale effect values (optional).</param>
+        public void StartDefaultAttack(Node? attacker = null, Node? source = null, IStatProvider? stats = null)
+        {
+            attacker ??= Owner ?? this;
+            source ??= this;
+
+            var payload = new CombatPayload(attacker, source);
+
+            foreach (var factory in DefaultEffects)
+            {
+                if (factory != null)
+                {
+                    payload.AddEffect(factory.Create(stats));
+                }
+            }
+
+            StartAttack(payload);
         }
         #endregion
 

@@ -44,9 +44,10 @@ public static class JmoLogger
         switch (context)
         {
             case Node node:
-                var nodeOwner = owner ?? node.GetOwner();
+                var nodeOwner = (node.IsInsideTree()) ? (owner ?? node.GetOwner()) : null;
                 ownerStr = nodeOwner != null ? $" (Owner: {nodeOwner.GetPath()})" : "";
-                contextStr = $"[{node.GetType().Name} @ '{node.GetPath()}']{ownerStr}";
+                var pathStr = (node.IsInsideTree()) ? node.GetPath().ToString() : "[Detached]";
+                contextStr = $"[{node.GetType().Name} @ '{pathStr}']{ownerStr}";
                 break;
             case Resource resource:
                 ownerStr = owner != null ? $" (Owner: {owner.GetPath()})" : "";

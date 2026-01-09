@@ -88,12 +88,15 @@ public partial class HurtboxComponent3D : Area3D, IComponent
 
         // 3. Context Creation
         // Maps the Payload Source to the Context so effects know what hit them.
+        Vector3 epicenter = GetEpicenterPosition(payload.Source);
         HitContext context = new HitContext
         {
             Attacker = payload.Attacker,
             Source = payload.Source,
             HitDirection = CalculateHitDirection(payload.Source),
-            ImpactVelocity = CalculateImpactVelocity(payload.Source)
+            ImpactVelocity = CalculateImpactVelocity(payload.Source),
+            EpicenterPosition = epicenter,
+            DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter)
         };
 
         // 4. Forward to Brain
@@ -142,6 +145,19 @@ public partial class HurtboxComponent3D : Area3D, IComponent
 
         // 3. Default
         return Vector3.Zero;
+    }
+
+    private Vector3 GetEpicenterPosition(Node source)
+    {
+        // Use the source's GlobalPosition as the epicenter.
+        // For hitboxes, this is typically the center of the collision shape.
+        if (source is Node3D source3D)
+        {
+            return source3D.GlobalPosition;
+        }
+
+        // Fallback to self position if source isn't 3D
+        return GlobalPosition;
     }
     #endregion
 }

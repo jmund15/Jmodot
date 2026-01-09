@@ -15,8 +15,8 @@ using Effects.StatusEffects;
 public partial class TickEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene RunnerPrefab { get; set; } = null!;
-    [Export] public FloatStatDefinition Duration { get; set; } = new(1.0f);
-    [Export] public FloatStatDefinition Interval { get; set; } = new(1.0f);
+    [Export] public BaseFloatValueDefinition Duration { get; set; } = new ConstantFloatDefinition(1.0f);
+    [Export] public BaseFloatValueDefinition Interval { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export] public CombatEffectFactory PerTickEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }

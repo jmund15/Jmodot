@@ -27,4 +27,16 @@ public class HitContext
     /// Used for calculating dynamic force (e.g. speed-based knockback).
     /// </summary>
     public Vector3 ImpactVelocity { get; set; }
+
+    /// <summary>
+    /// The world-space position of the attack's epicenter (e.g., hitbox center).
+    /// Used for distance-based damage/knockback falloff calculations.
+    /// </summary>
+    public Vector3 EpicenterPosition { get; set; }
+
+    /// <summary>
+    /// The distance from the epicenter to the hurtbox center.
+    /// Pre-calculated for convenience in effect calculations.
+    /// </summary>
+    public float DistanceFromEpicenter { get; set; }
 }

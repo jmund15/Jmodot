@@ -262,19 +262,26 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         handle = null;
         return false; // Indicates failure
     }
-    public ModifierHandle AddModifier(Attribute attribute, Resource modifierResource, object owner)
-    {
         if (TryAddModifier(attribute, modifierResource, owner, out var handle))
         {
             return handle!;
         }
+
+        // DEBUG: Logging to diagnose why TryAddModifier returned false
+        var sb = new StringBuilder();
+        sb.AppendLine($"[StatController] FAILED to add modifier '{modifierResource.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
+        sb.AppendLine($"Available Attributes in _stats ({_stats.Count}):");
+        foreach (var key in _stats.Keys)
+        {
+            sb.AppendLine($" - '{key.AttributeName}' (ID: {key.GetInstanceId()})");
+        }
+        JmoLogger.Error(this, sb.ToString());
 
         throw JmoLogger.LogAndRethrow(
             new InvalidOperationException(
                 $"unable to add modifier {modifierResource.ResourcePath} to attribute {attribute.AttributeName}"),
             this
         );
-    }
         // try
         // {
         //     // The 'dynamic' keyword defers the type check until runtime.

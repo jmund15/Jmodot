@@ -14,7 +14,7 @@ using Shared;
 public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene Runner { get; set; } = null!;
-    [Export] public FloatStatDefinition Duration { get; set; } //= new(1.0f);
+    [Export] public BaseFloatValueDefinition Duration { get; set; } = null!;
     [Export] public CombatEffectFactory RevertibleEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }

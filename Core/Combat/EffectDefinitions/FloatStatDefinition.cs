@@ -9,8 +9,12 @@ using Stats;
 /// Attribute + Operation pairs. Each modifier is applied sequentially.
 /// If no modifiers are specified, the base amount is returned as a static value.
 /// </summary>
+/// <remarks>
+/// For simpler use cases, consider using <see cref="ConstantFloatDefinition"/> or
+/// <see cref="AttributeFloatDefinition"/> instead.
+/// </remarks>
 [GlobalClass]
-public partial class FloatStatDefinition : Resource
+public partial class FloatStatDefinition : BaseFloatValueDefinition
 {
     /// <summary>
     /// The starting value before any attribute modifiers are applied.
@@ -63,7 +67,7 @@ public partial class FloatStatDefinition : Resource
     /// Resolves the final float value by starting with BaseAmount and applying
     /// each modifier sequentially. If no modifiers or no stats, returns BaseAmount.
     /// </summary>
-    public float ResolveFloatValue(IStatProvider? stats)
+    public override float ResolveFloatValue(IStatProvider? stats)
     {
         float result = BaseAmount;
 

@@ -9,23 +9,34 @@ using Core.Stats;
 using PushinPotions.Global;
 using GCol = Godot.Collections;
 
-
 /// <summary>
-/// Factory for creating DamageEffect instances.
-/// Rolls for critical hit at creation time based on attacker's stats.
+/// Factory for creating distance-scaled damage effects.
+/// Damage and knockback scale based on proximity to the hitbox epicenter.
 /// </summary>
 [GlobalClass]
-public partial class DamageEffectFactory : CombatEffectFactory
+public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
 {
     [Export] private BaseFloatValueDefinition _damageDefinition = null!;
     [Export] private BaseFloatValueDefinition _knockbackDefinition = null!;
 
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 
+    [ExportGroup("Distance Falloff")]
+    /// <summary>
+    /// If set, damage scales based on distance. Closer = more damage.
+    /// </summary>
+    [Export] public DistanceFalloffConfig DamageFalloff { get; set; }
+
+    /// <summary>
+    /// If set, knockback scales based on distance. Closer = more knockback.
+    /// Can use same or different config as DamageFalloff.
+    /// </summary>
+    [Export] public DistanceFalloffConfig KnockbackFalloff { get; set; }
+
+    [ExportGroup("Critical Hit")]
     /// <summary>
     /// Attribute for crit chance (0.0 - 1.0). If null, crit is disabled.
     /// </summary>
-    [ExportGroup("Critical Hit")]
     [Export] public Attribute? CritChanceAttrOverride { get; set; }
 
     /// <summary>
@@ -38,7 +49,13 @@ public partial class DamageEffectFactory : CombatEffectFactory
     /// </summary>
     [Export] public float DefaultCritMultiplier { get; set; } = 1.5f;
 
-    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
+    [ExportGroup("Knockback")]
+    /// <summary>
+    /// Determines how much the impact speed of the projectile affects knockback.
+    /// </summary>
+    [Export] public float KnockbackVelocityScaling { get; set; } = 1f;
+
+    public override ICombatEffect Create(IStatProvider? stats = null)
     {
         float baseDamage = _damageDefinition.ResolveFloatValue(stats);
         float baseKnockback = _knockbackDefinition.ResolveFloatValue(stats);
@@ -46,7 +63,7 @@ public partial class DamageEffectFactory : CombatEffectFactory
         bool isCritical = false;
         float finalDamage = baseDamage;
 
-        // Roll for crit if CritChanceAttribute is configured (not default/null resource)
+        // Roll for crit if CritChanceAttribute is configured
         if (CritChanceAttrOverride != null && stats != null)
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
@@ -59,10 +76,14 @@ public partial class DamageEffectFactory : CombatEffectFactory
             }
         }
 
-        // determines how much the impact speed of the projectile impacts the knockback.
-        // I'm guessing we want to make this a variable at some point?
-        var knockbackVelocityScaling = 1f;
-
-        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, knockbackVelocityScaling);
+        return new DistanceScaledDamageEffect(
+            finalDamage,
+            baseKnockback,
+            Tags,
+            isCritical,
+            DamageFalloff,
+            KnockbackFalloff,
+            KnockbackVelocityScaling
+        );
     }
 }
