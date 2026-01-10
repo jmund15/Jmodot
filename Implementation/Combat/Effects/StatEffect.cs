@@ -11,6 +11,7 @@ using Core.Stats;
 using Health;
 using Shared;
 using Attribute = Core.Stats.Attribute;
+using Jmodot.Core.Visual.Effects;
 using GCol = Godot.Collections;
 
 // public enum RevertableEffectStatus // add in progress statuses?
@@ -30,12 +31,14 @@ public struct StatEffect : IRevertibleCombatEffect
     public Resource Modifier;
     public ModifierHandle? Handle;
     public IEnumerable<CombatTag> Tags { get; private set; }
+    public VisualEffect? Visual { get; private init; }
 
-    public StatEffect(Attribute attribute, Resource modifier, IEnumerable<CombatTag>? tags = null)
+    public StatEffect(Attribute attribute, Resource modifier, IEnumerable<CombatTag>? tags = null, VisualEffect? visual = null)
     {
         Attribute = attribute;
         Modifier = modifier;
         Tags = tags ?? [];
+        Visual = visual;
         Handle = null;
     }
 

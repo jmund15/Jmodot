@@ -140,7 +140,17 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
         else
         {
             // Delegate the update logic (MaintainTime / MaintainPercent) to the child animator
-            _targetAnimator.UpdateAnim(finalName, mode);
+            // but only if it has the animation, otherwise fallback to the base animation if allowed or just ignore.
+            if (_targetAnimator.HasAnimation(finalName))
+            {
+                 _targetAnimator.UpdateAnim(finalName, mode);
+            }
+            else if (_targetAnimator.HasAnimation(BaseAnimName))
+            {
+                // If the directional version doesn't exist, we fallback to the base animation.
+                // This prevents errors when an entity has some directional animations but not all.
+                _targetAnimator.UpdateAnim(BaseAnimName, mode);
+            }
         }
     }
 

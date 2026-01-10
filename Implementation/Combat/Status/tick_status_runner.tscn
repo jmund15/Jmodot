@@ -7,4 +7,4 @@ script = ExtResource("1_nucmi")
 
 [node name="TickTimer" type="Timer" parent="."]
 
-[node name="DurationTmier" type="Timer" parent="."]
+[node name="DurationTimer" type="Timer" parent="."]

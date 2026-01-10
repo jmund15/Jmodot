@@ -3,7 +3,9 @@ namespace Jmodot.Core.Combat;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Godot;
 using Reactions;
+using Visual.Effects;
 
 /// <summary>
 /// Base class for all data-driven combate logic (Damage, Stun, Knockback).
@@ -24,4 +26,9 @@ public interface ICombatEffect
     /// Used for reaction prioritization and state machine integration.
     /// </summary>
     IEnumerable<CombatTag> Tags { get; }
+    
+    /// <summary>
+    /// Optional visual effect (tint, flash) to apply to the target.
+    /// </summary>
+    VisualEffect? Visual { get; }
 }

@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Status;
 
@@ -20,7 +21,8 @@ public partial class TickStatusRunner : StatusRunner
     private Timer _durationTimer;
 
     public void Setup(float duration, float interval, ICombatEffect tickEffect, PackedScene? tickVisuals,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        VisualEffect? visualEffect = null)
     {
         Duration = duration;
         Interval = interval;
@@ -28,11 +30,23 @@ public partial class TickStatusRunner : StatusRunner
         TickVisuals = tickVisuals;
         PersistentVisuals = persistantVisuals;
         Tags = tags;
+        StatusVisualEffect = visualEffect;
     }
     public override void _Ready()
     {
-        _tickTimer = GetNode<Timer>("TickTimer");
-        _durationTimer = GetNode<Timer>("DurationTimer");
+        _tickTimer = GetNodeOrNull<Timer>("TickTimer");
+        if (_tickTimer == null)
+        {
+            _tickTimer = new Timer { Name = "TickTimer" };
+            AddChild(_tickTimer);
+        }
+
+        _durationTimer = GetNodeOrNull<Timer>("DurationTimer");
+        if (_durationTimer == null)
+        {
+            _durationTimer = new Timer { Name = "DurationTimer" };
+            AddChild(_durationTimer);
+        }
 
         _tickTimer.OneShot = false;
         _tickTimer.Autostart = false;

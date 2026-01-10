@@ -32,8 +32,6 @@ public class CombatLog
     public void Log(CombatResult result)
     {
         var currTimeContext = GetCurrentTimeContext();
-        GD.Print($"logging result of type '{result.GetType().Name}' at time '{currTimeContext.FrameId}';" +
-                 $" combat time: {currTimeContext.CombatTimeMarker}");
         if (!_resultsByFrame.ContainsKey(currTimeContext.FrameId))
         {
             _resultsByFrame[currTimeContext.FrameId] = new List<CombatResult> { result };

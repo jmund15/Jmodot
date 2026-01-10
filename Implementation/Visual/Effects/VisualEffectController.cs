@@ -130,7 +130,8 @@ public partial class VisualEffectController : Node, IComponent
         // Immediate update to prevent 1-frame lag
         ApplyEffects();
 
-        JmoLogger.Info(this, $"Started effect '{effect.ResourceName}'");
+        string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
+        JmoLogger.Info(this, $"Started effect '{effectName}'");
     }
 
     /// <summary>
@@ -159,7 +160,8 @@ public partial class VisualEffectController : Node, IComponent
             ApplyEffects();
         }
 
-        JmoLogger.Info(this, $"Stopped effect '{effect.ResourceName}'");
+        string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
+        JmoLogger.Info(this, $"Stopped effect '{effectName}'");
     }
 
     /// <summary>

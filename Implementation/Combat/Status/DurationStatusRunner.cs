@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Status;
 
@@ -15,18 +16,26 @@ public partial class DurationStatusRunner : StatusRunner
 
     public void Setup(float duration,
         ICombatEffect startEffect, ICombatEffect endEffect,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        VisualEffect? visualEffect = null)
     {
         Duration = duration;
         OnStartEffect = startEffect;
         OnEndEffect = endEffect;
         PersistentVisuals = persistantVisuals;
         Tags = tags;
+        StatusVisualEffect = visualEffect;
     }
 
     public override void _Ready()
     {
-        _durationTimer = GetNode<Timer>("DurationTimer");
+        _durationTimer = GetNodeOrNull<Timer>("DurationTimer");
+        if (_durationTimer == null)
+        {
+            _durationTimer = new Timer { Name = "DurationTimer" };
+            AddChild(_durationTimer);
+        }
+
         _durationTimer.OneShot = true;
         _durationTimer.Autostart = false;
     }

@@ -2,6 +2,7 @@ namespace Jmodot.Core.Combat;
 
 using EffectDefinitions;
 using Jmodot.Core.Combat.EffectDefinitions;
+using Jmodot.Core.Visual.Effects;
 using Stats;
 
 /// <summary>
@@ -12,5 +13,7 @@ using Stats;
 [GlobalClass]
 public abstract partial class CombatEffectFactory : Resource, ICombatEffectFactory
 {
+    [Export] public VisualEffect? TargetVisualEffect { get; set; }
+
     public abstract ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null);
 }

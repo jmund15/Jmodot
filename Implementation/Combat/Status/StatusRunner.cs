@@ -37,7 +37,7 @@ public abstract partial class StatusRunner : Node
     /// <summary>
     /// Optional visual effect (tint, flash, shader) to apply to the target during the status.
     /// </summary>
-    [Export] public VisualEffect? StatusVisualEffect { get; set; }
+    public VisualEffect? StatusVisualEffect { get; set; }
     
     private Node? _visualInstance;
     private VisualEffectController? _visualController;

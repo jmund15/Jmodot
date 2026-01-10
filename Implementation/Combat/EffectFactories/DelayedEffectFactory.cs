@@ -12,7 +12,7 @@ using Effects.StatusEffects;
 [GlobalClass]
 public partial class DelayedEffectFactory : CombatEffectFactory
 {
-    [Export] public PackedScene Runner { get; set; } = null!;
+    [Export] public PackedScene? RunnerOverride { get; set; }
     [Export] public BaseFloatValueDefinition Delay { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export] public CombatEffectFactory EffectToApply { get; set; }
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
@@ -20,12 +20,15 @@ public partial class DelayedEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
+        var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultDelayStatusRunner;
+
         return new DelayEffect(
-            Runner,
+            runner,
             Delay.ResolveFloatValue(stats),
             EffectToApply.Create(stats),
             PersistentVisuals,
-            Tags
+            Tags,
+            TargetVisualEffect
         );
     }
 }

@@ -14,7 +14,7 @@ using Effects.StatusEffects;
 [GlobalClass]
 public partial class TickEffectFactory : CombatEffectFactory
 {
-    [Export] public PackedScene RunnerPrefab { get; set; } = null!;
+    [Export] public PackedScene? RunnerOverride { get; set; }
     [Export] public BaseFloatValueDefinition Duration { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export] public BaseFloatValueDefinition Interval { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export] public CombatEffectFactory PerTickEffect { get; set; } = null!;
@@ -25,15 +25,18 @@ public partial class TickEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
+        var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultTickStatusRunner;
+
         // 2. Return the immutable Instruction
         return new TickEffect(
-            RunnerPrefab,
+            runner,
             Duration.ResolveFloatValue(stats),
             Interval.ResolveFloatValue(stats),
             PerTickEffect.Create(stats),
             TickVisuals,
             PersistentVisuals,
-            Tags
+            Tags,
+            TargetVisualEffect
             );
     }
 }

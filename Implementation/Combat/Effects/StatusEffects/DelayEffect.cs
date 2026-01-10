@@ -5,6 +5,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
+using Core.Visual.Effects;
 using Status;
 
 /// <summary>
@@ -17,21 +18,24 @@ public class DelayEffect : ICombatEffect
 
     public float Delay { get; private init; }
     public ICombatEffect DelayedEffect { get; private init; }
-    public PackedScene? PersistantVisuals { get; private init; }
+    public PackedScene? PersistentVisuals { get; private init; }
     public IEnumerable<CombatTag> Tags { get; private init; }
+    public VisualEffect? Visual { get; private init; }
 
     public DelayEffect(
         PackedScene prefab,
         float delay,
         ICombatEffect delayedEffect,
-        PackedScene? persistantVisuals,
-        IEnumerable<CombatTag> tags)
+        PackedScene? persistentVisuals,
+        IEnumerable<CombatTag> tags,
+        VisualEffect? visual = null)
     {
         Prefab = prefab;
         Delay = delay;
         DelayedEffect = delayedEffect;
-        PersistantVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
+        Visual = visual;
     }
 
     /// <summary>
@@ -62,7 +66,7 @@ public class DelayEffect : ICombatEffect
         }
 
         // 4. Inject the Snapshot Data
-        runner.Setup(Delay, DelayedEffect, PersistantVisuals, Tags);
+        runner.Setup(Delay, DelayedEffect, PersistentVisuals, Tags, Visual);
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

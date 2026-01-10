@@ -83,7 +83,8 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
             isCritical,
             DamageFalloff,
             KnockbackFalloff,
-            KnockbackVelocityScaling
+            KnockbackVelocityScaling,
+            TargetVisualEffect
         );
     }
 }

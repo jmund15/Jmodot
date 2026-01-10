@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://dmxh3f0w8q5p2"]
+
+[ext_resource type="Script" uid="uid://bddpj0udc6gfm" path="res://Jmodot/Implementation/Combat/Status/DelayedStatusRunner.cs" id="1_delayed"]
+
+[node name="DelayedStatusRunner" type="Node"]
+script = ExtResource("1_delayed")
+
+[node name="DelayTimer" type="Timer" parent="."]

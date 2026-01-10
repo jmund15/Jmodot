@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Status;
 
@@ -14,17 +15,25 @@ public partial class DelayedStatusRunner : StatusRunner
 
     public void Setup(float delay,
         ICombatEffect effect,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags)
+        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        VisualEffect? visualEffect = null)
     {
         Delay = delay;
         Effect = effect;
         PersistentVisuals = persistantVisuals;
         Tags = tags;
+        StatusVisualEffect = visualEffect;
     }
 
     public override void _Ready()
     {
-        _delayTimer = GetNode<Timer>("DelayTimer");
+        _delayTimer = GetNodeOrNull<Timer>("DelayTimer");
+        if (_delayTimer == null)
+        {
+            _delayTimer = new Timer { Name = "DelayTimer" };
+            AddChild(_delayTimer);
+        }
+
         _delayTimer.OneShot = true;
         _delayTimer.Autostart = false;
     }

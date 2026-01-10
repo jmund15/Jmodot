@@ -5,6 +5,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
+using Core.Visual.Effects;
 using Status;
 
 /// <summary>
@@ -18,25 +19,28 @@ public class TickEffect : ICombatEffect
     public float Duration { get; private init; }
     public float Interval { get; init; }
     public ICombatEffect PerTickEffect { get; private init; } = null!;
-    public PackedScene? PersistantVisuals { get; private init; }
+    public PackedScene? PersistentVisuals { get; private init; }
     public PackedScene? TickVisuals { get; private init; }
 
     public IEnumerable<CombatTag> Tags { get; private init; }
+    public VisualEffect? Visual { get; private init; }
 
     public TickEffect(
         PackedScene prefab,
         float duration, float interval,
         ICombatEffect perTickEffect,
-        PackedScene? tickVisuals, PackedScene? persistantVisuals,
-        IEnumerable<CombatTag> tags)
+        PackedScene? tickVisuals, PackedScene? persistentVisuals,
+        IEnumerable<CombatTag> tags,
+        VisualEffect? visual = null)
     {
         Prefab = prefab;
         Duration = duration;
         Interval = interval;
         PerTickEffect = perTickEffect;
         TickVisuals = tickVisuals;
-        PersistantVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
+        Visual = visual;
     }
 
     /// <summary>
@@ -66,7 +70,7 @@ public class TickEffect : ICombatEffect
         }
 
         // 4. Inject the Snapshot Data
-        runner.Setup(Duration, Interval, PerTickEffect, TickVisuals, PersistantVisuals, Tags);
+        runner.Setup(Duration, Interval, PerTickEffect, TickVisuals, PersistentVisuals, Tags, Visual);
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

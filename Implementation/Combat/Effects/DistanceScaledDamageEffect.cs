@@ -3,6 +3,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Implementation.Combat;
 using Jmodot.Implementation.Health;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
@@ -23,6 +24,7 @@ public struct DistanceScaledDamageEffect : ICombatEffect
     public readonly bool IsCritical;
     public readonly float KnockbackVelocityScaling;
     public IEnumerable<CombatTag> Tags { get; private set; }
+    public VisualEffect? Visual { get; private init; }
 
     private readonly DistanceFalloffConfig? _damageFalloff;
     private readonly DistanceFalloffConfig? _knockbackFalloff;
@@ -34,7 +36,8 @@ public struct DistanceScaledDamageEffect : ICombatEffect
         bool isCritical,
         DistanceFalloffConfig? damageFalloff,
         DistanceFalloffConfig? knockbackFalloff,
-        float knockbackVelocityScaling = 1f)
+        float knockbackVelocityScaling = 1f,
+        VisualEffect? visual = null)
     {
         BaseDamage = baseDamage;
         BaseKnockback = baseKnockback;
@@ -43,6 +46,7 @@ public struct DistanceScaledDamageEffect : ICombatEffect
         _damageFalloff = damageFalloff;
         _knockbackFalloff = knockbackFalloff;
         KnockbackVelocityScaling = knockbackVelocityScaling;
+        Visual = visual;
     }
 
     public CombatResult? Apply(ICombatant target, HitContext context)

@@ -11,6 +11,9 @@ namespace Jmodot.Implementation.Combat;
 
 using Core.Combat.Reactions;
 using Status;
+using Visual.Effects;
+using Implementation.Visual.Effects;
+using System.Linq;
 
 /// <summary>
 /// The central brain for combat interactions on an entity.
@@ -69,7 +72,15 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
         // The Combatant just provides the context (itself).
         CombatResult? result = effect.Apply(this, context);
 
-        // 2. REPORT
+        // 2. VISUALS
+        // Trigger any associated visual effect on the target.
+        if (effect.Visual != null)
+        {
+             var controller = GetUnderlyingNode().GetChildrenOfType<VisualEffectController>().FirstOrDefault();
+             controller?.PlayEffect(effect.Visual);
+        }
+
+        // 3. REPORT
         // If something actually happened, broadcast it.
         if (result != null)
         {

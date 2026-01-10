@@ -3,6 +3,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Implementation.Combat;
 using Jmodot.Implementation.Health;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
@@ -20,19 +21,22 @@ public struct DamageEffect : ICombatEffect
     /// <summary>Multiplier for converting ImpactVelocity magnitude to extra force.</summary>
     public readonly float KnockbackVelocityScaling;
     public IEnumerable<CombatTag> Tags { get; private set; }
+    public VisualEffect? Visual { get; private init; }
 
     public DamageEffect(
         float damageAmount,
         IEnumerable<CombatTag> tags,
         bool isCritical = false,
         float baseKnockback = 10f,
-        float knockbackVelocityScaling = 1f)
+        float knockbackVelocityScaling = 1f,
+        VisualEffect? visual = null)
     {
         DamageAmount = damageAmount;
         Tags = tags ?? [];
         IsCritical = isCritical;
         BaseKnockback = baseKnockback;
         KnockbackVelocityScaling = knockbackVelocityScaling;
+        Visual = visual;
     }
 
     public CombatResult? Apply(ICombatant target, HitContext context)

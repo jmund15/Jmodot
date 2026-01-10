@@ -8,6 +8,7 @@ using Core.Combat.Reactions;
 using Core.Modifiers;
 using Core.Stats;
 using Shared;
+using Jmodot.Core.Visual.Effects;
 
 /// <summary>
 /// Combat Effect that applies a stat modifier
@@ -17,6 +18,7 @@ public struct RevertStatEffect : ICombatEffect
 {
     public readonly ModifierHandle ModifierToRevert;
     public IEnumerable<CombatTag> Tags { get; private set; }
+    public VisualEffect? Visual { get; private init; }
 
     public RevertStatEffect(ModifierHandle modifierToRevert, IEnumerable<CombatTag>? tags = null)
     {

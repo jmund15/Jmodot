@@ -5,6 +5,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
+using Core.Visual.Effects;
 using Status;
 
 /// <summary>
@@ -16,21 +17,24 @@ public class DurationRevertEffect : ICombatEffect
     public PackedScene Prefab { get; private init; }
     public float Duration { get; private init; }
     public IRevertibleCombatEffect RevertEffect { get; private init; }
-    public PackedScene? PersistantVisuals { get; private init; }
+    public PackedScene? PersistentVisuals { get; private init; }
     public IEnumerable<CombatTag> Tags { get; private init; }
+    public VisualEffect? Visual { get; private init; }
 
     public DurationRevertEffect(
         PackedScene prefab,
         float duration,
         IRevertibleCombatEffect revertEffect,
-        PackedScene? persistantVisuals,
-        IEnumerable<CombatTag> tags)
+        PackedScene? persistentVisuals,
+        IEnumerable<CombatTag> tags,
+        VisualEffect? visual = null)
     {
         Prefab = prefab;
         Duration = duration;
         RevertEffect = revertEffect;
-        PersistantVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
+        Visual = visual;
     }
 
     /// <summary>
@@ -62,7 +66,7 @@ public class DurationRevertEffect : ICombatEffect
 
         // 4. Inject the Snapshot Data
         GD.Print($"Setting up DurationRevertEffect on {runner.Name} with Duration: {Duration}");
-        runner.Setup(Duration, RevertEffect, PersistantVisuals, Tags);
+        runner.Setup(Duration, RevertEffect, PersistentVisuals, Tags, Visual);
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

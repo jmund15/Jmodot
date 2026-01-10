@@ -5,6 +5,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
+using Core.Visual.Effects;
 using Status;
 
 /// <summary>
@@ -18,22 +19,25 @@ public class DurationEffect : ICombatEffect
     public float Duration { get; private init; }
     public ICombatEffect StartEffect { get; private init; }
     public ICombatEffect EndEffect { get; private init; }
-    public PackedScene? PersistantVisuals { get; private init; }
+    public PackedScene? PersistentVisuals { get; private init; }
     public IEnumerable<CombatTag> Tags { get; private init; }
+    public VisualEffect? Visual { get; private init; }
 
     public DurationEffect(
         PackedScene prefab,
         float duration,
         ICombatEffect startEffect, ICombatEffect endEffect,
-        PackedScene? persistantVisuals,
-        IEnumerable<CombatTag> tags)
+        PackedScene? persistentVisuals,
+        IEnumerable<CombatTag> tags,
+        VisualEffect? visual = null)
     {
         Prefab = prefab;
         Duration = duration;
         StartEffect = startEffect;
         EndEffect = endEffect;
-        PersistantVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
+        Visual = visual;
     }
 
     /// <summary>
@@ -64,7 +68,7 @@ public class DurationEffect : ICombatEffect
         }
 
         // 4. Inject the Snapshot Data
-        runner.Setup(Duration, StartEffect, EndEffect, PersistantVisuals, Tags);
+        runner.Setup(Duration, StartEffect, EndEffect, PersistentVisuals, Tags, Visual);
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

@@ -63,6 +63,6 @@ public partial class DamageEffectFactory : CombatEffectFactory
         // I'm guessing we want to make this a variable at some point?
         var knockbackVelocityScaling = 1f;
 
-        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, knockbackVelocityScaling);
+        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, knockbackVelocityScaling, TargetVisualEffect);
     }
 }
