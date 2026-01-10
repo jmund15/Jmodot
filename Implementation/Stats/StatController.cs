@@ -262,6 +262,9 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         handle = null;
         return false; // Indicates failure
     }
+
+    public ModifierHandle AddModifier(Attribute attribute, Resource modifierResource, object owner)
+    {
         if (TryAddModifier(attribute, modifierResource, owner, out var handle))
         {
             return handle!;
@@ -269,12 +272,14 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
         // DEBUG: Logging to diagnose why TryAddModifier returned false
         var sb = new StringBuilder();
-        sb.AppendLine($"[StatController] FAILED to add modifier '{modifierResource.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
+        sb.AppendLine(
+            $"[StatController] FAILED to add modifier '{modifierResource.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
         sb.AppendLine($"Available Attributes in _stats ({_stats.Count}):");
         foreach (var key in _stats.Keys)
         {
             sb.AppendLine($" - '{key.AttributeName}' (ID: {key.GetInstanceId()})");
         }
+
         JmoLogger.Error(this, sb.ToString());
 
         throw JmoLogger.LogAndRethrow(
@@ -303,47 +308,48 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifierResource.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
         //     return false;
         // }
+    }
 
-        public void RemoveModifier(ModifierHandle handle)
+    public void RemoveModifier(ModifierHandle handle)
+    {
+        if (handle == null)
         {
-            if (handle == null)
-            {
-                return;
-            }
-            // The handle provides all the necessary information for a direct, efficient removal.
-            // We know exactly which property to talk to and which ID to remove. No searching is needed.
-            handle.Property.RemoveModifier(handle.ModifierId);
+            return;
         }
+        // The handle provides all the necessary information for a direct, efficient removal.
+        // We know exactly which property to talk to and which ID to remove. No searching is needed.
+        handle.Property.RemoveModifier(handle.ModifierId);
+    }
 
-        public void RemoveAllModifiersFromSource(object owner)
+    public void RemoveAllModifiersFromSource(object owner)
+    {
+        // Broadcast the declarative cleanup request to all properties. Each property
+        // is responsible for checking its own list and removing relevant modifiers.
+        foreach (var property in _stats.Values)
         {
-            // Broadcast the declarative cleanup request to all properties. Each property
-            // is responsible for checking its own list and removing relevant modifiers.
-            foreach (var property in _stats.Values)
+            property.RemoveAllModifiersFromSource(owner);
+        }
+    }
+    public void AddActiveContext(StatContext context)
+    {
+        _activeContexts.Add(context);
+        if (GlobalRegistry.DB.StatContextProfiles.TryGetValue(context, out var profile))
+        {
+            foreach (var (attribute, modifier) in profile.Modifiers)
             {
-                property.RemoveAllModifiersFromSource(owner);
+                // The context resource itself acts as the owner. We don't need to store the
+                // returned handle because we'll use the declarative RemoveActiveContext for cleanup.
+                AddModifier(attribute, modifier, context);
             }
         }
-        public void AddActiveContext(StatContext context)
-        {
-            _activeContexts.Add(context);
-            if (GlobalRegistry.DB.StatContextProfiles.TryGetValue(context, out var profile))
-            {
-                foreach (var (attribute, modifier) in profile.Modifiers)
-                {
-                    // The context resource itself acts as the owner. We don't need to store the
-                    // returned handle because we'll use the declarative RemoveActiveContext for cleanup.
-                    AddModifier(attribute, modifier, context);
-                }
-            }
-        }
+    }
 
-        public void RemoveActiveContext(StatContext context)
-        {
-            _activeContexts.Remove(context);
-            // This is a simple, powerful shorthand for the most common cleanup operation.
-            RemoveAllModifiersFromSource(context);
-        }
+    public void RemoveActiveContext(StatContext context)
+    {
+        _activeContexts.Remove(context);
+        // This is a simple, powerful shorthand for the most common cleanup operation.
+        RemoveAllModifiersFromSource(context);
+    }
 
     /// <summary>
     /// Sets the base value of an attribute without removing any active modifiers.
@@ -458,6 +464,21 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
                 throw JmoLogger.LogAndRethrow(new InvalidCastException($"StatController: No handler for attribute '{attribute.AttributeName}' of type '{baseValue.VariantType}'."),
                     this);
         }
+    }
+
+    /// <summary>
+    /// Creates a new StatController with duplicated values (Stats, Mechanics) but preservation of
+    /// reference identities for Attributes (Keys). This avoids the "Duplicate(true)" bug where keys get new IDs.
+    /// </summary>
+    public StatController SafeClone()
+    {
+        // 1. Create a fresh instance (do NOT use Duplicate())
+        var newController = new StatController();
+
+        // 2. Hydrate it with our state
+        newController.CopyStateFrom(this);
+
+        return newController;
     }
 
     /// <summary>

@@ -433,12 +433,18 @@ public partial class GameRegistry : Resource
 
         foreach (var subDir in dir.GetDirectories())
         {
-            LoadFromDirectory(subDir, ref resultSet);
+            if (subDir.StartsWith(".")) continue;
+            string fullSubPath = directory.EndsWith("/") ? $"{directory}{subDir}" : $"{directory}/{subDir}";
+            LoadFromDirectory(fullSubPath, ref resultSet);
         }
 
-        foreach (var resPath in ResourceLoader.ListDirectory(directory))
+        foreach (var file in dir.GetFiles())
         {
-            var res = ResourceLoader.Load($"{directory}/{resPath}");
+            // Only try to load resource files
+            if (!file.EndsWith(".tres") && !file.EndsWith(".res")) continue;
+
+            string fullFilePath = directory.EndsWith("/") ? $"{directory}{file}" : $"{directory}/{file}";
+            var res = ResourceLoader.Load(fullFilePath);
             if (res is T tRes)
             {
                 resultSet.Add(tRes);

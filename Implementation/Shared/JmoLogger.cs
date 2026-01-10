@@ -54,8 +54,14 @@ public static class JmoLogger
                 contextStr = $"[{resource.GetType().Name} @ '{resource.ResourcePath}']{ownerStr}";
                 break;
             default:
-                // Provide a sensible fallback for any other C# object.
-                contextStr = $"[{context.GetType().Name}]";
+                // If it overrides ToString(), use it. Otherwise use Type Name.
+                var str = context.ToString();
+                // Check if default ToString (Namespace.ClassName) was returned
+                if (str == context.GetType().ToString())
+                {
+                    contextStr = $"[{context.GetType().Name}]";
+                }
+                else { contextStr = $"[{context.GetType().Name}: {str}]"; }
                 break;
         }
 
