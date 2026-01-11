@@ -17,7 +17,7 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     /// <summary>
     /// The value to use for the modification. How this is interpreted depends on the Stage.
     /// For BaseAdd: A flat value (e.g., 10 for +10).
-    /// For PercentAdd: A percentage (e.g., 0.1 for +10%).
+    /// For PercentAdd: A whole number percentage (e.g., 10 for +10%, 50 for +50%).
     /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
     /// </summary>
     [Export]
@@ -37,9 +37,9 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
             // For the BaseAdd stage, it applies its value additively.
             CalculationStage.BaseAdd => currentValue + Value,
 
-            // For the PercentAdd stage, it simply returns its own percentage value (e.g., 0.1)
-            // for the pipeline to sum up with other percentage bonuses.
-            CalculationStage.PercentAdd => Value,
+            // For the PercentAdd stage, convert the whole number percentage to decimal form.
+            // e.g., Value of 10 (meaning +10%) returns 0.1 for the pipeline to sum up.
+            CalculationStage.PercentAdd => Value / 100f,
 
             // For the FinalMultiply stage, it applies its value multiplicatively.
             CalculationStage.FinalMultiply => currentValue * Value,

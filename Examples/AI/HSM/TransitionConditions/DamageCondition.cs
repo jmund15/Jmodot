@@ -17,7 +17,7 @@ public partial class DamageCondition : CombatLogCondition
     /// Maximum damage amount (FinalAmount) allowed for this condition.
     /// Use a very high number for no upper limit.
     /// </summary>
-    [Export] public float MaxDamage { get; set; } = float.MaxValue;
+    [Export] public float MaxDamage { get; set; } = 100f;
 
     /// <summary>
     /// Optional tags that must be present on the damage result.

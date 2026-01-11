@@ -3,17 +3,14 @@ namespace Jmodot.Tools.Visual.Sprite;
 using System.Collections.Generic;
 
 [GlobalClass, Tool]
-public sealed partial class Dir4AnimationSuffixes : AnimationDirectionSuffixes
+public sealed partial class NoDirAnimationSuffixes : AnimationDirectionSuffixes
 {
-    public Dir4AnimationSuffixes()
+    public NoDirAnimationSuffixes()
     {
-        this.DirectionSuffixes = this.Dir4Suffixes;
+        this.DirectionSuffixes = this.NoDirSuffixes;
     }
-    private List<string> Dir4Suffixes { get; init; } = new()
+    private List<string> NoDirSuffixes { get; init; } = new()
     {
-        "up",
-        "right",
-        "down",
-        "left"
+        ""
     };
 }

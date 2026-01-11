@@ -4,41 +4,10 @@ using System.Collections.Generic;
 using Godot;
 
 /// <summary>
-/// Controls how multiple visual effects interact when active simultaneously.
-/// </summary>
-public enum VisualEffectBlendMode
-{
-    /// <summary>
-    /// The effect's modulation is multiplied with other active Mix effects.
-    /// (e.g. Red tint * Blue tint = Purple tint).
-    /// </summary>
-    Mix,
-
-    /// <summary>
-    /// The effect completely overrides all other effects while active.
-    /// If multiple Overrides are active, the one with higher Priority (or newer) wins.
-    /// </summary>
-    Override
-}
-
-/// <summary>
-/// A handle object that represents the running state of a visual effect.
-/// This object is what gets tweened by the VisualEffect.
-/// </summary>
-public partial class VisualEffectHandle : GodotObject
-{
-    /// <summary>
-    /// The current color contribution of this effect.
-    /// Defaut is White (no change/identity).
-    /// </summary>
-    [Export] public Color Modulate { get; set; } = Colors.White;
-}
-
-/// <summary>
 /// Abstract base class for visual effects that can be applied to sprites via Tweens.
 /// Subclasses define specific effect behaviors (flash, tint, shader effects, etc.)
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class VisualEffect : Resource
 {
     /// <summary>

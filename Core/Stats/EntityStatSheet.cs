@@ -13,6 +13,13 @@ using Jmodot.Implementation.Modifiers.CalculationStrategies;
 [GlobalClass]
 public partial class EntityStatSheet : Resource
 {
+    /// <summary>
+    /// Optional parent stat sheet. Attributes from the base are inherited,
+    /// and any attributes defined in this sheet will override the base values.
+    /// </summary>
+    [Export]
+    public EntityStatSheet BaseStatSheet { get; private set; }
+
     [ExportGroup("Universal Attributes")]
     // The dictionary holds the raw base value.
     [Export]

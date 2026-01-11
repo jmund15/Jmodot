@@ -8,7 +8,7 @@ using Godot;
 /// Visual effect that tints sprites with a color, fading in and out.
 /// Useful for status effects, environmental hazards, etc.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class TintEffect : VisualEffect
 {
     /// <summary>
@@ -40,7 +40,7 @@ public partial class TintEffect : VisualEffect
         tween.TweenProperty(handle, "Modulate", TintColor, fadeInDuration)
             .SetTrans(Tween.TransitionType.Sine)
             .SetEase(Tween.EaseType.Out);
-        
+
         // Hold at tint color
         if (holdDuration > 0)
         {

@@ -7,7 +7,7 @@ using Godot;
 /// <summary>
 /// Visual effect that flashes sprites between their original color and a flash color.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class FlashEffect : VisualEffect
 {
     /// <summary>

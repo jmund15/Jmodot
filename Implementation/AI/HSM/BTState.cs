@@ -28,7 +28,7 @@ using Shared.GodotExceptions;
         [Export(PropertyHint.NodeType, "State")]
         protected State OnTreeFailureState;
 
-        private BehaviorTree _tree;
+        private BehaviorTree _tree = null!; // Set in OnInit, exception thrown if missing
 
         protected override void OnInit()
         {

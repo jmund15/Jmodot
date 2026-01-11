@@ -80,8 +80,11 @@ public partial class TickStatusRunner : StatusRunner
         // Spawn Visuals
         if (TickVisuals != null)
         {
-            var visual = TickVisuals.Instantiate();
-            AddChild(visual);
+            var visual = TickVisuals.Instantiate() as Node3D;
+            // TODO: add config for if visuals should be parented to the target or the status effect component
+            Target.OwnerNode.AddChild(visual);
+            //AddChild(visual);
+            //visual.GlobalPosition = (Target.OwnerNode as Node3D).GlobalPosition;
         }
 
         if (TickEffect != null)

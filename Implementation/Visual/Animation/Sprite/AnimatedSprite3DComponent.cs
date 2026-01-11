@@ -85,11 +85,11 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
 
     public void PauseAnim() => this.Pause();
     public void StopAnim() => this.Stop();
-    public bool IsPlaying() => this.IsPlaying();
+    bool IAnimComponent.IsPlaying() => base.IsPlaying();
     public bool HasAnimation(StringName animName) => this.SpriteFrames.HasAnimation(animName);
     public StringName GetCurrAnimation() => this.Animation;
-    public float GetSpeedScale() => this.SpeedScale;
-    public void SetSpeedScale(float speedScale) => this.SpeedScale = speedScale;
+    float IAnimComponent.GetSpeedScale() => this.SpeedScale;
+    void IAnimComponent.SetSpeedScale(float speedScale) => this.SpeedScale = speedScale;
 
     // --- Time-Based Synchronization (Frame <-> Time Mapping) ---
     public void SeekPos(float time, bool updateNow = true)

@@ -38,6 +38,13 @@ public partial class DamageEffectFactory : CombatEffectFactory
     /// </summary>
     [Export] public float DefaultCritMultiplier { get; set; } = 1.5f;
 
+    [ExportGroup("Knockback")]
+    /// <summary>
+    /// Multiplier for converting impact velocity to knockback force.
+    /// Set to 0 for spells that use environmental force instead of combat knockback.
+    /// </summary>
+    [Export] public float KnockbackVelocityScaling { get; set; } = 1f;
+
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
         float baseDamage = _damageDefinition.ResolveFloatValue(stats);
@@ -47,9 +54,10 @@ public partial class DamageEffectFactory : CombatEffectFactory
         float finalDamage = baseDamage;
 
         // Roll for crit if CritChanceAttribute is configured (not default/null resource)
-        if (CritChanceAttrOverride != null && stats != null)
+        if (CritChanceAttrOverride != null || stats != null)
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
+            //GD.Print($"Crit chance: {critChance}");
             isCritical = System.Random.Shared.NextSingle() < critChance;
 
             if (isCritical)
@@ -59,10 +67,6 @@ public partial class DamageEffectFactory : CombatEffectFactory
             }
         }
 
-        // determines how much the impact speed of the projectile impacts the knockback.
-        // I'm guessing we want to make this a variable at some point?
-        var knockbackVelocityScaling = 1f;
-
-        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, knockbackVelocityScaling, TargetVisualEffect);
+        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, KnockbackVelocityScaling, TargetVisualEffect);
     }
 }

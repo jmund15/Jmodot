@@ -34,6 +34,7 @@ public partial class GlobalRegistryLIB : Node
         if (DB == null)
         {
             GD.PrintErr($"Failed to load GameRegistry from path: {this._registryResourcePath}");
+            return; // Fail-fast: don't proceed with null DB
         }
 
         //DEBUG, should happen automatically in editor right?

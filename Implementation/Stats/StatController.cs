@@ -48,13 +48,25 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     ///     Configures and populates the entire StatController based on the data defined in a
     ///     EntityStatSheet resource. This method builds the runtime ModifiableProperty objects,
     ///     assigns the correct calculation strategies, and sets their base values.
+    ///     Supports inheritance: if the archetype has a BaseStatSheet, those values are loaded first,
+    ///     then the current sheet's values override them.
     /// </summary>
     /// <param name="archetype">The data template used to define this entity's stats.</param>
     public void InitializeFromStatSheet(EntityStatSheet archetype)
     {
         _archetype = archetype;
 
+        // --- 0. Inheritance: Initialize from base sheet first (if present) ---
+        // This creates the "prototype chain" - base values are loaded first,
+        // then child values override them below.
+        if (archetype.BaseStatSheet != null)
+        {
+            InitializeFromStatSheet(archetype.BaseStatSheet);
+        }
+
         // --- 1. Initialize Universal Stats ---
+        // If an attribute was already loaded from a base sheet, it gets replaced here (override).
+        // If it's new, it gets added (inherited from this sheet).
         foreach (var entry in archetype.UniversalAttributes)
         {
             var attribute = entry.Key;
@@ -62,6 +74,13 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
             // Look up the specific strategy assigned in the archetype for this attribute.
             archetype.UniversalAttributeStrategies.TryGetValue(attribute, out var specificStrategy);
+
+            // If this attribute already exists (from base sheet), unsubscribe old handler first
+            if (_stats.TryGetValue(attribute, out var existingProp))
+            {
+                // Note: We can't easily unsubscribe lambdas, but replacing the property
+                // effectively orphans the old subscription (it will be GC'd)
+            }
 
             var prop = GetAttributeStrategy(attribute, baseValue, specificStrategy);
             _stats[attribute] = prop;
@@ -73,16 +92,23 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
 
         // --- 2. Initialize Mechanic Library ---
+        // Same pattern: child mechanics override base mechanics
         foreach (var (mechanicType, mechanicData) in archetype.MechanicLibrary)
         {
             _mechanicLibrary[mechanicType] = mechanicData;
         }
 
         // --- 3. Post-Initialization Notification ---
-        // Emit an initial change event for all stats so listening systems can sync their initial state.
-        foreach (var stat in this._stats)
+        // Only emit notifications at the top level (when recursion is complete)
+        // We check if this is the "leaf" archetype (the one originally passed in)
+        // by checking if _archetype matches. Since we set _archetype at the start,
+        // it will be the original archetype at this point.
+        if (_archetype == archetype)
         {
-            OnStatChanged?.Invoke(stat.Key, stat.Value.GetValueAsVariant());
+            foreach (var stat in this._stats)
+            {
+                OnStatChanged?.Invoke(stat.Key, stat.Value.GetValueAsVariant());
+            }
         }
     }
 

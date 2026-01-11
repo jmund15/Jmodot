@@ -9,7 +9,7 @@ namespace Jmodot.Core.Movement;
 public interface IRigidController3D : IVelocityProvider3D
 {
     Vector3 GlobalPosition { get; }
-    Vector3 LinearVelocity { get; } // Read-only for rigid bodies
+    new Vector3 LinearVelocity { get; } // Intentionally shadows IVelocityProvider3D for read-only access
 
     /// <summary>Applies a continuous force, affecting acceleration.</summary>
     void ApplyForce(Vector3 force);
