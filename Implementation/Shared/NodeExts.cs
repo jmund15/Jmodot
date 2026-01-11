@@ -1,9 +1,13 @@
 #region
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Reflection;
 using Godot.Collections;
+using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared.GodotExceptions;
 
 #endregion
 
@@ -35,6 +39,61 @@ public static class NodeExts
         else
         {
             GD.PrintErr("Couldn't Safely Queue Free node: ", node.Name, ", node is not valid");
+        }
+    }
+
+    /// <summary>
+    /// Validates that all properties and fields marked with [RequiredExport] are not null.
+    /// Call this in _Ready() to fail-fast with a clear error if any required exports are missing.
+    /// </summary>
+    /// <exception cref="NodeConfigurationException">
+    /// Thrown when a [RequiredExport] property or field is null.
+    /// </exception>
+    /// <example>
+    /// <code>
+    /// [Export, RequiredExport] public SpellArchetype Archetype { get; set; } = null!;
+    ///
+    /// public override void _Ready()
+    /// {
+    ///     this.ValidateRequiredExports();
+    /// }
+    /// </code>
+    /// </example>
+    public static void ValidateRequiredExports(this Node node)
+    {
+        var type = node.GetType();
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+        // Check properties
+        foreach (var prop in type.GetProperties(flags))
+        {
+            if (prop.GetCustomAttribute<RequiredExportAttribute>() == null)
+            {
+                continue;
+            }
+
+            var value = prop.GetValue(node);
+            if (value == null)
+            {
+                throw new NodeConfigurationException(
+                    $"Required export '{prop.Name}' must be assigned in the Inspector.", node);
+            }
+        }
+
+        // Check fields
+        foreach (var field in type.GetFields(flags))
+        {
+            if (field.GetCustomAttribute<RequiredExportAttribute>() == null)
+            {
+                continue;
+            }
+
+            var value = field.GetValue(node);
+            if (value == null)
+            {
+                throw new NodeConfigurationException(
+                    $"Required export '{field.Name}' must be assigned in the Inspector.", node);
+            }
         }
     }
 
