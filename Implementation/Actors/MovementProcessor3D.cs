@@ -17,9 +17,8 @@ public class MovementProcessor3D : IMovementProcessor3D
     private readonly ICharacterController3D _controller;
     private readonly ExternalForceReceiver3D _forceReceiver3D;
     private readonly Node3D _owner;
-    private readonly IStatProvider _stats; // Now it needs a reference to the StatController
+    private readonly IStatProvider _stats;
 
-    //private readonly Vector3 _gravity = Vector3.Down * 9.8f;
     private Vector3 _frameImpulses = Vector3.Zero;
 
     public MovementProcessor3D(
@@ -47,18 +46,24 @@ public class MovementProcessor3D : IMovementProcessor3D
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
             strategy3D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, delta);
-        _controller.SetVelocity(characterVelocity
-            );
+        _controller.SetVelocity(characterVelocity);
 
-        // --- 2. Apply Impulses
+        // --- 2. Apply Impulses (stored in velocity) ---
         _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector3.Zero; // reset after applied
+        _frameImpulses = Vector3.Zero;
 
-        // --- 3. Apply External Forces (Gravity, Environment) ---
+        // --- 3. Apply External Forces (stored - will be affected by friction next frame) ---
         ApplyExternalForces(delta);
 
-        // --- 4. Execute the Final Move ---
+        // --- 4. Get Velocity Offset (NOT stored - fresh each frame, friction-independent) ---
+        var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
+
+        // --- 5. Execute the Final Move with offset ---
+        _controller.AddVelocity(velocityOffset);
         _controller.Move();
+
+        // --- 6. Remove offset so it's not affected by friction next frame ---
+        _controller.AddVelocity(-velocityOffset);
     }
 
     /// <summary>
@@ -75,8 +80,15 @@ public class MovementProcessor3D : IMovementProcessor3D
         // 2. Apply external forces
         this.ApplyExternalForces(delta);
 
-        // 2. Execute the move
+        // 3. Get velocity offset (friction-independent)
+        var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
+
+        // 4. Execute the move with offset
+        _controller.AddVelocity(velocityOffset);
         this._controller.Move();
+
+        // 5. Remove offset so it's not stored
+        _controller.AddVelocity(-velocityOffset);
     }
 
     /// <summary>
@@ -87,7 +99,6 @@ public class MovementProcessor3D : IMovementProcessor3D
     public void ApplyImpulse(Vector3 impulse)
     {
         _frameImpulses += impulse;
-        //this._controller.AddVelocity(impulse);
     }
 
     public void ClearImpulses()
@@ -97,17 +108,6 @@ public class MovementProcessor3D : IMovementProcessor3D
 
     private void ApplyExternalForces(float delta)
     {
-        // if (!_controller.IsOnFloor)
-        // {
-        //     // A better way to get gravity settings.
-        //     // TODO: still bad, should be used by ForceReceiver too.
-        //     var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
-        //     var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
-        //     //GD.Print($"gravity vec: {gravityVec * gravityMag * delta}");
-        //     _controller.AddVelocity(gravityVec * gravityMag * delta);
-        // }
-
-        // TODO: this force receiver should also handle gravity, instead of being hardcoded above.
         var externalForce = this._forceReceiver3D.GetTotalForce(this._owner);
         this._controller.AddVelocity(externalForce * delta);
     }
