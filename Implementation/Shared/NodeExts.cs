@@ -76,7 +76,7 @@ public static class NodeExts
             if (value == null)
             {
                 throw new NodeConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned in the Inspector.", node);
+                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {node.Owner.Name}.", node);
             }
         }
 

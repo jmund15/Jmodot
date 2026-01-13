@@ -13,7 +13,7 @@ public class DummyStatProvider : IStatProvider
         throw new System.NotImplementedException();
     }
 
-    public T GetStatValue<T>(Attribute attribute, T defaultValue = default(T))
+    public T GetStatValue<T>(Attribute attribute, T defaultValue = default!)
     {
         throw new System.NotImplementedException();
     }

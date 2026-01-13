@@ -24,16 +24,16 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// Optional: Manually assign the Master Animator (Time Source) in the editor.
     /// If set, this animator will dictate the duration/seek of the composite.
     /// </summary>
-    [Export] public Node MasterAnimatorNode { get; set; }
+    [Export] public Node? MasterAnimatorNode { get; set; }
 
     private readonly List<IAnimComponent> _activeAnimators = new();
-    private IAnimComponent _masterAnimator; // The time source (e.g. Body)
+    private IAnimComponent? _masterAnimator; // The time source (e.g. Body)
 
     private StringName _lastRequestedAnim = "";
     private float _currentSpeedScale = 1.0f;
 
-    public event Action<StringName> AnimStarted;
-    public event Action<StringName> AnimFinished;
+    public event Action<StringName> AnimStarted = delegate { };
+    public event Action<StringName> AnimFinished = delegate { };
     public override void _PhysicsProcess(double delta)
     {
         base._PhysicsProcess(delta);
@@ -224,7 +224,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     }
 
     public bool HasAnimation(StringName animName) =>
-        _masterAnimator.HasAnimation(animName); // master is REQUIRED to say yes, others not needed but should play if available
+        _masterAnimator?.HasAnimation(animName) ?? false; // master is REQUIRED to say yes, others not needed but should play if available
         //_activeAnimators.Any(a => a.HasAnimation(animName));
     public bool IsPlaying() => _masterAnimator?.IsPlaying() ?? false;
     public StringName GetCurrAnimation() => _lastRequestedAnim;

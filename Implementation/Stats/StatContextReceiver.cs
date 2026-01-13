@@ -1,7 +1,6 @@
 namespace Jmodot.Implementation.Stats;
 
 using Core.Stats;
-using global::Jmodot.Core.Stats;
 
 /// <summary>
 /// A component that detects and manages temporary environmental stat modifiers.

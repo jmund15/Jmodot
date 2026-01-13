@@ -23,16 +23,17 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
     {
         var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultDurationRevertibleStatusRunner;
 
-        var effect = RevertibleEffect?.Create(stats);
+        // RevertibleEffect is required (= null!), fail-fast if not configured
+        var effect = RevertibleEffect.Create(stats);
         if (effect is not IRevertibleCombatEffect revertibleEffect)
         {
             JmoLogger.Error(this, $"{RevertibleEffect.ResourcePath}'s effect is not revertible!");
-            return null;
+            return null!;
         }
         return new DurationRevertEffect(
             runner,
             Duration.ResolveFloatValue(stats),
-            (IRevertibleCombatEffect)RevertibleEffect.Create(stats),
+            revertibleEffect, // Use the already-cast variable instead of creating again
             PersistentVisuals,
             Tags,
             TargetVisualEffect

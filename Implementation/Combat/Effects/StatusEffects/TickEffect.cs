@@ -55,7 +55,7 @@ public class TickEffect : ICombatEffect
         }
 
         // 2. Access Component
-        if (!target.Blackboard.TryGet(BBDataSig.StatusEffects, out StatusEffectComponent statusComp))
+        if (!target.Blackboard.TryGet(BBDataSig.StatusEffects, out StatusEffectComponent statusComp) || statusComp == null)
         {
             return null; // Target cannot accept status effects
         }

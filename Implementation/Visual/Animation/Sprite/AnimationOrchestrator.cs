@@ -6,6 +6,7 @@ using Core.Visual.Animation.Sprite;
 using Godot;
 using Godot.Collections;
 using Shared;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// Coordinates the high-level animation state (e.g. "run_left").
@@ -14,12 +15,12 @@ using Shared;
 [GlobalClass, Tool]
 public partial class AnimationOrchestrator : Node, IAnimComponent
 {
-    [Export] private Node _targetAnimatorNode = null!;
+    [Export, RequiredExport] private Node _targetAnimatorNode = null!;
     [Export] public string DirectionSuffixSeparator { get; set; } = "_";
 
     // Helper resource to map Vector3 -> "left", "down_right", etc.
     // If null, direction logic is skipped.
-    [Export] public DirectionSet3D DirectionSet { get; set; } = null!;
+    [Export] public DirectionSet3D? DirectionSet { get; set; }
 
     [Export]
     public Dictionary<Vector3, string> DirectionLabels { get; set; } = new()
@@ -49,6 +50,7 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
         {
             return;
         }
+        this.ValidateRequiredExports();
         _targetAnimator = _targetAnimatorNode as IAnimComponent;
         if (_targetAnimator == null)
         {

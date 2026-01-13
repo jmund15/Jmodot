@@ -5,12 +5,12 @@ namespace Jmodot.Implementation.Combat.Status;
 
 public partial class ConditionStatusRunner : StatusRunner
 {
-    public StatusCondition Condition { get; set; }
+    public StatusCondition Condition { get; set; } = null!;
     public float CheckInterval { get; set; }
-    public ICombatEffect OnTickEffect { get; set; }
-    public ICombatEffect OnEndEffect { get; set; }
+    public ICombatEffect OnTickEffect { get; set; } = null!;
+    public ICombatEffect OnEndEffect { get; set; } = null!;
 
-    private Timer _checkTimer;
+    private Timer _checkTimer = null!;
 
     public override void _Ready()
     {

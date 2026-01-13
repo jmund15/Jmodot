@@ -53,7 +53,7 @@ public partial class BehaviorTree : Node
     [Export] private DebugViewPosition _debugViewPosition = DebugViewPosition.TopLeft;
 
     public bool IsInitialized { get; private set; }
-    public BehaviorTask RootTask { get; private set; }
+    public BehaviorTask RootTask { get; private set; } = null!; // Set in Init(), exception if missing
 
     private bool _enabled;
     public bool Enabled
@@ -125,7 +125,7 @@ public partial class BehaviorTree : Node
         AgentNode = agent;
         Blackboard = bb;
 
-        if (!this.TryGetFirstChildOfType<BehaviorTask>(out var rootTask, false))
+        if (!this.TryGetFirstChildOfType<BehaviorTask>(out var rootTask, false) || rootTask == null)
         {
             throw new NodeConfigurationException($"BehaviorTree '{Name}' requires a child node that inherits from BehaviorTask to serve as its root.", this);
         }

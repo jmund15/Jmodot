@@ -105,7 +105,7 @@ using Shared.GodotExceptions;
             PrimarySubState?.Exit();
             if(PrimarySubState.IsValid())
             {
-                FiniteSubStates[PrimarySubState] = false;
+                FiniteSubStates[PrimarySubState!] = false; // IsValid() guarantees non-null
             }
             // Note: We don't set PrimarySubState to null here to support History States.
 

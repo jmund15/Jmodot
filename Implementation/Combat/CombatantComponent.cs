@@ -12,7 +12,6 @@ namespace Jmodot.Implementation.Combat;
 using Core.Combat.Reactions;
 using Status;
 using Visual.Effects;
-using Implementation.Visual.Effects;
 using System.Linq;
 
 /// <summary>

@@ -53,8 +53,8 @@ public partial class DamageEffectFactory : CombatEffectFactory
         bool isCritical = false;
         float finalDamage = baseDamage;
 
-        // Roll for crit if CritChanceAttribute is configured (not default/null resource)
-        if (CritChanceAttrOverride != null || stats != null)
+        // Roll for crit if stats are available (CritChanceAttrOverride is just an optional config)
+        if (stats != null)
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
             //GD.Print($"Crit chance: {critChance}");

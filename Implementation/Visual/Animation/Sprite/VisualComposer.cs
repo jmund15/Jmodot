@@ -10,6 +10,7 @@ using System;
 using Core.Movement;
 using Core.Visual.Effects;
 using Shared;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// Manages the visual composition of the character.
@@ -18,13 +19,13 @@ using Shared;
 [GlobalClass, Tool]
 public partial class VisualComposer : Node, IVisualSpriteProvider
 {
-    [Export] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
+    [Export, RequiredExport] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
     [Export] public GCol.Array<VisualSlotConfig> SlotConfigs { get; set; } = new();
 
     private Dictionary<string, VisualSlot> _slots = new();
 
-    private List<Node> _visibleNodes;
-    private List<Node> _visualNodes;
+    private List<Node>? _visibleNodes;
+    private List<Node>? _visualNodes;
 
     [ExportGroup("Debug")]
     [Export] private bool _useFlipHDebug = true;
@@ -38,6 +39,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
         {
             return;
         }
+        this.ValidateRequiredExports();
         // Initialize Slots based on Configs
         foreach (var config in SlotConfigs)
         {
@@ -65,7 +67,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             }
         }
 
-        if (_useFlipHDebug)
+        if (_useFlipHDebug && _debugOrchestrator != null)
         {
             _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
         }
@@ -75,7 +77,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     {
         base._Process(delta);
         if (Engine.IsEditorHint()) { return; }
-        if (!_useFlipHDebug)
+        if (!_useFlipHDebug || _debugOrchestrator == null || _flipHDirSet == null)
         {
             return;
         }
@@ -93,8 +95,9 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     private void OnOrchAnimStarted(StringName obj)
     {
-        var flipHDir = _flipHDirSet.GetClosestDirection(
-                _debugOrchestrator.CurrentAnimationDirection.GetFlattenedVector2());
+        // Guaranteed non-null: this callback only subscribed when _debugOrchestrator != null
+        var flipHDir = _flipHDirSet!.GetClosestDirection(
+                _debugOrchestrator!.CurrentAnimationDirection.GetFlattenedVector2());
         if (flipHDir == Vector2.Right)
         {
             DebugSetFlipH(false);
@@ -164,17 +167,17 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     #region IVisualSpriteProvider Implementation
 
-    public event Action VisibleNodesChanged;
-    public event Action VisualNodesChanged;
+    public event Action VisibleNodesChanged = delegate { };
+    public event Action VisualNodesChanged = delegate { };
 
     public IReadOnlyList<Node> GetVisibleNodes()
     {
-        return _visibleNodes;
+        return _visibleNodes ?? [];
     }
 
     public IReadOnlyList<Node> GetAllVisualNodes()
     {
-        return _visualNodes;
+        return _visualNodes ?? [];
     }
 
     private void OnSlotVisualNodesChanged()

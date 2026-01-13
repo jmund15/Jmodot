@@ -25,7 +25,7 @@ public interface IStatProvider
     ///     Retrieves the final, calculated VALUE of a stat in a type-safe manner.
     ///     This is the primary method for any system that consumes stat data.
     /// </summary>
-    T GetStatValue<[MustBeVariant] T>(Attribute attribute, T defaultValue = default(T));
+    T GetStatValue<[MustBeVariant] T>(Attribute attribute, T defaultValue = default!);
     /// <summary>
     ///     Retrieves the final, calculated data for a specific mechanic.
     /// </summary>

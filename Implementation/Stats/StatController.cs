@@ -211,7 +211,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <param name="attribute">The attribute whose value is being requested.</param>
     /// <param name="defaultValue">The value to return if the stat doesn't exist or if a type mismatch occurs.</param>
     /// <returns>The final calculated value of the stat, or the default value on failure.</returns>
-    public T GetStatValue<[MustBeVariant] T>(Attribute attribute, T defaultValue = default(T))
+    public T GetStatValue<[MustBeVariant] T>(Attribute attribute, T defaultValue = default!)
     {
         if (_stats.TryGetValue(attribute, out var prop))
         {

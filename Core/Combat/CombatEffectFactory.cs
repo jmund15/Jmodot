@@ -1,7 +1,6 @@
 namespace Jmodot.Core.Combat;
 
 using EffectDefinitions;
-using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Visual.Effects;
 using Stats;
 

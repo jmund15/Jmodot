@@ -14,18 +14,18 @@ using Core.Visual.Effects;
 public class VisualSlot // TODO: make IVisualSpriteProvider?
 {
     public VisualSlotConfig Config { get; private set; }
-    public VisualItemData CurrentItem { get; private set; }
+    public VisualItemData? CurrentItem { get; private set; }
 
     private CompositeAnimatorComponent _composite;
     private Node _slotRoot;
-    private Node _currentInstance;
+    private Node? _currentInstance;
 
     // Visual Effect Tracking
     private readonly List<Node> _currentVisualNodes = new();
     private readonly List<Node> _currentVisibleNodes = new();
-    private IVisualSpriteProvider _prefabProvider;
-    public event Action VisualNodesChanged;
-    public event Action VisibleNodesChanged;
+    private IVisualSpriteProvider? _prefabProvider;
+    public event Action VisualNodesChanged = delegate { };
+    public event Action VisibleNodesChanged = delegate { };
 
     public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot)
     {

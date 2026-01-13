@@ -63,7 +63,7 @@ public class CombatLog
     /// <summary>
     /// Checks if a specific condition occurred this frame.
     /// </summary>
-    public bool HasEvent<T>(System.Func<T, bool> predicate = null) where T : CombatResult
+    public bool HasEvent<T>(System.Func<T, bool>? predicate = null) where T : CombatResult
     {
         var currTimeContext = GetCurrentTimeContext();
 
@@ -72,11 +72,11 @@ public class CombatLog
             return false;
         }
 
-        var query = results.Where(e => e is T);
+        var query = results.Where(e => e is T).Cast<T>();
 
         if (predicate != null)
         {
-            return query.Any(e => predicate(e as T));
+            return query.Any(e => predicate(e));
         }
         return query.Any();
     }

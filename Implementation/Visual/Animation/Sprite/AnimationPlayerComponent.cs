@@ -90,6 +90,6 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
     public float GetCurrAnimationPosition() => (float)CurrentAnimationPosition;
     //public float GetSpeedScale() => (float)SpeedScale;
     public new void SetSpeedScale(float speedScale) => SpeedScale = speedScale; // 'new' keyword to hide base member
-    public new void PauseAnim() => Pause(); // Map interface to concrete implementation
+    public void PauseAnim() => Pause(); // Map interface to concrete implementation
     public Node GetUnderlyingNode() => this;
 }

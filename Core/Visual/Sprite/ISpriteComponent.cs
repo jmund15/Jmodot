@@ -15,7 +15,7 @@ public interface ISpriteComponent : IGodotNodeInterface
     bool FlipH { get; set; }
     bool FlipV { get; set; }
     Vector2 Offset { get; set; }
-    Texture2D GetTexture();
+    Texture2D? GetTexture();
     void Hide();
     void Show();
 }

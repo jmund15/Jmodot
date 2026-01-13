@@ -81,9 +81,9 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         SetupAnimatorConnection();
 
         // ToDO: doesn't work????
-        if (Engine.IsEditorHint())
+        if (Engine.IsEditorHint() && Engine.GetMainLoop() is SceneTree sceneTree)
         {
-            (Engine.GetMainLoop() as SceneTree).TreeChanged += UpdateConfigurationWarnings;
+            sceneTree.TreeChanged += UpdateConfigurationWarnings;
         }
     }
 

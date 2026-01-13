@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
@@ -83,6 +84,23 @@ public partial class StatusEffectComponent : Node, IComponent
     public bool HasTag(CombatTag tag)
     {
         return _activeTags.TryGetValue(tag, out int count) && count > 0;
+    }
+
+    /// <summary>
+    /// Immediately stops and removes all active status effects.
+    /// Used for full entity reset (e.g., session restart).
+    /// </summary>
+    public void ClearAll()
+    {
+        // Get a copy of all runners to avoid modification during iteration
+        var runners = GetChildren().OfType<StatusRunner>().ToList();
+
+        foreach (var runner in runners)
+        {
+            runner.Stop(wasDispelled: true);
+        }
+
+        JmoLogger.Info(this, $"Cleared {runners.Count} status effects.");
     }
     #endregion
 

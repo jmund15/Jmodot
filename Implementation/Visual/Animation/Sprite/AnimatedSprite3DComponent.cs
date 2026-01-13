@@ -16,8 +16,8 @@ using Core.Visual.Sprite;
 public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponent, ISpriteComponent
 {
     // --- IAnimComponent Events ---
-    public event Action<StringName> AnimStarted;
-    public event Action<StringName> AnimFinished;
+    public event Action<StringName> AnimStarted = delegate { };
+    public event Action<StringName> AnimFinished = delegate { };
 
     public override void _Ready()
     {
@@ -160,7 +160,7 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         return texture?.GetWidth() * PixelSize * Scale.X ?? 0f;
     }
 
-    public Texture2D GetTexture()
+    public Texture2D? GetTexture()
     {
         if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) return null;
         return SpriteFrames.GetFrameTexture(Animation, Frame);

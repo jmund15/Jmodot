@@ -229,7 +229,7 @@ public class ModifiableProperty<T> : IModifiableProperty
             // We use the generic AddModifier via the interface to handle type-casting correctly.
             // Note: We use the existing Modifier resource and its original Owner.
             // This ensures that the target property now has a "copy" of the modifier application.
-            target.AddModifier(entry.Modifier as Resource, entry.Owner);
+            target.AddModifier((Resource)entry.Modifier, entry.Owner);
         }
     }
 

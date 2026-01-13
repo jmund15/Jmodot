@@ -4,6 +4,8 @@ using System.Collections;
 using System.Collections.Generic;
 
 public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
+    where T1 : notnull
+    where T2 : notnull
 {
     private readonly Dictionary<T1, T2> _forward = new();
     private readonly Dictionary<T2, T1> _reverse = new();
@@ -52,7 +54,7 @@ public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
         _forward.Clear();
         _reverse.Clear();
     }
-    public class Indexer<T3, T4>
+    public class Indexer<T3, T4> where T3 : notnull
     {
         private readonly Dictionary<T3, T4> _dictionary;
 

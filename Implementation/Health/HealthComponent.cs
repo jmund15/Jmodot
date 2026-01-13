@@ -237,6 +237,32 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         SetHealth(0, source);
     }
 
+    /// <summary>
+    /// Resets health to maximum. Works whether alive or dead.
+    /// If dead, resurrects with full health. If alive, heals to max.
+    /// </summary>
+    /// <param name="source">The object responsible for the reset (e.g., game manager, reset system).</param>
+    public void ResetToFull(object source)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        if (IsDead)
+        {
+            Resurrect(MaxHealth, source);
+        }
+        else
+        {
+            float missing = MaxHealth - _currentHealth;
+            if (missing > 0)
+            {
+                Heal(missing, source);
+            }
+        }
+    }
+
     #endregion
 
     #region Core Logic & Event Handlers

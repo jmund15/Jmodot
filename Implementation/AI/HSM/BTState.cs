@@ -32,11 +32,12 @@ using Shared.GodotExceptions;
 
         protected override void OnInit()
         {
-            if (!this.TryGetFirstChildOfType<BehaviorTree>(out _tree, false))
+            if (!this.TryGetFirstChildOfType(out BehaviorTree? tree, false) || tree == null)
             {
                 throw new NodeConfigurationException($"BTState '{Name}' requires a child node of type BehaviorTree.", this);
             }
 
+            _tree = tree;
             _tree.Init(Agent, BB);
             _tree.TreeFinishedLoop += OnTreeFinishLoop;
         }
