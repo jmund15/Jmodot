@@ -37,7 +37,7 @@ public partial class ParallelComposite : CompositeTask
         foreach (var child in ChildTasks)
         {
             child.TaskStatusChanged -= OnChildStatusChanged;
-            if (child.Status == TaskStatus.RUNNING)
+            if (child.Status == TaskStatus.Running)
             {
                 child.Exit();
             }
@@ -46,30 +46,30 @@ public partial class ParallelComposite : CompositeTask
 
     private void OnChildStatusChanged(TaskStatus newStatus)
     {
-        if (Status != TaskStatus.RUNNING)
+        if (Status != TaskStatus.Running)
         {
             return; // Already succeeded or failed
         }
 
-        var successCount = ChildTasks.Count(c => c.Status == TaskStatus.SUCCESS);
-        var failureCount = ChildTasks.Count(c => c.Status == TaskStatus.FAILURE);
+        var successCount = ChildTasks.Count(c => c.Status == TaskStatus.Success);
+        var failureCount = ChildTasks.Count(c => c.Status == TaskStatus.Failure);
 
         if (SuccessPolicy == Policy.RequireOne && successCount >= 1)
         {
-            Status = TaskStatus.SUCCESS;
+            Status = TaskStatus.Success;
         }
         if (SuccessPolicy == Policy.RequireAll && successCount == ChildTasks.Count)
         {
-            Status = TaskStatus.SUCCESS;
+            Status = TaskStatus.Success;
         }
 
         if (FailurePolicy == Policy.RequireOne && failureCount >= 1)
         {
-            Status = TaskStatus.FAILURE;
+            Status = TaskStatus.Failure;
         }
         if (FailurePolicy == Policy.RequireAll && failureCount == ChildTasks.Count)
         {
-            Status = TaskStatus.FAILURE;
+            Status = TaskStatus.Failure;
         }
     }
 }

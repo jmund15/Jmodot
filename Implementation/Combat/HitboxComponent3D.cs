@@ -163,7 +163,7 @@ using AI.BB;
 
         public void EndAttack()
         {
-            if (!IsInitialized || !IsActive) return;
+            if (!IsInitialized || !IsActive) { return; }
 
             CurrentPayload = null;
             IsActive = false;

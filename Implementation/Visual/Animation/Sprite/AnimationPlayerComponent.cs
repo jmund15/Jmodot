@@ -31,7 +31,7 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
     public void StopAnim() => this.Stop();
     public void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
-        if (CurrentAnimation == animName && mode != AnimUpdateMode.Reset) return;
+        if (CurrentAnimation == animName && mode != AnimUpdateMode.Reset) { return; }
 
         if (HasAnimation(animName))
         {

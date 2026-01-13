@@ -157,7 +157,9 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
     {
         // Texture Swap
         if (item.TextureOverride != null)
+        {
             sprite.Texture = item.TextureOverride;
+        }
 
         // Sprite Sheet Row Selection
         // We only set the Y coordinate. We preserve X so animations don't reset.
@@ -168,14 +170,18 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
 
         // Tint
         if (item.ModulateOverride != Colors.White)
+        {
             sprite.Modulate = item.ModulateOverride;
+        }
     }
 
     private void ApplyOverrides3D(Sprite3D sprite, VisualItemData item)
     {
         // Texture Swap
         if (item.TextureOverride != null)
+        {
             sprite.Texture = item.TextureOverride;
+        }
 
         // Sprite Sheet Row Selection
         if (item.SpriteSheetRowOverride >= 0)
@@ -185,13 +191,15 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
 
         // Tint
         if (item.ModulateOverride != Colors.White)
+        {
             sprite.Modulate = item.ModulateOverride;
+        }
     }
 
     private IAnimComponent GetAnimComponent(Node node)
     {
         // 1. Check if the node itself is an IAnimComponent
-        if (node is IAnimComponent anim) return anim;
+        if (node is IAnimComponent anim) { return anim; }
 
         // 2. Use NodeExts to find the first child implementing the interface
         if (node.TryGetFirstChildOfInterface<IAnimComponent>(out var childAnim))

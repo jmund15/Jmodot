@@ -124,7 +124,7 @@ public partial class PlayerIntentSource : IntentSourceNode
         // Process all boolean/pressed/released actions
         foreach (var binding in _actionBindings)
         {
-            if (binding?.Action == null) continue;
+            if (binding?.Action == null) { continue; }
 
             bool isJustPressed = Input.IsActionJustPressed(binding.GodotActionName);
             bool isPressed = Input.IsActionPressed(binding.GodotActionName);

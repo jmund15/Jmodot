@@ -67,7 +67,7 @@ public partial class AAAParameters : Resource
     [Export]
     public Array<AAADirection> AnimDirections { get; private set; } = new()
     {
-        AAADirection.UP,
-        AAADirection.DOWN
+        AAADirection.Up,
+        AAADirection.Down
     };
 }

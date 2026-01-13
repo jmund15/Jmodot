@@ -11,6 +11,7 @@ using Tools.Visual.Sprite;
 public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
 {
     public float GetSpriteHeight() => Texture?.GetHeight() * PixelSize * Scale.Y ?? 0f;
+    public float GetSpriteHalfHeight() => GetSpriteHeight() / 2f;
     public float GetSpriteWidth() => Texture?.GetWidth() * PixelSize * Scale.X ?? 0f;
     public Node GetUnderlyingNode() => this;
 
@@ -49,7 +50,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
 
     private void GenerateAnimations()
     {
-        if (!ValidateConfig(out int cols, out int rows)) return;
+        if (!ValidateConfig(out int cols, out int rows)) { return; }
 
         // 1. Configure the Sprite3D properties to match the grid
         this.Hframes = cols;

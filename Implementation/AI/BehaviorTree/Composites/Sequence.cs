@@ -24,7 +24,7 @@ public partial class Sequence : CompositeTask
         else
         {
             // A sequence with no children succeeds immediately.
-            Status = TaskStatus.SUCCESS;
+            Status = TaskStatus.Success;
         }
     }
 
@@ -42,18 +42,18 @@ public partial class Sequence : CompositeTask
 
     private void OnChildStatusChanged(TaskStatus newStatus)
     {
-        if (newStatus is TaskStatus.RUNNING or TaskStatus.FRESH) { return; }
+        if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
 
         var currentChild = ChildTasks[_runningChildIdx];
         currentChild.TaskStatusChanged -= OnChildStatusChanged;
 
         switch (newStatus)
         {
-            case TaskStatus.SUCCESS:
+            case TaskStatus.Success:
                 _runningChildIdx++;
                 if (_runningChildIdx >= ChildTasks.Count)
                 {
-                    Status = TaskStatus.SUCCESS; // All children succeeded
+                    Status = TaskStatus.Success; // All children succeeded
                 }
                 else
                 {
@@ -63,8 +63,8 @@ public partial class Sequence : CompositeTask
                 }
                 break;
 
-            case TaskStatus.FAILURE:
-                Status = TaskStatus.FAILURE; // One child failed, so the sequence fails
+            case TaskStatus.Failure:
+                Status = TaskStatus.Failure; // One child failed, so the sequence fails
                 break;
         }
     }

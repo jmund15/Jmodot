@@ -25,7 +25,7 @@ public partial class Selector : CompositeTask
         else
         {
             // A selector with no children fails immediately.
-            Status = TaskStatus.FAILURE;
+            Status = TaskStatus.Failure;
         }
     }
 
@@ -43,22 +43,22 @@ public partial class Selector : CompositeTask
 
     private void OnChildStatusChanged(TaskStatus newStatus)
     {
-        if (newStatus is TaskStatus.RUNNING or TaskStatus.FRESH) { return; }
+        if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
 
         var currentChild = ChildTasks[_runningChildIdx];
         currentChild.TaskStatusChanged -= OnChildStatusChanged;
 
         switch (newStatus)
         {
-            case TaskStatus.SUCCESS:
-                Status = TaskStatus.SUCCESS; // One child succeeded, so the selector succeeds
+            case TaskStatus.Success:
+                Status = TaskStatus.Success; // One child succeeded, so the selector succeeds
                 break;
 
-            case TaskStatus.FAILURE:
+            case TaskStatus.Failure:
                 _runningChildIdx++;
                 if (_runningChildIdx >= ChildTasks.Count)
                 {
-                    Status = TaskStatus.FAILURE; // All children failed
+                    Status = TaskStatus.Failure; // All children failed
                 }
                 else
                 {

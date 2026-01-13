@@ -15,18 +15,20 @@ public static class ReactionResolver
     public static CombatTag GetHighestPriorityTag(IAttackPayload payload)
     {
         if (payload == null || payload.Effects == null || payload.Effects.Count == 0)
+        {
             return null;
+        }
 
         CombatTag highestPriorityTag = null;
         int maxPriority = int.MinValue;
 
         foreach (var effect in payload.Effects)
         {
-            if (effect.Tags == null) continue;
+            if (effect.Tags == null) { continue; }
 
             foreach (var tag in effect.Tags)
             {
-                if (tag == null) continue;
+                if (tag == null) { continue; }
 
                 if (tag.Priority > maxPriority)
                 {

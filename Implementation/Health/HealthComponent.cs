@@ -312,7 +312,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// </summary>
     private void OnStatProviderStatChanged(Attribute attribute, Variant newValue)
     {
-        if (attribute != _maxHealthAttribute) return;
+        if (attribute != _maxHealthAttribute) { return; }
 
         float previousMaxHealth = MaxHealth;
         float newMaxHealth = newValue.AsSingle();

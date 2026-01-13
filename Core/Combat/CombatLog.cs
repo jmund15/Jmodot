@@ -4,6 +4,7 @@ using Godot;
 using System.Collections.Generic;
 using System.Linq;
 using Jmodot.Core.Combat;
+using Jmodot.Implementation.Shared;
 using Reactions;
 
 /// <summary>
@@ -32,6 +33,10 @@ public class CombatLog
     public void Log(CombatResult result)
     {
         var currTimeContext = GetCurrentTimeContext();
+
+        // DIAGNOSTIC: Log when result is added
+        JmoLogger.Info(this, $"[DIAG] CombatLog.Log: {result.GetType().Name} at frame {currTimeContext.FrameId}");
+
         if (!_resultsByFrame.ContainsKey(currTimeContext.FrameId))
         {
             _resultsByFrame[currTimeContext.FrameId] = new List<CombatResult> { result };

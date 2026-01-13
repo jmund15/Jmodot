@@ -61,7 +61,7 @@ public partial class BehaviorTree : Node
         get => _enabled;
         private set
         {
-            if (_enabled == value) return;
+            if (_enabled == value) { return; }
             _enabled = value;
             EmitSignal(_enabled ? SignalName.TreeEnabled : SignalName.TreeDisabled);
         }
@@ -83,7 +83,7 @@ public partial class BehaviorTree : Node
 
     public override void _Ready()
     {
-        if (Engine.IsEditorHint() || !SelfSufficient) return;
+        if (Engine.IsEditorHint() || !SelfSufficient) { return; }
 
         if (!AgentNode.IsValid())
         {
@@ -102,13 +102,13 @@ public partial class BehaviorTree : Node
 
     public override void _Process(double delta)
     {
-        if (Engine.IsEditorHint() || !Enabled || !IsInitialized) return;
+        if (Engine.IsEditorHint() || !Enabled || !IsInitialized) { return; }
         RootTask?.ProcessFrame((float)delta);
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Engine.IsEditorHint() || !Enabled || !IsInitialized) return;
+        if (Engine.IsEditorHint() || !Enabled || !IsInitialized) { return; }
         RootTask?.ProcessPhysics((float)delta);
     }
 
@@ -120,7 +120,7 @@ public partial class BehaviorTree : Node
     /// <param name="bb">The IBlackboard instance for data communication.</param>
     public virtual void Init(Node agent, IBlackboard bb)
     {
-        if (IsInitialized) return;
+        if (IsInitialized) { return; }
 
         AgentNode = agent;
         Blackboard = bb;
@@ -168,7 +168,7 @@ public partial class BehaviorTree : Node
     /// </summary>
     public virtual void Exit()
     {
-        if (!IsInitialized) return;
+        if (!IsInitialized) { return; }
 
         Enabled = false;
         RootTask.TaskStatusChanged -= OnRootTaskStatusChanged;
@@ -182,7 +182,7 @@ public partial class BehaviorTree : Node
     private void OnRootTaskStatusChanged(TaskStatus newStatus)
     {
         // We only care about terminal states (SUCCESS or FAILURE) at the root level.
-        if (newStatus is TaskStatus.RUNNING or TaskStatus.FRESH)
+        if (newStatus is TaskStatus.Running or TaskStatus.Fresh)
         {
             return;
         }
@@ -217,9 +217,9 @@ public partial class BehaviorTree : Node
 
         if (SelfSufficient)
         {
-            if (AgentNode == null) warnings.Add("SelfSufficient is true, but AgentNode is not assigned.");
-            if (_blackboardNode == null) warnings.Add("SelfSufficient is true, but Blackboard is not assigned.");
-            else if (_blackboardNode is not IBlackboard) warnings.Add("The assigned Blackboard node must implement the IBlackboard interface.");
+            if (AgentNode == null) { warnings.Add("SelfSufficient is true, but AgentNode is not assigned."); }
+            if (_blackboardNode == null) { warnings.Add("SelfSufficient is true, but Blackboard is not assigned."); }
+            else if (_blackboardNode is not IBlackboard) { warnings.Add("The assigned Blackboard node must implement the IBlackboard interface."); }
         }
 
         return warnings.ToArray();

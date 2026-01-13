@@ -22,6 +22,6 @@ public partial class SetBBValue : BehaviorAction
         // but for a simple example, this works with Godot's Variant system.
         BB.Set(Key, Value); // Assuming primitive for simplicity. Use Set for objects.
 
-        Status = TaskStatus.SUCCESS;
+        Status = TaskStatus.Success;
     }
 }

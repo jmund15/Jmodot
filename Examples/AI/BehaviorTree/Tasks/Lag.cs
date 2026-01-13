@@ -19,7 +19,7 @@ public partial class Lag : BehaviorAction
         base.OnEnter();
         if (LagTime <= 0f)
         {
-            Status = TaskStatus.SUCCESS;
+            Status = TaskStatus.Success;
             return;
         }
 
@@ -42,9 +42,9 @@ public partial class Lag : BehaviorAction
     {
         // Check if we are still running. It's possible the task was aborted
         // but the timer fired in the same frame.
-        if (Status == TaskStatus.RUNNING)
+        if (Status == TaskStatus.Running)
         {
-            Status = TaskStatus.SUCCESS;
+            Status = TaskStatus.Success;
         }
     }
 }

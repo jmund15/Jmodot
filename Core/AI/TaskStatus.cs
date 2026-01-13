@@ -8,17 +8,17 @@ public enum TaskStatus
     /// <summary>
     /// The task has not been evaluated yet or has been reset after completion.
     /// </summary>
-    FRESH,
+    Fresh,
     /// <summary>
     /// The task is currently executing and has not yet finished.
     /// </summary>
-    RUNNING,
+    Running,
     /// <summary>
     /// The task has completed its execution successfully.
     /// </summary>
-    SUCCESS,
+    Success,
     /// <summary>
     /// The task has failed to complete its execution.
     /// </summary>
-    FAILURE
+    Failure
 }

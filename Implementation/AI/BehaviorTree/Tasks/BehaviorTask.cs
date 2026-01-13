@@ -55,7 +55,7 @@ using Shared;
         {
             this.Agent = agent;
             this.BB = bb;
-            this.Status = TaskStatus.FRESH;
+            this.Status = TaskStatus.Fresh;
             this.TaskName = Name;
 
             foreach (var condition in Conditions.Where(c => c.IsValid()))
@@ -70,11 +70,11 @@ using Shared;
         /// </summary>
         public void Enter()
         {
-            Status = TaskStatus.FRESH;
+            Status = TaskStatus.Fresh;
 
             if (!CheckAllConditions(out _))
             {
-                Status = TaskStatus.FAILURE;
+                Status = TaskStatus.Failure;
                 return;
             }
 
@@ -85,9 +85,9 @@ using Shared;
 
             OnEnter();
 
-            if (Status == TaskStatus.FRESH)
+            if (Status == TaskStatus.Fresh)
             {
-                Status = TaskStatus.RUNNING;
+                Status = TaskStatus.Running;
             }
         }
 
@@ -97,7 +97,7 @@ using Shared;
         /// </summary>
         public void Exit()
         {
-            if (Status == TaskStatus.RUNNING)
+            if (Status == TaskStatus.Running)
             {
                 OnExit();
             }
@@ -105,7 +105,7 @@ using Shared;
             {
                 condition.OnParentTaskExit();
             }
-            Status = TaskStatus.FRESH;
+            Status = TaskStatus.Fresh;
         }
 
         /// <summary>
@@ -114,12 +114,12 @@ using Shared;
         /// </summary>
         public void ProcessFrame(float delta)
         {
-            if (Status != TaskStatus.RUNNING) { return; }
+            if (Status != TaskStatus.Running) { return; }
 
             if (MonitorConditions && !CheckAllConditions(out var failingCondition))
             {
                 JmoLogger.Info(this, $"Task aborted due to failed condition monitoring: {failingCondition!.ResourceName}");
-                Status = failingCondition.SucceedOnAbort ? TaskStatus.SUCCESS : TaskStatus.FAILURE;
+                Status = failingCondition.SucceedOnAbort ? TaskStatus.Success : TaskStatus.Failure;
                 return;
             }
             OnProcessFrame(delta);
@@ -131,7 +131,7 @@ using Shared;
         /// </summary>
         public void ProcessPhysics(float delta)
         {
-            if (Status != TaskStatus.RUNNING) { return; }
+            if (Status != TaskStatus.Running) { return; }
             OnProcessPhysics(delta);
         }
 

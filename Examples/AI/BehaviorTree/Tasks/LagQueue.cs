@@ -60,11 +60,11 @@ public partial class LagQueue : BehaviorAction
     {
         if (this.BB.Get<bool>(BBDataSig.QueuedNextAttack))
         {
-            this.Status = TaskStatus.SUCCESS;
+            this.Status = TaskStatus.Success;
         }
         else
         {
-            this.Status = TaskStatus.FAILURE;
+            this.Status = TaskStatus.Failure;
         }
     }
 

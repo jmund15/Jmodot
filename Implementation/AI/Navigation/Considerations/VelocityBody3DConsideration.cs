@@ -155,7 +155,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
         bool useVelocity = relativeVelDir.LengthSquared() > Epsilon;
 
         // If the target is right on top of us and there's no relative velocity, there's nothing to consider.
-        if (toTargetDir.IsZeroApprox() && !useVelocity) return considerations;
+        if (toTargetDir.IsZeroApprox() && !useVelocity) { return considerations; }
 
         // --- 4. Determine the Ideal Movement Direction based on Mode (Chase/Avoid) ---
         Vector3 idealDirection;
@@ -170,7 +170,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
             idealDirection = CalculateAvoidDirection(toTargetDir, relativeVelDir, useVelocity);
         }
 
-        if (idealDirection.IsZeroApprox()) return considerations;
+        if (idealDirection.IsZeroApprox()) { return considerations; }
 
         // --- 5. Calculate Score Magnitude ---
         // The base score is influenced by the weight and decreases with distance to the target.
@@ -185,7 +185,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
             if (!_hasVerticalMovement)
             {
                 finalAvailableDir.Y = 0;
-                if (finalAvailableDir.IsZeroApprox()) continue;
+                if (finalAvailableDir.IsZeroApprox()) { continue; }
                 finalAvailableDir = finalAvailableDir.Normalized();
             }
 
@@ -267,7 +267,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     private void Propagate(ref Dictionary<Vector3, float> scores)
     {
-        if (_orderedDirections == null || _orderedDirections.Count == 0) return;
+        if (_orderedDirections == null || _orderedDirections.Count == 0) { return; }
 
         var initialScores = new Dictionary<Vector3, float>(scores);
         int dirCount = _orderedDirections.Count;
@@ -275,7 +275,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
         for (int i = 0; i < dirCount; i++)
         {
             float initialScore = initialScores[_orderedDirections[i]];
-            if (initialScore <= 0f) continue;
+            if (initialScore <= 0f) { continue; }
 
             float propWeight = initialScore * _propDiminishWeight;
 

@@ -11,14 +11,14 @@ public partial class MeshInstance3DComponent : MeshInstance3D, IMeshComponent
 {
     public void SetMaterialOverride(Material material, int surface = -1)
     {
-        if (surface < 0) base.MaterialOverride = material;
-        else SetSurfaceOverrideMaterial(surface, material);
+        if (surface < 0) { base.MaterialOverride = material; }
+        else { SetSurfaceOverrideMaterial(surface, material); }
     }
 
     public void ClearMaterialOverride(int surface = -1)
     {
-        if (surface < 0) base.MaterialOverride = null;
-        else SetSurfaceOverrideMaterial(surface, null);
+        if (surface < 0) { base.MaterialOverride = null; }
+        else { SetSurfaceOverrideMaterial(surface, null); }
     }
 
     public Node GetUnderlyingNode() => this;

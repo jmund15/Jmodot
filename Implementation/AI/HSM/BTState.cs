@@ -20,13 +20,13 @@ using Shared.GodotExceptions;
         /// The state to transition to when the Behavior Tree completes with a SUCCESS status.
         /// </summary>
         [Export(PropertyHint.NodeType, "State")]
-        protected State OnTreeSuccessState;
+        protected State _onTreeSuccessState;
 
         /// <summary>
         /// The state to transition to when the Behavior Tree completes with a FAILURE status.
         /// </summary>
         [Export(PropertyHint.NodeType, "State")]
-        protected State OnTreeFailureState;
+        protected State _onTreeFailureState;
 
         private BehaviorTree _tree = null!; // Set in OnInit, exception thrown if missing
 
@@ -59,23 +59,23 @@ using Shared.GodotExceptions;
             JmoLogger.Info(this, $"BehaviorTree finished loop with status: {treeStatus}");
             switch (treeStatus)
             {
-                case TaskStatus.FAILURE:
-                    if (!OnTreeFailureState.IsValid())
+                case TaskStatus.Failure:
+                    if (!_onTreeFailureState.IsValid())
                     {
                         JmoLogger.Warning(this, "Tree failed, but OnTreeFailureState is not set. The BT will restart in this state.");
                         return;
                     }
-                    EmitSignal(SignalName.TransitionState, this, OnTreeFailureState, false, true);
+                    EmitSignal(SignalName.TransitionState, this, _onTreeFailureState, false, true);
                     break;
-                case TaskStatus.SUCCESS:
-                    if (!OnTreeSuccessState.IsValid())
+                case TaskStatus.Success:
+                    if (!_onTreeSuccessState.IsValid())
                     {
                         JmoLogger.Warning(this, "Tree succeeded, but OnTreeSuccessState is not set. The BT will restart in this state.");
                         return;
                     }
-                    EmitSignal(SignalName.TransitionState, this, OnTreeSuccessState, false, true);
+                    EmitSignal(SignalName.TransitionState, this, _onTreeSuccessState, false, true);
                     break;
-                case TaskStatus.RUNNING or TaskStatus.FRESH:
+                case TaskStatus.Running or TaskStatus.Fresh:
                     JmoLogger.Error(this, "TreeFinishedLoop signal was emitted with a non-terminal status. This indicates a logic error in the BehaviorTree.");
                     break;
             }
@@ -90,22 +90,22 @@ using Shared.GodotExceptions;
                 warnings.Add("BTState must contain a child of type BehaviorTree.");
             }
 
-            if (OnTreeSuccessState == null)
+            if (_onTreeSuccessState == null)
             {
                 warnings.Add("OnTreeSuccessState is not assigned. The state machine will remain in this state upon BT success.");
             }
-            else if (Engine.IsEditorHint() && OnTreeSuccessState.GetParent() != GetParent())
+            else if (Engine.IsEditorHint() && _onTreeSuccessState.GetParent() != GetParent())
             {
                 // A common configuration error is pointing to a state in a different FSM.
                 // A valid target state should almost always be a sibling.
                 warnings.Add("OnTreeSuccessState is not a sibling of this BTState. Ensure it belongs to the same CompoundState.");
             }
 
-            if (OnTreeFailureState == null)
+            if (_onTreeFailureState == null)
             {
                 warnings.Add("OnTreeFailureState is not assigned. The state machine will remain in this state upon BT failure.");
             }
-            else if (Engine.IsEditorHint() && OnTreeFailureState.GetParent() != GetParent())
+            else if (Engine.IsEditorHint() && _onTreeFailureState.GetParent() != GetParent())
             {
                 warnings.Add("OnTreeFailureState is not a sibling of this BTState. Ensure it belongs to the same CompoundState.");
             }

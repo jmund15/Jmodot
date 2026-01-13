@@ -191,7 +191,7 @@ public partial class VisualEffectController : Node, IComponent
 
     private void ApplyEffects()
     {
-        if (_nodeBaseModulates.Count == 0) return;
+        if (_nodeBaseModulates.Count == 0) { return; }
 
         // 1. Calculate the composite effect color
         Color finalEffectColor = Colors.White;
@@ -282,7 +282,7 @@ public partial class VisualEffectController : Node, IComponent
 
         // Clean invalid nodes
         var invalidNodes = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n)).ToList();
-        foreach (var n in invalidNodes) _nodeBaseModulates.Remove(n);
+        foreach (var n in invalidNodes) { _nodeBaseModulates.Remove(n); }
 
         foreach (var node in currentNodes)
         {
@@ -303,7 +303,7 @@ public partial class VisualEffectController : Node, IComponent
 
         foreach (var source in VisualSources)
         {
-            if (source == null || !GodotObject.IsInstanceValid(source)) continue;
+            if (source == null || !GodotObject.IsInstanceValid(source)) { continue; }
 
             if (source is IVisualSpriteProvider provider)
             {
@@ -315,10 +315,10 @@ public partial class VisualEffectController : Node, IComponent
             }
             else
             {
-                if (source is SpriteBase3D) nodes.Add(source);
+                if (source is SpriteBase3D) { nodes.Add(source); }
                 nodes.AddRange(source.GetChildrenOfType<SpriteBase3D>());
                 // Add 2D support?
-                if (source is Node2D) nodes.AddRange(source.GetChildrenOfType<Node2D>().Where(n => n.GetType().Name.Contains("Sprite")));
+                if (source is Node2D) { nodes.AddRange(source.GetChildrenOfType<Node2D>().Where(n => n.GetType().Name.Contains("Sprite"))); }
             }
         }
         return nodes;
@@ -352,8 +352,8 @@ public partial class VisualEffectController : Node, IComponent
 
     private static Color GetModulate(Node node)
     {
-        if (node is SpriteBase3D s3d) return s3d.Modulate;
-        if (node is CanvasItem ci) return ci.Modulate;
+        if (node is SpriteBase3D s3d) { return s3d.Modulate; }
+        if (node is CanvasItem ci) { return ci.Modulate; }
         return Colors.White;
     }
 

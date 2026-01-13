@@ -20,8 +20,8 @@ public class ComponentInitHelper : IGodotNodeInterface
 
     public bool InitializeDependencies(IBlackboard bb)
     {
-        if (IsInitialized) return true;
-        if (!_comp.Initialize(bb)) return false;
+        if (IsInitialized) { return true; }
+        if (!_comp.Initialize(bb)) { return false; }
 
         IsInitialized = true;
         return true;
@@ -29,7 +29,7 @@ public class ComponentInitHelper : IGodotNodeInterface
 
     public void OnPostInitialize()
     {
-        if (!IsInitialized) return;
+        if (!IsInitialized) { return; }
         _owner.ProcessMode = Node.ProcessModeEnum.Inherit;
         _comp.OnPostInitialize();
     }

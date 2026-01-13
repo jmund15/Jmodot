@@ -122,9 +122,9 @@ public partial class HurtboxComponent3D : Area3D, IComponent
             return velocityProvider.LinearVelocity.Normalized();
         }
 
-        if (source is CharacterBody3D cb) return cb.Velocity.Normalized();
-        if (source is RigidBody3D rb) return rb.LinearVelocity.Normalized();
-        if (source is StaticBody3D sb) return sb.ConstantLinearVelocity.Normalized();
+        if (source is CharacterBody3D cb) { return cb.Velocity.Normalized(); }
+        if (source is RigidBody3D rb) { return rb.LinearVelocity.Normalized(); }
+        if (source is StaticBody3D sb) { return sb.ConstantLinearVelocity.Normalized(); }
 
         return Vector3.Zero;
 
@@ -139,9 +139,9 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         }
 
         // 2. Legacy Fallback (Casting)
-        if (source is CharacterBody3D cb) return cb.Velocity;
-        if (source is RigidBody3D rb) return rb.LinearVelocity;
-        if (source is StaticBody3D sb) return sb.ConstantLinearVelocity;
+        if (source is CharacterBody3D cb) { return cb.Velocity; }
+        if (source is RigidBody3D rb) { return rb.LinearVelocity; }
+        if (source is StaticBody3D sb) { return sb.ConstantLinearVelocity; }
 
         // 3. Default
         return Vector3.Zero;

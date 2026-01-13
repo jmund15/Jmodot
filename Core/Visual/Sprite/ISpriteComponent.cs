@@ -11,6 +11,7 @@ using Shared;
 public interface ISpriteComponent : IGodotNodeInterface
 {
     float GetSpriteHeight();
+    float GetSpriteHalfHeight();
     float GetSpriteWidth();
     bool FlipH { get; set; }
     bool FlipV { get; set; }

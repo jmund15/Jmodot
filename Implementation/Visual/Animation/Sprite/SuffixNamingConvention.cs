@@ -17,11 +17,11 @@ public partial class SuffixNamingConvention : AnimationNamingConvention
 
     public override StringName GetFullAnimationName(StringName baseName, IEnumerable<string> variants)
     {
-        if (string.IsNullOrEmpty(baseName)) return "";
+        if (string.IsNullOrEmpty(baseName)) { return ""; }
 
         var validVariants = variants.Where(v => !string.IsNullOrEmpty(v));
         //JmoLogger.Info(this, $"validVariants: {validVariants.Count()}");
-        if (!validVariants.Any()) return baseName;
+        if (!validVariants.Any()) { return baseName; }
 
         // Using Concat for performance with many variants.
         return new StringName(baseName + string.Concat(validVariants.Select(v => Separator + v)));

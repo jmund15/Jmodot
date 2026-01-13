@@ -39,7 +39,9 @@ public partial class KnockbackCondition : CombatLogCondition
         {
             // 1. Force Threshold Check
             if (r.Force < MinForce || r.Force > MaxForce)
+            {
                 return false;
+            }
 
             // 2. Tag Check
             if (RequiredTags != null && RequiredTags.Count > 0)
@@ -55,9 +57,9 @@ public partial class KnockbackCondition : CombatLogCondition
                             break;
                         }
                     }
-                    if (hasTag) break;
+                    if (hasTag) { break; }
                 }
-                if (!hasTag) return false;
+                if (!hasTag) { return false; }
             }
 
             return true;

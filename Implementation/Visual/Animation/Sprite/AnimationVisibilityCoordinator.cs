@@ -63,7 +63,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     public override void _Ready()
     {
         // Don't run runtime logic in the editor
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint()) { return; }
 
         if (AutoRegisterNodes)
         {
@@ -102,7 +102,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     /// </summary>
     private void OnChildEnteredTree(Node node)
     {
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint()) { return; }
 
         //GD.Print($"[AnimVis] ChildEnteredTree fired for: {node.Name}");
 
@@ -200,7 +200,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         if (!string.IsNullOrEmpty(SuffixSeparator))
         {
             int idx = nameStr.LastIndexOf(SuffixSeparator);
-            if (idx > 0) nameStr = nameStr.Substring(0, idx);
+            if (idx > 0) { nameStr = nameStr.Substring(0, idx); }
         }
 
         StringName key = new StringName(nameStr);
@@ -293,7 +293,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                 {
                     // Only check nodes matching the prefix
                     string childName = child.Name.ToString();
-                    if (!childName.StartsWith(NodePrefix)) continue;
+                    if (!childName.StartsWith(NodePrefix)) { continue; }
 
                     string expectedKey = childName.Substring(NodePrefix.Length).ToLower();
 
@@ -306,7 +306,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                         if (!string.IsNullOrEmpty(SuffixSeparator))
                         {
                             int idx = processedAnim.LastIndexOf(SuffixSeparator);
-                            if (idx > 0) processedAnim = processedAnim.Substring(0, idx);
+                            if (idx > 0) { processedAnim = processedAnim.Substring(0, idx); }
                         }
 
                         if (processedAnim == expectedKey)

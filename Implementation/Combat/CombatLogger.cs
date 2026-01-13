@@ -159,7 +159,7 @@ public partial class CombatLogger : Node, IComponent
                     var runnerTagNames = new System.Collections.Generic.List<string>();
                     foreach (var tag in runnerTags)
                     {
-                        if (tag != null) runnerTagNames.Add(tag.TagId);
+                        if (tag != null) { runnerTagNames.Add(tag.TagId); }
                     }
                     sb.AppendLine(string.Join(", ", runnerTagNames));
                 }

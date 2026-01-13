@@ -28,21 +28,21 @@ public partial class AAA : EditorScript
     {
         switch (direction)
         {
-            case AAADirection.DOWN:
+            case AAADirection.Down:
                 return "Down";
-            case AAADirection.UP:
+            case AAADirection.Up:
                 return "Up";
-            case AAADirection.LEFT:
+            case AAADirection.Left:
                 return "Left";
-            case AAADirection.RIGHT:
+            case AAADirection.Right:
                 return "Right";
-            case AAADirection.DOWNLEFT:
+            case AAADirection.DownLeft:
                 return "DownLeft";
-            case AAADirection.DOWNRIGHT:
+            case AAADirection.DownRight:
                 return "DownRight";
-            case AAADirection.UPLEFT:
+            case AAADirection.UpLeft:
                 return "UpLeft";
-            case AAADirection.UPRIGHT:
+            case AAADirection.UpRight:
                 return "UpRight";
             default:
                 GD.PrintErr("not any face direction?? facedir = " + direction);

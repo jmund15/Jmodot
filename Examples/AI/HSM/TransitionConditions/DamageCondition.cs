@@ -30,7 +30,9 @@ public partial class DamageCondition : CombatLogCondition
         {
             // 1. Damage Threshold Check
             if (r.FinalAmount < MinDamage || r.FinalAmount > MaxDamage)
+            {
                 return false;
+            }
 
             // 2. Tag Check
             if (RequiredTags != null && RequiredTags.Count > 0)
@@ -46,9 +48,9 @@ public partial class DamageCondition : CombatLogCondition
                             break;
                         }
                     }
-                    if (hasTag) break;
+                    if (hasTag) { break; }
                 }
-                if (!hasTag) return false;
+                if (!hasTag) { return false; }
             }
 
             return true;

@@ -61,8 +61,8 @@ public partial class AISteeringProcessor3D : Node
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-        if (_considerations.Count == 0) warnings.Add("No considerations are assigned. The AI will have no environmental awareness.");
-        if (MovementDirections == null || !MovementDirections.Directions.Any()) warnings.Add("No movement directions are defined. The AI will not know how to score potential moves.");
+        if (_considerations.Count == 0) { warnings.Add("No considerations are assigned. The AI will have no environmental awareness."); }
+        if (MovementDirections == null || !MovementDirections.Directions.Any()) { warnings.Add("No movement directions are defined. The AI will not know how to score potential moves."); }
         return warnings.ToArray();
     }
 
@@ -148,7 +148,7 @@ public partial class AISteeringProcessor3D : Node
     {
         // --- 1. Reset scores for this frame's calculation ---
         var keys = _scores.Keys.ToList();
-        foreach (var key in keys) _scores[key] = 0f;
+        foreach (var key in keys) { _scores[key] = 0f; }
 
         // --- 2. Evaluate all environmental considerations ---
         // Each consideration adds its own scores to the master dictionary.

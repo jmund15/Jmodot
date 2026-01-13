@@ -121,7 +121,7 @@ public partial class StatusEffectComponent : Node, IComponent
     {
         foreach (var tag in tags)
         {
-            if (tag == null) continue;
+            if (tag == null) { continue; }
 
             if (!_activeTags.ContainsKey(tag))
             {
@@ -141,7 +141,7 @@ public partial class StatusEffectComponent : Node, IComponent
     {
         foreach (var tag in tags)
         {
-            if (tag == null) continue;
+            if (tag == null) { continue; }
 
             if (_activeTags.ContainsKey(tag))
             {

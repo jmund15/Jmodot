@@ -99,7 +99,7 @@ public abstract partial class StatusRunner : Node
     
     private VisualEffectController? FindVisualController(ICombatant target)
     {
-        if (target?.OwnerNode == null) return null;
+        if (target?.OwnerNode == null) { return null; }
         
         // Try to find in children
         var controller = target.OwnerNode.GetChildrenOfType<VisualEffectController>().FirstOrDefault();

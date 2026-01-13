@@ -56,7 +56,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         get => _baseValue;
         set
         {
-            if (EqualityComparer<T>.Default.Equals(_baseValue, value)) return;
+            if (EqualityComparer<T>.Default.Equals(_baseValue, value)) { return; }
             _baseValue = value;
             _isDirty = true;
             CheckValueChanged();

@@ -41,7 +41,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     public override void _Ready()
     {
-        if (Engine.IsEditorHint()) return;
+        if (Engine.IsEditorHint()) { return; }
         // 1. Register Manual Master
         if (MasterAnimatorNode != null)
         {
@@ -63,10 +63,10 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             foreach (var child in children)
             {
                 // Don't register self if we somehow found ourselves (unlikely with GetChildren, but safe)
-                if (ReferenceEquals(child, this)) continue;
+                if (ReferenceEquals(child, this)) { continue; }
 
                 // Don't re-register the master we just added
-                if (_activeAnimators.Contains(child)) continue;
+                if (_activeAnimators.Contains(child)) { continue; }
 
                 RegisterAnimator(child, isMaster: false);
             }
@@ -127,7 +127,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             {
                 UnhookMaster(animator);
                 _masterAnimator = _activeAnimators.FirstOrDefault();
-                if (_masterAnimator != null) HookMaster(_masterAnimator);
+                if (_masterAnimator != null) { HookMaster(_masterAnimator); }
             }
         }
     }
@@ -193,8 +193,8 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     private void SyncChildToMaster(IAnimComponent child)
     {
-        if (_masterAnimator == null || child == _masterAnimator) return;
-        if (!_masterAnimator.IsPlaying()) return;
+        if (_masterAnimator == null || child == _masterAnimator) { return; }
+        if (!_masterAnimator.IsPlaying()) { return; }
 
         float norm = GetMasterNormalizedTime();
         float childLen = child.GetCurrAnimationLength();

@@ -1,5 +1,5 @@
-# This is the top-most .editorconfig file
-root = true
+# Jmodot submodule - inherits from parent .editorconfig
+# (Removed root = true so parent rules are inherited)
 
 # Apply to all files in the repository
 [*]

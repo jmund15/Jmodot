@@ -101,7 +101,7 @@ public partial class DebugBTComponent : Tree
     }
     private void OnTreeInitialized()
     {
-        if (!_bt.RootTask.IsValid()) return;
+        if (!_bt.RootTask.IsValid()) { return; }
 
         Name = $"{_bt.Name}Debugger";
         var rootItem = CreateItem();
@@ -116,7 +116,7 @@ public partial class DebugBTComponent : Tree
     {
         foreach (var childTask in parentTask.GetChildren())
         {
-            if (childTask is not BehaviorTask btChild) continue;
+            if (childTask is not BehaviorTask btChild) { continue; }
 
             var branchItem = CreateItem(parentItem);
             branchItem.SetText(0, btChild.Name);
@@ -146,10 +146,10 @@ public partial class DebugBTComponent : Tree
 
     private void OnTaskStatusChange(BehaviorTask task, TaskStatus newStatus)
     {
-        if (!_taskToItemMap.TryGetValue(task, out var item)) return;
+        if (!_taskToItemMap.TryGetValue(task, out var item)) { return; }
 
         // Reset timer and remove from running list when a task stops running.
-        if (newStatus != TaskStatus.RUNNING && _runningTasks.Contains(task))
+        if (newStatus != TaskStatus.Running && _runningTasks.Contains(task))
         {
             _runningTasks.Remove(task);
             _taskRunTime[task] = 0.0f;
@@ -158,7 +158,7 @@ public partial class DebugBTComponent : Tree
 
         switch (newStatus)
         {
-            case TaskStatus.RUNNING:
+            case TaskStatus.Running:
                 if (!_runningTasks.Contains(task))
                 {
                     _runningTasks.Add(task);
@@ -166,13 +166,13 @@ public partial class DebugBTComponent : Tree
                 }
                 SetItemColor(item, _runningColor);
                 break;
-            case TaskStatus.SUCCESS:
+            case TaskStatus.Success:
                 FlashItemColor(item, _successColor);
                 break;
-            case TaskStatus.FAILURE:
+            case TaskStatus.Failure:
                 FlashItemColor(item, _failureColor);
                 break;
-            case TaskStatus.FRESH:
+            case TaskStatus.Fresh:
                 SetItemColor(item, _baseBgColor);
                 break;
         }
@@ -186,7 +186,7 @@ public partial class DebugBTComponent : Tree
         // When the tree resets, set all non-running tasks back to the base color.
         foreach (var kvp in _taskToItemMap)
         {
-            if (kvp.Key.Status != TaskStatus.RUNNING)
+            if (kvp.Key.Status != TaskStatus.Running)
             {
                 SetItemColor(kvp.Value, _baseBgColor);
                 if (_taskRunTime.ContainsKey(kvp.Key))
@@ -218,7 +218,7 @@ public partial class DebugBTComponent : Tree
             var task = _taskToItemMap.FirstOrDefault(x => x.Value == item).Key;
             if (task != null)
             {
-               var targetColor = task.Status == TaskStatus.RUNNING ? _runningColor : _baseBgColor;
+               var targetColor = task.Status == TaskStatus.Running ? _runningColor : _baseBgColor;
                SetItemColor(item, targetColor);
             }
         })).SetDelay(0.5f);

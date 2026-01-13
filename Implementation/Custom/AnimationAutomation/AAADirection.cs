@@ -2,12 +2,12 @@ namespace Jmodot.Implementation.Custom.AnimationAutomation;
 
 public enum AAADirection
 {
-    DOWN = 0,
-    UP,
-    LEFT,
-    RIGHT,
-    DOWNLEFT,
-    DOWNRIGHT,
-    UPLEFT,
-    UPRIGHT
+    Down = 0,
+    Up,
+    Left,
+    Right,
+    DownLeft,
+    DownRight,
+    UpLeft,
+    UpRight
 }

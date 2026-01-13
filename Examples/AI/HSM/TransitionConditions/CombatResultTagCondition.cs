@@ -28,9 +28,9 @@ public partial class CombatResultTagCondition : CombatLogCondition
                             break;
                         }
                     }
-                    if (hasTag) break;
+                    if (hasTag) { break; }
                 }
-                if (!hasTag) return false;
+                if (!hasTag) { return false; }
             }
 
             return true;

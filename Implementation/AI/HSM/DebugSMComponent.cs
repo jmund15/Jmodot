@@ -29,7 +29,7 @@ public partial class DebugSMComponent : Control
 
     public override void _Process(double delta)
     {
-        if (Engine.IsEditorHint() || !_currentStateLabel.IsValid()) return;
+        if (Engine.IsEditorHint() || !_currentStateLabel.IsValid()) { return; }
 
         _currentStateTime += delta;
         _currentStateLabel.Text = $"> {Name}: {_currentStateTime:n2}";

@@ -60,7 +60,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
-        if (_targetCategory == null) return scores;
+        if (_targetCategory == null) { return scores; }
 
         // Get all perceived objects that match our target category.
         var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
@@ -72,7 +72,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
 
             // Calculate the weight based on distance.
             float distanceWeight = GetDistanceConsideration(distance);
-            if (distanceWeight <= 0f) continue;
+            if (distanceWeight <= 0f) { continue; }
 
             float scoreAmount = _considerationWeight * distanceWeight;
 
@@ -122,8 +122,8 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     private float GetDistanceConsideration(float distance)
     {
-        if (distance <= _distanceDiminishRange.X) return 1.0f; // Max weight
-        if (distance >= _distanceDiminishRange.Y) return 0.0f; // No weight
+        if (distance <= _distanceDiminishRange.X) { return 1.0f; } // Max weight
+        if (distance >= _distanceDiminishRange.Y) { return 0.0f; } // No weight
 
         // Linearly interpolate the weight between the min and max distances.
         return 1.0f - (distance - _distanceDiminishRange.X) / (_distanceDiminishRange.Y - _distanceDiminishRange.X);
@@ -134,7 +134,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     private void Propagate(ref Dictionary<Vector3, float> scores)
     {
-        if (_orderedDirections == null || _orderedDirections.Count == 0) return;
+        if (_orderedDirections == null || _orderedDirections.Count == 0) { return; }
 
         var initialScores = new Dictionary<Vector3, float>(scores);
         int dirCount = _orderedDirections.Count;
@@ -143,7 +143,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
         {
             int dirId = _dirIds.Reverse[_orderedDirections[i]];
             float initialScore = initialScores[_orderedDirections[i]];
-            if (initialScore == 0f) continue;
+            if (initialScore == 0f) { continue; }
 
             float propWeight = initialScore * _propDiminishWeight;
 

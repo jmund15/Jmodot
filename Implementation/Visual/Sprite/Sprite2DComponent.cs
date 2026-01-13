@@ -10,6 +10,7 @@ using Godot;
 public partial class Sprite2DComponent : Sprite2D, ISpriteComponent
 {
     public float GetSpriteHeight() => Texture?.GetHeight() * Scale.Y ?? 0f; // CHECK: check height and width
+    public float GetSpriteHalfHeight() => GetSpriteHeight() / 2f;
     public float GetSpriteWidth() => Texture?.GetWidth() * Scale.X ?? 0f;
     public Node GetUnderlyingNode() => this;
 }

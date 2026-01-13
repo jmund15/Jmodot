@@ -83,7 +83,7 @@ public partial class CooldownCondition : BTCondition
     private void OnParentStatusChanged(TaskStatus status)
     {
         // We only care about the task succeeding.
-        if (status == TaskStatus.SUCCESS)
+        if (status == TaskStatus.Success)
         {
             StartCooldown();
         }
@@ -94,7 +94,7 @@ public partial class CooldownCondition : BTCondition
     /// </summary>
     private void StartCooldown()
     {
-        if (!_isReady) return; // Prevent starting the cooldown multiple times.
+        if (!_isReady) { return; } // Prevent starting the cooldown multiple times.
 
         _isReady = false;
         JmoLogger.Info(this, $"Starting {_cooldownDuration}s cooldown.");

@@ -94,10 +94,10 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
     // --- Time-Based Synchronization (Frame <-> Time Mapping) ---
     public void SeekPos(float time, bool updateNow = true)
     {
-        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return;
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) { return; }
 
         float fps = (float)SpriteFrames.GetAnimationSpeed(Animation);
-        if (fps <= 0) return;
+        if (fps <= 0) { return; }
 
         // Convert Time (seconds) -> Frame Index
         int targetFrame = Mathf.FloorToInt(time * fps);
@@ -109,10 +109,10 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
 
     public float GetCurrAnimationLength()
     {
-        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return 0f;
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) { return 0f; }
 
         float fps = (float)SpriteFrames.GetAnimationSpeed(Animation);
-        if (fps <= 0) return 0f;
+        if (fps <= 0) { return 0f; }
 
         // Length = Total Frames / FPS
         return SpriteFrames.GetFrameCount(Animation) / fps;
@@ -120,20 +120,20 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
 
     public float GetAnimationLength(StringName animName)
     {
-        if (SpriteFrames == null || !SpriteFrames.HasAnimation(animName)) return 0f;
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(animName)) { return 0f; }
 
         float fps = (float)SpriteFrames.GetAnimationSpeed(animName);
-        if (fps <= 0) return 0f;
+        if (fps <= 0) { return 0f; }
 
         return SpriteFrames.GetFrameCount(animName) / fps;
     }
 
     public float GetCurrAnimationPosition()
     {
-        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) return 0f;
+        if (SpriteFrames == null || !SpriteFrames.HasAnimation(Animation)) { return 0f; }
 
         float fps = (float)SpriteFrames.GetAnimationSpeed(Animation);
-        if (fps <= 0) return 0f;
+        if (fps <= 0) { return 0f; }
 
         // Position = Current Frame / FPS
         return this.Frame / fps;
@@ -148,21 +148,23 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
     public float GetSpriteHeight()
     {
         // The size can vary per frame, so we get the texture of the current frame.
-        if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) return 0f;
+        if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) { return 0f; }
         var texture = SpriteFrames.GetFrameTexture(Animation, Frame);
         return texture?.GetHeight() * PixelSize * Scale.Y ?? 0f;
     }
 
+    public float GetSpriteHalfHeight() => GetSpriteHeight() / 2f;
+
     public float GetSpriteWidth()
     {
-        if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) return 0f;
+        if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) { return 0f; }
         var texture = SpriteFrames.GetFrameTexture(Animation, Frame);
         return texture?.GetWidth() * PixelSize * Scale.X ?? 0f;
     }
 
     public Texture2D? GetTexture()
     {
-        if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) return null;
+        if (SpriteFrames == null || string.IsNullOrEmpty(Animation)) { return null; }
         return SpriteFrames.GetFrameTexture(Animation, Frame);
     }
 

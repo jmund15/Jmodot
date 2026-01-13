@@ -39,7 +39,7 @@ public partial class StatContextReceiver2D : Area2D
     private void OnProviderEntered(Area2D area)
     {
         // Check if the area we entered is a stat context provider.
-        if (area is not IStatContextProvider provider) return;
+        if (area is not IStatContextProvider provider) { return; }
 
         // Apply all modifiers from the provider.
         // The provider's own instance (the Area2D node) is used as the unique "owner".
@@ -57,7 +57,7 @@ public partial class StatContextReceiver2D : Area2D
     private void OnProviderExited(Area2D area)
     {
         // Check if the area we are leaving is a stat context provider.
-        if (area is not IStatContextProvider provider) return;
+        if (area is not IStatContextProvider provider) { return; }
 
         // This single, clean call tells the StatController to find and remove
         // ALL modifiers that were previously added by this specific provider instance.
