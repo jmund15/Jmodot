@@ -10,9 +10,28 @@ using Tools.Visual.Sprite;
 [GlobalClass, Tool]
 public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
 {
-    public float GetSpriteHeight() => Texture?.GetHeight() * PixelSize * Scale.Y ?? 0f;
+    public float GetSpriteHeight()
+    {
+        // 1. Determine the base pixel height (use RegionRect if enabled, else full Texture)
+        float baseHeight = RegionEnabled ? RegionRect.Size.Y : (Texture?.GetHeight() ?? 0f);
+
+        // 2. Divide by Vframes to get the height of a single frame
+        // 3. Multiply by PixelSize (meters per pixel) and Scale.Y (node transform)
+        return (baseHeight / Vframes) * PixelSize * Scale.Y;
+    }
+    public float GetWorldHeight() => GetSpriteHeight() * Scale.Y;
     public float GetSpriteHalfHeight() => GetSpriteHeight() / 2f;
-    public float GetSpriteWidth() => Texture?.GetWidth() * PixelSize * Scale.X ?? 0f;
+    public float GetSpriteWidth()
+    {
+        // 1. Determine the base pixel width (use RegionRect if enabled, else full Texture)
+        float baseWidth = RegionEnabled ? RegionRect.Size.X : (Texture?.GetWidth() ?? 0f);
+
+        // 2. Divide by Hframes to get the width of a single frame
+        // 3. Multiply by PixelSize (meters per pixel) and Scale.X (node transform)
+        return (baseWidth / Hframes) * PixelSize * Scale.X;
+    }
+    public float GetWorldWidth() => GetSpriteWidth() * Scale.X;
+
     public Node GetUnderlyingNode() => this;
 
     // --- Editor Generation Logic ---

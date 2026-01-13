@@ -25,11 +25,11 @@ public partial class StatusAppliedCondition : CombatLogCondition
     {
         // DIAGNOSTIC: Log what we're checking for
         var requiredTagIds = RequiredTags?.Select(t => t?.TagId.ToString() ?? "null").ToList() ?? new List<string>();
-        JmoLogger.Info(this, $"[DIAG] StatusAppliedCondition checking for tags: [{string.Join(", ", requiredTagIds)}]");
+        //JmoLogger.Info(this, $"[DIAG] StatusAppliedCondition checking for tags: [{string.Join(", ", requiredTagIds)}]");
 
         // DIAGNOSTIC: Get all StatusResults this frame for logging
         var statusResults = log.GetEvents<StatusResult>().ToList();
-        JmoLogger.Info(this, $"[DIAG] Found {statusResults.Count} StatusResult(s) in CombatLog this frame");
+        //JmoLogger.Info(this, $"[DIAG] Found {statusResults.Count} StatusResult(s) in CombatLog this frame");
 
         foreach (var sr in statusResults)
         {
@@ -63,7 +63,7 @@ public partial class StatusAppliedCondition : CombatLogCondition
             return false;
         });
 
-        JmoLogger.Info(this, $"[DIAG] StatusAppliedCondition result: {result}");
+        //JmoLogger.Info(this, $"[DIAG] StatusAppliedCondition result: {result}");
         return result;
     }
 }
