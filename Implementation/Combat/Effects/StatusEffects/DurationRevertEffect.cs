@@ -1,13 +1,11 @@
 namespace Jmodot.Implementation.Combat.Effects.StatusEffects;
 
 using System.Collections.Generic;
-using System.Linq;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
 using Core.Visual.Effects;
-using Shared;
 using Status;
 
 /// <summary>
@@ -67,7 +65,6 @@ public class DurationRevertEffect : ICombatEffect
         }
 
         // 4. Inject the Snapshot Data
-        GD.Print($"Setting up DurationRevertEffect on {runner.Name} with Duration: {Duration}");
         runner.Setup(Duration, RevertEffect, PersistentVisuals, Tags, Visual);
 
         // 5. Add to System
@@ -81,9 +78,6 @@ public class DurationRevertEffect : ICombatEffect
         }
 
         // 6. Return the Result
-        var tagIds = Tags?.Select(t => t?.TagId.ToString() ?? "null").ToList() ?? new List<string>();
-        JmoLogger.Info(this, $"[DIAG] DurationRevertEffect returning StatusResult with tags: [{string.Join(", ", tagIds)}], Runner: {runner.Name}");
-
         return new StatusResult
         {
             Source = context.Source,

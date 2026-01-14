@@ -99,8 +99,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		_movementProcessor.ApplyImpulse(impulse);
 		EmitSignal(SignalName.KnockbackApplied, direction, finalForce);
-
-		GD.Print($"[KnockbackComponent3D] Applied knockback: direction={direction}, force={finalForce}");
 	}
 
 	#endregion
