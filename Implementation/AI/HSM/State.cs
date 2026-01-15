@@ -220,6 +220,12 @@ public partial class State : Node, IState
                 .Where(c => c.IsValid())
                 .All(c => c.Check(Agent, BB));
 
+            // DEBUG: Log transition checking for BattleEnd transitions
+            if (transition.ResourceName?.Contains("battle_end") == true)
+            {
+                JmoLogger.Info(this, $"[HSM Debug] State '{Name}' checking transition '{transition.ResourceName}': conditions met = {allConditionsMet}");
+            }
+
 
             if (allConditionsMet && _resolvedTransitions.TryGetValue(transition, out State targetState))
             {
@@ -234,6 +240,7 @@ public partial class State : Node, IState
                     continue; // Try the next transition
                 }
 
+                JmoLogger.Info(this, $"[HSM Debug] State '{Name}' firing transition to '{targetState.Name}' (urgent={transition.Urgent}, canPropagateUp={transition.CanPropagateUp})");
                 EmitSignal(SignalName.TransitionState, this, targetState, transition.Urgent, transition.CanPropagateUp);
                 return; // Stop after the first valid transition is found.
             }

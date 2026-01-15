@@ -97,10 +97,7 @@ using AI.BB;
         public override void _Ready()
         {
             // Start "Cold"
-            Monitoring = false;
-            Monitorable = false;
-            IsActive = false;
-            SetPhysicsProcess(false);
+            Deactivate();
 
             if (AutoStartWithDefault)
             {
@@ -112,6 +109,7 @@ using AI.BB;
         {
             // Only runs if IsContinuous == true and StartAttack() was called.
             if (!IsActive) { return; }
+            if (!IsContinuous) { return; }
 
             _tickTimer += delta;
 
@@ -135,14 +133,8 @@ using AI.BB;
             if (!IsInitialized) { return; }
 
             CurrentPayload = payload;
-            IsActive = true;
             _hitHurtboxes.Clear();
             _tickTimer = 0.0;
-
-            // Activate Physics.
-            // SetDeferred ensures we don't crash if called during a physics callback.
-            SetDeferred(Area3D.PropertyName.Monitoring, true);
-            SetDeferred(Area3D.PropertyName.Monitorable, true);
 
             OnAttackStarted?.Invoke();
 
@@ -153,10 +145,7 @@ using AI.BB;
             // has been processed by the engine before we try to query overlaps.
             Callable.From(ProcessOverlappingAreas).CallDeferred();
 
-            if (IsContinuous)
-            {
-                SetPhysicsProcess(true);
-            }
+            Activate();
 
             //GD.Print($"Hitbox '{Name} Starting Attack!");
         }
@@ -166,16 +155,9 @@ using AI.BB;
             if (!IsInitialized || !IsActive) { return; }
 
             CurrentPayload = null;
-            IsActive = false;
             _hitHurtboxes.Clear();
 
-            SetDeferred(PropertyName.Monitoring, false);
-            SetDeferred(PropertyName.Monitorable, false);
-
-            if (IsContinuous)
-            {
-                SetPhysicsProcess(false);
-            }
+            Deactivate();
 
             OnAttackFinished?.Invoke();
         }
@@ -206,6 +188,24 @@ using AI.BB;
         #endregion
 
         #region Core Logic
+
+        private void Activate()
+        {
+            // SetDeferred ensures we don't crash if called during a physics callback.
+            SetDeferred(PropertyName.Monitoring, true);
+            SetDeferred(PropertyName.Monitorable, true);
+            SetPhysicsProcess(true);
+            IsActive = true;
+        }
+
+        private void Deactivate()
+        {
+            IsActive = false;
+            // SetDeferred ensures we don't crash if called during a physics callback.
+            SetDeferred(PropertyName.Monitoring, false);
+            SetDeferred(PropertyName.Monitorable, false);
+            SetPhysicsProcess(false);
+        }
 
         private void OnAreaEntered(Area3D area)
         {

@@ -33,6 +33,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent
     #endregion
 
     #region State
+    public bool IsActive { get; private set; }
     private ICombatant _combatant;
     #endregion
 
@@ -55,7 +56,10 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         return true;
     }
 
-    public void OnPostInitialize() { }
+    public void OnPostInitialize()
+    {
+        Activate(); // if not already (TODO: maybe remove for cleanness or determine if we should actually activate in _Ready)
+    }
     public event Action? Initialized;
 
     public Node GetUnderlyingNode() => this;
@@ -64,10 +68,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent
     #region Godot Lifecycle
     public override void _Ready()
     {
-        // Passive detection. We don't scan for others (Monitoring=False),
-        // but we allow others to scan us (Monitorable=True).
-        Monitoring = false;
-        Monitorable = true;
+        Activate();
     }
     #endregion
 
@@ -80,6 +81,9 @@ public partial class HurtboxComponent3D : Area3D, IComponent
     /// <returns>True if the hit was processed, False if rejected.</returns>
     public bool ProcessHit(IAttackPayload payload)
     {
+        // 0. Check if active (how did we get here?)
+        if (!IsActive) { return false; }
+
         // 1. Validation
         if (!IsInitialized || _combatant == null) { return false; }
 
@@ -107,7 +111,32 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         OnHitReceived?.Invoke(payload, context);
         return true;
     }
+    #endregion
+    #region Core Logic
 
+    private void Activate()
+    {
+        if (IsActive) { return; }
+        // Passive detection. We don't scan for others (Monitoring=False),
+        // but we allow others to scan us (Monitorable=True).
+
+        // SetDeferred ensures we don't crash if called during a physics callback.
+        SetDeferred(PropertyName.Monitoring, false);
+        SetDeferred(PropertyName.Monitorable, true);
+
+        SetPhysicsProcess(true);
+        IsActive = true;
+    }
+
+    private void Deactivate()
+    {
+        if (!IsActive) { return; }
+        IsActive = false;
+        // SetDeferred ensures we don't crash if called during a physics callback.
+        SetDeferred(PropertyName.Monitoring, false);
+        SetDeferred(PropertyName.Monitorable, false);
+        SetPhysicsProcess(false);
+    }
     private Vector3 CalculateHitDirection(Node source)
     {
         // POSITION BASED
@@ -127,7 +156,6 @@ public partial class HurtboxComponent3D : Area3D, IComponent
         if (source is StaticBody3D sb) { return sb.ConstantLinearVelocity.Normalized(); }
 
         return Vector3.Zero;
-
     }
 
     private Vector3 CalculateImpactVelocity(Node source)
