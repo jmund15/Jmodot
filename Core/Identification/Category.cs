@@ -18,4 +18,11 @@ public partial class Category : Resource
     /// </summary>
     [Export]
     public string CategoryName { get; private set; } = "Unnamed Category";
+
+    #region Test Helpers
+
+    /// <summary>Sets CategoryName for testing purposes.</summary>
+    internal void SetCategoryName(string value) => CategoryName = value;
+
+    #endregion
 }
