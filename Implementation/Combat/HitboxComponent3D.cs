@@ -138,14 +138,16 @@ using AI.BB;
 
             OnAttackStarted?.Invoke();
 
+            // Activate FIRST so that Monitoring=true is queued before ProcessOverlappingAreas.
+            // Deferred calls execute in FIFO order.
+            Activate();
+
             // Attempt to hit anything already inside the volume.
             // Note: If this node was previously Monitoring=False, GetOverlappingAreas
             // might rely on the *next* physics frame to update.
             // We defer this call to ensure that the 'Monitoring' property update (which is also deferred)
             // has been processed by the engine before we try to query overlaps.
             Callable.From(ProcessOverlappingAreas).CallDeferred();
-
-            Activate();
 
             //GD.Print($"Hitbox '{Name} Starting Attack!");
         }
@@ -218,6 +220,9 @@ using AI.BB;
 
         private void ProcessOverlappingAreas()
         {
+            // Guard: GetOverlappingAreas() requires Monitoring to be enabled.
+            if (!Monitoring) { return; }
+
             // Check all currently overlapping areas.
             // Essential for "Spawn on top" or "Beam" logic.
             var areas = GetOverlappingAreas();
