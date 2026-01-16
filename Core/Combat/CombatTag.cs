@@ -22,15 +22,15 @@ public partial class CombatTag : Resource
     [Export] public int Priority { get; set; }
 
     /// <summary>
-    /// Optional elemental/type category for label-based interactions.
-    /// Links this tag to a Category (e.g., Fire, Water, Ice) so that
+    /// Optional elemental/type identity for label-based interactions.
+    /// Links this tag to an Identity (e.g., Fire, Water, Ice Labels) so that
     /// interaction rules can apply to all effects sharing the same element.
     /// </summary>
     /// <remarks>
     /// Example: Both "Burn" and "Smolder" CombatTags can link to the same
-    /// "Fire" category, so a "Water cancels Fire" interaction affects both.
+    /// "Fire" identity, so a "Water cancels Fire" interaction affects both.
     /// </remarks>
-    [Export] public Category? ElementalCategory { get; set; }
+    [Export] public Identity? ElementalCategory { get; set; }
 
     /// <summary>
     /// Optional stacking policy for effects with this tag.

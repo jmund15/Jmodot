@@ -12,19 +12,23 @@ using Godot.Collections;
 ///     of Category resources it belongs to.
 /// </remarks>
 [GlobalClass]
-public sealed partial class Identity : Resource
+public partial class Identity : Resource
 {
     /// <summary>
     ///     The user-friendly name of the specific identity (e.g., "Elite Grunt", "Health Potion").
     /// </summary>
-
-    [Export]
-    public string IdentityName { get; private set; } = "Unnamed Identity";
+    [Export] public string IdentityName { get; private set; } = "Unnamed Identity";
 
     /// <summary>
     ///     A list of categories this identity belongs to. An "EliteGrunt" identity might belong to
     ///     the "Enemy", "Ranged", and "Armored" categories, enabling complex and flexible querying by other systems.
     /// </summary>
-    [Export]
-    public Array<Category> Categories { get; private set; } = new();
+    [Export] public Array<Category> Categories { get; private set; } = new();
+
+    #region Test Helpers
+
+    /// <summary>Sets IdentityName for testing purposes.</summary>
+    internal void SetIdentityName(string value) => IdentityName = value;
+
+    #endregion
 }

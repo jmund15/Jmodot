@@ -151,12 +151,12 @@ public partial class StatusEffectComponent : Node, IComponent
     }
 
     /// <summary>
-    /// Gets all active runners with the specified elemental category.
+    /// Gets all active runners with the specified elemental identity.
     /// </summary>
-    public IEnumerable<StatusRunner> GetRunnersWithCategory(Category category)
+    public IEnumerable<StatusRunner> GetRunnersWithIdentity(Identity identity)
     {
         return _activeRunners.Where(r =>
-            r.Tags.Any(t => t?.ElementalCategory == category));
+            r.Tags.Any(t => t?.ElementalCategory == identity));
     }
 
     /// <summary>

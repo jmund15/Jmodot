@@ -4,7 +4,7 @@ using Godot;
 using Jmodot.Core.Identification;
 
 /// <summary>
-/// Defines an interaction rule between two Categories.
+/// Defines an interaction rule between two Identities (typically Labels).
 /// When an effect with IncomingCategory is applied to an entity
 /// that has an active effect with ExistingCategory, this interaction triggers.
 /// </summary>
@@ -12,14 +12,14 @@ using Jmodot.Core.Identification;
 public partial class CategoryInteraction : Resource
 {
     /// <summary>
-    /// The Category of the effect being applied.
+    /// The Identity (Label) of the effect being applied.
     /// </summary>
-    [Export] public Category? IncomingCategory { get; private set; }
+    [Export] public Identity? IncomingCategory { get; private set; }
 
     /// <summary>
-    /// The Category of the already-active effect.
+    /// The Identity (Label) of the already-active effect.
     /// </summary>
-    [Export] public Category? ExistingCategory { get; private set; }
+    [Export] public Identity? ExistingCategory { get; private set; }
 
     /// <summary>
     /// What happens when these categories interact.
@@ -38,12 +38,12 @@ public partial class CategoryInteraction : Resource
     [Export] public bool IsBidirectional { get; private set; } = false;
 
     /// <summary>
-    /// Checks if this interaction matches the given incoming and existing categories.
+    /// Checks if this interaction matches the given incoming and existing identities.
     /// </summary>
-    /// <param name="incoming">The category of the effect being applied.</param>
-    /// <param name="existing">The category of the active effect.</param>
+    /// <param name="incoming">The identity of the effect being applied.</param>
+    /// <param name="existing">The identity of the active effect.</param>
     /// <returns>True if this interaction applies.</returns>
-    public bool Matches(Category? incoming, Category? existing)
+    public bool Matches(Identity? incoming, Identity? existing)
     {
         if (incoming == null || existing == null)
         {
@@ -73,10 +73,10 @@ public partial class CategoryInteraction : Resource
     #region Test Helpers
 
     /// <summary>Sets IncomingCategory for testing purposes.</summary>
-    internal void SetIncomingCategory(Category? value) => IncomingCategory = value;
+    internal void SetIncomingCategory(Identity? value) => IncomingCategory = value;
 
     /// <summary>Sets ExistingCategory for testing purposes.</summary>
-    internal void SetExistingCategory(Category? value) => ExistingCategory = value;
+    internal void SetExistingCategory(Identity? value) => ExistingCategory = value;
 
     /// <summary>Sets Effect for testing purposes.</summary>
     internal void SetEffect(CategoryInteractionEffect value) => Effect = value;

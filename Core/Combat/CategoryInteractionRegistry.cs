@@ -18,12 +18,12 @@ public partial class CategoryInteractionRegistry : Resource
     [Export] public Godot.Collections.Array<CategoryInteraction> Interactions { get; private set; } = new();
 
     /// <summary>
-    /// Finds the interaction rule for the given incoming and existing categories.
+    /// Finds the interaction rule for the given incoming and existing identities.
     /// </summary>
-    /// <param name="incoming">The category of the effect being applied.</param>
-    /// <param name="existing">The category of the active effect.</param>
+    /// <param name="incoming">The identity of the effect being applied.</param>
+    /// <param name="existing">The identity of the active effect.</param>
     /// <returns>The matching interaction, or null if none found.</returns>
-    public CategoryInteraction? GetInteraction(Category? incoming, Category? existing)
+    public CategoryInteraction? GetInteraction(Identity? incoming, Identity? existing)
     {
         if (incoming == null || existing == null)
         {
@@ -42,12 +42,12 @@ public partial class CategoryInteractionRegistry : Resource
     }
 
     /// <summary>
-    /// Gets all interactions that apply when the given category is incoming.
-    /// Includes bidirectional interactions where this category could be "existing".
+    /// Gets all interactions that apply when the given identity is incoming.
+    /// Includes bidirectional interactions where this identity could be "existing".
     /// </summary>
-    /// <param name="incoming">The category of the effect being applied.</param>
+    /// <param name="incoming">The identity of the effect being applied.</param>
     /// <returns>All matching interactions.</returns>
-    public IEnumerable<CategoryInteraction> GetInteractionsForIncoming(Category? incoming)
+    public IEnumerable<CategoryInteraction> GetInteractionsForIncoming(Identity? incoming)
     {
         if (incoming == null)
         {
