@@ -6,6 +6,7 @@ using Shared;
 using System;
 using System.Collections.Generic;
 using Core.Visual.Effects;
+using Effects;
 
 /// <summary>
 /// Helper class representing a runtime slot.
@@ -20,6 +21,12 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
     private Node _slotRoot;
     private Node? _currentInstance;
 
+    /// <summary>
+    /// Optional tracker for base modulation colors.
+    /// When set, base colors are registered here for VisualEffectController to query.
+    /// </summary>
+    private BaseModulationTracker? _baseColorTracker;
+
     // Visual Effect Tracking
     private readonly List<Node> _currentVisualNodes = new();
     private readonly List<Node> _currentVisibleNodes = new();
@@ -27,11 +34,12 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
     public event Action VisualNodesChanged = delegate { };
     public event Action VisibleNodesChanged = delegate { };
 
-    public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot)
+    public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot, BaseModulationTracker? baseColorTracker = null)
     {
         Config = config;
         _composite = composite;
         _slotRoot = slotRoot;
+        _baseColorTracker = baseColorTracker;
     }
 
     public void Equip(VisualItemData? item)
@@ -109,7 +117,15 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
 
         if (_currentInstance != null)
         {
-            // Cleanup visual tracking
+            // Cleanup visual tracking - unregister from base color tracker
+            if (_baseColorTracker != null)
+            {
+                foreach (var visualNode in _currentVisualNodes)
+                {
+                    _baseColorTracker.UnregisterSprite(visualNode);
+                }
+            }
+
             if (_prefabProvider != null)
             {
                 _prefabProvider.VisibleNodesChanged -= OnPrefabVisibleNodesChanged;
@@ -168,10 +184,16 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
         }
 
-        // Tint
+        // Tint - register with tracker for proper effect blending
         if (item.ModulateOverride != Colors.White)
         {
             sprite.Modulate = item.ModulateOverride;
+            _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
+        }
+        else
+        {
+            // No override - still register white as the base color
+            _baseColorTracker?.RegisterBaseColor(sprite, Colors.White);
         }
     }
 
@@ -189,10 +211,16 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
         }
 
-        // Tint
+        // Tint - register with tracker for proper effect blending
         if (item.ModulateOverride != Colors.White)
         {
             sprite.Modulate = item.ModulateOverride;
+            _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
+        }
+        else
+        {
+            // No override - still register white as the base color
+            _baseColorTracker?.RegisterBaseColor(sprite, Colors.White);
         }
     }
 

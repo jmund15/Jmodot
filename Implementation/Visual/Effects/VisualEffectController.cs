@@ -9,6 +9,8 @@ using Jmodot.Core.Components;
 using Godot;
 using GCol = Godot.Collections;
 using Shared;
+using Implementation.AI.BB;
+using Implementation.Visual.Animation.Sprite;
 
 /// <summary>
 /// Central controller for applying visual effects across all active sprites in an entity.
@@ -37,11 +39,30 @@ public partial class VisualEffectController : Node, IComponent
 
     /// <summary>
     /// Maps each visual node to its base modulate color (captured when tracking starts).
+    /// When BaseModulationTracker is set, this dictionary is populated from the tracker.
     /// </summary>
     private readonly Dictionary<Node, Color> _nodeBaseModulates = new();
 
+    /// <summary>
+    /// Optional tracker for explicit base color management.
+    /// When set, base colors are queried from the tracker instead of captured from sprite state.
+    /// This is critical for equipment systems where base colors change at runtime.
+    /// </summary>
+    private BaseModulationTracker? _baseColorTracker;
+
     public bool IsInitialized { get; private set; }
     public event Action Initialized;
+
+    /// <summary>
+    /// Set the base color tracker for this controller.
+    /// When set, base colors are queried from the tracker instead of captured from sprite state.
+    /// </summary>
+    public void SetBaseColorTracker(BaseModulationTracker tracker)
+    {
+        _baseColorTracker = tracker;
+        // Refresh to pick up tracked colors
+        RefreshVisualNodes();
+    }
 
     public override void _Ready()
     {
@@ -60,6 +81,12 @@ public partial class VisualEffectController : Node, IComponent
 
     public bool Initialize(IBlackboard bb)
     {
+        // Auto-wire with VisualComposer's BaseColorTracker if available in Blackboard
+        if (_baseColorTracker == null && bb.TryGet(BBDataSig.VisualComposer, out VisualComposer composer))
+        {
+            SetBaseColorTracker(composer.BaseColorTracker);
+        }
+
         InitializeProviders();
         RefreshVisualNodes();
 
@@ -268,17 +295,14 @@ public partial class VisualEffectController : Node, IComponent
     }
 
     /// <summary>
-    ///
+    /// Refreshes the list of tracked visual nodes and their base colors.
+    /// When a BaseModulationTracker is set, base colors are queried from the tracker.
+    /// Otherwise, colors are captured from the current sprite state.
     /// </summary>
     public void RefreshVisualNodes()
     {
         // Capture new list of nodes
         var currentNodes = GetAllVisualNodes();
-
-        // Remove nodes that are no longer present
-        // (Optional optimization: only remove if not in currentNodes)
-        // For safety/simplicity, we can just rebuild the map or merge.
-        // Let's merge: preserve existing base colors for existing nodes, capture for new ones.
 
         // Clean invalid nodes
         var invalidNodes = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n)).ToList();
@@ -286,12 +310,17 @@ public partial class VisualEffectController : Node, IComponent
 
         foreach (var node in currentNodes)
         {
-            if (!_nodeBaseModulates.ContainsKey(node))
+            // Always update from tracker if available (tracker is source of truth)
+            if (_baseColorTracker != null)
             {
-                // New node found, capture its CURRENT state as base
-                // NOTE: If we are mid-effect, this might capture the effect color as base if we aren't careful.
-                // ideally RefreshVisualNodes is called when no effects are running, OR we calculate the inverse.
-                // For now, assuming base modulate doesn't change implicitly.
+                // Query tracker for explicit base color
+                // If not registered, use White (no modification)
+                _nodeBaseModulates[node] = _baseColorTracker.GetBaseColor(node);
+            }
+            else if (!_nodeBaseModulates.ContainsKey(node))
+            {
+                // No tracker - legacy behavior: capture current state as base
+                // NOTE: This can capture effect colors if mid-effect. Use tracker to avoid.
                 _nodeBaseModulates[node] = GetModulate(node);
             }
         }

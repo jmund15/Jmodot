@@ -137,6 +137,24 @@ public partial class Blackboard : Node, IBlackboard
         // 2. Check for a Variant
         if (_variantData.TryGetValue(key, out var variantVal))
         {
+            // For value types (int, float, Vector3, etc.), use typed accessors
+            // Godot's As<T>() requires [MustBeVariant] which we can't enforce on our generic T
+            if (typeof(T).IsValueType)
+            {
+                if (TryConvertVariantToValueType<T>(variantVal, out var convertedValue))
+                {
+                    value = convertedValue;
+                    return true;
+                }
+
+                // Conversion failed
+                if (variantVal.VariantType != Variant.Type.Nil)
+                {
+                    JmoLogger.Error(this, $"TryGet failed for key '{key}': Cannot convert Variant to '{typeof(T).Name}'.");
+                }
+                return false;
+            }
+
             if (variantVal.Obj is T typedValue)
             {
                 value = typedValue;
@@ -217,6 +235,119 @@ public partial class Blackboard : Node, IBlackboard
         if (Subscriptions.TryGetValue(key, out var callbacks))
         {
             callbacks?.Invoke(newValue);
+        }
+    }
+
+    /// <summary>
+    /// Converts a Variant to a value type using Godot's typed accessors.
+    /// Required because Variant.As&lt;T&gt;() needs [MustBeVariant] which can't be enforced on our generic T.
+    /// </summary>
+    private static bool TryConvertVariantToValueType<T>(Variant variant, out T? value)
+    {
+        value = default;
+        var targetType = typeof(T);
+
+        try
+        {
+            // Handle common value types with their specific Variant accessors
+            if (targetType == typeof(int))
+            {
+                value = (T)(object)variant.AsInt32();
+                return true;
+            }
+            if (targetType == typeof(long))
+            {
+                value = (T)(object)variant.AsInt64();
+                return true;
+            }
+            if (targetType == typeof(float))
+            {
+                value = (T)(object)variant.AsSingle();
+                return true;
+            }
+            if (targetType == typeof(double))
+            {
+                value = (T)(object)variant.AsDouble();
+                return true;
+            }
+            if (targetType == typeof(bool))
+            {
+                value = (T)(object)variant.AsBool();
+                return true;
+            }
+            if (targetType == typeof(Vector2))
+            {
+                value = (T)(object)variant.AsVector2();
+                return true;
+            }
+            if (targetType == typeof(Vector3))
+            {
+                value = (T)(object)variant.AsVector3();
+                return true;
+            }
+            if (targetType == typeof(Vector2I))
+            {
+                value = (T)(object)variant.AsVector2I();
+                return true;
+            }
+            if (targetType == typeof(Vector3I))
+            {
+                value = (T)(object)variant.AsVector3I();
+                return true;
+            }
+            if (targetType == typeof(Color))
+            {
+                value = (T)(object)variant.AsColor();
+                return true;
+            }
+            if (targetType == typeof(Quaternion))
+            {
+                value = (T)(object)variant.AsQuaternion();
+                return true;
+            }
+            if (targetType == typeof(Transform2D))
+            {
+                value = (T)(object)variant.AsTransform2D();
+                return true;
+            }
+            if (targetType == typeof(Transform3D))
+            {
+                value = (T)(object)variant.AsTransform3D();
+                return true;
+            }
+            if (targetType == typeof(Rect2))
+            {
+                value = (T)(object)variant.AsRect2();
+                return true;
+            }
+            if (targetType == typeof(Aabb))
+            {
+                value = (T)(object)variant.AsAabb();
+                return true;
+            }
+            if (targetType == typeof(Basis))
+            {
+                value = (T)(object)variant.AsBasis();
+                return true;
+            }
+            if (targetType == typeof(Plane))
+            {
+                value = (T)(object)variant.AsPlane();
+                return true;
+            }
+
+            // Fallback: try to get via Obj and cast (works for some cases)
+            if (variant.Obj is T objValue)
+            {
+                value = objValue;
+                return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

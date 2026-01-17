@@ -11,6 +11,7 @@ using Core.Movement;
 using Core.Visual.Effects;
 using Shared;
 using Jmodot.Core.Shared.Attributes;
+using Effects;
 
 /// <summary>
 /// Manages the visual composition of the character.
@@ -23,6 +24,18 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     [Export] public GCol.Array<VisualSlotConfig> SlotConfigs { get; set; } = new();
 
     private Dictionary<string, VisualSlot> _slots = new();
+
+    /// <summary>
+    /// Tracker for managing base modulation colors across equipment changes.
+    /// Created automatically and shared with all slots.
+    /// </summary>
+    private BaseModulationTracker _baseColorTracker = new();
+
+    /// <summary>
+    /// Get the base color tracker for this composer.
+    /// Use this to wire up with VisualEffectController.
+    /// </summary>
+    public BaseModulationTracker BaseColorTracker => _baseColorTracker;
 
     private List<Node>? _visibleNodes;
     private List<Node>? _visualNodes;
@@ -50,7 +63,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
                 continue;
             }
 
-            var slot = new VisualSlot(config, CompositeAnimator, slotRoot);
+            var slot = new VisualSlot(config, CompositeAnimator, slotRoot, _baseColorTracker);
             _slots[config.SlotName] = slot;
 
             // Subscribe to effects changes for bubbling

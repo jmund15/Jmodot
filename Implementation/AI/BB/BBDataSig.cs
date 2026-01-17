@@ -88,4 +88,33 @@ public static partial class BBDataSig
     public static readonly StringName SquadAverageHealth = new("SquadAverageHealth");
 
     #endregion
+
+    #region FORMATION_PROPERTIES
+
+    /// <summary>
+    /// The slot index assigned to this member within the squad formation.
+    /// Stored on the member's blackboard. -1 = unassigned.
+    /// </summary>
+    public static readonly StringName FormationSlotIndex = new("FormationSlotIndex");
+
+    /// <summary>
+    /// Dictionary mapping slot indices to world positions.
+    /// Stored on the squad blackboard for all members to read.
+    /// Type: Dictionary&lt;int, Vector3&gt;
+    /// </summary>
+    public static readonly StringName FormationSlotPositions = new("FormationSlotPositions");
+
+    /// <summary>
+    /// The Node3D reference to the current formation leader.
+    /// Stored on the squad blackboard.
+    /// </summary>
+    public static readonly StringName FormationLeader = new("FormationLeader");
+
+    /// <summary>
+    /// Whether formation positioning is currently active.
+    /// Stored on the squad blackboard.
+    /// </summary>
+    public static readonly StringName FormationActive = new("FormationActive");
+
+    #endregion
 }
