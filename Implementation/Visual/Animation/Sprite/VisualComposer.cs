@@ -76,7 +76,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
                 // Defer the initial equip to avoid "Parent is busy setting up children" errors
                 // since we are currently inside _Ready and the scene tree is locked.
                 CallDeferred(MethodName.EquipDefault, config.SlotName, config.DefaultItem);
-                GD.Print($"VisualComposer: Scheduled default item '{config.DefaultItem.Id}' for slot '{config.SlotName}' (Deferred).");
+                //GD.Print($"VisualComposer: Scheduled default item '{config.DefaultItem.Id}' for slot '{config.SlotName}' (Deferred).");
             }
         }
 
@@ -144,11 +144,11 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             if (slot.CurrentItem == null)
             {
                 slot.Equip(item);
-                GD.Print($"VisualComposer: Executing deferred default equip for '{slotName}' -> '{item.Id}'");
+                //JmoLogger.Info(this, $"VisualComposer: Executing deferred default equip for '{slotName}' -> '{item.Id}'");
             }
             else
             {
-                GD.Print($"VisualComposer: Skipping deferred default equip for '{slotName}'. Slot already has '{slot.CurrentItem.Id}'.");
+                //JmoLogger.Info(this, $"VisualComposer: Skipping deferred default equip for '{slotName}'. Slot already has '{slot.CurrentItem.Id}'.");
             }
         }
     }
@@ -161,7 +161,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
         }
         else
         {
-            GD.PrintErr($"VisualComposer: Slot '{slotName}' not found.");
+           JmoLogger.Error(this, $"VisualComposer: Slot '{slotName}' not found.");
         }
     }
 

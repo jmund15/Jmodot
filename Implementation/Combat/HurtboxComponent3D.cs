@@ -8,6 +8,7 @@ namespace Jmodot.Implementation.Combat;
 
 using Core.Movement;
 using Implementation.AI.BB;
+using Implementation.Shared;
 
 /// <summary>
 /// Represents the damageable zone of an entity.
@@ -139,23 +140,39 @@ public partial class HurtboxComponent3D : Area3D, IComponent
     }
     private Vector3 CalculateHitDirection(Node source)
     {
-        // POSITION BASED
-        // if (source is Node3D source3D)
-        // {
-        //     return (GlobalPosition - source3D.GlobalPosition).Normalized();
-        // }
-
-        // VELOCITY BASED
-        if (source is IVelocityProvider3D velocityProvider)
+        // 1. VELOCITY BASED (for projectiles - direction they're traveling)
+        if (source is IVelocityProvider3D velocityProvider && velocityProvider.LinearVelocity.LengthSquared() > 0.01f)
         {
             return velocityProvider.LinearVelocity.Normalized();
         }
 
-        if (source is CharacterBody3D cb) { return cb.Velocity.Normalized(); }
-        if (source is RigidBody3D rb) { return rb.LinearVelocity.Normalized(); }
-        if (source is StaticBody3D sb) { return sb.ConstantLinearVelocity.Normalized(); }
+        if (source is CharacterBody3D cb && cb.Velocity.LengthSquared() > 0.01f)
+        {
+            return cb.Velocity.Normalized();
+        }
 
-        return Vector3.Zero;
+        if (source is RigidBody3D rb && rb.LinearVelocity.LengthSquared() > 0.01f)
+        {
+            return rb.LinearVelocity.Normalized();
+        }
+
+        if (source is StaticBody3D sb && sb.ConstantLinearVelocity.LengthSquared() > 0.01f)
+        {
+            return sb.ConstantLinearVelocity.Normalized();
+        }
+
+        // 2. POSITION BASED (for AOE/explosions - push away from epicenter)
+        if (source is Node3D source3D)
+        {
+            Vector3 direction = GlobalPosition - source3D.GlobalPosition;
+            if (direction.LengthSquared() > 0.01f)
+            {
+                return direction.Normalized();
+            }
+        }
+
+        // 3. FALLBACK: Random XZ direction (e.g., standing directly on explosion)
+        return MiscUtils.GetRndVector3ZeroY();
     }
 
     private Vector3 CalculateImpactVelocity(Node source)

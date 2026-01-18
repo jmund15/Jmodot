@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Input;
 
 using System.Collections.Generic;
 using Core.Input;
+using Shared;
 using GCol = Godot.Collections;
 using Input = Godot.Input;
 
@@ -34,22 +35,22 @@ public partial class PlayerIntentSource : IntentSourceNode
     {
         if (profile == null)
         {
-            GD.PrintErr("Attempted to apply a null InputMappingProfile.");
+            JmoLogger.Error(this, "Attempted to apply a null InputMappingProfile.");
             return;
         }
         _actionBindings = profile.ActionBindings;
         _vectorBindings = profile.VectorBindings;
 
-        GD.Print("Applied Mapping Profile to Intent Source.\nAction Bindings:");
-        foreach (var actionBinding in _actionBindings)
-        {
-            GD.Print($"action: {actionBinding.Action.ActionName}; godot action binding: {actionBinding.GodotActionName}");
-        }
-        GD.Print($"Vector Bindings:");
-        foreach (var vectorBinding in _vectorBindings)
-        {
-            GD.Print($"action: {vectorBinding.Action.ActionName}; godot vector binding DOWN: {vectorBinding.Down}");
-        }
+        // GD.Print("Applied Mapping Profile to Intent Source.\nAction Bindings:");
+        // foreach (var actionBinding in _actionBindings)
+        // {
+        //     GD.Print($"action: {actionBinding.Action.ActionName}; godot action binding: {actionBinding.GodotActionName}");
+        // }
+        // GD.Print($"Vector Bindings:");
+        // foreach (var vectorBinding in _vectorBindings)
+        // {
+        //     GD.Print($"action: {vectorBinding.Action.ActionName}; godot vector binding DOWN: {vectorBinding.Down}");
+        // }
     }
 
     public override void _Ready()

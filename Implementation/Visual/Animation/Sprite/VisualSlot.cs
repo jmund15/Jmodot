@@ -81,7 +81,7 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             // 4. Register with Composite
             // We look for an IAnimComponent on the root or children
             var anim = GetAnimComponent(_currentInstance);
-            GD.Print($"VisualSlot: Item '{item.Id}' found anim component: {anim}.");
+            //GD.Print($"VisualSlot: Item '{item.Id}' found anim component: {anim}.");
             if (anim != null)
             {
                 _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
@@ -92,7 +92,7 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
         }
         else
         {
-            GD.PrintErr($"VisualSlot: Item '{item.Id}' has no Prefab assigned.");
+            JmoLogger.Error(this, $"VisualSlot: Item '{item.Id}' has no Prefab assigned.");
         }
     }
 
@@ -274,7 +274,7 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             FindSpritesRecursive(prefabRoot, _currentVisibleNodes);
         }
 
-        GD.Print($"Just finished equipping Visual Slot! visual config: {CurrentItem.Id}");
+        //GD.Print($"Just finished equipping Visual Slot! visual config: {CurrentItem.Id}");
 
         VisualNodesChanged?.Invoke();
         VisibleNodesChanged?.Invoke();

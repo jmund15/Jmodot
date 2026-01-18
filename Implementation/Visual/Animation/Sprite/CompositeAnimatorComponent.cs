@@ -80,7 +80,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// <param name="isMaster">If true, this animator dictates timing (duration/seek).</param>
     public void RegisterAnimator(IAnimComponent animator, bool isMaster = false)
     {
-        GD.Print($"Registering {((Node)animator).Name} to {this.Name}.\nIsMaster = {isMaster}");
+        //GD.Print($"Registering {((Node)animator).Name} to {this.Name}.\tIsMaster = {isMaster}");
         // Prevent self-registration which causes infinite recursion loops
         if (ReferenceEquals(animator, this))
         {
