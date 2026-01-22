@@ -56,6 +56,29 @@ public static class MiscUtils
         return r;
     }
 
+    /// <summary>
+    /// Returns a point on a ring (circle) around a center point, oriented by the given basis.
+    /// Useful for aim rings, orbital positioning, melee attack targeting, etc.
+    /// </summary>
+    /// <param name="center">The center point of the ring (e.g., pivot GlobalPosition)</param>
+    /// <param name="basis">The orientation of the ring plane (e.g., pivot GlobalTransform.Basis)</param>
+    /// <param name="direction">2D direction input mapped to XZ plane</param>
+    /// <param name="radius">Distance from center to ring edge</param>
+    /// <param name="defaultDirection">Fallback direction when input is zero (defaults to Vector2.Right)</param>
+    public static Vector3 GetPointOnRing(
+        Vector3 center,
+        Basis basis,
+        Vector2 direction,
+        float radius,
+        Vector2? defaultDirection = null)
+    {
+        var dir = direction.IsZeroApprox()
+            ? (defaultDirection ?? Vector2.Right)
+            : direction.Normalized();
+
+        return center + (basis * new Vector3(dir.X, 0, dir.Y) * radius);
+    }
+
     public static IEnumerable<T> GetEnumValues<T>()
     {
         return Enum.GetValues(typeof(T)).Cast<T>();
