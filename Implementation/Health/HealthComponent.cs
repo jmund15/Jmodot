@@ -25,8 +25,15 @@ using Attribute = Core.Stats.Attribute;
 /// - "IStatProvider": An instance of a class implementing IStatProvider.
 /// </summary>
 [GlobalClass]
-public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, IHealable
+public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, IHealable, IBlackboardProvider
 {
+    #region IBlackboardProvider Implementation
+    /// <summary>
+    /// Auto-registers this component with the blackboard during EntityNodeComponentsInitializer.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.HealthComponent, this);
+    #endregion
+
     #region Dependencies & Configuration
 
     [ExportGroup("Stat System Integration")]
@@ -166,7 +173,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// </summary>
     /// <param name="amount">The positive amount of health to remove.</param>
     /// <param name="source">The object responsible for the damage (e.g., a projectile, player, or status effect).</param>
-    public void TakeDamage(float amount, object source)
+    public virtual void TakeDamage(float amount, object source)
     {
         if (amount <= 0 || IsDead || !IsInitialized)
         {

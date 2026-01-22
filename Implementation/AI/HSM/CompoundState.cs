@@ -138,7 +138,7 @@ using Shared.GodotExceptions;
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
-            JmoLogger.Info(this, $"[HSM Debug] CompoundState '{Name}' received transition signal: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, canPropagateUp={canPropagateUp})");
+            //JmoLogger.Info(this, $"[HSM Debug] CompoundState '{Name}' received transition signal: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, canPropagateUp={canPropagateUp})");
             //GD.Print($"Attempting to transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
             if (!newSubState.IsValid())
             {

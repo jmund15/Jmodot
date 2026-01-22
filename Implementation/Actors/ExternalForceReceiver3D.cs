@@ -17,11 +17,36 @@ public partial class ExternalForceReceiver3D : Area3D
     private readonly HashSet<IForceProvider3D> _internalProviders = new();
     private readonly HashSet<IVelocityOffsetProvider3D> _activeOffsetProviders = new();
 
+    // Track signal connection state - Godot signals throw errors when disconnecting nonexistent handlers
+    private bool _signalsConnected;
+
     public override void _Ready()
     {
-        // Connect to signals for automatic tracking of providers.
-        this.AreaEntered += this.OnProviderEntered;
-        this.AreaExited += this.OnProviderExited;
+        // Connect signals only if not already connected (prevents duplicates on pool reuse)
+        if (!_signalsConnected)
+        {
+            this.AreaEntered += OnProviderEntered;
+            this.AreaExited += OnProviderExited;
+            _signalsConnected = true;
+        }
+    }
+
+    /// <summary>
+    /// Resets state for object pooling. Call this when the owning spell is returned to pool.
+    /// CRITICAL: Prevents stale external references after multiple pool cycles.
+    /// </summary>
+    public void ResetForPool()
+    {
+        // 1. Clear EXTERNAL provider sets only - prevents stale references to areas the spell was in
+        // NOTE: DO NOT clear _internalProviders! These are child nodes (e.g., GravityProviderCapability)
+        // that persist across pool cycles and register themselves once in _Ready().
+        // Clearing them would break gravity since _Ready() doesn't re-run on pool activation.
+        _activeAreaProviders.Clear();
+        _activeOffsetProviders.Clear();
+
+        // 2. Disconnect signals to prevent duplication on next activation
+        // NOTE: Signals stay connected across pool cycles since _signalsConnected persists.
+        // This is intentional - the handlers are still valid and we just clear the provider sets.
     }
 
     public void RegisterInternalProvider(IForceProvider3D provider)

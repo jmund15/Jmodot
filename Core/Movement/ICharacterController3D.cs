@@ -43,6 +43,11 @@ public interface ICharacterController3D : IGodotNodeInterface, IVelocityProvider
     /// </summary>
     Vector3 PreMoveVelocity { get; }
 
+    /// <summary>
+    ///  Get's the last velocity of the character that was NOT zero. Useful for calculations needing a non-zero value (movement, aiming, etc.)
+    /// </summary>
+    Vector3 LastNonZeroVelocity { get; }
+
     // --- Core Commands ---
 
     /// <summary>

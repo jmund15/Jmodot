@@ -14,7 +14,7 @@ public class EntityNodeComponentsInitializer
         List<IComponent> initializedComps = new();
 
         // --- NEW: PHASE 0: AUTO-REGISTRATION ---
-        JmoLogger.Info(entity, "Starting blackboard auto-registration pass...");
+        //JmoLogger.Info(entity, "Starting blackboard auto-registration pass...");
         foreach (var component in components)
         {
             if (component is IBlackboardProvider provider)
@@ -25,7 +25,7 @@ public class EntityNodeComponentsInitializer
                     var (key, value) = provision.Value;
                     if (key != null && value != null)
                     {
-                        JmoLogger.Info(entity, $"Component '{component.GetType().Name}' is providing '{key}' to the blackboard for object '{value}'.");
+                        //JmoLogger.Info(entity, $"Component '{component.GetType().Name}' is providing '{key}' to the blackboard for object '{value}'.");
                         bb.Set(key, value); // This can be overwritten by the Entity's manual setup
                     }
                 }

@@ -32,8 +32,6 @@ public class MovementProcessor3D : IMovementProcessor3D
         this._forceReceiver3D = forceReceiver3D;
         this._owner = owner;
 
-        var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
-        var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
     }
 
     /// <summary>
@@ -44,8 +42,10 @@ public class MovementProcessor3D : IMovementProcessor3D
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         // The strategy does the heavy lifting of getting stats.
+        var inputVelocity = this._controller.Velocity;
         var characterVelocity =
-            strategy3D.CalculateVelocity(this._controller.Velocity, desiredDirection, this._stats, delta);
+            strategy3D.CalculateVelocity(inputVelocity, desiredDirection, this._stats, delta);
+
         _controller.SetVelocity(characterVelocity);
 
         // --- 2. Apply Impulses (stored in velocity) ---

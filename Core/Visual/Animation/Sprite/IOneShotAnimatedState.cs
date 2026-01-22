@@ -1,6 +1,9 @@
 namespace Jmodot.Core.Visual.Animation.Sprite;
 
-public class IOneShotAnimatedState
+using Implementation.AI.HSM;
+
+// TODO: is this even useful?
+public interface IOneShotAnimatedState : IAnimatedState
 {
-    
+    State PostAnimationState { get; }
 }

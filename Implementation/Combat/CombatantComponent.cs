@@ -20,8 +20,15 @@ using System.Linq;
 /// Acts as a Service Locator for combat-related components.
 /// </summary>
 [GlobalClass]
-public partial class CombatantComponent : Node, IComponent, ICombatant
+public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackboardProvider
 {
+    #region IBlackboardProvider Implementation
+    /// <summary>
+    /// Auto-registers this component with the blackboard during EntityNodeComponentsInitializer.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.CombatantComponent, this);
+    #endregion
+
     #region Dependencies
     [Export] public HealthComponent Health { get; private set; } = null!;
     [Export] public StatusEffectComponent StatusComponent { get; private set; } = null!;
@@ -113,15 +120,18 @@ public partial class CombatantComponent : Node, IComponent, ICombatant
     {
         Blackboard = bb;
 
-        // If dependencies aren't assigned in Inspector, try to find them
+        // If dependencies aren't assigned in Inspector, try to find them from blackboard
+        // Using TryGet allows these to be optional - spells have Health but no StatusEffects
         if (Health == null)
         {
-            Health = bb.Get<HealthComponent>(BBDataSig.HealthComponent);
+            bb.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health);
+            Health = health!;
         }
 
         if (StatusComponent == null)
         {
-             StatusComponent = bb.Get<StatusEffectComponent>(BBDataSig.StatusEffects);
+            bb.TryGet<StatusEffectComponent>(BBDataSig.StatusEffects, out var statusComponent);
+            StatusComponent = statusComponent!;
         }
 
         IsInitialized = true;

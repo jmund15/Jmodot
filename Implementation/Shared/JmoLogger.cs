@@ -11,6 +11,11 @@ using System.Runtime.CompilerServices;
 public static class JmoLogger
 {
     /// <summary>
+    /// Controls whether Debug() messages are output. Disabled by default.
+    /// Enable during development to see verbose diagnostic information.
+    /// </summary>
+    public static bool DebugEnabled { get; set; } = false;
+    /// <summary>
     /// The core private helper that builds the standardized log message string based on the context object's type.
     /// It enriches log messages with context about the source object and caller location information.
     /// </summary>
@@ -150,6 +155,37 @@ public static class JmoLogger
         [CallerMemberName] string callerMemberName = "")
     {
         GD.Print(BuildLogMessage("INFO", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
+    }
+
+    #endregion
+
+    #region Debug Logging (For High-Frequency Development Diagnostics)
+
+    /// <summary>
+    /// Logs a debug message for development diagnostics. These messages are disabled by default
+    /// and only appear when DebugEnabled is set to true. Use for high-frequency or verbose
+    /// diagnostics that would clutter normal output.
+    /// The early-return pattern avoids string building cost when disabled.
+    /// </summary>
+    /// <param name="context">The object (Node, Resource, etc.) that is the source of the message.</param>
+    /// <param name="message">The debug message. Use string interpolation for dynamic values.</param>
+    /// <param name="owner">Optional. The Node that owns or is using the context object.</param>
+    /// <param name="callerFilePath">Auto-populated. Do not pass manually.</param>
+    /// <param name="callerLineNumber">Auto-populated. Do not pass manually.</param>
+    /// <param name="callerMemberName">Auto-populated. Do not pass manually.</param>
+    public static void Debug(
+        object context,
+        string message,
+        Node? owner = null,
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0,
+        [CallerMemberName] string callerMemberName = "")
+    {
+        if (!DebugEnabled)
+        {
+            return;
+        }
+        GD.Print(BuildLogMessage("DEBUG", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
     }
 
     #endregion

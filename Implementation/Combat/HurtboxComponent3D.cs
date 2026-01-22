@@ -15,8 +15,15 @@ using Implementation.Shared;
 /// Acts as a Gateway/Filter to the ICombatant found in the Blackboard.
 /// </summary>
 [GlobalClass]
-public partial class HurtboxComponent3D : Area3D, IComponent
+public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvider
 {
+    #region IBlackboardProvider Implementation
+    /// <summary>
+    /// Auto-registers this component with the blackboard during EntityNodeComponentsInitializer.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.HurtboxComponent, this);
+    #endregion
+
     #region Events
     /// <summary>
     /// Fired when a hit is successfully accepted and forwarded to the Combatant.

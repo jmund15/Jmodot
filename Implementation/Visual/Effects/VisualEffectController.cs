@@ -158,7 +158,7 @@ public partial class VisualEffectController : Node, IComponent
         ApplyEffects();
 
         string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
-        JmoLogger.Info(this, $"Started effect '{effectName}'");
+        //JmoLogger.Info(this, $"Started effect '{effectName}'");
     }
 
     /// <summary>
@@ -188,7 +188,7 @@ public partial class VisualEffectController : Node, IComponent
         }
 
         string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
-        JmoLogger.Info(this, $"Stopped effect '{effectName}'");
+        //JmoLogger.Info(this, $"Stopped effect '{effectName}'");
     }
 
     /// <summary>

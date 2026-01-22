@@ -22,7 +22,7 @@ public partial class CombatLogger : Node, IComponent
     /// Set to true to enable verbose logging of combat events to the Godot console.
     /// Toggle this during debugging/testing sessions.
     /// </summary>
-    public static bool VerboseLoggingEnabled { get; set; } = true;
+    public static bool VerboseLoggingEnabled { get; set; } = false;
 
     private CombatLog _log;
 

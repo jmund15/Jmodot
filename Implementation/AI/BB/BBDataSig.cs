@@ -89,6 +89,23 @@ public static partial class BBDataSig
 
     #endregion
 
+    #region SPELL_PROPERTIES
+
+    /// <summary>
+    /// The cast direction stored at spell initialization time.
+    /// Used by direction strategies to avoid race condition where velocity isn't available yet
+    /// (ApplyImpulse is async, velocity only set in next physics tick).
+    /// </summary>
+    public static readonly StringName SpellCastDirection = new("SpellCastDirection");
+
+    /// <summary>
+    /// Component that handles reaction system wiring for IReactionTarget entities.
+    /// Auto-subscribes to hitbox events and routes through ReactionResolver.
+    /// </summary>
+    public static readonly StringName ReactionComponent = new("ReactionComponent");
+
+    #endregion
+
     #region FORMATION_PROPERTIES
 
     /// <summary>

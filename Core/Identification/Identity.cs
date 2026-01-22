@@ -30,5 +30,8 @@ public partial class Identity : Resource
     /// <summary>Sets IdentityName for testing purposes.</summary>
     internal void SetIdentityName(string value) => IdentityName = value;
 
+    /// <summary>Sets Categories for testing purposes.</summary>
+    internal void SetCategories(Array<Category> categories) => Categories = categories;
+
     #endregion
 }

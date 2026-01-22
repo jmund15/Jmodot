@@ -23,8 +23,15 @@ using AI.BB;
     /// - Continuous: Hits targets repeatedly based on TickInterval.
     /// </summary>
     [GlobalClass]
-    public partial class HitboxComponent3D : Area3D, IComponent
+    public partial class HitboxComponent3D : Area3D, IComponent, IBlackboardProvider
     {
+        #region IBlackboardProvider Implementation
+        /// <summary>
+        /// Auto-registers this component with the blackboard during EntityNodeComponentsInitializer.
+        /// </summary>
+        public (StringName Key, object Value)? Provision => (BBDataSig.HitboxComponent, this);
+        #endregion
+
         #region Events
         /// <summary>
         /// Fired when a hit is successfully validated and accepted by a hurtbox.
@@ -85,7 +92,8 @@ using AI.BB;
 
         public void OnPostInitialize()
         {
-            AreaEntered += OnAreaEntered;
+            // Signal connection moved to _Ready() - only needs to happen once per node lifetime
+            // OnPostInitialize() is called every Initialize(), which happens on each pool reuse
         }
 
         public event Action? Initialized;
@@ -96,6 +104,9 @@ using AI.BB;
         #region Godot Lifecycle
         public override void _Ready()
         {
+            // Connect signal once - _Ready() only runs once per node lifetime (even with pooling)
+            AreaEntered += OnAreaEntered;
+
             // Start "Cold"
             Deactivate();
 
@@ -211,7 +222,7 @@ using AI.BB;
 
         private void OnAreaEntered(Area3D area)
         {
-            GD.Print($"Area {area.Name} entered Hitbox {Name}");
+            //GD.Print($"Area {area.Name} entered Hitbox {Name}");
             if (area is HurtboxComponent3D hurtbox)
             {
                 TryHitHurtbox(hurtbox);

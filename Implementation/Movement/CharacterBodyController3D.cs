@@ -28,6 +28,7 @@ public class CharacterBodyController3D : ICharacterController3D
     public Vector3 GetWallNormal() => this._body.GetWallNormal();
 
     public Vector3 PreMoveVelocity { get; private set; }
+    public Vector3 LastNonZeroVelocity { get; private set; }
 
     public void SetVelocity(Vector3 newVelocity)
     {
@@ -41,8 +42,12 @@ public class CharacterBodyController3D : ICharacterController3D
 
     public void Move()
     {
-        PreMoveVelocity = this._body.Velocity;
-        this._body.MoveAndSlide();
+        PreMoveVelocity = _body.Velocity;
+        _body.MoveAndSlide();
+        if (_body.Velocity != Vector3.Zero)
+        {
+            LastNonZeroVelocity = _body.Velocity;
+        }
     }
 
     public void Teleport(Vector3 newGlobalPosition)
