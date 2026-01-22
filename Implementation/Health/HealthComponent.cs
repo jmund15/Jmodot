@@ -48,6 +48,18 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     [Export]
     public bool ChangeHealthOnMaxChange { get; private set; } = true;
 
+    /// <summary>
+    /// If true, TakeDamage calls are ignored but other combat effects (knockback) still apply.
+    /// Use this for "no damage but still physical" states like Collection phase.
+    /// </summary>
+    /// <remarks>
+    /// Unlike HurtboxComponent3D.IsInvulnerable which blocks ALL hit processing,
+    /// IsDamageImmune only blocks damage while allowing the combat effect flow to
+    /// continue - meaning knockback and other effects still work normally.
+    /// </remarks>
+    [Export]
+    public bool IsDamageImmune { get; set; } = false;
+
     #endregion
 
     #region Events (IHealth, IDamageable, IHealable)
@@ -176,6 +188,13 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     public virtual void TakeDamage(float amount, object source)
     {
         if (amount <= 0 || IsDead || !IsInitialized)
+        {
+            return;
+        }
+
+        // Damage immunity check - knockback still applies via DamageResult.Force
+        // because this blocks only the health modification, not the effect flow
+        if (IsDamageImmune)
         {
             return;
         }
