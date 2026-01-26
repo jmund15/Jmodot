@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
 using GCol = Godot.Collections;
+using Godot;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -23,7 +25,7 @@ using AI.BB;
     /// - Continuous: Hits targets repeatedly based on TickInterval.
     /// </summary>
     [GlobalClass]
-    public partial class HitboxComponent3D : Area3D, IComponent, IBlackboardProvider
+    public partial class HitboxComponent3D : Area3D, IComponent, IBlackboardProvider, IPoolResetable
     {
         #region IBlackboardProvider Implementation
         /// <summary>
@@ -107,8 +109,9 @@ using AI.BB;
             // Connect signal once - _Ready() only runs once per node lifetime (even with pooling)
             AreaEntered += OnAreaEntered;
 
-            // Start "Cold"
-            Deactivate();
+            // Start "Cold" - use synchronous deactivation since _Ready() is NOT a physics callback
+            // This is safe and avoids any deferred timing complexity on initialization
+            DeactivateImmediate();
 
             if (AutoStartWithDefault)
             {
@@ -118,7 +121,21 @@ using AI.BB;
 
         public override void _PhysicsProcess(double delta)
         {
-            // Only runs if IsContinuous == true and StartAttack() was called.
+            // CRITICAL: Check for pending overlap scan FIRST (before early returns).
+            // This catches targets that were already overlapping when the hitbox activated.
+            // GetOverlappingAreas() needs a physics frame after Monitoring=true to populate.
+            // SpawnEffect children spawn INSIDE targets, so they need this initial scan.
+            //
+            // IMPORTANT: We must wait until Monitoring is ACTUALLY true before processing.
+            // When spawned during physics callbacks (like SpawnEffect OnDestroy), the deferred
+            // SetDeferred(Monitoring, true) may not have executed yet. Keep checking each frame.
+            if (_pendingOverlapCheck && Monitoring)
+            {
+                _pendingOverlapCheck = false;
+                ProcessOverlappingAreas();
+            }
+
+            // Only continue if IsContinuous == true and StartAttack() was called.
             if (!IsActive) { return; }
             if (!IsContinuous) { return; }
 
@@ -141,7 +158,11 @@ using AI.BB;
 
         public void StartAttack(IAttackPayload payload)
         {
-            if (!IsInitialized) { return; }
+            if (!IsInitialized)
+            {
+                Shared.JmoLogger.Warning(this, "StartAttack BLOCKED - not initialized!");
+                return;
+            }
 
             CurrentPayload = payload;
             _hitHurtboxes.Clear();
@@ -151,17 +172,19 @@ using AI.BB;
 
             // Activate FIRST so that Monitoring=true is queued before ProcessOverlappingAreas.
             // Deferred calls execute in FIFO order.
+            Shared.JmoLogger.Debug(this, $"StartAttack - pre-Activate Monitoring={Monitoring}");
             Activate();
+            Shared.JmoLogger.Debug(this, $"StartAttack - post-Activate Monitoring={Monitoring} (deferred, actual change next frame)");
 
-            // Attempt to hit anything already inside the volume.
-            // Note: If this node was previously Monitoring=False, GetOverlappingAreas
-            // might rely on the *next* physics frame to update.
-            // We defer this call to ensure that the 'Monitoring' property update (which is also deferred)
-            // has been processed by the engine before we try to query overlaps.
-            Callable.From(ProcessOverlappingAreas).CallDeferred();
-
-            //GD.Print($"Hitbox '{Name} Starting Attack!");
+            // CRITICAL FIX: GetOverlappingAreas() requires a PHYSICS FRAME to update after Monitoring=true.
+            // CallDeferred runs at end of current frame (before physics), so the overlap list is empty.
+            // This caused SpawnEffect children to miss targets they spawn inside of.
+            // Solution: Set flag to run ProcessOverlappingAreas on next _PhysicsProcess.
+            _pendingOverlapCheck = true;
         }
+
+        // Flag to trigger overlap check on next physics frame
+        private bool _pendingOverlapCheck = false;
 
         public void EndAttack()
         {
@@ -172,6 +195,23 @@ using AI.BB;
 
             Deactivate();
 
+            OnAttackFinished?.Invoke();
+        }
+
+        /// <summary>
+        /// Resets hitbox state for pool reuse. Called automatically via IPoolResetable.
+        /// Uses immediate (synchronous) deactivation since pool reset is NOT a physics callback.
+        /// </summary>
+        public void OnPoolReset()
+        {
+            _pendingOverlapCheck = false;  // Clear pending scan for clean pool state
+
+            if (!IsActive) { return; }
+
+            // Use immediate deactivation - OnPoolReset is called from pool management, not physics
+            CurrentPayload = null;
+            _hitHurtboxes.Clear();
+            DeactivateImmediate();
             OnAttackFinished?.Invoke();
         }
 
@@ -202,27 +242,63 @@ using AI.BB;
 
         #region Core Logic
 
+        /// <summary>
+        /// Activates the hitbox using deferred property changes.
+        /// REQUIRED when called from physics callbacks (_PhysicsProcess, AreaEntered, BodyEntered).
+        /// </summary>
+        /// <remarks>
+        /// SetDeferred ensures we don't crash by modifying physics state during physics evaluation.
+        /// The actual Monitoring/Monitorable changes happen at end of frame.
+        /// </remarks>
         private void Activate()
         {
-            // SetDeferred ensures we don't crash if called during a physics callback.
             SetDeferred(PropertyName.Monitoring, true);
             SetDeferred(PropertyName.Monitorable, true);
             SetPhysicsProcess(true);
             IsActive = true;
         }
 
+        /// <summary>
+        /// Activates the hitbox immediately (synchronous).
+        /// Safe to use in: _Ready(), _Process(), ActivateFromPool(), Initialize().
+        /// NOT safe in physics callbacks - use Activate() instead.
+        /// </summary>
+        private void ActivateImmediate()
+        {
+            Monitoring = true;
+            Monitorable = true;
+            SetPhysicsProcess(true);
+            IsActive = true;
+        }
+
+        /// <summary>
+        /// Deactivates the hitbox using deferred property changes.
+        /// REQUIRED when called from physics callbacks.
+        /// </summary>
         private void Deactivate()
         {
             IsActive = false;
-            // SetDeferred ensures we don't crash if called during a physics callback.
             SetDeferred(PropertyName.Monitoring, false);
             SetDeferred(PropertyName.Monitorable, false);
             SetPhysicsProcess(false);
         }
 
+        /// <summary>
+        /// Deactivates the hitbox immediately (synchronous).
+        /// Safe to use in: _Ready(), _Process(), ActivateFromPool(), Initialize().
+        /// NOT safe in physics callbacks - use Deactivate() instead.
+        /// </summary>
+        private void DeactivateImmediate()
+        {
+            IsActive = false;
+            Monitoring = false;
+            Monitorable = false;
+            SetPhysicsProcess(false);
+        }
+
         private void OnAreaEntered(Area3D area)
         {
-            //GD.Print($"Area {area.Name} entered Hitbox {Name}");
+            Shared.JmoLogger.Info(this, $"OnAreaEntered: {area.Name} (IsActive={IsActive}, Monitoring={Monitoring})");
             if (area is HurtboxComponent3D hurtbox)
             {
                 TryHitHurtbox(hurtbox);
@@ -232,11 +308,16 @@ using AI.BB;
         private void ProcessOverlappingAreas()
         {
             // Guard: GetOverlappingAreas() requires Monitoring to be enabled.
-            if (!Monitoring) { return; }
+            if (!Monitoring)
+            {
+                Shared.JmoLogger.Warning(this, $"ProcessOverlappingAreas SKIPPED - Monitoring=false");
+                return;
+            }
 
             // Check all currently overlapping areas.
             // Essential for "Spawn on top" or "Beam" logic.
             var areas = GetOverlappingAreas();
+            Shared.JmoLogger.Info(this, $"ProcessOverlappingAreas found {areas.Count} overlapping areas");
             foreach (var area in areas)
             {
                 if (area is HurtboxComponent3D hurtbox)
@@ -248,23 +329,97 @@ using AI.BB;
 
         private void TryHitHurtbox(HurtboxComponent3D hurtbox)
         {
-            if (!IsActive || CurrentPayload == null) { return; }
+            Shared.JmoLogger.Info(this, $"TryHitHurtbox: target={hurtbox.Owner?.Name ?? "NULL"}, IsActive={IsActive}, HasPayload={CurrentPayload != null}");
+
+            if (!IsActive || CurrentPayload == null)
+            {
+                Shared.JmoLogger.Warning(this, $"TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
+                return;
+            }
 
             // 1. Self-Hit Prevention
-            if (_selfHurtbox != null &&
-                hurtbox == _selfHurtbox) { return; }
-            //if (CurrentPayload.Attacker != null && hurtbox.Owner == CurrentPayload.Attacker) return;
+            if (_selfHurtbox != null && hurtbox == _selfHurtbox)
+            {
+                Shared.JmoLogger.Info(this, "TryHitHurtbox BLOCKED - self-hit prevention");
+                return;
+            }
+
+            // 1.5 Collision Exception Synchronization
+            // Area3D detection is independent of PhysicsBody3D collision exceptions.
+            // This synchronizes Area3D combat with PhysicsBody3D exceptions (used for sibling spells).
+            // The ATTACKER decides "I won't hit this target" - matches how collision exceptions work.
+            if (HasCollisionExceptionWith(hurtbox.Owner))
+            {
+                Shared.JmoLogger.Info(this, $"TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
+                return;
+            }
 
             // 2. Debounce / Multi-Hit Check
             // If hurtbox is already in the set, we skip it.
-            if (!_hitHurtboxes.Add(hurtbox)) { return; }
+            if (!_hitHurtboxes.Add(hurtbox))
+            {
+                Shared.JmoLogger.Info(this, "TryHitHurtbox BLOCKED - already hit this target");
+                return;
+            }
 
             // 3. The Handshake (Direct Method Call)
+            Shared.JmoLogger.Info(this, $"TryHitHurtbox PROCESSING HIT on {hurtbox.Owner?.Name}");
             bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
 
             if (wasAccepted)
             {
+                Shared.JmoLogger.Info(this, $"TryHitHurtbox HIT ACCEPTED by {hurtbox.Owner?.Name}");
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
+            }
+            else
+            {
+                Shared.JmoLogger.Info(this, $"TryHitHurtbox HIT REJECTED by {hurtbox.Owner?.Name}");
+            }
+        }
+
+        /// <summary>
+        /// Checks if this hitbox's owner has a collision exception with the target.
+        /// Returns true if the hit should be skipped.
+        /// </summary>
+        /// <remarks>
+        /// This synchronizes Area3D (hitbox/hurtbox) detection with collision exceptions.
+        /// AddCollisionExceptionWith() only affects physics (MoveAndSlide), not Area3D signals.
+        /// This method bridges that gap for combat purposes.
+        ///
+        /// Checks two sources:
+        /// 1. ICombatExceptionProvider.CombatExceptionIds - explicit combat-level exceptions (sibling spells)
+        /// 2. PhysicsBody3D.GetCollisionExceptions() - physics-level exceptions (fallback)
+        /// </remarks>
+        private bool HasCollisionExceptionWith(Node target)
+        {
+            // 1. Check explicit combat exceptions first (faster, more reliable)
+            // ICombatExceptionProvider allows any owner to provide combat-level exceptions
+            // without depending on physics exceptions which only work for PhysicsBody3D.
+            if (Owner is ICombatExceptionProvider exceptionProvider)
+            {
+                var combatExceptions = exceptionProvider.CombatExceptionIds;
+                if (combatExceptions != null && combatExceptions.Contains(target.GetInstanceId()))
+                {
+                    return true;
+                }
+            }
+
+            // 2. Fall back to physics exceptions for backward compatibility
+            // Both owner and target must be PhysicsBody3D for collision exceptions to apply
+            if (Owner is not PhysicsBody3D ownerBody || target is not PhysicsBody3D targetBody)
+            {
+                return false;
+            }
+
+            try
+            {
+                var exceptions = ownerBody.GetCollisionExceptions();
+                return exceptions.Contains(targetBody);
+            }
+            catch
+            {
+                // GetCollisionExceptions() can throw if a body in the list was freed (Godot bug #77793)
+                return false;
             }
         }
         #endregion
