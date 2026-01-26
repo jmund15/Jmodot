@@ -10,11 +10,50 @@ using System.Runtime.CompilerServices;
 /// </summary>
 public static class JmoLogger
 {
+    private const string DEBUG_ENABLED_SETTING = "debug/jmodot/debug_logging_enabled";
+
+    // Cache to avoid ProjectSettings lookup on every Debug() call
+    private static bool? _debugEnabledCache;
+
     /// <summary>
     /// Controls whether Debug() messages are output. Disabled by default.
     /// Enable during development to see verbose diagnostic information.
+    /// Can be configured via Project Settings → Debug → Jmodot → Debug Logging Enabled.
     /// </summary>
-    public static bool DebugEnabled { get; set; } = false;
+    public static bool DebugEnabled
+    {
+        get => _debugEnabledCache ??= (bool)ProjectSettings.GetSetting(DEBUG_ENABLED_SETTING, false);
+        set
+        {
+            _debugEnabledCache = value;
+            ProjectSettings.SetSetting(DEBUG_ENABLED_SETTING, value);
+        }
+    }
+
+    /// <summary>
+    /// Registers the debug setting with ProjectSettings so it appears in the editor UI.
+    /// Call this once during project initialization (e.g., from Global autoload).
+    /// </summary>
+    public static void RegisterProjectSettings()
+    {
+        // Set default value if not already present
+        if (!ProjectSettings.HasSetting(DEBUG_ENABLED_SETTING))
+        {
+            ProjectSettings.SetSetting(DEBUG_ENABLED_SETTING, false);
+        }
+
+        // Register property info so it appears with proper UI (checkbox)
+        var propertyInfo = new Godot.Collections.Dictionary
+        {
+            { "name", DEBUG_ENABLED_SETTING },
+            { "type", (int)Variant.Type.Bool }
+        };
+        ProjectSettings.AddPropertyInfo(propertyInfo);
+        ProjectSettings.SetAsBasic(DEBUG_ENABLED_SETTING, true);
+
+        // Refresh cache from saved setting
+        _debugEnabledCache = (bool)ProjectSettings.GetSetting(DEBUG_ENABLED_SETTING, false);
+    }
     /// <summary>
     /// The core private helper that builds the standardized log message string based on the context object's type.
     /// It enriches log messages with context about the source object and caller location information.

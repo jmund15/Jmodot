@@ -31,7 +31,7 @@ public class ComponentInitHelper : IGodotNodeInterface
     {
         if (!IsInitialized) { return; }
         _owner.ProcessMode = Node.ProcessModeEnum.Inherit;
-        _comp.OnPostInitialize();
+        //_comp.OnPostInitialize(); // should already get called by InitializeDependencies (component should call after successful init)
     }
 
     public Node GetUnderlyingNode()

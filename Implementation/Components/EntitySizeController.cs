@@ -6,6 +6,7 @@ using Godot;
 using AI.BB;
 using Core.AI.BB;
 using Core.Components;
+using Core.Pooling;
 using Core.Shared.Attributes;
 using Core.Stats;
 using Shared;
@@ -26,7 +27,7 @@ using StatAttribute = Core.Stats.Attribute;
 /// - BBDataSig.Agent (optional): Node root for collision shape discovery
 /// </summary>
 [GlobalClass]
-public partial class EntitySizeController : Node, IComponent
+public partial class EntitySizeController : Node, IComponent, IPoolResetable
 {
     /// <summary>
     /// Default minimum size - entities can shrink but shouldn't completely disappear.
@@ -164,6 +165,31 @@ public partial class EntitySizeController : Node, IComponent
         {
             _stats.Unsubscribe(SizeAttribute, OnSizeChanged);
         }
+    }
+
+    /// <summary>
+    /// Resets the controller state for pool reuse. Called automatically via IPoolResetable.
+    /// CRITICAL: Unsubscribes from stat changes to prevent subscription leaks.
+    /// Without this, each pool reactivation would add another subscription,
+    /// causing cumulative scale corruption (scale applied N times after N cycles).
+    /// </summary>
+    public void OnPoolReset()
+    {
+        // 1. Unsubscribe from stat changes (CRITICAL: prevents subscription leak)
+        if (_stats != null && SizeAttribute != null)
+        {
+            _stats.Unsubscribe(SizeAttribute, OnSizeChanged);
+        }
+
+        // 2. Clear cached state
+        _scalableShapes.Clear();
+        _baseVisualScale = Vector3.One;
+
+        // 3. Clear references
+        _stats = null;
+
+        // 4. Reset initialization flag
+        IsInitialized = false;
     }
 
     #region Static Discovery Methods

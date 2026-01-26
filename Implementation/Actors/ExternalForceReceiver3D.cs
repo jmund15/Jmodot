@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
 using Core.Environment;
+using Core.Pooling;
 
 /// <summary>
 ///     A component that should be attached to any character or actor that can be affected
@@ -10,7 +11,7 @@ using Core.Environment;
 ///     clean vectors that the MovementProcessor can query.
 /// </summary>
 [GlobalClass]
-public partial class ExternalForceReceiver3D : Area3D
+public partial class ExternalForceReceiver3D : Area3D, IPoolResetable
 {
     // Using HashSets provides efficient add/remove operations and prevents duplicates.
     private readonly HashSet<IForceProvider3D> _activeAreaProviders = new();
@@ -32,10 +33,10 @@ public partial class ExternalForceReceiver3D : Area3D
     }
 
     /// <summary>
-    /// Resets state for object pooling. Call this when the owning spell is returned to pool.
+    /// Resets state for object pooling. Called automatically via IPoolResetable when parent returns to pool.
     /// CRITICAL: Prevents stale external references after multiple pool cycles.
     /// </summary>
-    public void ResetForPool()
+    public void OnPoolReset()
     {
         // 1. Clear EXTERNAL provider sets only - prevents stale references to areas the spell was in
         // NOTE: DO NOT clear _internalProviders! These are child nodes (e.g., GravityProviderCapability)

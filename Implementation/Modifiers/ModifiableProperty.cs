@@ -236,13 +236,50 @@ public class ModifiableProperty<T> : IModifiableProperty
     public void SetBaseValue(Variant newBaseValue)
     {
         // Convert the Variant to the expected type T
-        // This will throw if the types are incompatible
-        if (newBaseValue.Obj is not T tVal)
+        // IMPORTANT: Godot stores all floats as doubles internally, so Variant.Obj returns double
+        // for float types. We must use type-specific conversion methods instead of pattern matching.
+        T convertedValue;
+        try
         {
-            JmoLogger.Error(this, $"Attempted to set base value for property of type {typeof(T).Name}, but variant value is of type {newBaseValue.Obj?.GetType().Name}.");
+            if (typeof(T) == typeof(float))
+            {
+                // Godot's Variant stores floats as doubles, use AsSingle() to convert
+                convertedValue = (T)(object)newBaseValue.AsSingle();
+            }
+            else if (typeof(T) == typeof(double))
+            {
+                convertedValue = (T)(object)newBaseValue.AsDouble();
+            }
+            else if (typeof(T) == typeof(int))
+            {
+                convertedValue = (T)(object)newBaseValue.AsInt32();
+            }
+            else if (typeof(T) == typeof(bool))
+            {
+                convertedValue = (T)(object)newBaseValue.AsBool();
+            }
+            else if (typeof(T) == typeof(string))
+            {
+                convertedValue = (T)(object)newBaseValue.AsString();
+            }
+            else if (newBaseValue.Obj is T tVal)
+            {
+                // Fallback for complex types (Vectors, Resources, etc.)
+                convertedValue = tVal;
+            }
+            else
+            {
+                JmoLogger.Error(this, $"Attempted to set base value for property of type {typeof(T).Name}, but variant value is of type {newBaseValue.Obj?.GetType().Name}.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            JmoLogger.Error(this, $"Failed to convert Variant to {typeof(T).Name}: {ex.Message}");
             return;
         }
-        BaseValue = tVal;
+
+        BaseValue = convertedValue;
     }
     #endregion
 }
