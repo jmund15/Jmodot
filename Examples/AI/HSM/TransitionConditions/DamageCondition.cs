@@ -1,6 +1,5 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
-using System.Linq;
 using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
@@ -17,7 +16,7 @@ public partial class DamageCondition : CombatLogCondition
     /// Maximum damage amount (FinalAmount) allowed for this condition.
     /// Use a very high number for no upper limit.
     /// </summary>
-    [Export] public float MaxDamage { get; set; } = 100f;
+    [Export] public float MaxDamage { get; set; } = 1000f;
 
     /// <summary>
     /// Optional tags that must be present on the damage result.
@@ -28,32 +27,12 @@ public partial class DamageCondition : CombatLogCondition
     {
         return log.HasEvent<DamageResult>(r =>
         {
-            // 1. Damage Threshold Check
             if (r.FinalAmount < MinDamage || r.FinalAmount > MaxDamage)
             {
                 return false;
             }
 
-            // 2. Tag Check
-            if (RequiredTags != null && RequiredTags.Count > 0)
-            {
-                bool hasTag = false;
-                foreach (var reqTag in RequiredTags)
-                {
-                    foreach (var resTag in r.Tags)
-                    {
-                        if (resTag == reqTag)
-                        {
-                            hasTag = true;
-                            break;
-                        }
-                    }
-                    if (hasTag) { break; }
-                }
-                if (!hasTag) { return false; }
-            }
-
-            return true;
+            return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
         });
     }
 }

@@ -37,32 +37,12 @@ public partial class KnockbackCondition : CombatLogCondition
     {
         return log.HasEvent<DamageResult>(r =>
         {
-            // 1. Force Threshold Check
             if (r.Force < MinForce || r.Force > MaxForce)
             {
                 return false;
             }
 
-            // 2. Tag Check
-            if (RequiredTags != null && RequiredTags.Count > 0)
-            {
-                bool hasTag = false;
-                foreach (var reqTag in RequiredTags)
-                {
-                    foreach (var resTag in r.Tags)
-                    {
-                        if (resTag == reqTag)
-                        {
-                            hasTag = true;
-                            break;
-                        }
-                    }
-                    if (hasTag) { break; }
-                }
-                if (!hasTag) { return false; }
-            }
-
-            return true;
+            return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
         });
     }
 }

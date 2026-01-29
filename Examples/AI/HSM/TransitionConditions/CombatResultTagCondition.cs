@@ -12,28 +12,7 @@ public partial class CombatResultTagCondition : CombatLogCondition
     {
         return log.HasEvent<CombatResult>(r =>
         {
-            // 1. Tag Check
-            if (RequiredTags.Count > 0)
-            {
-                // Example: Requires ANY of the tags (e.g., "Fire" OR "Explosion")
-                // You can change this to ALL if you prefer strict matching.
-                bool hasTag = false;
-                foreach (var reqTag in RequiredTags)
-                {
-                    foreach (var resTag in r.Tags)
-                    {
-                        if (resTag == reqTag)
-                        {
-                            hasTag = true;
-                            break;
-                        }
-                    }
-                    if (hasTag) { break; }
-                }
-                if (!hasTag) { return false; }
-            }
-
-            return true;
+            return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
         });
     }
 }

@@ -1,6 +1,5 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
-using System.Linq;
 using Core.Combat;
 using Core.Combat.Reactions;
 using Godot;
@@ -23,27 +22,7 @@ public partial class StatusAppliedCondition : CombatLogCondition
     {
         return log.HasEvent<StatusResult>(r =>
         {
-            // If no tags required, any StatusResult matches
-            if (RequiredTags == null || RequiredTags.Count == 0)
-            {
-                return true;
-            }
-
-            // Check if the runner has any of the required tags
-            if (r.Runner?.Tags == null)
-            {
-                return false;
-            }
-
-            foreach (var reqTag in RequiredTags)
-            {
-                if (r.Runner.Tags.Any(t => t == reqTag))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return CombatTagMatcher.MatchesTags(r.Runner?.Tags, RequiredTags, TagMatchMode.Any);
         });
     }
 }
