@@ -132,10 +132,12 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
             anim.TrackSetInterpolationType(trackIdx, Animation.InterpolationType.Nearest); // Pixel art style
 
             // Add Keyframes (Rows are the frames of animation)
+            int frameCount = 0;
             for (int col = colStart; col < colEnd; col++)
             {
                 var coordValue = new Vector2I(col, row);
-                anim.TrackInsertKey(trackIdx, col * frameDuration, coordValue);
+                anim.TrackInsertKey(trackIdx, frameCount * frameDuration, coordValue);
+                frameCount++;
             }
 
             // Add to library (overwrite if exists)
