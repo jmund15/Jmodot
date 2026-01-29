@@ -216,12 +216,9 @@ public partial class State : Node, IState
                 continue;
             }
 
-            bool allConditionsMet = transition.Conditions
-                .Where(c => c.IsValid())
-                .All(c => c.Check(Agent, BB));
+            bool conditionsMet = transition.AreConditionsMet(Agent, BB);
 
-
-            if (allConditionsMet && _resolvedTransitions.TryGetValue(transition, out State targetState))
+            if (conditionsMet && _resolvedTransitions.TryGetValue(transition, out State targetState))
             {
                 // // Resolve the NodePath to get the actual State node instance.
                 //var targetState = GetNode<State>(transition.TargetStatePath);
