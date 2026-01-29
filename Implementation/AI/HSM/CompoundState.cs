@@ -146,6 +146,14 @@ using Shared.GodotExceptions;
                 return;
             }
 
+            // Transition Guard: If not urgent, check if the old state allows exiting.
+            // Primarily used for exported StateTransitions in the inspector that don't have all the contextual informtion about the running state.
+            if (!urgent && !PrimarySubState.CanExit(newSubState))
+            {
+                JmoLogger.Info(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
+                return;
+            }
+
             if (canPropagateUp && !FiniteSubStates.ContainsKey(newSubState))
             {
                 //JmoLogger.Info(this, $"Couldn't find '{newSubState.Name}' as a child of {Name}. Going up the hierarchy.");
@@ -157,14 +165,6 @@ using Shared.GodotExceptions;
             {
                 // This can happen if a transition signal arrives late, after another transition has already occurred.
                 JmoLogger.Warning(this, $"Received transition from '{oldSubState.Name}', but current state is '{PrimarySubState.Name}'. Ignoring stale transition.");
-                return;
-            }
-
-            // Transition Guard: If not urgent, check if the old state allows exiting.
-            // Primarily used for exported StateTransitions in the inspector that don't have all the contextual informtion about the running state.
-            if (!PrimarySubState.CanExit(newSubState))
-            {
-                JmoLogger.Info(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
                 return;
             }
 

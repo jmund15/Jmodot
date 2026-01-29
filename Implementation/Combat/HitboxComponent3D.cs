@@ -298,7 +298,6 @@ using AI.BB;
 
         private void OnAreaEntered(Area3D area)
         {
-            Shared.JmoLogger.Info(this, $"OnAreaEntered: {area.Name} (IsActive={IsActive}, Monitoring={Monitoring})");
             if (area is HurtboxComponent3D hurtbox)
             {
                 TryHitHurtbox(hurtbox);
@@ -310,14 +309,14 @@ using AI.BB;
             // Guard: GetOverlappingAreas() requires Monitoring to be enabled.
             if (!Monitoring)
             {
-                Shared.JmoLogger.Warning(this, $"ProcessOverlappingAreas SKIPPED - Monitoring=false");
+                Shared.JmoLogger.Debug(this, $"ProcessOverlappingAreas SKIPPED - Monitoring=false");
                 return;
             }
 
             // Check all currently overlapping areas.
             // Essential for "Spawn on top" or "Beam" logic.
             var areas = GetOverlappingAreas();
-            Shared.JmoLogger.Info(this, $"ProcessOverlappingAreas found {areas.Count} overlapping areas");
+            Shared.JmoLogger.Debug(this, $"ProcessOverlappingAreas found {areas.Count} overlapping areas");
             foreach (var area in areas)
             {
                 if (area is HurtboxComponent3D hurtbox)
@@ -329,18 +328,18 @@ using AI.BB;
 
         private void TryHitHurtbox(HurtboxComponent3D hurtbox)
         {
-            Shared.JmoLogger.Info(this, $"TryHitHurtbox: target={hurtbox.Owner?.Name ?? "NULL"}, IsActive={IsActive}, HasPayload={CurrentPayload != null}");
+            //Shared.JmoLogger.Debug(this, $"TryHitHurtbox: target={hurtbox.Owner?.Name ?? "NULL"}, IsActive={IsActive}, HasPayload={CurrentPayload != null}");
 
             if (!IsActive || CurrentPayload == null)
             {
-                Shared.JmoLogger.Warning(this, $"TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
+                Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
                 return;
             }
 
             // 1. Self-Hit Prevention
             if (_selfHurtbox != null && hurtbox == _selfHurtbox)
             {
-                Shared.JmoLogger.Info(this, "TryHitHurtbox BLOCKED - self-hit prevention");
+                Shared.JmoLogger.Debug(this, "TryHitHurtbox BLOCKED - self-hit prevention");
                 return;
             }
 
@@ -350,7 +349,7 @@ using AI.BB;
             // The ATTACKER decides "I won't hit this target" - matches how collision exceptions work.
             if (HasCollisionExceptionWith(hurtbox.Owner))
             {
-                Shared.JmoLogger.Info(this, $"TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
                 return;
             }
 
@@ -358,22 +357,22 @@ using AI.BB;
             // If hurtbox is already in the set, we skip it.
             if (!_hitHurtboxes.Add(hurtbox))
             {
-                Shared.JmoLogger.Info(this, "TryHitHurtbox BLOCKED - already hit this target");
+                Shared.JmoLogger.Debug(this, "TryHitHurtbox BLOCKED - already hit this target");
                 return;
             }
 
             // 3. The Handshake (Direct Method Call)
-            Shared.JmoLogger.Info(this, $"TryHitHurtbox PROCESSING HIT on {hurtbox.Owner?.Name}");
+            //Shared.JmoLogger.Debug(this, $"TryHitHurtbox PROCESSING HIT on {hurtbox.Owner?.Name}");
             bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
 
             if (wasAccepted)
             {
-                Shared.JmoLogger.Info(this, $"TryHitHurtbox HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"TryHitHurtbox HIT ACCEPTED by {hurtbox.Owner?.Name}");
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
             }
             else
             {
-                Shared.JmoLogger.Info(this, $"TryHitHurtbox HIT REJECTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"TryHitHurtbox HIT REJECTED by {hurtbox.Owner?.Name}");
             }
         }
 
