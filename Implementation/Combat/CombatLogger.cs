@@ -66,7 +66,7 @@ public partial class CombatLogger : Node, IComponent
 
     public override void _PhysicsProcess(double delta)
     {
-        // Optional: Keep memory usage low
+        if (!IsInitialized) { return; }
         _log.UpdateCombatTime((float)delta);
     }
 
