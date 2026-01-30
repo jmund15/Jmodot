@@ -8,6 +8,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Core.Actors;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -106,7 +107,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region INTERFACE_IMPLEMENTATION
 
 	public bool IsInitialized { get; private set; }
-	public event Action? Initialized;
+	public event Action Initialized = delegate { };
 
 	/// <summary>
 	/// Retrieve dependencies from the Blackboard here.
@@ -115,18 +116,18 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	{
 		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!))
 		{
-			GD.PrintErr("[KnockbackComponent3D] Required dependency BBDataSig.MovementProcessor not found");
+			JmoLogger.Error(this, "Required dependency BBDataSig.MovementProcessor not found");
 			return false;
 		}
 
 		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!))
 		{
-			GD.PrintErr("[KnockbackComponent3D] Required dependency BBDataSig.CombatantComponent not found");
+			JmoLogger.Error(this, "Required dependency BBDataSig.CombatantComponent not found");
 			return false;
 		}
 
 		IsInitialized = true;
-		Initialized?.Invoke();
+		Initialized();
 		OnPostInitialize();
 		return true;
 	}

@@ -38,13 +38,6 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     // Listeners use pattern matching: if (result is DamageResult dr) ...
     public event Action<CombatResult> CombatResultEvent = delegate { };
 
-    #region Node Overrides
-    public override void _Ready()
-    {
-
-    }
-    #endregion
-
     #region ICombatant Implementation
     public Node OwnerNode => GetOwner();
     public IBlackboard Blackboard { get; private set; } = null!;
@@ -135,7 +128,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         }
 
         IsInitialized = true;
-        Initialized?.Invoke();
+        Initialized();
         OnPostInitialize();
         return true;
     }
@@ -147,7 +140,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
             StatusComponent.StatusRemoved += StatusRemoved;
         }
     }
-    public event Action? Initialized;
+    public event Action Initialized = delegate { };
 
     public Node GetUnderlyingNode() => this;
     #endregion

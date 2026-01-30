@@ -87,7 +87,7 @@ using AI.BB;
 
             // Hitbox is generally autonomous, receiving data from its controller.
             IsInitialized = true;
-            Initialized?.Invoke();
+            Initialized();
             OnPostInitialize();
             return true;
         }
@@ -98,7 +98,7 @@ using AI.BB;
             // OnPostInitialize() is called every Initialize(), which happens on each pool reuse
         }
 
-        public event Action? Initialized;
+        public event Action Initialized = delegate { };
 
         public Node GetUnderlyingNode() => this;
         #endregion
