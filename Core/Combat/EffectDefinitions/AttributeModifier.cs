@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Combat.EffectDefinitions;
 
+using Jmodot.Core.Shared.Attributes;
 using Stats;
 
 /// <summary>
@@ -9,6 +10,6 @@ using Stats;
 [GlobalClass]
 public partial class AttributeModifier : Resource
 {
-    [Export] public Attribute Attribute { get; set; } = null!;
+    [Export, RequiredExport] public Attribute Attribute { get; set; } = null!;
     [Export] public AttributeOperation Operation { get; set; } = AttributeOperation.Add;
 }

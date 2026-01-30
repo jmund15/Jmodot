@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Stats.Mechanics;
 
 using Core.Stats.Mechanics;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 ///     Defines the data for a continuous dash or lunge mechanic.
@@ -14,6 +15,6 @@ public partial class DashMechanicData : MechanicData // Also inherits from the b
     public float Duration { get; private set; } = 0.2f;
 
     // You could add more properties specific to dashing
-    [Export] public Curve EasingCurve { get; private set; } = null!;
+    [Export, RequiredExport] public Curve EasingCurve { get; private set; } = null!;
     [Export] public bool IgnoreGravityDuringDash { get; private set; } = true;
 }

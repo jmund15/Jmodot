@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Affinities;
 using BB;
 using Jmodot.AI.Navigation;
+using Jmodot.Core.Shared.Attributes;
 using Perception;
 using Shared;
 
@@ -18,11 +19,11 @@ using Shared;
 public partial class AIAgent3D : Node3D
 {
     [ExportGroup("Core Components")]
-    [Export] private Blackboard _blackboard = null!;
-    [Export] private AIPerceptionManager3D _perceptionManager3D = null!;
-    [Export] private AISteeringProcessor3D _steeringProcessor3D = null!;
-    [Export] private AINavigator3D _navigator = null!;
-    [Export] private AIAffinitiesComponent _affinities = null!;
+    [Export, RequiredExport] private Blackboard _blackboard = null!;
+    [Export, RequiredExport] private AIPerceptionManager3D _perceptionManager3D = null!;
+    [Export, RequiredExport] private AISteeringProcessor3D _steeringProcessor3D = null!;
+    [Export, RequiredExport] private AINavigator3D _navigator = null!;
+    [Export, RequiredExport] private AIAffinitiesComponent _affinities = null!;
 
     /// <summary>
     /// The final output of the AI's decision-making process for this frame.
@@ -51,6 +52,7 @@ public partial class AIAgent3D : Node3D
         {
             return;
         }
+        this.ValidateRequiredExports();
         // --- Validate, Initialize, and Register all components ---
 
         // --- Configuration Validation ---

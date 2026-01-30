@@ -5,6 +5,7 @@ using Core.AI.Affinities;
 using Core.Identification;
 using Core.Input;
 using Core.Stats;
+using Jmodot.Core.Shared.Attributes;
 using Shared;
 using GCol = Godot.Collections;
 
@@ -65,37 +66,37 @@ public partial class GameRegistry : Resource
     [Export] public GCol.Array<Affinity> Affinities { get; private set; } = new();
 
     [ExportGroup("Core Semantic Categories")]
-    [Export]
+    [Export, RequiredExport]
     public Category EnemyCategory { get; private set; } = null!;
 
-    [Export] public Category FriendlyCategory { get; private set; } = null!;
-    [Export] public Category ItemCategory { get; private set; } = null!;
-    [Export] public Category ObjectiveCategory { get; private set; } = null!;
-    [Export] public Category PlayerFactionCategory { get; private set; } = null!;
+    [Export, RequiredExport] public Category FriendlyCategory { get; private set; } = null!;
+    [Export, RequiredExport] public Category ItemCategory { get; private set; } = null!;
+    [Export, RequiredExport] public Category ObjectiveCategory { get; private set; } = null!;
+    [Export, RequiredExport] public Category PlayerFactionCategory { get; private set; } = null!;
 
     [ExportGroup("Unique Core Identities")]
-    [Export]
+    [Export, RequiredExport]
     public Identity PlayerIdentity { get; private set; } = null!;
 
     [ExportGroup("Core Input Actions")]
-    [Export]
+    [Export, RequiredExport]
     public InputAction MoveAction { get; private set; } = null!;
 
-    [Export] public InputAction JumpAction { get; private set; } = null!;
+    [Export, RequiredExport] public InputAction JumpAction { get; private set; } = null!;
 
     [ExportGroup("Core Attributes")]
-    [Export]
+    [Export, RequiredExport]
     public Attribute HealthAttr { get; private set; } = null!;
 
-    [Export] public Attribute MaxSpeedAttr { get; private set; } = null!;
-    [Export] public Attribute AccelerationAttr { get; private set; } = null!;
-    [Export] public Attribute FrictionAttr { get; private set; } = null!;
+    [Export, RequiredExport] public Attribute MaxSpeedAttr { get; private set; } = null!;
+    [Export, RequiredExport] public Attribute AccelerationAttr { get; private set; } = null!;
+    [Export, RequiredExport] public Attribute FrictionAttr { get; private set; } = null!;
 
     [ExportGroup("Core Affinities")]
-    [Export]
+    [Export, RequiredExport]
     public Affinity FearAffinity { get; private set; } = null!;
 
-    [Export] public Affinity AggressionAffinity { get; private set; } = null!;
+    [Export, RequiredExport] public Affinity AggressionAffinity { get; private set; } = null!;
 
     public void RebuildRegistry()
     {

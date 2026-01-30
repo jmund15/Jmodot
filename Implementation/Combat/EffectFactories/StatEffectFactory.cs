@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
@@ -14,8 +15,8 @@ using GCol = Godot.Collections;
 [GlobalClass]
 public partial class StatEffectFactory : CombatEffectFactory
 {
-    [Export] public Attribute Attribute { get; set; } = null!;
-    [Export] public Resource Modifier { get; set; } = null!;
+    [Export, RequiredExport] public Attribute Attribute { get; set; } = null!;
+    [Export, RequiredExport] public Resource Modifier { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     public override ICombatEffect Create(IStatProvider? stats = null)
     {

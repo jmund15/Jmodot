@@ -3,6 +3,7 @@ namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 using Core.AI.BB;
 using Core.AI.HSM;
 using Implementation.Shared;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// A transition condition that checks for a variable within the blackboard.
@@ -14,7 +15,7 @@ public partial class BBBoolCondition : TransitionCondition
     /// <summary>
     /// The key/name of the variable on the blackboard to check.
     /// </summary>
-    [Export] public StringName BBSignature { get; private set; } = null!;
+    [Export, RequiredExport] public StringName BBSignature { get; private set; } = null!;
     [Export] public bool Value { get; private set; }
     public override bool Check(Node agent, IBlackboard bb)
     {

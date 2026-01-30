@@ -3,9 +3,11 @@ using System;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Health;
 using Jmodot.Core.Health;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -30,8 +32,8 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     #endregion
 
     #region Dependencies
-    [Export] public HealthComponent Health { get; private set; } = null!;
-    [Export] public StatusEffectComponent StatusComponent { get; private set; } = null!;
+    [Export, RequiredExport] public HealthComponent Health { get; private set; } = null!;
+    [Export, RequiredExport] public StatusEffectComponent StatusComponent { get; private set; } = null!;
     #endregion
 
     // The "Universal" Event.
@@ -41,7 +43,9 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     #region Node Overrides
     public override void _Ready()
     {
-
+        base._Ready();
+        if (Engine.IsEditorHint()) { return; }
+        this.ValidateRequiredExports();
     }
     #endregion
 

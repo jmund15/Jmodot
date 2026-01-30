@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Combat.EffectDefinitions;
 
+using Jmodot.Core.Shared.Attributes;
 using Stats;
 
 /// <summary>
@@ -12,7 +13,7 @@ public partial class AttributeFloatDefinition : BaseFloatValueDefinition
     /// <summary>
     /// The attribute to read the value from.
     /// </summary>
-    [Export] public Attribute SourceAttribute { get; set; } = null!;
+    [Export, RequiredExport] public Attribute SourceAttribute { get; set; } = null!;
 
     /// <summary>
     /// The value to return if stats are unavailable or the attribute is not set.

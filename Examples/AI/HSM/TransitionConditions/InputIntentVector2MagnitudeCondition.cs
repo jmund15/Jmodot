@@ -4,11 +4,12 @@ using Core.AI.BB;
 using Core.AI.HSM;
 using Core.Input;
 using Implementation.AI.BB;
+using Jmodot.Core.Shared.Attributes;
 
 [GlobalClass]
 public partial class InputIntentVector2MagnitudeCondition : TransitionCondition
 {
-    [Export] private InputAction _requiredAction = null!;
+    [Export, RequiredExport] private InputAction _requiredAction = null!;
     [Export] private float _requiredIntentMagnitude;
     [Export] private NumericalConditionType _numericalCondition;
 

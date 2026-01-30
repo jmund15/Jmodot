@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Visual.Animation.Sprite;
 
 using Godot;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// Defines a specific visual item (Sword, Hat, Body Type).
@@ -9,13 +10,13 @@ using Godot;
 [GlobalClass, Tool]
 public partial class VisualItemData : Resource
 {
-    [Export] public string Id { get; set; } = null!;
+    [Export, RequiredExport] public string Id { get; set; } = null!;
 
     /// <summary>
     /// The scene to instantiate. Must contain an IAnimComponent (AnimationPlayer).
     /// </summary>
     [ExportGroup("Core")]
-    [Export] public PackedScene Prefab { get; set; } = null!;
+    [Export, RequiredExport] public PackedScene Prefab { get; set; } = null!;
 
     /// <summary>
     /// Optional: Swaps the texture of the first found Sprite2D.

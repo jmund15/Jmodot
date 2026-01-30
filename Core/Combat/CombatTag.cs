@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Identification;
+using Jmodot.Core.Shared.Attributes;
 
 namespace Jmodot.Core.Combat;
 
@@ -13,7 +14,7 @@ public partial class CombatTag : Resource
     /// <summary>
     /// String Identifier of the GameTag. Used for matching in combat effects
     /// </summary>
-    [Export] public StringName TagId { get; set; } = null!;
+    [Export, RequiredExport] public StringName TagId { get; set; } = null!;
 
     /// <summary>
     /// Priority of this tag for reaction resolution (e.g., Stun > Damage).

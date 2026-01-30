@@ -7,6 +7,7 @@ using BB;
 using Core.AI.Affinities;
 using Core.AI.BB;
 using Core.AI.Navigation.SteeringModifiers;
+using Jmodot.Core.Shared.Attributes;
 using Shared;
 
 /// <summary>
@@ -17,8 +18,8 @@ using Shared;
 [GlobalClass]
 public partial class AffinitySteeringModifier3D : SteeringConsiderationModifier3D
 {
-    [Export] private Affinity _affinityToMeasure = null!;
-    [Export] private Curve _responseCurve = null!;
+    [Export, RequiredExport] private Affinity _affinityToMeasure = null!;
+    [Export, RequiredExport] private Curve _responseCurve = null!;
 
     public override void Modify(ref Dictionary<Vector3, float> scores, SteeringDecisionContext3D context, IBlackboard blackboard)
     {
