@@ -59,6 +59,9 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     public bool LoopAnimations { get; set; } = true;
 
     [Export]
+    public bool AppendToExisting { get; set; } = false;
+
+    [Export]
     public string TargetLibraryName { get; set; } = ""; // Empty string = Default/Global library
 
     // Assuming you have the ExportToolButton addon or infrastructure.
@@ -90,7 +93,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
             GD.Print($"[Sprite3DComponent] Created new AnimationLibrary: '{TargetLibraryName}'");
         }
 
-        // 3. Generate Animations per row
+        // 3. Pre-compute shared values
         float frameDuration = 1.0f / FramesPerSecond;
 
         int colStart = 0;
@@ -101,53 +104,92 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
             colEnd = ColumnsToUse.Y + 1; // inclusive
         }
 
+        Node animationRoot = TargetPlayer.GetNode(TargetPlayer.RootNode);
+        if (animationRoot == null)
+        {
+            GD.PrintErr("[Sprite3DComponent] Could not find the AnimationPlayer's Root Node.");
+            return;
+        }
+        string spritePath = animationRoot.GetPathTo(this);
+        string fullTrackPath = $"{spritePath}:frame_coords";
+
+        // 4. Generate Animations per row
         for (int row = 0; row < rows; row++)
         {
-            // Determine direction name
             string directionName = DirectionSuffixes.DirectionSuffixes.Count > row
                 ? DirectionSuffixes.DirectionSuffixes[row]
                 : $"dir{row}";
 
             string finalAnimName = $"{BaseAnimationName}{SeparationSuffix}{directionName}";
+            bool animExists = library.HasAnimation(finalAnimName);
 
-            // Create Animation
-            var anim = new Animation();
-            anim.LoopMode = LoopAnimations ? Animation.LoopModeEnum.Linear : Animation.LoopModeEnum.None;
-            anim.Length = frameDuration * (colEnd - colStart);
-            anim.Step = frameDuration;
-
-            // Create Track for 'frame_coords'
-            // We use frame_coords because it allows us to visualize x/y grid easily
-            int trackIdx = anim.AddTrack(Animation.TrackType.Value);
-            // We must find the node that the AnimationPlayer treats as "Root"
-            // and calculate the path relative to THAT node.
-            Node animationRoot = TargetPlayer.GetNode(TargetPlayer.RootNode);
-            if (animationRoot == null)
+            if (animExists && AppendToExisting)
             {
-                GD.PrintErr("[Sprite3DComponent] Could not find the AnimationPlayer's Root Node.");
-                return;
-            }
-            string path = animationRoot.GetPathTo(this);
-            anim.TrackSetPath(trackIdx, $"{path}:frame_coords");
-            anim.TrackSetInterpolationType(trackIdx, Animation.InterpolationType.Nearest); // Pixel art style
+                // --- APPEND MODE: Add track to existing animation ---
+                Animation existingAnim = library.GetAnimation(finalAnimName);
 
-            // Add Keyframes (Rows are the frames of animation)
-            int frameCount = 0;
-            for (int col = colStart; col < colEnd; col++)
+                // Safety: prevent duplicate track insertion
+                bool duplicateFound = false;
+                for (int t = 0; t < existingAnim.GetTrackCount(); t++)
+                {
+                    if (existingAnim.TrackGetPath(t) == fullTrackPath)
+                    {
+                        GD.PrintErr($"[Sprite3DComponent] SKIP '{finalAnimName}': Track '{fullTrackPath}' already exists. Remove it first or use Override mode.");
+                        duplicateFound = true;
+                        break;
+                    }
+                }
+                if (duplicateFound) { continue; }
+
+                AddFrameCoordsTrack(existingAnim, spritePath, row, colStart, colEnd, frameDuration);
+
+                // Grow animation length if the new track is longer
+                float newLength = frameDuration * (colEnd - colStart);
+                if (newLength > existingAnim.Length)
+                {
+                    existingAnim.Length = newLength;
+                }
+
+                GD.Print($"[Sprite3DComponent] APPENDED track to '{finalAnimName}' for '{spritePath}'");
+            }
+            else
             {
-                var coordValue = new Vector2I(col, row);
-                anim.TrackInsertKey(trackIdx, frameCount * frameDuration, coordValue);
-                frameCount++;
-            }
+                // --- CREATE / OVERRIDE MODE ---
+                if (animExists)
+                {
+                    library.RemoveAnimation(finalAnimName);
+                }
 
-            // Add to library (overwrite if exists)
-            library.AddAnimation(finalAnimName, anim);
-            GD.Print($"[Sprite3DComponent] Generated Animation: {finalAnimName} ({rows} frames)");
+                var anim = new Animation();
+                anim.LoopMode = LoopAnimations ? Animation.LoopModeEnum.Linear : Animation.LoopModeEnum.None;
+                anim.Length = frameDuration * (colEnd - colStart);
+                anim.Step = frameDuration;
+
+                AddFrameCoordsTrack(anim, spritePath, row, colStart, colEnd, frameDuration);
+
+                library.AddAnimation(finalAnimName, anim);
+                GD.Print($"[Sprite3DComponent] Generated Animation: {finalAnimName} ({colEnd - colStart} frames)");
+            }
         }
 
         // Notify Editor that things changed (so Ctrl+S works)
         NotifyPropertyListChanged();
         GD.Print("[Sprite3DComponent] Generation Complete.");
+    }
+
+    private void AddFrameCoordsTrack(Animation anim, string spritePath, int row, int colStart, int colEnd, float frameDuration)
+    {
+        int trackIdx = anim.AddTrack(Animation.TrackType.Value);
+        anim.TrackSetPath(trackIdx, $"{spritePath}:frame_coords");
+        anim.TrackSetInterpolationType(trackIdx, Animation.InterpolationType.Nearest);
+
+        int frameCount = 0;
+        for (int col = colStart; col < colEnd; col++)
+        {
+            var coordValue = new Vector2I(col, row);
+            anim.TrackInsertKey(trackIdx, frameCount * frameDuration, coordValue);
+            frameCount++;
+        }
     }
 
     private bool ValidateConfig(out int cols, out int rows)
