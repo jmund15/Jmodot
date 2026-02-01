@@ -206,13 +206,19 @@ using AI.BB;
         {
             _pendingOverlapCheck = false;  // Clear pending scan for clean pool state
 
+            // CRITICAL: Clear accumulated event handlers BEFORE the early return.
+            // WireCombatListener subscribes OnHitRegistered += each pool cycle.
+            // Without clearing, Nth reuse fires N handlers per hit → N Destroy calls.
+            OnHitRegistered = delegate { };
+            OnAttackStarted = delegate { };
+            OnAttackFinished = delegate { };
+
             if (!IsActive) { return; }
 
             // Use immediate deactivation - OnPoolReset is called from pool management, not physics
             CurrentPayload = null;
             _hitHurtboxes.Clear();
             DeactivateImmediate();
-            OnAttackFinished?.Invoke();
         }
 
         /// <summary>

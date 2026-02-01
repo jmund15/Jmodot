@@ -150,7 +150,7 @@ using Shared.GodotExceptions;
             // Primarily used for exported StateTransitions in the inspector that don't have all the contextual informtion about the running state.
             if (!urgent && !PrimarySubState.CanExit(newSubState))
             {
-                JmoLogger.Info(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
+                JmoLogger.Debug(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
                 return;
             }
 
@@ -178,7 +178,7 @@ using Shared.GodotExceptions;
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
 
-            //GD.Print($"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
+            JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }
 
 

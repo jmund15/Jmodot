@@ -8,6 +8,7 @@ using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Stats;
 using Jmodot.Core.Health;
+using Jmodot.Core.Pooling;
 using Shared;
 using Attribute = Core.Stats.Attribute;
 
@@ -25,7 +26,7 @@ using Attribute = Core.Stats.Attribute;
 /// - "IStatProvider": An instance of a class implementing IStatProvider.
 /// </summary>
 [GlobalClass]
-public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, IHealable, IBlackboardProvider
+public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, IHealable, IBlackboardProvider, IPoolResetable
 {
     #region IBlackboardProvider Implementation
     /// <summary>
@@ -174,6 +175,39 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         {
             _statProvider.OnStatChanged -= OnStatProviderStatChanged;
         }
+    }
+
+    #endregion
+
+    #region IPoolResetable Implementation
+
+    /// <summary>
+    /// Resets health state for pool reuse. Clears all event subscribers to prevent
+    /// handler accumulation across pool cycles. SpellBehavior.Initialize() subscribes
+    /// Health.OnDied += _ => Destroy(...) every cycle — without clearing, the Nth reuse
+    /// fires N death handlers, causing cascading Destroy calls.
+    /// </summary>
+    public void OnPoolReset()
+    {
+        // Clear all event subscribers to prevent accumulation
+        OnHealthChanged = delegate { };
+        OnMaxHealthChanged = delegate { };
+        OnDied = delegate { };
+        OnResurrected = delegate { };
+        OnDamaged = delegate { };
+        OnHealed = delegate { };
+
+        // Unsubscribe from stat provider to prevent stale callbacks
+        if (_statProvider != null)
+        {
+            _statProvider.OnStatChanged -= OnStatProviderStatChanged;
+        }
+
+        // Reset state
+        _currentHealth = 0;
+        IsDead = false;
+        IsDamageImmune = false;
+        IsInitialized = false;
     }
 
     #endregion
