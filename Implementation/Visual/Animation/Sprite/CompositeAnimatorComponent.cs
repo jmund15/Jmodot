@@ -237,4 +237,9 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     public float GetCurrAnimationPosition() => _masterAnimator?.GetCurrAnimationPosition() ?? 0f;
     public void SeekPos(float time, bool update = true) => _activeAnimators.ForEach(a => a.SeekPos(time, update));
     public string[] GetAnimationList() => _masterAnimator?.GetAnimationList() ?? [];
+
+    public bool IsAnimationLooping(StringName animName)
+    {
+        return _masterAnimator?.IsAnimationLooping(animName) ?? false;
+    }
 }

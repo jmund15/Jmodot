@@ -192,7 +192,6 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     public StringName GetCurrAnimation() => _targetAnimator.GetCurrAnimation();
     public float GetCurrAnimationLength() => _targetAnimator.GetCurrAnimationLength();
     public float GetAnimationLength(StringName animName) => _targetAnimator.GetAnimationLength(animName);
-
     public float GetAnimationLengthBase(StringName baseName)
     {
         var finalName = CheckFinalName(baseName);
@@ -206,5 +205,12 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
     public float GetSpeedScale() => _targetAnimator.GetSpeedScale();
     public void SetSpeedScale(float speedScale) => _targetAnimator.SetSpeedScale(speedScale);
     public string[] GetAnimationList() => _targetAnimator.GetAnimationList();
+
+    public bool IsAnimationLooping(StringName baseName)
+    {
+        var finalName = CheckFinalName(baseName);
+        return _targetAnimator.IsAnimationLooping(finalName);
+    }
+
     public Node GetUnderlyingNode() => this;
 }

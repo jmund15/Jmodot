@@ -143,6 +143,11 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         return SpriteFrames.GetAnimationNames();
     }
 
+    public bool IsAnimationLooping(StringName animName)
+    {
+        return SpriteFrames?.GetAnimationLoop(animName) ?? false;
+    }
+
     // --- ISpriteComponent Implementation ---
 
     public float GetSpriteHeight()

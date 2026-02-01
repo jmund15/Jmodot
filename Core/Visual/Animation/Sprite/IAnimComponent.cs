@@ -55,4 +55,10 @@ public interface IAnimComponent : IGodotNodeInterface
     /// Used for editor tools and validation.
     /// </summary>
     string[] GetAnimationList();
+
+    /// <summary>
+    /// Returns whether the specified animation is configured to loop.
+    /// Default returns false (assume oneshot if unknown).
+    /// </summary>
+    bool IsAnimationLooping(StringName animName) => false;
 }

@@ -91,5 +91,13 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
     //public float GetSpeedScale() => (float)SpeedScale;
     public new void SetSpeedScale(float speedScale) => SpeedScale = speedScale; // 'new' keyword to hide base member
     public void PauseAnim() => Pause(); // Map interface to concrete implementation
+
+    public bool IsAnimationLooping(StringName animName)
+    {
+        if (!HasAnimation(animName)) { return false; }
+        var anim = GetAnimation(animName);
+        return anim != null && anim.LoopMode != Godot.Animation.LoopModeEnum.None;
+    }
+
     public Node GetUnderlyingNode() => this;
 }
