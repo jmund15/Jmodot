@@ -41,18 +41,43 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         get => _nodePrefix;
         set { _nodePrefix = value; UpdateConfigurationWarnings(); }
     }
+    /// <summary>
+    /// Allows names such as 'Vis_Run_Front' and 'Vis_Run_Back' (assuming 'Vis' is the 'NodePrefix') to both trigger when the animation 'Run' plays!
+    /// </summary>
+    [Export] public bool IgnoreNodeNameAfterUnderscore { get; set; } = true;
 
-    private string _suffixSeparator = "_";
-    [Export] public string SuffixSeparator
+
+    private string _animNameSuffixSeparator = "_";
+    [Export] public string AnimNameSuffixSeparator
     {
-        get => _suffixSeparator;
-        set { _suffixSeparator = value; UpdateConfigurationWarnings(); }
+        get => _animNameSuffixSeparator;
+        set { _animNameSuffixSeparator = value; UpdateConfigurationWarnings(); }
     }
+
 
     // Runtime Caches
     private Dictionary<StringName, List<Node>> _visibilityCache = new();
     private List<Node> _allManagedNodes = new();
     private IAnimComponent _targetAnimComponent = null!;
+
+    /// <summary>
+    /// Extracts the animation lookup key from a node name by stripping the prefix
+    /// and optionally removing the suffix after the first underscore.
+    /// e.g. "Vis_PotionAdd_Front" → "potionadd"
+    /// </summary>
+    private StringName ExtractAnimKeyFromNodeName(string nodeName)
+    {
+        string rawName = nodeName.Substring(NodePrefix.Length);
+        if (IgnoreNodeNameAfterUnderscore)
+        {
+            var suffixLoc = rawName.Find('_');
+            if (suffixLoc != -1)
+            {
+                rawName = rawName.Substring(0, suffixLoc);
+            }
+        }
+        return rawName.ToLower();
+    }
 
     /// <summary>
     /// Fired when the set of visible nodes changes (animation change, node added/removed).
@@ -151,9 +176,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                 return;
             }
 
-            // Parse Name: "Vis_Run" -> "Run" (lowercased for consistency)
-            string rawName = node.Name.ToString().Substring(NodePrefix.Length);
-            StringName animKey = rawName.ToLower();
+            StringName animKey = ExtractAnimKeyFromNodeName(node.Name.ToString());
 
             if (!_visibilityCache.ContainsKey(animKey))
             {
@@ -197,9 +220,9 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         string nameStr = animName.ToString().ToLower();
 
         // Strip Suffix
-        if (!string.IsNullOrEmpty(SuffixSeparator))
+        if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
         {
-            int idx = nameStr.LastIndexOf(SuffixSeparator);
+            int idx = nameStr.LastIndexOf(AnimNameSuffixSeparator);
             if (idx > 0) { nameStr = nameStr.Substring(0, idx); }
         }
 
@@ -295,7 +318,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                     string childName = child.Name.ToString();
                     if (!childName.StartsWith(NodePrefix)) { continue; }
 
-                    string expectedKey = childName.Substring(NodePrefix.Length).ToLower();
+                    string expectedKey = ExtractAnimKeyFromNodeName(childName);
 
                     bool matchFound = false;
                     foreach (var anim in availableAnims)
@@ -303,9 +326,9 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                         string processedAnim = anim.ToLower();
 
                         // Suffix Stripping Logic
-                        if (!string.IsNullOrEmpty(SuffixSeparator))
+                        if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
                         {
-                            int idx = processedAnim.LastIndexOf(SuffixSeparator);
+                            int idx = processedAnim.LastIndexOf(AnimNameSuffixSeparator);
                             if (idx > 0) { processedAnim = processedAnim.Substring(0, idx); }
                         }
 
@@ -319,6 +342,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                     if (!matchFound)
                     {
                         warnings.Add($"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
+                        GD.PrintErr($"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
                     }
                 }
             }

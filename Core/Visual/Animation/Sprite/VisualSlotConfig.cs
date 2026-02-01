@@ -31,6 +31,13 @@ public partial class VisualSlotConfig : Resource
     [Export] public bool IsOptional { get; set; } = true;
 
     /// <summary>
+    /// If true, this slot's animator is NOT registered with the CompositeAnimator.
+    /// Use for slots that play their own animations independently of the body
+    /// (e.g., one-shot overlay animations like PotionAdd).
+    /// </summary>
+    [Export] public bool IsAnimationIndependent { get; set; } = false;
+
+    /// <summary>
     /// Automatically equipped on Start if no save data is present.
     /// </summary>
     [Export] public VisualItemData? DefaultItem { get; set; }

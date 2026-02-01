@@ -44,19 +44,19 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     [Export]
     public AnimationDirectionSuffixes DirectionSuffixes { get; set; }
 
-    [Export] public Vector2I FrameSize { get; set; } = new(600, 600);
+    [Export] public Vector2I FrameSize { get; set; } = new(850, 850);
     private readonly Vector2I AllColumns = new(-1, -1);
     [Export] public Vector2I ColumnsToUse { get; set; } = new(-1, -1);
-    [Export] public string BaseAnimationName { get; set; } = "idle";
+    [Export] public string BaseAnimationName { get; set; } = "";
 
     [Export]
     public string SeparationSuffix { get; set; } = "_";
 
     [Export(PropertyHint.Range, "1, 60, 1")]
-    public int FramesPerSecond { get; set; } = 10;
+    public int FramesPerSecond { get; set; } = 12;
 
     [Export]
-    public bool LoopAnimations { get; set; } = true;
+    public bool LoopAnimations { get; set; } = false;
 
     [Export]
     public bool AppendToExisting { get; set; } = false;

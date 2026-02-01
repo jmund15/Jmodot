@@ -78,11 +78,10 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             // 3. Apply Overrides (Texture, Row, Tint)
             ApplyOverrides(_currentInstance, item);
 
-            // 4. Register with Composite
+            // 4. Register with Composite (unless slot is animation-independent)
             // We look for an IAnimComponent on the root or children
             var anim = GetAnimComponent(_currentInstance);
-            //GD.Print($"VisualSlot: Item '{item.Id}' found anim component: {anim}.");
-            if (anim != null)
+            if (anim != null && !Config.IsAnimationIndependent)
             {
                 _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
             }
@@ -137,7 +136,7 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             VisibleNodesChanged?.Invoke();
 
             var anim = GetAnimComponent(_currentInstance);
-            if (anim != null)
+            if (anim != null && !Config.IsAnimationIndependent)
             {
                 _composite?.UnregisterAnimator(anim);
             }
