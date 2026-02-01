@@ -160,6 +160,17 @@ public partial class StatusEffectComponent : Node, IComponent
     }
 
     /// <summary>
+    /// Gets all active runners whose tags have an ElementalCategory containing the specified category.
+    /// Matches by CategoryName for consistency with ReactionMatcher.
+    /// </summary>
+    public IEnumerable<StatusRunner> GetRunnersWithCategory(Category category)
+    {
+        return _activeRunners.Where(r =>
+            r.Tags.Any(t => t?.ElementalCategory?.Categories?.Any(
+                c => c?.CategoryName == category?.CategoryName) == true));
+    }
+
+    /// <summary>
     /// Immediately stops and removes all active status effects.
     /// Used for full entity reset (e.g., session restart).
     /// </summary>
