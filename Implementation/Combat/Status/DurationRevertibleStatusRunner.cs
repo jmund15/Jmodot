@@ -64,9 +64,12 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
 
     public override void Stop(bool wasDispelled = false)
     {
-        // Revert effect
+        // Revert effect (null-guard: GetRevertEffect returns null when stat wasn't applied)
         var revertEffect = RevertibleEffect.GetRevertEffect(Target, Context);
-        Target.ApplyEffect(revertEffect!, Context);
+        if (revertEffect != null)
+        {
+            Target.ApplyEffect(revertEffect, Context);
+        }
         _durationTimer.Stop();
 
         base.Stop(wasDispelled);

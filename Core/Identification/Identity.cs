@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Identification;
 
+using System.Linq;
 using Godot.Collections;
 
 /// <summary>
@@ -24,6 +25,16 @@ public partial class Identity : Resource
     ///     the "Enemy", "Ranged", and "Armored" categories, enabling complex and flexible querying by other systems.
     /// </summary>
     [Export] public Array<Category> Categories { get; private set; } = new();
+
+    /// <summary>
+    /// Checks whether this identity belongs to the specified category.
+    /// Matches by CategoryName for consistency with string-safe comparisons across loaded resources.
+    /// </summary>
+    public bool HasCategory(Category category)
+    {
+        if (category == null || Categories == null) { return false; }
+        return Categories.Any(c => c?.CategoryName == category.CategoryName);
+    }
 
     #region Test Helpers
 

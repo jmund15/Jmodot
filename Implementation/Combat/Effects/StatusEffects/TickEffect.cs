@@ -25,13 +25,19 @@ public class TickEffect : ICombatEffect
     public IEnumerable<CombatTag> Tags { get; private init; }
     public VisualEffect? Visual { get; private init; }
 
+    /// <summary>
+    /// Optional per-tick visual effect (flash/pulse) distinct from the persistent StatusVisualEffect.
+    /// </summary>
+    public VisualEffect? TickVisualEffect { get; private init; }
+
     public TickEffect(
         PackedScene prefab,
         float duration, float interval,
         ICombatEffect perTickEffect,
         PackedScene? tickVisuals, PackedScene? persistentVisuals,
         IEnumerable<CombatTag> tags,
-        VisualEffect? visual = null)
+        VisualEffect? visual = null,
+        VisualEffect? tickVisualEffect = null)
     {
         Prefab = prefab;
         Duration = duration;
@@ -41,6 +47,7 @@ public class TickEffect : ICombatEffect
         PersistentVisuals = persistentVisuals;
         Tags = tags;
         Visual = visual;
+        TickVisualEffect = tickVisualEffect;
     }
 
     /// <summary>
@@ -70,7 +77,7 @@ public class TickEffect : ICombatEffect
         }
 
         // 4. Inject the Snapshot Data
-        runner.Setup(Duration, Interval, PerTickEffect, TickVisuals, PersistentVisuals, Tags, Visual);
+        runner.Setup(Duration, Interval, PerTickEffect, TickVisuals, PersistentVisuals, Tags, Visual, TickVisualEffect);
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

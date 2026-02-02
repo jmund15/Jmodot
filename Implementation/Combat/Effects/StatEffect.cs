@@ -47,12 +47,12 @@ public struct StatEffect : IRevertibleCombatEffect
         // Use Blackboard
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))
         {
-            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
+            JmoLogger.Warning(this, $"Target '{target.GetUnderlyingNode().Name}' has no StatController!");
             return null;
         }
         if (!stats!.TryAddModifier(Attribute, Modifier, this, out var handle))
         {
-            JmoLogger.Error(this, $"StatEffect was unable to apply stat modification!");
+            JmoLogger.Warning(this, $"StatEffect was unable to apply stat modification!");
             return null;
         }
         Handle = handle!;
@@ -68,12 +68,12 @@ public struct StatEffect : IRevertibleCombatEffect
     {
         if (Handle == null)
         {
-            JmoLogger.Error(this, $"Can't get revert effect as stat effect hasn't been applied yet!");
+            JmoLogger.Warning(this, $"Can't get revert effect — stat effect wasn't applied.");
             return null;
         }
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))
         {
-            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
+            JmoLogger.Warning(this, $"Target '{target.GetUnderlyingNode().Name}' has no StatController!");
             return null;
         }
         return new RevertStatEffect(Handle, Tags);

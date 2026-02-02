@@ -40,7 +40,7 @@ public abstract partial class StatusRunner : Node
     public VisualEffect? StatusVisualEffect { get; set; }
     
     private Node? _visualInstance;
-    private VisualEffectController? _visualController;
+    protected VisualEffectController? _visualController;
 
     protected HitContext Context { get; private set; }
     protected ICombatant Target { get; private set; }

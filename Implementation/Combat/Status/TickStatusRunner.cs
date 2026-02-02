@@ -19,12 +19,18 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     /// </summary>
     public PackedScene? TickVisuals { get; set; }
 
+    /// <summary>
+    /// Optional per-tick visual effect (flash/pulse) played via VisualEffectController on each tick.
+    /// Distinct from StatusVisualEffect (persistent tint applied once at Start).
+    /// </summary>
+    public VisualEffect? TickVisualEffect { get; set; }
+
     private Timer _tickTimer;
     private Timer _durationTimer;
 
     public void Setup(float duration, float interval, ICombatEffect tickEffect, PackedScene? tickVisuals,
         PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
-        VisualEffect? visualEffect = null)
+        VisualEffect? visualEffect = null, VisualEffect? tickVisualEffect = null)
     {
         Duration = duration;
         Interval = interval;
@@ -33,6 +39,7 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
         PersistentVisuals = persistantVisuals;
         Tags = tags;
         StatusVisualEffect = visualEffect;
+        TickVisualEffect = tickVisualEffect;
     }
     public override void _Ready()
     {
@@ -79,14 +86,18 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
 
     private void OnTick()
     {
-        // Spawn Visuals
+        // Per-tick visual effect (flash/pulse via VisualEffectController)
+        if (TickVisualEffect != null)
+        {
+            _visualController?.PlayEffect(TickVisualEffect);
+        }
+
+        // Spawn Visuals (particle scenes)
         if (TickVisuals != null)
         {
             var visual = TickVisuals.Instantiate() as Node3D;
             // TODO: add config for if visuals should be parented to the target or the status effect component
             Target.OwnerNode.AddChild(visual);
-            //AddChild(visual);
-            //visual.GlobalPosition = (Target.OwnerNode as Node3D).GlobalPosition;
         }
 
         if (TickEffect != null)

@@ -9,6 +9,7 @@ namespace Jmodot.Implementation.Combat.EffectFactories;
 
 using Core.Combat.EffectDefinitions;
 using Core.Stats;
+using Core.Visual.Effects;
 using Effects.StatusEffects;
 
 [GlobalClass]
@@ -22,6 +23,7 @@ public partial class TickEffectFactory : CombatEffectFactory
     [Export] public PackedScene? PersistentVisuals { get; set; }
     // TODO: should this be a property of the 'PerTickEffect'?
     [Export] public PackedScene? TickVisuals { get; set; }
+    [Export] public VisualEffect? TickVisualEffect { get; set; }
 
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
@@ -36,7 +38,8 @@ public partial class TickEffectFactory : CombatEffectFactory
             TickVisuals,
             PersistentVisuals,
             Tags,
-            TargetVisualEffect
+            TargetVisualEffect,
+            TickVisualEffect
             );
     }
 }
