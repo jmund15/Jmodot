@@ -13,7 +13,8 @@ using Stats;
 /// For simpler use cases, consider using <see cref="ConstantFloatDefinition"/> or
 /// <see cref="AttributeFloatDefinition"/> instead.
 /// </remarks>
-[GlobalClass]
+[System.Obsolete("Use ConstantFloatDefinition or AttributeFloatDefinition instead.")]
+[GlobalClass, Tool]
 public partial class FloatStatDefinition : BaseFloatValueDefinition
 {
     /// <summary>
