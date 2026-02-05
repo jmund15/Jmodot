@@ -6,7 +6,7 @@ using Stats;
 /// A simple constant float value definition.
 /// Use when you just need a static number without any stat dependencies.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ConstantFloatDefinition : BaseFloatValueDefinition
 {
     /// <summary>

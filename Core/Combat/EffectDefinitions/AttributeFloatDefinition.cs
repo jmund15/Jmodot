@@ -6,7 +6,7 @@ using Stats;
 /// A float value definition that pulls its value directly from a single attribute.
 /// Use when the value is entirely determined by a stat (e.g., damage = player's Attack stat).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AttributeFloatDefinition : BaseFloatValueDefinition
 {
     /// <summary>
