@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
@@ -17,8 +18,8 @@ using GCol = Godot.Collections;
 [GlobalClass]
 public partial class DamageEffectFactory : CombatEffectFactory
 {
-    [Export] private BaseFloatValueDefinition _damageDefinition = null!;
-    [Export] private BaseFloatValueDefinition _knockbackDefinition = null!;
+    [Export, RequiredExport] private BaseFloatValueDefinition _damageDefinition = null!;
+    [Export, RequiredExport] private BaseFloatValueDefinition _knockbackDefinition = null!;
 
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 

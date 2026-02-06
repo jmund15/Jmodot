@@ -4,6 +4,7 @@ using BB;
 using BehaviorTree.Utility;
 using Core.AI.Affinities;
 using Core.AI.BB;
+using Jmodot.Core.Shared.Attributes;
 using Shared;
 
 /// <summary>
@@ -18,14 +19,14 @@ public partial class AffinityCurveModifier : ConsiderationModifier
     /// <summary>
     ///     The specific affinity from the AIAffinitiesComponent to read from.
     /// </summary>
-    [Export] private Affinity _affinityToMeasure = null!;
+    [Export, RequiredExport] private Affinity _affinityToMeasure = null!;
 
     /// <summary>
     ///     The Curve resource that defines the response to the affinity.
     ///     X-axis: Affinity Value (0 to 1)
     ///     Y-axis: Score Multiplier
     /// </summary>
-    [Export] private Curve _responseCurve = null!;
+    [Export, RequiredExport] private Curve _responseCurve = null!;
 
     public override float Modify(float baseScore, IBlackboard blackboard)
     {

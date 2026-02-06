@@ -5,7 +5,9 @@ using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Combat.Reactions;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -40,7 +42,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	/// <summary>
 	/// Reference to the RigidBody3D to apply impulses to.
 	/// </summary>
-	[Export] public RigidBody3D TargetRigidBody { get; set; } = null!;
+	[Export, RequiredExport] public RigidBody3D TargetRigidBody { get; set; } = null!;
 
 	/// <summary>
 	/// Multiplier applied to all knockback forces.
@@ -54,6 +56,8 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	public override void _Ready()
 	{
 		base._Ready();
+		if (Engine.IsEditorHint()) { return; }
+		this.ValidateRequiredExports();
 		ProcessMode = ProcessModeEnum.Disabled;
 	}
 

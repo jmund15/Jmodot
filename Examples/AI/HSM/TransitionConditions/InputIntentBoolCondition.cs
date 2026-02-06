@@ -4,11 +4,12 @@ using Core.AI.BB;
 using Core.AI.HSM;
 using Core.Input;
 using Implementation.AI.BB;
+using Jmodot.Core.Shared.Attributes;
 
 [GlobalClass]
 public partial class InputIntentBoolCondition : TransitionCondition
 {
-    [Export] private InputAction _requiredAction = null!;
+    [Export, RequiredExport] private InputAction _requiredAction = null!;
     [Export] private bool _requiredIntent;
     public override bool Check(Node agent, IBlackboard bb)
     {

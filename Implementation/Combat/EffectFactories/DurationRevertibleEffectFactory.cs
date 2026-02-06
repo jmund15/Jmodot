@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
 using GCol = Godot.Collections;
@@ -14,8 +15,8 @@ using Shared;
 public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene? RunnerOverride { get; set; }
-    [Export] public BaseFloatValueDefinition Duration { get; set; } = null!;
-    [Export] public CombatEffectFactory RevertibleEffect { get; set; } = null!;
+    [Export, RequiredExport] public BaseFloatValueDefinition Duration { get; set; } = null!;
+    [Export, RequiredExport] public CombatEffectFactory RevertibleEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
 

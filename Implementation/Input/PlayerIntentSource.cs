@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Input;
 
 using System.Collections.Generic;
 using Core.Input;
+using Jmodot.Core.Shared.Attributes;
 using Shared;
 using GCol = Godot.Collections;
 using Input = Godot.Input;
@@ -25,7 +26,7 @@ public partial class PlayerIntentSource : IntentSourceNode
     private GCol.Array<ActionBinding> _actionBindings = new();
 
     [Export] private GCol.Array<VectorActionBinding> _vectorBindings = new();
-    [Export] private InputMappingProfile _inputProfile = null!;
+    [Export, RequiredExport] private InputMappingProfile _inputProfile = null!;
     [Export] public bool IsActive { get; set; } = true;
 
     /// <summary>
@@ -56,6 +57,8 @@ public partial class PlayerIntentSource : IntentSourceNode
     public override void _Ready()
     {
         base._Ready();
+        if (Engine.IsEditorHint()) { return; }
+        this.ValidateRequiredExports();
         ProcessFrameUpdateIntentStates();
         PhysicsFramePublishBuffer();
     }

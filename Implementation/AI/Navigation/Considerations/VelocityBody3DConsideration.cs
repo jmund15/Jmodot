@@ -8,6 +8,7 @@ using Core.AI.Navigation.Considerations;
 using Core.AI.Perception;
 using Core.Identification;
 using Core.Movement;
+using Jmodot.Core.Shared.Attributes;
 using Shared;
 
 /// <summary>
@@ -37,7 +38,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// The Category resource used to filter which perceived targets this consideration will react to.
     /// For example, you could assign an "Enemy" Category to react to hostile units.
     /// </summary>
-    [Export] private Category _targetCategory = null!;
+    [Export, RequiredExport] private Category _targetCategory = null!;
 
     /// <summary>
     /// Balances the agent's strategy between position and velocity.

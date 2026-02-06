@@ -1,5 +1,7 @@
 namespace Jmodot.Core.Combat.EffectDefinitions;
 
+using Jmodot.Core.Shared.Attributes;
+
 /// <summary>
 /// Configuration resource for distance-based effect falloff.
 /// Define how damage/knockback/etc scales based on distance from epicenter.
@@ -11,7 +13,7 @@ public partial class DistanceFalloffConfig : Resource
     /// The falloff curve. X-axis: Normalized distance (0=epicenter, 1=MaxRadius).
     /// Y-axis: Multiplier (0-1+). If null, returns 1.0 (no falloff).
     /// </summary>
-    [Export] public Curve FalloffCurve { get; set; } = null!;
+    [Export, RequiredExport] public Curve FalloffCurve { get; set; } = null!;
 
     /// <summary>
     /// The radius for normalization. At distance >= MaxRadius, curve samples at X=1.

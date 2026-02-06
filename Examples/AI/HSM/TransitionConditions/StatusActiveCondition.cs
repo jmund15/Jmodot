@@ -6,6 +6,7 @@ using Implementation.Combat;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.AI.HSM;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// A transition condition that checks if a specific CombatTag is currently active
@@ -18,7 +19,7 @@ public partial class StatusActiveCondition : TransitionCondition
     /// <summary>
     /// The tag to check for on the StatusEffectComponent.
     /// </summary>
-    [Export] public CombatTag RequiredTag { get; set; } = null!;
+    [Export, RequiredExport] public CombatTag RequiredTag { get; set; } = null!;
 
     /// <summary>
     /// If true, inverts the result (returns true when tag is NOT active).

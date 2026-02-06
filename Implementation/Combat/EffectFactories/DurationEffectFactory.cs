@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
 using GCol = Godot.Collections;
@@ -14,8 +15,8 @@ public partial class DurationEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene? RunnerOverride { get; set; }
     [Export] public BaseFloatValueDefinition Duration { get; set; } = new ConstantFloatDefinition(1.0f);
-    [Export] public CombatEffectFactory OnStartEffect { get; set; } = null!;
-    [Export] public CombatEffectFactory OnEndEffect { get; set; } = null!;
+    [Export, RequiredExport] public CombatEffectFactory OnStartEffect { get; set; } = null!;
+    [Export, RequiredExport] public CombatEffectFactory OnEndEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
 
