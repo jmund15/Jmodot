@@ -4,6 +4,7 @@ namespace Jmodot.Implementation.Health;
 using Godot;
 using System;
 using AI.BB;
+using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Stats;
@@ -39,7 +40,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
     [ExportGroup("Stat System Integration")]
     [Export]
-    private Attribute _maxHealthAttribute = null!;
+    private BaseFloatValueDefinition _maxHealthDefinition = null!;
 
     /// <summary>
     /// If true, current health will scale proportionally when max health changes.
@@ -60,6 +61,13 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// </remarks>
     [Export]
     public bool IsDamageImmune { get; set; } = false;
+
+    /// <summary>
+    /// If true, the entity can take damage but never dies (health caps at 1HP).
+    /// OnDamaged still fires for visual feedback; OnDied never fires.
+    /// </summary>
+    [Export]
+    public bool IsIndestructible { get; set; } = false;
 
     #endregion
 
@@ -108,7 +116,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// The maximum health of the entity. This is a computed property that fetches
     /// the value directly from the IStatProvider, ensuring it's always up-to-date.
     /// </summary>
-    public float MaxHealth => _statProvider.GetStatValue(_maxHealthAttribute, 1f);
+    public float MaxHealth => _maxHealthDefinition?.ResolveFloatValue(_statProvider) ?? 0f;
 
     /// <summary>
     /// The definitive life/death state of the entity.
@@ -121,6 +129,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
     private IStatProvider _statProvider = null!;
     private float _currentHealth;
+    private float _lastResolvedMaxHealth;
 
     #endregion
 
@@ -130,20 +139,18 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
     public bool Initialize(IBlackboard bb)
     {
-        if (!bb.TryGet(BBDataSig.Stats, out _statProvider))
+        if (_maxHealthDefinition == null)
         {
-            JmoLogger.Error(this, $"{nameof(HealthComponent)} requires an {nameof(IStatProvider)} in the blackboard.");
+            JmoLogger.Error(this, $"{nameof(_maxHealthDefinition)} must be assigned in the inspector for {nameof(HealthComponent)}.");
             return false;
         }
 
-        if (_maxHealthAttribute == null)
-        {
-            JmoLogger.Error(this, $"{nameof(_maxHealthAttribute)} must be assigned in the inspector for {nameof(HealthComponent)}.");
-            return false;
-        }
+        // Stats are optional — ConstantFloatDefinition doesn't need them
+        bb.TryGet(BBDataSig.Stats, out _statProvider);
 
-        // Initialize health to its starting maximum value from the stat sheet.
+        // Initialize health to its starting maximum value from the definition.
         _currentHealth = MaxHealth;
+        _lastResolvedMaxHealth = _currentHealth;
         IsInitialized = true;
         Initialized();
         OnPostInitialize();
@@ -153,8 +160,11 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     public void OnPostInitialize()
     {
         // Subscribe to changes in the MaxHealth stat after all components are initialized.
-        // This ensures we react to buffs, debuffs, or other runtime stat changes.
-        _statProvider.OnStatChanged += OnStatProviderStatChanged;
+        // Only subscribe if stats are available (ConstantFloatDefinition doesn't use stats).
+        if (_statProvider != null)
+        {
+            _statProvider.OnStatChanged += OnStatProviderStatChanged;
+        }
 
         // Emit initial values for any listeners that are set up during their own Initialize phase.
         OnMaxHealthChanged?.Invoke(MaxHealth);
@@ -204,8 +214,10 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
         // Reset state
         _currentHealth = 0;
+        _lastResolvedMaxHealth = 0;
         IsDead = false;
         IsDamageImmune = false;
+        IsIndestructible = false;
         IsInitialized = false;
     }
 
@@ -232,7 +244,15 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
             return;
         }
 
-        SetHealth(_currentHealth - amount, source);
+        float newHealth = _currentHealth - amount;
+
+        // Indestructible: cap at 1HP minimum — takes damage but never dies
+        if (IsIndestructible && newHealth <= 0)
+        {
+            newHealth = 1f;
+        }
+
+        SetHealth(newHealth, source);
     }
 
     /// <summary>
@@ -367,14 +387,17 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     }
 
     /// <summary>
-    /// Subscribes to the IStatProvider and handles changes to the MaxHealth attribute.
+    /// Handles stat changes by re-resolving MaxHealth through the definition.
+    /// Works with any BaseFloatValueDefinition subclass — the definition decides
+    /// whether the changed attribute is relevant.
     /// </summary>
     private void OnStatProviderStatChanged(Attribute attribute, Variant newValue)
     {
-        if (attribute != _maxHealthAttribute) { return; }
+        float newMaxHealth = MaxHealth;
+        if (Mathf.IsEqualApprox(newMaxHealth, _lastResolvedMaxHealth)) { return; }
 
-        float previousMaxHealth = MaxHealth;
-        float newMaxHealth = newValue.AsSingle();
+        float previousMaxHealth = _lastResolvedMaxHealth;
+        _lastResolvedMaxHealth = newMaxHealth;
 
         OnMaxHealthChanged?.Invoke(newMaxHealth);
 
@@ -383,12 +406,11 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
             // Calculate the current health percentage against the old max health.
             float healthPercentage = previousMaxHealth > 0 ? _currentHealth / previousMaxHealth : 1f;
             // Apply the same percentage to the new max health to scale current health.
-            SetHealth(newMaxHealth * healthPercentage, this); // Source is this component itself.
+            SetHealth(newMaxHealth * healthPercentage, this);
         }
         else
         {
             // If not scaling, simply ensure current health doesn't exceed the new max.
-            // The SetHealth method's clamping will handle this automatically.
             SetHealth(_currentHealth, this);
         }
     }
