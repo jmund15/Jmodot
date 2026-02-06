@@ -75,7 +75,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     public readonly record struct ScalableShapeEntry(CollisionShape3D Shape, Vector3 BaseScale);
 
     public bool IsInitialized { get; private set; }
-    public event Action? Initialized;
+    public event Action Initialized = delegate { };
 
     // --- Component Interface ---
 
@@ -121,7 +121,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
         ApplyScale(currentSize);
 
         IsInitialized = true;
-        Initialized?.Invoke();
+        Initialized();
         OnPostInitialize();
         return true;
     }

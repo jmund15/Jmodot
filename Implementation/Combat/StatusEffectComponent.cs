@@ -64,13 +64,13 @@ public partial class StatusEffectComponent : Node, IComponent
         //     return false;
         // }
         IsInitialized = true;
-        Initialized?.Invoke();
+        Initialized();
         OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize() { }
-    public event Action? Initialized;
+    public event Action Initialized = delegate { };
 
     public Node GetUnderlyingNode() => this;
     #endregion

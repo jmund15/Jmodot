@@ -130,23 +130,22 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
     public bool Initialize(IBlackboard bb)
     {
-        // TODO: Update to jmo logger
         if (!bb.TryGet(BBDataSig.Stats, out _statProvider))
         {
-            GD.PrintErr($"{nameof(HealthComponent)} requires an {nameof(IStatProvider)} in the blackboard.");
+            JmoLogger.Error(this, $"{nameof(HealthComponent)} requires an {nameof(IStatProvider)} in the blackboard.");
             return false;
         }
 
         if (_maxHealthAttribute == null)
         {
-            GD.PrintErr($"{nameof(_maxHealthAttribute)} must be assigned in the inspector for {nameof(HealthComponent)}.");
+            JmoLogger.Error(this, $"{nameof(_maxHealthAttribute)} must be assigned in the inspector for {nameof(HealthComponent)}.");
             return false;
         }
 
         // Initialize health to its starting maximum value from the stat sheet.
         _currentHealth = MaxHealth;
         IsInitialized = true;
-        Initialized?.Invoke();
+        Initialized();
         OnPostInitialize();
         return true;
     }
@@ -161,7 +160,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         OnMaxHealthChanged?.Invoke(MaxHealth);
     }
 
-    public event Action? Initialized;
+    public event Action Initialized = delegate { };
 
     #endregion
 

@@ -51,7 +51,7 @@ public partial class VisualEffectController : Node, IComponent
     private BaseModulationTracker? _baseColorTracker;
 
     public bool IsInitialized { get; private set; }
-    public event Action Initialized;
+    public event Action Initialized = delegate { };
 
     /// <summary>
     /// Set the base color tracker for this controller.
@@ -91,7 +91,8 @@ public partial class VisualEffectController : Node, IComponent
         RefreshVisualNodes();
 
         IsInitialized = true;
-        Initialized?.Invoke();
+        Initialized();
+        OnPostInitialize();
         return true;
     }
 

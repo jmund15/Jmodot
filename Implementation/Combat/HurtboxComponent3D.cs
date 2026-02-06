@@ -59,16 +59,16 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         }
 
         IsInitialized = true;
-        Initialized?.Invoke();
+        Initialized();
         OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize()
     {
-        Activate(); // if not already (TODO: maybe remove for cleanness or determine if we should actually activate in _Ready)
+        Activate();
     }
-    public event Action? Initialized;
+    public event Action Initialized = delegate { };
 
     public Node GetUnderlyingNode() => this;
     #endregion
@@ -76,7 +76,6 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     #region Godot Lifecycle
     public override void _Ready()
     {
-        Activate();
     }
     #endregion
 

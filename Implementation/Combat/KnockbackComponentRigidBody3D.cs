@@ -77,7 +77,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	{
 		if (_rigidBody == null)
 		{
-			GD.PrintErr("[KnockbackComponentRigidBody3D] No RigidBody3D assigned!");
+			JmoLogger.Error(this, "No RigidBody3D assigned!");
 			return;
 		}
 
@@ -88,7 +88,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		// _rigidBody.ApplyCentralImpulse(impulse);
 
 		EmitSignal(SignalName.KnockbackApplied, direction, finalForce);
-		GD.Print($"[KnockbackComponentRigidBody3D] TODO: Apply impulse {impulse} to RigidBody3D");
+		JmoLogger.Info(this, $"TODO: Apply impulse {impulse} to RigidBody3D");
 	}
 
 	#endregion
@@ -96,20 +96,20 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	#region INTERFACE_IMPLEMENTATION
 
 	public bool IsInitialized { get; private set; }
-	public event Action? Initialized;
+	public event Action Initialized = delegate { };
 
 	public bool Initialize(IBlackboard bb)
 	{
 		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!))
 		{
-			GD.PrintErr("[KnockbackComponentRigidBody3D] Required dependency BBDataSig.CombatantComponent not found");
+			JmoLogger.Error(this, "Required dependency BBDataSig.CombatantComponent not found");
 			return false;
 		}
 
 		_rigidBody = TargetRigidBody;
 
 		IsInitialized = true;
-		Initialized?.Invoke();
+		Initialized();
 		OnPostInitialize();
 		return true;
 	}
