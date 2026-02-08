@@ -215,6 +215,11 @@ using AI.BB;
             OnAttackStarted = delegate { };
             OnAttackFinished = delegate { };
 
+            // Reset continuous mode to export defaults for clean pool state.
+            // WavePullEffectInstance re-sets these during OnInitialize each cast.
+            IsContinuous = false;
+            ContinuousTickInterval = 0.1f;
+
             if (!IsActive) { return; }
 
             // Use immediate deactivation - OnPoolReset is called from pool management, not physics
@@ -399,7 +404,7 @@ using AI.BB;
         /// </remarks>
         private bool HasCollisionExceptionWith(Node target)
         {
-            // 1. Check explicit combat exceptions first (faster, more reliable)
+            // 1. Check explicit combat exceptions first (sibling spells) - ALWAYS checked
             // ICombatExceptionProvider allows any owner to provide combat-level exceptions
             // without depending on physics exceptions which only work for PhysicsBody3D.
             if (Owner is ICombatExceptionProvider exceptionProvider)
@@ -411,7 +416,12 @@ using AI.BB;
                 }
             }
 
-            // 2. Fall back to physics exceptions for backward compatibility
+            // 2. Skip physics exception check in continuous mode.
+            // Physics exceptions are added by PiercePhysicsStrategy for MoveAndSlide pass-through.
+            // In continuous mode, the hitbox must re-hit targets each tick for sustained damage.
+            if (IsContinuous) { return false; }
+
+            // 3. Check physics collision exceptions (non-continuous only)
             // Both owner and target must be PhysicsBody3D for collision exceptions to apply
             if (Owner is not PhysicsBody3D ownerBody || target is not PhysicsBody3D targetBody)
             {
