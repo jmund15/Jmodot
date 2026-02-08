@@ -52,7 +52,7 @@ public struct StatEffect : IRevertibleCombatEffect
         }
         if (!stats!.TryAddModifier(Attribute, Modifier, this, out var handle))
         {
-            JmoLogger.Warning(this, $"StatEffect was unable to apply stat modification!");
+            JmoLogger.Debug(this, $"StatEffect skipped — target '{target.GetUnderlyingNode().Name}' lacks attribute '{Attribute.AttributeName}'");
             return null;
         }
         Handle = handle!;
@@ -68,7 +68,7 @@ public struct StatEffect : IRevertibleCombatEffect
     {
         if (Handle == null)
         {
-            JmoLogger.Warning(this, $"Can't get revert effect — stat effect wasn't applied.");
+            JmoLogger.Debug(this, $"Can't get revert effect — stat effect wasn't applied on '{target.GetUnderlyingNode().Name}'.");
             return null;
         }
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))

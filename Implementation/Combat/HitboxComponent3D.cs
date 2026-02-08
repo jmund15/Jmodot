@@ -109,9 +109,11 @@ using AI.BB;
             // Connect signal once - _Ready() only runs once per node lifetime (even with pooling)
             AreaEntered += OnAreaEntered;
 
-            // Start "Cold" - use synchronous deactivation since _Ready() is NOT a physics callback
-            // This is safe and avoids any deferred timing complexity on initialization
-            DeactivateImmediate();
+            // Start "Cold" - use DEFERRED deactivation because _Ready() CAN run inside a physics
+            // callback when AddChild() is called during OnAreaEntered signal chains
+            // (e.g. SpawnOneShotSpellEffect.Spawn() during spell destruction).
+            // Safe: IsActive=false is synchronous and guards TryHitHurtbox from phantom hits.
+            Deactivate();
 
             if (AutoStartWithDefault)
             {
