@@ -14,7 +14,7 @@ using System;
 /// This resource is stateless (FactoryRunner pattern) - it only computes values.
 /// Consumers own the state (velocity, health component references).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ImpactDamageProfile : Resource
 {
     /// <summary>

@@ -10,7 +10,7 @@ using Jmodot.Implementation.Modifiers.CalculationStrategies;
 ///     movement capabilities for an actor. It allows a State Machine/Behavior Tree to dynamically select the
 ///     correct physics data for its current state and actions.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class EntityStatSheet : Resource
 {
     /// <summary>
