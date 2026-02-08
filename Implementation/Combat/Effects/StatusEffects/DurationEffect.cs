@@ -17,8 +17,8 @@ public class DurationEffect : ICombatEffect
     public PackedScene Prefab { get; private init; }
 
     public float Duration { get; private init; }
-    public ICombatEffect StartEffect { get; private init; }
-    public ICombatEffect EndEffect { get; private init; }
+    public ICombatEffect? StartEffect { get; private init; }
+    public ICombatEffect? EndEffect { get; private init; }
     public PackedScene? PersistentVisuals { get; private init; }
     public IEnumerable<CombatTag> Tags { get; private init; }
     public VisualEffect? Visual { get; private init; }
@@ -26,7 +26,7 @@ public class DurationEffect : ICombatEffect
     public DurationEffect(
         PackedScene prefab,
         float duration,
-        ICombatEffect startEffect, ICombatEffect endEffect,
+        ICombatEffect? startEffect, ICombatEffect? endEffect,
         PackedScene? persistentVisuals,
         IEnumerable<CombatTag> tags,
         VisualEffect? visual = null)

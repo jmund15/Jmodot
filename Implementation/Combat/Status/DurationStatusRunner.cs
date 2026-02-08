@@ -11,13 +11,13 @@ using System.Collections.Generic;
 public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, IDurationRefreshable, IAmplifiable
 {
     public float Duration { get; set; }
-    public ICombatEffect OnStartEffect { get; set; }
-    public ICombatEffect OnEndEffect { get; set; }
+    public ICombatEffect? OnStartEffect { get; set; }
+    public ICombatEffect? OnEndEffect { get; set; }
 
     private Timer _durationTimer;
 
     public void Setup(float duration,
-        ICombatEffect startEffect, ICombatEffect endEffect,
+        ICombatEffect? startEffect, ICombatEffect? endEffect,
         PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
         VisualEffect? visualEffect = null)
     {
@@ -46,7 +46,10 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
     {
         base.Start(target, context);
 
-        Target.ApplyEffect(OnStartEffect, Context);
+        if (OnStartEffect != null)
+        {
+            Target.ApplyEffect(OnStartEffect, Context);
+        }
 
         // Setup Timer
         if (Duration > 0)
@@ -65,7 +68,10 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
     public override void Stop(bool wasDispelled = false)
     {
         // Apply End Effect
-        Target.ApplyEffect(OnEndEffect, Context);
+        if (OnEndEffect != null)
+        {
+            Target.ApplyEffect(OnEndEffect, Context);
+        }
         _durationTimer.Stop();
 
         base.Stop(wasDispelled);

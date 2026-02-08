@@ -15,8 +15,8 @@ public partial class DurationEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene? RunnerOverride { get; set; }
     [Export] public BaseFloatValueDefinition Duration { get; set; } = new ConstantFloatDefinition(1.0f);
-    [Export, RequiredExport] public CombatEffectFactory OnStartEffect { get; set; } = null!;
-    [Export, RequiredExport] public CombatEffectFactory OnEndEffect { get; set; } = null!;
+    [Export] public CombatEffectFactory? OnStartEffect { get; set; }
+    [Export] public CombatEffectFactory? OnEndEffect { get; set; }
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
 
@@ -27,8 +27,8 @@ public partial class DurationEffectFactory : CombatEffectFactory
         return new DurationEffect(
             runner,
             Duration.ResolveFloatValue(stats),
-            OnStartEffect.Create(stats),
-            OnEndEffect.Create(stats),
+            OnStartEffect?.Create(stats),
+            OnEndEffect?.Create(stats),
             PersistentVisuals,
             Tags = Tags,
             TargetVisualEffect
