@@ -1,4 +1,4 @@
- using Godot;
+using Godot;
 using System;
 using Jmodot.Core.Combat;
 
@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AI.BB;
 using Core.Combat.Reactions;
+using Core.Identification;
 using Core.Visual.Effects;
 using Implementation.Visual.Effects;
 using Shared;
@@ -29,6 +30,16 @@ public abstract partial class StatusRunner : Node
     /// Used by the StatusEffectComponent to track active states.
     /// </summary>
     public IEnumerable<CombatTag> Tags { get; set; } = [];
+
+    /// <summary>
+    /// Checks if any of this runner's tags have an ElementalCategory that contains the specified category.
+    /// Single source of truth for category matching — used by StatusEffectComponent and EnvironmentZoneTrigger.
+    /// </summary>
+    public bool MatchesCategory(Category category)
+    {
+        return Tags.Any(t => t?.ElementalCategory?.HasCategory(category) == true);
+    }
+
     /// <summary>
     /// Optional visual scene to spawn and hold for the duration of the status.
     /// </summary>

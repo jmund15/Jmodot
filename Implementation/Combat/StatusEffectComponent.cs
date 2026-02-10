@@ -165,8 +165,7 @@ public partial class StatusEffectComponent : Node, IComponent
     /// </summary>
     public IEnumerable<StatusRunner> GetRunnersWithCategory(Category category)
     {
-        return _activeRunners.Where(r =>
-            r.Tags.Any(t => t?.ElementalCategory?.HasCategory(category) == true));
+        return _activeRunners.Where(r => r.MatchesCategory(category));
     }
 
     /// <summary>
