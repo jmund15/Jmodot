@@ -40,6 +40,11 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     /// </summary>
     public const float DEFAULT_MAX_SIZE = 3.0f;
 
+    /// <summary>
+    /// Floor for runtime scale multiplier — prevents invisible/degenerate shapes.
+    /// </summary>
+    private const float MIN_RUNTIME_MULTIPLIER = 0.01f;
+
     // --- REQUIRED: Size Attribute ---
     [Export, RequiredExport]
     public StatAttribute SizeAttribute { get; set; } = null!;
@@ -140,7 +145,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     /// </summary>
     public void SetRuntimeScaleMultiplier(float multiplier)
     {
-        _runtimeScaleMultiplier = Mathf.Clamp(multiplier, 0.01f, MaxSize);
+        _runtimeScaleMultiplier = Mathf.Clamp(multiplier, MIN_RUNTIME_MULTIPLIER, MaxSize);
         var currentSize = _stats?.GetStatValue<float>(SizeAttribute, 1.0f) ?? 1.0f;
         ApplyScale(currentSize);
     }
