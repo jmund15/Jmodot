@@ -68,6 +68,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     private StatController? _stats;
     private List<ScalableShapeEntry> _scalableShapes = new();
     private Vector3 _baseVisualScale = Vector3.One;
+    private float _runtimeScaleMultiplier = 1f;
 
     /// <summary>
     /// Represents a collision shape and its cached base scale for efficient scaling operations.
@@ -130,6 +131,20 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
     public Node GetUnderlyingNode() => this;
 
+    // --- Runtime Scale Multiplier ---
+
+    /// <summary>
+    /// Sets a runtime scale multiplier that composes with the stat-driven base size.
+    /// Used by external systems (e.g., health-driven scaling) without modifying the stat.
+    /// Final size = statSize × runtimeScaleMultiplier, clamped to [MinSize, MaxSize].
+    /// </summary>
+    public void SetRuntimeScaleMultiplier(float multiplier)
+    {
+        _runtimeScaleMultiplier = Mathf.Clamp(multiplier, 0.01f, MaxSize);
+        var currentSize = _stats?.GetStatValue<float>(SizeAttribute, 1.0f) ?? 1.0f;
+        ApplyScale(currentSize);
+    }
+
     // --- Size Change Handler ---
 
     private void OnSizeChanged(Variant newValue)
@@ -142,7 +157,8 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
     private void ApplyScale(float sizeMultiplier)
     {
-        var clampedSize = SizeScalingUtils.ClampSize(sizeMultiplier, MinSize, MaxSize);
+        var clampedSize = SizeScalingUtils.ClampSize(
+            sizeMultiplier * _runtimeScaleMultiplier, MinSize, MaxSize);
 
         // Scale all discovered collision shapes
         foreach (var entry in _scalableShapes)
@@ -181,14 +197,28 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
             _stats.Unsubscribe(SizeAttribute, OnSizeChanged);
         }
 
-        // 2. Clear cached state
+        // 2. Restore scaled nodes to base before clearing cache
+        foreach (var entry in _scalableShapes)
+        {
+            if (GodotObject.IsInstanceValid(entry.Shape))
+            {
+                entry.Shape.Scale = entry.BaseScale;
+            }
+        }
+        if (VisualRoot != null && GodotObject.IsInstanceValid(VisualRoot))
+        {
+            VisualRoot.Scale = _baseVisualScale;
+        }
+
+        // 3. Clear cached state
         _scalableShapes.Clear();
         _baseVisualScale = Vector3.One;
+        _runtimeScaleMultiplier = 1f;
 
-        // 3. Clear references
+        // 4. Clear references
         _stats = null;
 
-        // 4. Reset initialization flag
+        // 5. Reset initialization flag
         IsInitialized = false;
     }
 
