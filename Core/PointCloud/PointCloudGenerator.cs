@@ -45,9 +45,9 @@ public static class PointCloudGenerator
 
         return config.Distribution switch
         {
+            PointCloudDistribution.PoissonDisk => GeneratePoissonInSphere(radius, config.MinSpacing, config.TargetPointCount, config.PositionJitter, rng),
             PointCloudDistribution.Random => GenerateRandomInSphere(radius, config.TargetPointCount, config.PositionJitter, config.MinSpacing, rng),
             PointCloudDistribution.Uniform => GenerateUniformInSphere(radius, config.TargetPointCount, config.PositionJitter, config.MinSpacing, rng),
-            PointCloudDistribution.PoissonDisk => GeneratePoissonInSphere(radius, config.MinSpacing, config.TargetPointCount, config.PositionJitter, rng),
             _ => GeneratePoissonInSphere(radius, config.MinSpacing, config.TargetPointCount, config.PositionJitter, rng)
         };
     }
