@@ -92,6 +92,19 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
     public new void SetSpeedScale(float speedScale) => SpeedScale = speedScale; // 'new' keyword to hide base member
     public void PauseAnim() => Pause(); // Map interface to concrete implementation
 
+    public string[] GetAnimationList()
+    {
+        var library = GetAnimationLibrary(new StringName(""));
+        if (library == null) { return []; }
+        var names = library.GetAnimationList();
+        var result = new string[names.Count];
+        for (int i = 0; i < names.Count; i++)
+        {
+            result[i] = names[i];
+        }
+        return result;
+    }
+
     public bool IsAnimationLooping(StringName animName)
     {
         if (!HasAnimation(animName)) { return false; }
