@@ -24,30 +24,3 @@ public enum PointCloudDistribution
     /// </summary>
     PoissonDisk
 }
-
-/// <summary>
-/// The base shape used to define point cloud boundaries.
-/// </summary>
-public enum PointCloudShape
-{
-    /// <summary>
-    /// Uniform sphere (all radii equal).
-    /// </summary>
-    Sphere,
-
-    /// <summary>
-    /// Ellipsoid with potentially different X, Y, Z radii.
-    /// A sphere is a special case where all radii are equal.
-    /// </summary>
-    Ellipsoid,
-
-    /// <summary>
-    /// Axis-aligned box.
-    /// </summary>
-    Box,
-
-    /// <summary>
-    /// Vertical cylinder with configurable radius and height.
-    /// </summary>
-    Cylinder
-}
