@@ -17,18 +17,20 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
     {
         var rng = new Random(p.Seed);
 
-        if (p.FlattenToPlane)
-        {
-            return GenerateFlatRectangle(scale, p, rng);
-        }
-
-        // Compute actual Y bounds from normalized values
+        // Box uses scale.Y for Y extent in both 2D (rectangle) and 3D modes
         float yMin = p.HasYCutoff ? (p.YMinNormalized * 2 - 1) * scale.Y : -scale.Y;
         float yMax = p.HasYCutoff ? (p.YMaxNormalized * 2 - 1) * scale.Y : scale.Y;
+
+        if (p.FlattenToPlane)
+        {
+            return GenerateFlatRectangle(scale, yMin, yMax, p, rng);
+        }
 
         return p.Distribution switch
         {
             PointCloudDistribution.Random => GenerateRandomInBox(scale, yMin, yMax, p.TargetCount, rng),
+            PointCloudDistribution.Uniform =>
+                GenerateUniformInBox(scale, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             _ => GeneratePoissonInBox(scale, yMin, yMax, p.MinSpacing, p.TargetCount, p.PositionJitter, rng)
         };
     }
@@ -42,30 +44,38 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
 
     #region 2D Rectangle Generation (FlattenToPlane)
 
-    private static List<Vector3> GenerateFlatRectangle(Vector3 halfExtents, PointCloudGenerationParams p, Random rng)
+    private static List<Vector3> GenerateFlatRectangle(Vector3 halfExtents, float yMin, float yMax, PointCloudGenerationParams p, Random rng)
     {
+        Func<Vector3, bool> isInBounds = pt =>
+            Math.Abs(pt.X) <= halfExtents.X && pt.Y >= yMin && pt.Y <= yMax;
+
         return p.Distribution switch
         {
-            PointCloudDistribution.Random => GenerateRandomInRectangle(halfExtents, p.TargetCount, rng),
+            PointCloudDistribution.Random => GenerateRandomInRectangle(halfExtents, yMin, yMax, p.TargetCount, rng),
+            PointCloudDistribution.Uniform => PointCloudGenerator.GenerateUniformGeneric(
+                new Vector3(-halfExtents.X, yMin, 0),
+                new Vector3(halfExtents.X, yMax, 0),
+                isInBounds,
+                p.TargetCount, p.PositionJitter, p.MinSpacing, rng, flattenZ: true),
             _ => PointCloudGenerator.GeneratePoissonGeneric(
                 r =>
                 {
                     float x = (float)(r.NextDouble() * 2 - 1) * halfExtents.X;
-                    float y = (float)(r.NextDouble() * 2 - 1) * halfExtents.Y;
+                    float y = (float)(r.NextDouble() * (yMax - yMin) + yMin);
                     return new Vector3(x, y, 0);
                 },
-                pt => Math.Abs(pt.X) <= halfExtents.X && Math.Abs(pt.Y) <= halfExtents.Y,
+                isInBounds,
                 p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
         };
     }
 
-    private static List<Vector3> GenerateRandomInRectangle(Vector3 halfExtents, int count, Random rng)
+    private static List<Vector3> GenerateRandomInRectangle(Vector3 halfExtents, float yMin, float yMax, int count, Random rng)
     {
         var points = new List<Vector3>(count);
         for (int i = 0; i < count; i++)
         {
             float x = (float)(rng.NextDouble() * 2 - 1) * halfExtents.X;
-            float y = (float)(rng.NextDouble() * 2 - 1) * halfExtents.Y;
+            float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
             points.Add(new Vector3(x, y, 0));
         }
         return points;
@@ -74,6 +84,17 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
     #endregion
 
     #region Distribution Algorithms
+
+    private static List<Vector3> GenerateUniformInBox(
+        Vector3 halfExtents, float yMin, float yMax, int targetCount, float jitter, float spacing, Random rng)
+    {
+        var boundsMin = new Vector3(-halfExtents.X, yMin, -halfExtents.Z);
+        var boundsMax = new Vector3(halfExtents.X, yMax, halfExtents.Z);
+        return PointCloudGenerator.GenerateUniformGeneric(
+            boundsMin, boundsMax,
+            p => Math.Abs(p.X) <= halfExtents.X && p.Y >= yMin && p.Y <= yMax && Math.Abs(p.Z) <= halfExtents.Z,
+            targetCount, jitter, spacing, rng);
+    }
 
     private static List<Vector3> GenerateRandomInBox(Vector3 halfExtents, float yMin, float yMax, int count, Random rng)
     {

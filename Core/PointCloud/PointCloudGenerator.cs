@@ -72,6 +72,7 @@ public static class PointCloudGenerator
             PositionJitter = config.PositionJitter,
             TargetCount = targetCount,
             YMaxNormalized = 1.0f,
+            FlattenToPlane = config.FlattenToPlane,
             Seed = seed
         };
         return shape.Generate(new Vector3(radius, radius, radius), genParams);
@@ -91,6 +92,7 @@ public static class PointCloudGenerator
             PositionJitter = config.PositionJitter,
             TargetCount = targetCount,
             YMaxNormalized = 1.0f,
+            FlattenToPlane = config.FlattenToPlane,
             Seed = seed
         };
         return shape.Generate(radii, genParams);
@@ -114,6 +116,7 @@ public static class PointCloudGenerator
             TargetCount = adjustedTarget,
             YMinNormalized = slice.YMin,
             YMaxNormalized = slice.YMax,
+            FlattenToPlane = config.FlattenToPlane,
             Seed = seed
         };
         return shape.Generate(new Vector3(radius, radius, radius), genParams);
@@ -304,6 +307,8 @@ public static class PointCloudGenerator
             attempts++;
             var candidate = generateCandidate(rng);
 
+            if (!isInBounds(candidate)) { continue; }
+
             float minDist = CalculateMinDistance(candidate, points);
             if (minDist >= minSpacing)
             {
@@ -325,6 +330,79 @@ public static class PointCloudGenerator
                 else
                 {
                     points.Add(candidate);
+                }
+            }
+        }
+
+        return points;
+    }
+
+    /// <summary>
+    /// Generic uniform (grid-based) point generation with customizable bounds and containment checking.
+    /// Computes grid spacing from volume/area and target count, iterates grid cells,
+    /// checks containment, applies jitter, and re-checks containment.
+    /// Used by shape strategies to implement Uniform distribution without duplicating the grid algorithm.
+    /// </summary>
+    /// <param name="boundsMin">Minimum corner of the bounding box for grid iteration.</param>
+    /// <param name="boundsMax">Maximum corner of the bounding box for grid iteration.</param>
+    /// <param name="isInBounds">Containment check for the target shape (called pre- and post-jitter).</param>
+    /// <param name="targetCount">Approximate number of points to generate (grid spacing is derived from this).</param>
+    /// <param name="jitter">Random offset fraction applied to each grid point (0 = none, 1 = full).</param>
+    /// <param name="spacing">Reference spacing for jitter magnitude calculation.</param>
+    /// <param name="rng">Random number generator for jitter.</param>
+    /// <param name="flattenZ">When true, generates on XY plane (Z=0) using 2D area instead of 3D volume.</param>
+    public static List<Vector3> GenerateUniformGeneric(
+        Vector3 boundsMin, Vector3 boundsMax,
+        Func<Vector3, bool> isInBounds,
+        int targetCount, float jitter, float spacing, Random rng,
+        bool flattenZ = false)
+    {
+        var points = new List<Vector3>();
+
+        float xExtent = boundsMax.X - boundsMin.X;
+        float yExtent = boundsMax.Y - boundsMin.Y;
+
+        float gridSpacing;
+        if (flattenZ)
+        {
+            float area = xExtent * yExtent;
+            if (area <= 0f || targetCount <= 0) { return points; }
+            float areaPerPoint = area / targetCount;
+            gridSpacing = Mathf.Sqrt(areaPerPoint);
+        }
+        else
+        {
+            float zExtent = boundsMax.Z - boundsMin.Z;
+            float volume = xExtent * yExtent * zExtent;
+            if (volume <= 0f || targetCount <= 0) { return points; }
+            float volumePerPoint = volume / targetCount;
+            gridSpacing = Mathf.Pow(volumePerPoint, 1f / 3f);
+        }
+
+        for (float x = boundsMin.X; x <= boundsMax.X; x += gridSpacing)
+        {
+            for (float y = boundsMin.Y; y <= boundsMax.Y; y += gridSpacing)
+            {
+                if (flattenZ)
+                {
+                    var point = new Vector3(x, y, 0);
+                    if (isInBounds(point))
+                    {
+                        point = ApplyJitter2D(point, jitter, spacing, rng);
+                        if (isInBounds(point)) { points.Add(point); }
+                    }
+                }
+                else
+                {
+                    for (float z = boundsMin.Z; z <= boundsMax.Z; z += gridSpacing)
+                    {
+                        var point = new Vector3(x, y, z);
+                        if (isInBounds(point))
+                        {
+                            point = ApplyJitter(point, jitter, spacing, rng);
+                            if (isInBounds(point)) { points.Add(point); }
+                        }
+                    }
                 }
             }
         }

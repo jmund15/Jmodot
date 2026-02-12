@@ -19,26 +19,23 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
         float halfHeight = scale.Y;
         var rng = new Random(p.Seed);
 
-        // Cylinder flattened to XY is a circle with the cylinder's radius
+        // Cylinder flattened to XY is a circle — Y extent is radius, not halfHeight
         if (p.FlattenToPlane)
         {
-            return p.Distribution switch
-            {
-                PointCloudDistribution.Random => GenerateRandomInCircle(radius, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
-                _ => PointCloudGenerator.GeneratePoissonGeneric(
-                    r => PointCloudGenerator.GenerateRandomPointInCircle(radius, r),
-                    pt => PointCloudGenerator.IsInsideCircle(pt, radius),
-                    p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
-            };
+            float flatYMin = p.HasYCutoff ? (p.YMinNormalized * 2 - 1) * radius : -radius;
+            float flatYMax = p.HasYCutoff ? (p.YMaxNormalized * 2 - 1) * radius : radius;
+            return GenerateFlatCircle(radius, flatYMin, flatYMax, p, rng);
         }
 
-        // Compute actual Y bounds from normalized values
+        // 3D: Y extent is halfHeight
         float yMin = p.HasYCutoff ? (p.YMinNormalized * 2 - 1) * halfHeight : -halfHeight;
         float yMax = p.HasYCutoff ? (p.YMaxNormalized * 2 - 1) * halfHeight : halfHeight;
 
         return p.Distribution switch
         {
             PointCloudDistribution.Random => GenerateRandomInCylinder(radius, yMin, yMax, p.TargetCount, rng),
+            PointCloudDistribution.Uniform =>
+                GenerateUniformInCylinder(radius, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             _ => GeneratePoissonInCylinder(radius, yMin, yMax, p.MinSpacing, p.TargetCount, p.PositionJitter, rng)
         };
     }
@@ -51,12 +48,36 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
 
     #region 2D Circle Generation (FlattenToPlane)
 
-    private static List<Vector3> GenerateRandomInCircle(float radius, int count, float jitter, float spacing, Random rng)
+    private static List<Vector3> GenerateFlatCircle(float radius, float yMin, float yMax, PointCloudGenerationParams p, Random rng)
+    {
+        Func<Vector3, bool> isInBounds = pt =>
+            PointCloudGenerator.IsInsideCircle(pt, radius) && pt.Y >= yMin && pt.Y <= yMax;
+
+        return p.Distribution switch
+        {
+            PointCloudDistribution.Random => GenerateRandomInCircle(radius, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
+            PointCloudDistribution.Uniform => PointCloudGenerator.GenerateUniformGeneric(
+                new Vector3(-radius, yMin, 0),
+                new Vector3(radius, yMax, 0),
+                isInBounds,
+                p.TargetCount, p.PositionJitter, p.MinSpacing, rng, flattenZ: true),
+            _ => PointCloudGenerator.GeneratePoissonGeneric(
+                r => PointCloudGenerator.GenerateRandomPointInCircle(radius, r),
+                isInBounds,
+                p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
+        };
+    }
+
+    private static List<Vector3> GenerateRandomInCircle(float radius, float yMin, float yMax, int count, float jitter, float spacing, Random rng)
     {
         var points = new List<Vector3>(count);
-        for (int i = 0; i < count; i++)
+        int maxAttempts = count * 50;
+        int attempts = 0;
+        while (points.Count < count && attempts < maxAttempts)
         {
+            attempts++;
             var point = PointCloudGenerator.GenerateRandomPointInCircle(radius, rng);
+            if (point.Y < yMin || point.Y > yMax) { continue; }
             point = PointCloudGenerator.ApplyJitter2D(point, jitter, spacing, rng);
             points.Add(point);
         }
@@ -66,6 +87,17 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
     #endregion
 
     #region Distribution Algorithms
+
+    private static List<Vector3> GenerateUniformInCylinder(
+        float radius, float yMin, float yMax, int targetCount, float jitter, float spacing, Random rng)
+    {
+        var boundsMin = new Vector3(-radius, yMin, -radius);
+        var boundsMax = new Vector3(radius, yMax, radius);
+        return PointCloudGenerator.GenerateUniformGeneric(
+            boundsMin, boundsMax,
+            p => p.X * p.X + p.Z * p.Z <= radius * radius && p.Y >= yMin && p.Y <= yMax,
+            targetCount, jitter, spacing, rng);
+    }
 
     private static List<Vector3> GenerateRandomInCylinder(float radius, float yMin, float yMax, int count, Random rng)
     {
