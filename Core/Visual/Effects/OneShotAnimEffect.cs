@@ -3,6 +3,7 @@ namespace Jmodot.Core.Visual.Effects;
 using System;
 using Godot;
 using Jmodot.Core.Visual.Animation.Sprite;
+using Jmodot.Core.Visual.DestroyStrategies;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
@@ -19,11 +20,19 @@ public partial class OneShotAnimEffect : Node3D
     public event Action<OneShotAnimEffect>? EffectFinished;
 
     /// <summary>
-    /// When true (default), automatically calls QueueFree after the animation finishes.
+    /// When true (default), automatically handles cleanup after the animation finishes.
     /// Set to false when external code manages the node's lifetime (e.g., manual fade tweens).
     /// </summary>
     [Export]
     public bool AutoFree { get; set; } = true;
+
+    /// <summary>
+    /// Optional destroy strategy to use instead of QueueFree when the effect finishes.
+    /// When set and AutoFree is true, this strategy handles the node's destruction
+    /// (e.g., fade out, shatter). When null, falls back to QueueFree.
+    /// </summary>
+    [Export]
+    public DestroyStrategy? OnFinishDestroyStrategy { get; set; }
 
     private IAnimComponent? _animComponent;
     private bool _hasFinished;
@@ -82,7 +91,14 @@ public partial class OneShotAnimEffect : Node3D
         EffectFinished?.Invoke(this);
         if (AutoFree)
         {
-            QueueFree();
+            if (OnFinishDestroyStrategy != null)
+            {
+                OnFinishDestroyStrategy.Destroy(this, () => { });
+            }
+            else
+            {
+                QueueFree();
+            }
         }
     }
 
