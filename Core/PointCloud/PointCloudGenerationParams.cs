@@ -46,6 +46,13 @@ public readonly struct PointCloudGenerationParams
     public bool HasYCutoff => YMinNormalized > 0f || YMaxNormalized < 1f;
 
     /// <summary>
+    /// When true, all points are generated on the XY plane (Z=0).
+    /// Shapes project to their 2D equivalents: Sphere→Circle, Box→Rectangle, Ellipsoid→Ellipse.
+    /// Used for orthographic/2D-style games where depth is not meaningful.
+    /// </summary>
+    public bool FlattenToPlane { get; init; }
+
+    /// <summary>
     /// Random seed for deterministic generation.
     /// </summary>
     public int Seed { get; init; }

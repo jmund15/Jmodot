@@ -19,6 +19,19 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
         float halfHeight = scale.Y;
         var rng = new Random(p.Seed);
 
+        // Cylinder flattened to XY is a circle with the cylinder's radius
+        if (p.FlattenToPlane)
+        {
+            return p.Distribution switch
+            {
+                PointCloudDistribution.Random => GenerateRandomInCircle(radius, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
+                _ => PointCloudGenerator.GeneratePoissonGeneric(
+                    r => PointCloudGenerator.GenerateRandomPointInCircle(radius, r),
+                    pt => PointCloudGenerator.IsInsideCircle(pt, radius),
+                    p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
+            };
+        }
+
         // Compute actual Y bounds from normalized values
         float yMin = p.HasYCutoff ? (p.YMinNormalized * 2 - 1) * halfHeight : -halfHeight;
         float yMax = p.HasYCutoff ? (p.YMaxNormalized * 2 - 1) * halfHeight : halfHeight;
@@ -35,6 +48,22 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
         float horizontalDistSq = point.X * point.X + point.Z * point.Z;
         return horizontalDistSq <= scale.X * scale.X && Math.Abs(point.Y) <= scale.Y;
     }
+
+    #region 2D Circle Generation (FlattenToPlane)
+
+    private static List<Vector3> GenerateRandomInCircle(float radius, int count, float jitter, float spacing, Random rng)
+    {
+        var points = new List<Vector3>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var point = PointCloudGenerator.GenerateRandomPointInCircle(radius, rng);
+            point = PointCloudGenerator.ApplyJitter2D(point, jitter, spacing, rng);
+            points.Add(point);
+        }
+        return points;
+    }
+
+    #endregion
 
     #region Distribution Algorithms
 

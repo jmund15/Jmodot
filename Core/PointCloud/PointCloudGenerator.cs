@@ -51,6 +51,7 @@ public static class PointCloudGenerator
             TargetCount = targetCountOverride ?? config.TargetPointCount,
             YMinNormalized = yMinOverride ?? config.YMinNormalized,
             YMaxNormalized = 1.0f,
+            FlattenToPlane = config.FlattenToPlane,
             Seed = seed
         };
 
@@ -191,6 +192,72 @@ public static class PointCloudGenerator
     }
 
     /// <summary>
+    /// Checks if a point lies inside or on a circle (XY plane, Z ignored).
+    /// </summary>
+    public static bool IsInsideCircle(Vector3 point, float radius)
+    {
+        return point.X * point.X + point.Y * point.Y <= radius * radius;
+    }
+
+    /// <summary>
+    /// Checks if a point lies inside or on an ellipse (XY plane, Z ignored).
+    /// Uses the 2D ellipse equation: (x/a)² + (y/b)² &lt;= 1
+    /// </summary>
+    public static bool IsInsideEllipse(Vector3 point, float radiusX, float radiusY)
+    {
+        float nx = point.X / radiusX;
+        float ny = point.Y / radiusY;
+        return nx * nx + ny * ny <= 1.0f;
+    }
+
+    /// <summary>
+    /// Generates a random point uniformly distributed inside a circle (XY plane, Z=0).
+    /// Uses rejection sampling for uniform distribution.
+    /// </summary>
+    public static Vector3 GenerateRandomPointInCircle(float radius, Random rng)
+    {
+        for (int i = 0; i < MaxRejectionIterations; i++)
+        {
+            float x = (float)(rng.NextDouble() * 2 - 1) * radius;
+            float y = (float)(rng.NextDouble() * 2 - 1) * radius;
+            var point = new Vector3(x, y, 0);
+
+            if (IsInsideCircle(point, radius))
+            {
+                return point;
+            }
+        }
+
+        JmoLogger.Warning(typeof(PointCloudGenerator),
+            $"Circle rejection sampling failed after {MaxRejectionIterations} iterations, returning origin");
+        return Vector3.Zero;
+    }
+
+    /// <summary>
+    /// Generates a random point uniformly distributed inside an ellipse (XY plane, Z=0).
+    /// </summary>
+    public static Vector3 GenerateRandomPointInEllipse(float radiusX, float radiusY, Random rng)
+    {
+        var unitPoint = GenerateRandomPointInCircle(1.0f, rng);
+        return new Vector3(unitPoint.X * radiusX, unitPoint.Y * radiusY, 0);
+    }
+
+    /// <summary>
+    /// Applies random jitter to a point position on the XY plane only (Z unchanged).
+    /// Used when FlattenToPlane is active to prevent Z drift from jitter.
+    /// </summary>
+    public static Vector3 ApplyJitter2D(Vector3 point, float jitterAmount, float spacing, Random rng)
+    {
+        if (jitterAmount <= 0f) { return point; }
+
+        float maxJitter = spacing * jitterAmount;
+        float jx = (float)(rng.NextDouble() * 2 - 1) * maxJitter;
+        float jy = (float)(rng.NextDouble() * 2 - 1) * maxJitter;
+
+        return point + new Vector3(jx, jy, 0);
+    }
+
+    /// <summary>
     /// Calculates the minimum distance from a point to any point in a list.
     /// Returns float.MaxValue if the list is empty.
     /// </summary>
@@ -218,13 +285,15 @@ public static class PointCloudGenerator
     /// Generic Poisson disk sampling with customizable candidate generation and bounds checking.
     /// Used by shape strategies to implement Poisson distribution without duplicating the algorithm.
     /// </summary>
+    /// <param name="flattenZ">When true, uses 2D jitter (XY only) to prevent Z drift in flat mode.</param>
     public static List<Vector3> GeneratePoissonGeneric(
         Func<Random, Vector3> generateCandidate,
         Func<Vector3, bool> isInBounds,
         float minSpacing,
         int targetCount,
         float jitter,
-        Random rng)
+        Random rng,
+        bool flattenZ = false)
     {
         var points = new List<Vector3>();
         int maxAttempts = targetCount * 30;
@@ -238,7 +307,9 @@ public static class PointCloudGenerator
             float minDist = CalculateMinDistance(candidate, points);
             if (minDist >= minSpacing)
             {
-                var jitteredPoint = ApplyJitter(candidate, jitter, minSpacing, rng);
+                var jitteredPoint = flattenZ
+                    ? ApplyJitter2D(candidate, jitter, minSpacing, rng)
+                    : ApplyJitter(candidate, jitter, minSpacing, rng);
                 if (isInBounds(jitteredPoint))
                 {
                     float jitteredMinDist = CalculateMinDistance(jitteredPoint, points);

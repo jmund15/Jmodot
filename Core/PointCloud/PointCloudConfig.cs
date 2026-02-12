@@ -63,6 +63,14 @@ public partial class PointCloudConfig : Resource
     public float YMinNormalized { get; set; } = 0.0f;
 
     /// <summary>
+    /// When true, generates points on the XY plane (Z=0) instead of full 3D volume.
+    /// Shapes project to their 2D equivalents (Sphere→Circle, Box→Rectangle).
+    /// Useful for orthographic/2D-style games where depth is not meaningful.
+    /// </summary>
+    [Export]
+    public bool FlattenToPlane { get; set; } = false;
+
+    /// <summary>
     /// Creates a default configuration suitable for medium explosions.
     /// </summary>
     public static PointCloudConfig CreateDefault()

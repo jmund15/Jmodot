@@ -17,6 +17,11 @@ public partial class EllipsoidCloudShape : PointCloudShapeStrategy
     {
         var rng = new Random(p.Seed);
 
+        if (p.FlattenToPlane)
+        {
+            return GenerateFlatEllipse(scale, p, rng);
+        }
+
         // Compute actual Y bounds from normalized values
         float yMin = p.HasYCutoff ? (p.YMinNormalized * 2 - 1) * scale.Y : -scale.Y;
         float yMax = p.HasYCutoff ? (p.YMaxNormalized * 2 - 1) * scale.Y : scale.Y;
@@ -39,6 +44,34 @@ public partial class EllipsoidCloudShape : PointCloudShapeStrategy
     {
         return PointCloudGenerator.IsInsideEllipsoid(point, scale);
     }
+
+    #region 2D Ellipse Generation (FlattenToPlane)
+
+    private static List<Vector3> GenerateFlatEllipse(Vector3 radii, PointCloudGenerationParams p, Random rng)
+    {
+        return p.Distribution switch
+        {
+            PointCloudDistribution.Random => GenerateRandomInEllipse(radii.X, radii.Y, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
+            _ => PointCloudGenerator.GeneratePoissonGeneric(
+                r => PointCloudGenerator.GenerateRandomPointInEllipse(radii.X, radii.Y, r),
+                pt => PointCloudGenerator.IsInsideEllipse(pt, radii.X, radii.Y),
+                p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
+        };
+    }
+
+    private static List<Vector3> GenerateRandomInEllipse(float rx, float ry, int count, float jitter, float spacing, Random rng)
+    {
+        var points = new List<Vector3>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var point = PointCloudGenerator.GenerateRandomPointInEllipse(rx, ry, rng);
+            point = PointCloudGenerator.ApplyJitter2D(point, jitter, spacing, rng);
+            points.Add(point);
+        }
+        return points;
+    }
+
+    #endregion
 
     #region Distribution Algorithms
 

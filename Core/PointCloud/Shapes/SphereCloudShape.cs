@@ -18,6 +18,11 @@ public partial class SphereCloudShape : PointCloudShapeStrategy
         float radius = scale.X;
         var rng = new Random(p.Seed);
 
+        if (p.FlattenToPlane)
+        {
+            return GenerateFlatCircle(radius, p, rng);
+        }
+
         // If Y bounds restrict the full shape, use slice-aware generation
         if (p.HasYCutoff)
         {
@@ -90,6 +95,34 @@ public partial class SphereCloudShape : PointCloudShapeStrategy
             r => PointCloudGenerator.GenerateRandomPointInSphere(radius, r),
             p => PointCloudGenerator.IsInsideSphere(p, radius),
             minSpacing, targetCount, jitter, rng);
+    }
+
+    #endregion
+
+    #region 2D Circle Generation (FlattenToPlane)
+
+    private static List<Vector3> GenerateFlatCircle(float radius, PointCloudGenerationParams p, Random rng)
+    {
+        return p.Distribution switch
+        {
+            PointCloudDistribution.Random => GenerateRandomInCircle(radius, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
+            _ => PointCloudGenerator.GeneratePoissonGeneric(
+                r => PointCloudGenerator.GenerateRandomPointInCircle(radius, r),
+                pt => PointCloudGenerator.IsInsideCircle(pt, radius),
+                p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
+        };
+    }
+
+    private static List<Vector3> GenerateRandomInCircle(float radius, int count, float jitter, float spacing, Random rng)
+    {
+        var points = new List<Vector3>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var point = PointCloudGenerator.GenerateRandomPointInCircle(radius, rng);
+            point = PointCloudGenerator.ApplyJitter2D(point, jitter, spacing, rng);
+            points.Add(point);
+        }
+        return points;
     }
 
     #endregion

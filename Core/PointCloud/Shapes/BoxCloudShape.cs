@@ -17,6 +17,11 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
     {
         var rng = new Random(p.Seed);
 
+        if (p.FlattenToPlane)
+        {
+            return GenerateFlatRectangle(scale, p, rng);
+        }
+
         // Compute actual Y bounds from normalized values
         float yMin = p.HasYCutoff ? (p.YMinNormalized * 2 - 1) * scale.Y : -scale.Y;
         float yMax = p.HasYCutoff ? (p.YMaxNormalized * 2 - 1) * scale.Y : scale.Y;
@@ -34,6 +39,39 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
                Math.Abs(point.Y) <= scale.Y &&
                Math.Abs(point.Z) <= scale.Z;
     }
+
+    #region 2D Rectangle Generation (FlattenToPlane)
+
+    private static List<Vector3> GenerateFlatRectangle(Vector3 halfExtents, PointCloudGenerationParams p, Random rng)
+    {
+        return p.Distribution switch
+        {
+            PointCloudDistribution.Random => GenerateRandomInRectangle(halfExtents, p.TargetCount, rng),
+            _ => PointCloudGenerator.GeneratePoissonGeneric(
+                r =>
+                {
+                    float x = (float)(r.NextDouble() * 2 - 1) * halfExtents.X;
+                    float y = (float)(r.NextDouble() * 2 - 1) * halfExtents.Y;
+                    return new Vector3(x, y, 0);
+                },
+                pt => Math.Abs(pt.X) <= halfExtents.X && Math.Abs(pt.Y) <= halfExtents.Y,
+                p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
+        };
+    }
+
+    private static List<Vector3> GenerateRandomInRectangle(Vector3 halfExtents, int count, Random rng)
+    {
+        var points = new List<Vector3>(count);
+        for (int i = 0; i < count; i++)
+        {
+            float x = (float)(rng.NextDouble() * 2 - 1) * halfExtents.X;
+            float y = (float)(rng.NextDouble() * 2 - 1) * halfExtents.Y;
+            points.Add(new Vector3(x, y, 0));
+        }
+        return points;
+    }
+
+    #endregion
 
     #region Distribution Algorithms
 
