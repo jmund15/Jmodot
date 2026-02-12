@@ -33,7 +33,7 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
 
         return p.Distribution switch
         {
-            PointCloudDistribution.Random => GenerateRandomInCylinder(radius, yMin, yMax, p.TargetCount, rng),
+            PointCloudDistribution.Random => GenerateRandomInCylinder(radius, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             PointCloudDistribution.Uniform =>
                 GenerateUniformInCylinder(radius, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             _ => GeneratePoissonInCylinder(radius, yMin, yMax, p.MinSpacing, p.TargetCount, p.PositionJitter, rng)
@@ -99,7 +99,7 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
             targetCount, jitter, spacing, rng);
     }
 
-    private static List<Vector3> GenerateRandomInCylinder(float radius, float yMin, float yMax, int count, Random rng)
+    private static List<Vector3> GenerateRandomInCylinder(float radius, float yMin, float yMax, int count, float jitter, float spacing, Random rng)
     {
         var points = new List<Vector3>(count);
         for (int i = 0; i < count; i++)
@@ -107,7 +107,9 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
             float angle = (float)(rng.NextDouble() * Mathf.Tau);
             float r = (float)Math.Sqrt(rng.NextDouble()) * radius;
             float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
-            points.Add(new Vector3(r * Mathf.Cos(angle), y, r * Mathf.Sin(angle)));
+            var point = new Vector3(r * Mathf.Cos(angle), y, r * Mathf.Sin(angle));
+            point = PointCloudGenerator.ApplyJitter(point, jitter, spacing, rng);
+            points.Add(point);
         }
         return points;
     }

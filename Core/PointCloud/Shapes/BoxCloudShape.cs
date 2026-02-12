@@ -28,7 +28,7 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
 
         return p.Distribution switch
         {
-            PointCloudDistribution.Random => GenerateRandomInBox(scale, yMin, yMax, p.TargetCount, rng),
+            PointCloudDistribution.Random => GenerateRandomInBox(scale, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             PointCloudDistribution.Uniform =>
                 GenerateUniformInBox(scale, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             _ => GeneratePoissonInBox(scale, yMin, yMax, p.MinSpacing, p.TargetCount, p.PositionJitter, rng)
@@ -51,7 +51,7 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
 
         return p.Distribution switch
         {
-            PointCloudDistribution.Random => GenerateRandomInRectangle(halfExtents, yMin, yMax, p.TargetCount, rng),
+            PointCloudDistribution.Random => GenerateRandomInRectangle(halfExtents, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
             PointCloudDistribution.Uniform => PointCloudGenerator.GenerateUniformGeneric(
                 new Vector3(-halfExtents.X, yMin, 0),
                 new Vector3(halfExtents.X, yMax, 0),
@@ -69,14 +69,16 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
         };
     }
 
-    private static List<Vector3> GenerateRandomInRectangle(Vector3 halfExtents, float yMin, float yMax, int count, Random rng)
+    private static List<Vector3> GenerateRandomInRectangle(Vector3 halfExtents, float yMin, float yMax, int count, float jitter, float spacing, Random rng)
     {
         var points = new List<Vector3>(count);
         for (int i = 0; i < count; i++)
         {
             float x = (float)(rng.NextDouble() * 2 - 1) * halfExtents.X;
             float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
-            points.Add(new Vector3(x, y, 0));
+            var point = new Vector3(x, y, 0);
+            point = PointCloudGenerator.ApplyJitter2D(point, jitter, spacing, rng);
+            points.Add(point);
         }
         return points;
     }
@@ -96,7 +98,7 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
             targetCount, jitter, spacing, rng);
     }
 
-    private static List<Vector3> GenerateRandomInBox(Vector3 halfExtents, float yMin, float yMax, int count, Random rng)
+    private static List<Vector3> GenerateRandomInBox(Vector3 halfExtents, float yMin, float yMax, int count, float jitter, float spacing, Random rng)
     {
         var points = new List<Vector3>(count);
         for (int i = 0; i < count; i++)
@@ -104,7 +106,9 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
             float x = (float)(rng.NextDouble() * 2 - 1) * halfExtents.X;
             float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
             float z = (float)(rng.NextDouble() * 2 - 1) * halfExtents.Z;
-            points.Add(new Vector3(x, y, z));
+            var point = new Vector3(x, y, z);
+            point = PointCloudGenerator.ApplyJitter(point, jitter, spacing, rng);
+            points.Add(point);
         }
         return points;
     }
