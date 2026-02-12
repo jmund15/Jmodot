@@ -5,17 +5,14 @@ using PushinPotions.Global;
 using Stats;
 
 /// <summary>
-/// Defines a float value that can be computed from a base amount and zero or more
-/// Attribute + Operation pairs. Each modifier is applied sequentially.
-/// If no modifiers are specified, the base amount is returned as a static value.
+/// Defines a float value computed from a base amount modified by zero or more
+/// Attribute + Operation pairs applied sequentially.
+/// Use when a value needs stat-driven scaling (e.g., base damage * effect intensity).
+/// For static values use <see cref="ConstantFloatDefinition"/>;
+/// for pure attribute reads use <see cref="AttributeFloatDefinition"/>.
 /// </summary>
-/// <remarks>
-/// For simpler use cases, consider using <see cref="ConstantFloatDefinition"/> or
-/// <see cref="AttributeFloatDefinition"/> instead.
-/// </remarks>
-[System.Obsolete("Use ConstantFloatDefinition or AttributeFloatDefinition instead.")]
 [GlobalClass, Tool]
-public partial class FloatStatDefinition : BaseFloatValueDefinition
+public partial class ModifiedFloatDefinition : BaseFloatValueDefinition
 {
     /// <summary>
     /// The starting value before any attribute modifiers are applied.
@@ -28,12 +25,12 @@ public partial class FloatStatDefinition : BaseFloatValueDefinition
     /// </summary>
     [Export] public Array<AttributeModifier> Modifiers { get; set; } = new();
 
-    public FloatStatDefinition() { }
+    public ModifiedFloatDefinition() { }
 
     /// <summary>
     /// Constructor for a static value with no attribute modifiers.
     /// </summary>
-    public FloatStatDefinition(float baseAmount)
+    public ModifiedFloatDefinition(float baseAmount)
     {
         BaseAmount = baseAmount;
         Modifiers = new Array<AttributeModifier>();
@@ -42,7 +39,7 @@ public partial class FloatStatDefinition : BaseFloatValueDefinition
     /// <summary>
     /// Constructor with a single attribute modifier.
     /// </summary>
-    public FloatStatDefinition(float baseAmount, Attribute attribute, AttributeOperation operation)
+    public ModifiedFloatDefinition(float baseAmount, Attribute attribute, AttributeOperation operation)
     {
         BaseAmount = baseAmount;
         Modifiers = new Array<AttributeModifier>
@@ -55,7 +52,7 @@ public partial class FloatStatDefinition : BaseFloatValueDefinition
     /// Constructor for attribute-only value (base = 0, attribute value is the result).
     /// Uses Override operation so the attribute value becomes the final value.
     /// </summary>
-    public FloatStatDefinition(Attribute attribute)
+    public ModifiedFloatDefinition(Attribute attribute)
     {
         BaseAmount = 0f;
         Modifiers = new Array<AttributeModifier>

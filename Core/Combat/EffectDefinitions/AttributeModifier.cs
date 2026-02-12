@@ -5,7 +5,7 @@ using Stats;
 
 /// <summary>
 /// A pair of an Attribute and an AttributeOperation.
-/// Used by FloatEffectDefinition to define how each attribute modifies the value.
+/// Used by <see cref="ModifiedFloatDefinition"/> to define how each attribute modifies the value.
 /// </summary>
 [GlobalClass]
 public partial class AttributeModifier : Resource
