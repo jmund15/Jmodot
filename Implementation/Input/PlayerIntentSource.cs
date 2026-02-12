@@ -26,7 +26,13 @@ public partial class PlayerIntentSource : IntentSourceNode
     private GCol.Array<ActionBinding> _actionBindings = new();
 
     [Export] private GCol.Array<VectorActionBinding> _vectorBindings = new();
-    [Export, RequiredExport] private InputMappingProfile _inputProfile = null!;
+    /// <summary>
+    ///
+    /// </summary>
+    /// <remarks>
+    /// NOT '[RequiredExport]' because it could be applied externally through 'ApplyMappingProfile'.
+    /// </remarks>
+    [Export] private InputMappingProfile _inputProfile = null!;
     [Export] public bool IsActive { get; set; } = true;
 
     /// <summary>
