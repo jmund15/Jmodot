@@ -67,7 +67,7 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
         // Roll for crit if CritChanceAttribute is configured
         if (CritChanceAttrOverride != null && stats != null)
         {
-            float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
+            float critChance = stats.GetStatValue<float>(CritChanceAttrOverride);
             isCritical = System.Random.Shared.NextSingle() < critChance;
 
             if (isCritical)
