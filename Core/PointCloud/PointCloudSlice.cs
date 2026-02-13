@@ -48,18 +48,21 @@ public readonly struct PointCloudSlice
     /// </summary>
     public static PointCloudSlice Full => new(0f, 1f, 1f);
 
+    private const float OneThird = 1f / 3f;
+    private const float TwoThirds = 2f / 3f;
+
     /// <summary>
     /// Bottom third of the volume.
     /// </summary>
-    public static PointCloudSlice BottomThird => new(0f, 0.33f, 1f);
+    public static PointCloudSlice BottomThird => new(0f, OneThird, 1f);
 
     /// <summary>
     /// Middle third of the volume.
     /// </summary>
-    public static PointCloudSlice MiddleThird => new(0.33f, 0.66f, 1f);
+    public static PointCloudSlice MiddleThird => new(OneThird, TwoThirds, 1f);
 
     /// <summary>
     /// Top third of the volume.
     /// </summary>
-    public static PointCloudSlice TopThird => new(0.66f, 1f, 1f);
+    public static PointCloudSlice TopThird => new(TwoThirds, 1f, 1f);
 }

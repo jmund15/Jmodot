@@ -115,38 +115,16 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
 
     private static List<Vector3> GeneratePoissonInBox(Vector3 halfExtents, float yMin, float yMax, float minSpacing, int targetCount, float jitter, Random rng)
     {
-        var points = new List<Vector3>();
-        int maxAttempts = targetCount * 30;
-        int attempts = 0;
-
-        while (points.Count < targetCount && attempts < maxAttempts)
-        {
-            attempts++;
-            float x = (float)(rng.NextDouble() * 2 - 1) * halfExtents.X;
-            float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
-            float z = (float)(rng.NextDouble() * 2 - 1) * halfExtents.Z;
-            var candidate = new Vector3(x, y, z);
-
-            if (PointCloudGenerator.CalculateMinDistance(candidate, points) >= minSpacing)
+        return PointCloudGenerator.GeneratePoissonGeneric(
+            r =>
             {
-                var jittered = PointCloudGenerator.ApplyJitter(candidate, jitter, minSpacing, rng);
-
-                // Clamp Y to generation range after jitter
-                jittered.Y = Mathf.Clamp(jittered.Y, yMin, yMax);
-
-                if (Math.Abs(jittered.X) <= halfExtents.X &&
-                    Math.Abs(jittered.Z) <= halfExtents.Z)
-                {
-                    points.Add(jittered);
-                }
-                else
-                {
-                    points.Add(candidate);
-                }
-            }
-        }
-
-        return points;
+                float x = (float)(r.NextDouble() * 2 - 1) * halfExtents.X;
+                float y = (float)(r.NextDouble() * (yMax - yMin) + yMin);
+                float z = (float)(r.NextDouble() * 2 - 1) * halfExtents.Z;
+                return new Vector3(x, y, z);
+            },
+            p => Math.Abs(p.X) <= halfExtents.X && p.Y >= yMin && p.Y <= yMax && Math.Abs(p.Z) <= halfExtents.Z,
+            minSpacing, targetCount, jitter, rng);
     }
 
     #endregion

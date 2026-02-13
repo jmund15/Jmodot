@@ -34,12 +34,6 @@ public partial class PointCloudConfig : Resource
     public float MinSpacing { get; set; } = 0.3f;
 
     /// <summary>
-    /// Reserved for future use. Currently unused by generation algorithms.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
-    public float MaxSpacing { get; set; } = 0.8f;
-
-    /// <summary>
     /// Random offset applied to each point position after generation.
     /// 0 = no jitter (deterministic positions), 1 = full jitter (very chaotic).
     /// Applied as a fraction of MinSpacing.
@@ -80,7 +74,6 @@ public partial class PointCloudConfig : Resource
             Distribution = PointCloudDistribution.PoissonDisk,
             ShapeStrategy = new SphereCloudShape(),
             MinSpacing = 0.3f,
-            MaxSpacing = 0.8f,
             PositionJitter = 0.2f,
             TargetPointCount = 20
         };
@@ -96,7 +89,6 @@ public partial class PointCloudConfig : Resource
             Distribution = PointCloudDistribution.PoissonDisk,
             ShapeStrategy = new SphereCloudShape(),
             MinSpacing = 0.15f,
-            MaxSpacing = 0.4f,
             PositionJitter = 0.15f,
             TargetPointCount = 40
         };
@@ -112,7 +104,6 @@ public partial class PointCloudConfig : Resource
             Distribution = PointCloudDistribution.PoissonDisk,
             ShapeStrategy = new SphereCloudShape(),
             MinSpacing = 0.5f,
-            MaxSpacing = 1.2f,
             PositionJitter = 0.3f,
             TargetPointCount = 12
         };

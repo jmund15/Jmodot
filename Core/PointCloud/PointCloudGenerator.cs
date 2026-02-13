@@ -410,5 +410,122 @@ public static class PointCloudGenerator
         return points;
     }
 
+    /// <summary>
+    /// Generic Poisson disk sampling for Y-restricted slices of shapes with varying cross-sections.
+    /// At each candidate Y, the shape's cross-section radii (Rx, Rz) are computed via the delegate,
+    /// and a random point is generated within that elliptical cross-section.
+    /// Used by Sphere (circular cross-section) and Ellipsoid (elliptical cross-section) slice generation.
+    /// </summary>
+    /// <param name="yMin">Minimum Y bound of the slice.</param>
+    /// <param name="yMax">Maximum Y bound of the slice.</param>
+    /// <param name="getCrossSection">Given a Y value, returns (crossRx, crossRz) for the shape's cross-section at that height.</param>
+    /// <param name="isInBounds">Full containment check for the parent shape (called on jittered points).</param>
+    /// <param name="minSpacing">Minimum distance between placed points.</param>
+    /// <param name="targetCount">Desired number of points.</param>
+    /// <param name="jitter">Jitter magnitude fraction.</param>
+    /// <param name="rng">Random number generator.</param>
+    public static List<Vector3> GeneratePoissonSliceGeneric(
+        float yMin, float yMax,
+        Func<float, (float crossRx, float crossRz)> getCrossSection,
+        Func<Vector3, bool> isInBounds,
+        float minSpacing,
+        int targetCount,
+        float jitter,
+        Random rng)
+    {
+        var points = new List<Vector3>();
+        int maxAttempts = targetCount * 50;
+        int attempts = 0;
+
+        while (points.Count < targetCount && attempts < maxAttempts)
+        {
+            attempts++;
+
+            float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
+            var (crossRx, crossRz) = getCrossSection(y);
+            if (crossRx <= 0 || crossRz <= 0) { continue; }
+
+            float angle = (float)(rng.NextDouble() * Mathf.Tau);
+            float r = (float)Math.Sqrt(rng.NextDouble());
+            float x = r * Mathf.Cos(angle) * crossRx;
+            float z = r * Mathf.Sin(angle) * crossRz;
+
+            var candidate = new Vector3(x, y, z);
+            float minDist = CalculateMinDistance(candidate, points);
+            if (minDist >= minSpacing)
+            {
+                var jitteredPoint = ApplyJitter(candidate, jitter, minSpacing, rng);
+                jitteredPoint.Y = Mathf.Clamp(jitteredPoint.Y, yMin, yMax);
+
+                if (isInBounds(jitteredPoint))
+                {
+                    float jitteredMinDist = CalculateMinDistance(jitteredPoint, points);
+                    if (jitteredMinDist >= minSpacing)
+                    {
+                        points.Add(jitteredPoint);
+                    }
+                    else
+                    {
+                        points.Add(candidate);
+                    }
+                }
+                else
+                {
+                    points.Add(candidate);
+                }
+            }
+        }
+
+        return points;
+    }
+
+    /// <summary>
+    /// Generates points within a 2D circle (flattened to XY plane), dispatching to the appropriate
+    /// distribution algorithm. Shared by SphereCloudShape and CylinderCloudShape, which both
+    /// project to circles when flattened.
+    /// </summary>
+    public static List<Vector3> GenerateFlatCircle(
+        float radius, float yMin, float yMax, PointCloudGenerationParams p, Random rng)
+    {
+        Func<Vector3, bool> isInBounds = pt =>
+            IsInsideCircle(pt, radius) && pt.Y >= yMin && pt.Y <= yMax;
+
+        return p.Distribution switch
+        {
+            PointCloudDistribution.Random => GenerateRandomInCircle(radius, yMin, yMax, p.TargetCount, p.PositionJitter, p.MinSpacing, rng),
+            PointCloudDistribution.Uniform => GenerateUniformGeneric(
+                new Vector3(-radius, yMin, 0),
+                new Vector3(radius, yMax, 0),
+                isInBounds,
+                p.TargetCount, p.PositionJitter, p.MinSpacing, rng, flattenZ: true),
+            _ => GeneratePoissonGeneric(
+                r => GenerateRandomPointInCircle(radius, r),
+                isInBounds,
+                p.MinSpacing, p.TargetCount, p.PositionJitter, rng, flattenZ: true)
+        };
+    }
+
+    /// <summary>
+    /// Generates random points within a Y-bounded circle on the XY plane.
+    /// Uses rejection sampling on the Y range after generating uniformly in the circle.
+    /// Shared by SphereCloudShape and CylinderCloudShape.
+    /// </summary>
+    public static List<Vector3> GenerateRandomInCircle(
+        float radius, float yMin, float yMax, int count, float jitter, float spacing, Random rng)
+    {
+        var points = new List<Vector3>(count);
+        int maxAttempts = count * 50;
+        int attempts = 0;
+        while (points.Count < count && attempts < maxAttempts)
+        {
+            attempts++;
+            var point = GenerateRandomPointInCircle(radius, rng);
+            if (point.Y < yMin || point.Y > yMax) { continue; }
+            point = ApplyJitter2D(point, jitter, spacing, rng);
+            points.Add(point);
+        }
+        return points;
+    }
+
     #endregion
 }
