@@ -53,6 +53,18 @@ public partial class SphereCloudShape : PointCloudShapeStrategy
         return PointCloudGenerator.IsInsideSphere(point, scale.X);
     }
 
+    public override float ComputeVolume(Vector3 scale)
+    {
+        float r = scale.X;
+        return (4f / 3f) * Mathf.Pi * r * r * r;
+    }
+
+    public override float ComputeArea(Vector3 scale)
+    {
+        float r = scale.X;
+        return Mathf.Pi * r * r;
+    }
+
     #region Distribution Algorithms
 
     private static List<Vector3> GenerateRandomInSphere(float radius, int count, float jitter, float spacing, Random rng)

@@ -42,6 +42,16 @@ public partial class BoxCloudShape : PointCloudShapeStrategy
                Math.Abs(point.Z) <= scale.Z;
     }
 
+    public override float ComputeVolume(Vector3 scale)
+    {
+        return 8f * scale.X * scale.Y * scale.Z;
+    }
+
+    public override float ComputeArea(Vector3 scale)
+    {
+        return 4f * scale.X * scale.Y;
+    }
+
     #region 2D Rectangle Generation (FlattenToPlane)
 
     private static List<Vector3> GenerateFlatRectangle(Vector3 halfExtents, float yMin, float yMax, PointCloudGenerationParams p, Random rng)

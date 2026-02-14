@@ -52,6 +52,16 @@ public partial class EllipsoidCloudShape : PointCloudShapeStrategy
         return PointCloudGenerator.IsInsideEllipsoid(point, scale);
     }
 
+    public override float ComputeVolume(Vector3 scale)
+    {
+        return (4f / 3f) * Mathf.Pi * scale.X * scale.Y * scale.Z;
+    }
+
+    public override float ComputeArea(Vector3 scale)
+    {
+        return Mathf.Pi * scale.X * scale.Y;
+    }
+
     #region 2D Ellipse Generation (FlattenToPlane)
 
     private static List<Vector3> GenerateFlatEllipse(Vector3 radii, float yMin, float yMax, PointCloudGenerationParams p, Random rng)

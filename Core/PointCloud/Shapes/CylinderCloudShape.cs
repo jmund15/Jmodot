@@ -46,6 +46,19 @@ public partial class CylinderCloudShape : PointCloudShapeStrategy
         return horizontalDistSq <= scale.X * scale.X && Math.Abs(point.Y) <= scale.Y;
     }
 
+    public override float ComputeVolume(Vector3 scale)
+    {
+        float r = scale.X;
+        float h = scale.Y * 2f;
+        return Mathf.Pi * r * r * h;
+    }
+
+    public override float ComputeArea(Vector3 scale)
+    {
+        float r = scale.X;
+        return Mathf.Pi * r * r;
+    }
+
     #region Distribution Algorithms
 
     private static List<Vector3> GenerateUniformInCylinder(

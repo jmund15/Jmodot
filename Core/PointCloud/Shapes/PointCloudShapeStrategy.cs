@@ -25,4 +25,16 @@ public abstract partial class PointCloudShapeStrategy : Resource
     /// <param name="point">Point to test.</param>
     /// <param name="scale">Scale/radii of the shape.</param>
     public abstract bool IsInside(Vector3 point, Vector3 scale);
+
+    /// <summary>
+    /// Computes the 3D volume of this shape at the given scale.
+    /// Used by density-based point count resolution when FlattenToPlane is false.
+    /// </summary>
+    public abstract float ComputeVolume(Vector3 scale);
+
+    /// <summary>
+    /// Computes the 2D projected area (XY footprint) of this shape at the given scale.
+    /// Used by density-based point count resolution when FlattenToPlane is true.
+    /// </summary>
+    public abstract float ComputeArea(Vector3 scale);
 }
