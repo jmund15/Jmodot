@@ -42,11 +42,28 @@ public partial class PointCloudConfig : Resource
     public float PositionJitter { get; set; } = 0.2f;
 
     /// <summary>
-    /// Target number of points to generate (approximate).
-    /// Actual count may vary based on spacing constraints.
+    /// Density of particles per unit area (2D) or volume (3D).
+    /// Combined with the shape's computed area/volume to determine point count.
+    /// Higher values = more particles. Typical range: 0.1 (sparse) to 2.0 (dense).
     /// </summary>
-    [Export(PropertyHint.Range, "1, 100, 1")]
-    public int TargetPointCount { get; set; } = 20;
+    [Export(PropertyHint.Range, "0.05, 5.0, 0.05")]
+    public float ParticleDensity { get; set; } = 0.5f;
+
+    /// <summary>
+    /// Maximum number of points that can be generated, regardless of density.
+    /// Acts as a performance safety cap.
+    /// </summary>
+    [Export(PropertyHint.Range, "1, 200, 1")]
+    public int MaxPointCount { get; set; } = 100;
+
+    /// <summary>
+    /// Computes the target point count from density and spatial metric, clamped to [1, maxCount].
+    /// </summary>
+    public static int ResolveTargetCount(float density, float volumeOrArea, int maxCount)
+    {
+        int computed = (int)(density * volumeOrArea);
+        return Mathf.Clamp(computed, 1, maxCount);
+    }
 
     /// <summary>
     /// Vertical cutoff as a normalized value.
@@ -75,7 +92,8 @@ public partial class PointCloudConfig : Resource
             ShapeStrategy = new SphereCloudShape(),
             MinSpacing = 0.3f,
             PositionJitter = 0.2f,
-            TargetPointCount = 20
+            ParticleDensity = 0.5f,
+            MaxPointCount = 100
         };
     }
 
@@ -90,7 +108,8 @@ public partial class PointCloudConfig : Resource
             ShapeStrategy = new SphereCloudShape(),
             MinSpacing = 0.15f,
             PositionJitter = 0.15f,
-            TargetPointCount = 40
+            ParticleDensity = 1.5f,
+            MaxPointCount = 150
         };
     }
 
@@ -105,7 +124,8 @@ public partial class PointCloudConfig : Resource
             ShapeStrategy = new SphereCloudShape(),
             MinSpacing = 0.5f,
             PositionJitter = 0.3f,
-            TargetPointCount = 12
+            ParticleDensity = 0.2f,
+            MaxPointCount = 60
         };
     }
 }

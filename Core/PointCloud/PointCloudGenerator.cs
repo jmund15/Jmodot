@@ -24,7 +24,7 @@ public static class PointCloudGenerator
     /// <param name="config">Configuration for distribution algorithm, shape, spacing, etc.</param>
     /// <param name="scale">Scale/radii of the shape (interpreted by the shape strategy).</param>
     /// <param name="seed">Random seed for deterministic generation.</param>
-    /// <param name="targetCountOverride">Optional override for config.TargetPointCount (e.g., density-scaled count).</param>
+    /// <param name="targetCountOverride">Optional explicit point count (highest priority, bypasses density).</param>
     /// <param name="shapeOverride">Optional shape strategy override (e.g., auto-resolved from collision shape).</param>
     /// <param name="yMinOverride">Optional Y-cutoff override (e.g., auto-ground-clip).</param>
     /// <returns>List of 3D positions within the specified volume.</returns>
@@ -43,12 +43,25 @@ public static class PointCloudGenerator
             return new List<Vector3>();
         }
 
+        int targetCount;
+        if (targetCountOverride.HasValue)
+        {
+            targetCount = targetCountOverride.Value;
+        }
+        else
+        {
+            float metric = config.FlattenToPlane
+                ? shape.ComputeArea(scale)
+                : shape.ComputeVolume(scale);
+            targetCount = PointCloudConfig.ResolveTargetCount(config.ParticleDensity, metric, config.MaxPointCount);
+        }
+
         var genParams = new PointCloudGenerationParams
         {
             Distribution = config.Distribution,
             MinSpacing = config.MinSpacing,
             PositionJitter = config.PositionJitter,
-            TargetCount = targetCountOverride ?? config.TargetPointCount,
+            TargetCount = targetCount,
             YMinNormalized = yMinOverride ?? config.YMinNormalized,
             YMaxNormalized = 1.0f,
             FlattenToPlane = config.FlattenToPlane,
@@ -104,8 +117,13 @@ public static class PointCloudGenerator
     /// </summary>
     public static List<Vector3> GenerateInSlice(float radius, PointCloudConfig config, PointCloudSlice slice, int seed)
     {
-        int adjustedTarget = (int)(config.TargetPointCount * slice.Height * slice.DensityMultiplier);
-        adjustedTarget = Math.Max(1, adjustedTarget);
+        var sphereScale = new Vector3(radius, radius, radius);
+        var sphere = new SphereCloudShape();
+        float metric = config.FlattenToPlane
+            ? sphere.ComputeArea(sphereScale)
+            : sphere.ComputeVolume(sphereScale);
+        int baseCount = PointCloudConfig.ResolveTargetCount(config.ParticleDensity, metric, config.MaxPointCount);
+        int adjustedTarget = Math.Max(1, (int)(baseCount * slice.Height * slice.DensityMultiplier));
 
         var shape = new SphereCloudShape();
         var genParams = new PointCloudGenerationParams
