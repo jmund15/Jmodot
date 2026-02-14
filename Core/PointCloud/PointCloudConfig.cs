@@ -42,9 +42,12 @@ public partial class PointCloudConfig : Resource
     public float PositionJitter { get; set; } = 0.2f;
 
     /// <summary>
-    /// Density of particles per unit area (2D) or volume (3D).
-    /// Combined with the shape's computed area/volume to determine point count.
-    /// Higher values = more particles. Typical range: 0.1 (sparse) to 2.0 (dense).
+    /// Density of particles within the shape.
+    /// When <see cref="FlattenToPlane"/> is true: particles per unit² of projected area.
+    /// When <see cref="FlattenToPlane"/> is false: particles per unit³ of volume.
+    /// The same density value produces different point counts in 2D vs 3D because area and
+    /// volume scale differently (e.g., sphere r=4: area≈50 → 25 pts, volume≈268 → 134 pts at density 0.5).
+    /// Each config should be tuned for its intended mode.
     /// </summary>
     [Export(PropertyHint.Range, "0.05, 5.0, 0.05")]
     public float ParticleDensity { get; set; } = 0.5f;
@@ -58,7 +61,13 @@ public partial class PointCloudConfig : Resource
 
     /// <summary>
     /// Computes the target point count from density and spatial metric, clamped to [1, maxCount].
+    /// The caller is responsible for passing the correct metric: area when generating 2D clouds
+    /// (via <see cref="PointCloudShapeStrategy.ComputeArea"/>), or volume for 3D clouds
+    /// (via <see cref="PointCloudShapeStrategy.ComputeVolume"/>).
     /// </summary>
+    /// <param name="density">Particles per unit² (2D) or per unit³ (3D).</param>
+    /// <param name="volumeOrArea">Spatial metric from the shape strategy (area or volume).</param>
+    /// <param name="maxCount">Performance cap. Result is clamped to this value.</param>
     public static int ResolveTargetCount(float density, float volumeOrArea, int maxCount)
     {
         int computed = (int)(density * volumeOrArea);
@@ -76,7 +85,9 @@ public partial class PointCloudConfig : Resource
     /// <summary>
     /// When true, generates points on the XY plane (Z=0) instead of full 3D volume.
     /// Shapes project to their 2D equivalents (Sphere→Circle, Box→Rectangle).
-    /// Useful for orthographic/2D-style games where depth is not meaningful.
+    /// Also controls how <see cref="ParticleDensity"/> is resolved: true uses
+    /// <see cref="PointCloudShapeStrategy.ComputeArea"/> (per unit²), false uses
+    /// <see cref="PointCloudShapeStrategy.ComputeVolume"/> (per unit³).
     /// </summary>
     [Export]
     public bool FlattenToPlane { get; set; } = false;

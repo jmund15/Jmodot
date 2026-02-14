@@ -20,6 +20,13 @@ public static class PointCloudGenerator
     /// <summary>
     /// Generates a list of points distributed within a volume defined by the config.
     /// Delegates to the shape strategy on the config (or an optional override).
+    /// <para>
+    /// Point count resolution priority:
+    /// 1. <paramref name="targetCountOverride"/> — explicit caller override (highest priority).
+    /// 2. <see cref="PointCloudConfig.ParticleDensity"/> × shape area/volume — auto-computed from config.
+    ///    Uses <see cref="PointCloudShapeStrategy.ComputeArea"/> when <see cref="PointCloudConfig.FlattenToPlane"/>
+    ///    is true, <see cref="PointCloudShapeStrategy.ComputeVolume"/> otherwise.
+    /// </para>
     /// </summary>
     /// <param name="config">Configuration for distribution algorithm, shape, spacing, etc.</param>
     /// <param name="scale">Scale/radii of the shape (interpreted by the shape strategy).</param>
