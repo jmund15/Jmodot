@@ -5,7 +5,7 @@ namespace Jmodot.Core.PointCloud;
 /// Bundles distribution, spacing, jitter, count, Y-cutoff, and seed
 /// to avoid parameter explosion on shape strategy Generate() methods.
 /// </summary>
-public readonly struct PointCloudGenerationParams
+public readonly struct PointCloudGenerationParams()
 {
     /// <summary>
     /// Algorithm used to distribute points (PoissonDisk, Random, Uniform).
@@ -38,7 +38,7 @@ public readonly struct PointCloudGenerationParams
     /// Combined with YMinNormalized to define the vertical generation range.
     /// Default is 1.0 (full top).
     /// </summary>
-    public float YMaxNormalized { get; init; }
+    public float YMaxNormalized { get; init; } = 1.0f;
 
     /// <summary>
     /// Returns true if Y bounds restrict the full shape (either YMin > 0 or YMax &lt; 1).
