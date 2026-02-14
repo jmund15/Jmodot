@@ -324,6 +324,7 @@ public static class PointCloudGenerator
         bool flattenZ = false)
     {
         var points = new List<Vector3>();
+        var grid = new SpatialHashGrid3D(minSpacing);
         int maxAttempts = targetCount * 30;
         int attempts = 0;
 
@@ -334,26 +335,27 @@ public static class PointCloudGenerator
 
             if (!isInBounds(candidate)) { continue; }
 
-            float minDist = CalculateMinDistance(candidate, points);
-            if (minDist >= minSpacing)
+            if (!grid.HasNeighborWithinDistance(candidate, minSpacing))
             {
                 var jitteredPoint = flattenZ
                     ? ApplyJitter2D(candidate, jitter, minSpacing, rng)
                     : ApplyJitter(candidate, jitter, minSpacing, rng);
                 if (isInBounds(jitteredPoint))
                 {
-                    float jitteredMinDist = CalculateMinDistance(jitteredPoint, points);
-                    if (jitteredMinDist >= minSpacing)
+                    if (!grid.HasNeighborWithinDistance(jitteredPoint, minSpacing))
                     {
+                        grid.Insert(jitteredPoint);
                         points.Add(jitteredPoint);
                     }
                     else
                     {
+                        grid.Insert(candidate);
                         points.Add(candidate);
                     }
                 }
                 else
                 {
+                    grid.Insert(candidate);
                     points.Add(candidate);
                 }
             }
@@ -459,6 +461,7 @@ public static class PointCloudGenerator
         Random rng)
     {
         var points = new List<Vector3>();
+        var grid = new SpatialHashGrid3D(minSpacing);
         int maxAttempts = targetCount * 50;
         int attempts = 0;
 
@@ -476,26 +479,27 @@ public static class PointCloudGenerator
             float z = r * Mathf.Sin(angle) * crossRz;
 
             var candidate = new Vector3(x, y, z);
-            float minDist = CalculateMinDistance(candidate, points);
-            if (minDist >= minSpacing)
+            if (!grid.HasNeighborWithinDistance(candidate, minSpacing))
             {
                 var jitteredPoint = ApplyJitter(candidate, jitter, minSpacing, rng);
                 jitteredPoint.Y = Mathf.Clamp(jitteredPoint.Y, yMin, yMax);
 
                 if (isInBounds(jitteredPoint))
                 {
-                    float jitteredMinDist = CalculateMinDistance(jitteredPoint, points);
-                    if (jitteredMinDist >= minSpacing)
+                    if (!grid.HasNeighborWithinDistance(jitteredPoint, minSpacing))
                     {
+                        grid.Insert(jitteredPoint);
                         points.Add(jitteredPoint);
                     }
                     else
                     {
+                        grid.Insert(candidate);
                         points.Add(candidate);
                     }
                 }
                 else
                 {
+                    grid.Insert(candidate);
                     points.Add(candidate);
                 }
             }
