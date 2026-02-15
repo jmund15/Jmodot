@@ -76,6 +76,15 @@ using AI.BB;
         // Tracks targets hit during the current session/tick to prevent duplicates.
         private readonly HashSet<HurtboxComponent3D> _hitHurtboxes = new();
         private double _tickTimer = 0.0;
+
+
+        /// <summary>
+        /// Number of physics frames to retry the pending overlap check.
+        /// GetOverlappingAreas() needs the physics broadphase to update AFTER Monitoring=true,
+        /// which can take 2-3 frames when spawned during physics callbacks (SetDeferred timing).
+        /// Without retries, fast-moving SpawnEffect children miss targets they spawn inside of.
+        /// </summary>
+        private const int PendingOverlapRetryFrames = 3;
         #endregion
 
         #region IComponent Implementation
@@ -125,15 +134,19 @@ using AI.BB;
         {
             // CRITICAL: Check for pending overlap scan FIRST (before early returns).
             // This catches targets that were already overlapping when the hitbox activated.
-            // GetOverlappingAreas() needs a physics frame after Monitoring=true to populate.
-            // SpawnEffect children spawn INSIDE targets, so they need this initial scan.
+            // GetOverlappingAreas() needs the physics broadphase to sync after Monitoring=true.
             //
             // IMPORTANT: We must wait until Monitoring is ACTUALLY true before processing.
             // When spawned during physics callbacks (like SpawnEffect OnDestroy), the deferred
             // SetDeferred(Monitoring, true) may not have executed yet. Keep checking each frame.
-            if (_pendingOverlapCheck && Monitoring)
+            //
+            // RETRY LOGIC: The broadphase can take 2-3 frames to register new overlaps after
+            // Monitoring is enabled. We retry for PendingOverlapRetryFrames to catch overlaps
+            // that the first check misses. Once a hit is registered, retries stop naturally
+            // via the _hitHurtboxes debounce set (no double-hits).
+            if (_pendingOverlapRetries > 0 && Monitoring)
             {
-                _pendingOverlapCheck = false;
+                _pendingOverlapRetries--;
                 ProcessOverlappingAreas();
             }
 
@@ -178,15 +191,19 @@ using AI.BB;
             Activate();
             Shared.JmoLogger.Debug(this, $"StartAttack - post-Activate Monitoring={Monitoring} (deferred, actual change next frame)");
 
-            // CRITICAL FIX: GetOverlappingAreas() requires a PHYSICS FRAME to update after Monitoring=true.
-            // CallDeferred runs at end of current frame (before physics), so the overlap list is empty.
-            // This caused SpawnEffect children to miss targets they spawn inside of.
-            // Solution: Set flag to run ProcessOverlappingAreas on next _PhysicsProcess.
-            _pendingOverlapCheck = true;
+            // CRITICAL FIX: GetOverlappingAreas() requires the physics broadphase to update
+            // AFTER Monitoring=true. When spawned during physics callbacks (SpawnEffect OnDestroy),
+            // SetDeferred(Monitoring, true) executes at end-of-frame, but the broadphase doesn't
+            // update until the NEXT physics tick. Fast-moving projectiles can leave the overlap zone
+            // before the broadphase registers it. Retry for a few frames to catch the overlap.
+            _pendingOverlapRetries = PendingOverlapRetryFrames;
         }
 
-        // Flag to trigger overlap check on next physics frame
-        private bool _pendingOverlapCheck = false;
+        /// <summary>
+        /// Remaining physics frames to retry the overlap check.
+        /// 0 = no pending check. Decremented each physics frame until an overlap is found or retries exhaust.
+        /// </summary>
+        private int _pendingOverlapRetries = 0;
 
         public void EndAttack()
         {
@@ -206,7 +223,7 @@ using AI.BB;
         /// </summary>
         public void OnPoolReset()
         {
-            _pendingOverlapCheck = false;  // Clear pending scan for clean pool state
+            _pendingOverlapRetries = 0;  // Clear pending scan for clean pool state
 
             // CRITICAL: Clear accumulated event handlers BEFORE the early return.
             // WireCombatListener subscribes OnHitRegistered += each pool cycle.
@@ -402,8 +419,16 @@ using AI.BB;
         /// 1. ICombatExceptionProvider.CombatExceptionIds - explicit combat-level exceptions (sibling spells)
         /// 2. PhysicsBody3D.GetCollisionExceptions() - physics-level exceptions (fallback)
         /// </remarks>
-        private bool HasCollisionExceptionWith(Node target)
+        private bool HasCollisionExceptionWith(Node? target)
         {
+            // Guard: If target (hurtbox.Owner) is null, we can't check exceptions.
+            // This can happen for programmatically-created nodes where Owner isn't set.
+            if (target == null)
+            {
+                Shared.JmoLogger.Warning(this, "HasCollisionExceptionWith: target (hurtbox.Owner) is null");
+                return false;
+            }
+
             // 1. Check explicit combat exceptions first (sibling spells) - ALWAYS checked
             // ICombatExceptionProvider allows any owner to provide combat-level exceptions
             // without depending on physics exceptions which only work for PhysicsBody3D.
