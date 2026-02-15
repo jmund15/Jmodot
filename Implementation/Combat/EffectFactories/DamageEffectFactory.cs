@@ -60,7 +60,7 @@ public partial class DamageEffectFactory : CombatEffectFactory
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
             //GD.Print($"Crit chance: {critChance}");
-            isCritical = MiscUtils.GetRndFloat() < critChance;
+            isCritical = JmoRng.GetRndFloat() < critChance;
 
             if (isCritical)
             {

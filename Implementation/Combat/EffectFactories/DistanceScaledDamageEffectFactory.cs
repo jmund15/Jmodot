@@ -69,7 +69,7 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
         if (CritChanceAttrOverride != null && stats != null)
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride);
-            isCritical = MiscUtils.GetRndFloat() < critChance;
+            isCritical = JmoRng.GetRndFloat() < critChance;
 
             if (isCritical)
             {

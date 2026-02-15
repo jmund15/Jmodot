@@ -178,7 +178,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         }
 
         // 3. FALLBACK: Random XZ direction (e.g., standing directly on explosion)
-        return MiscUtils.GetRndVector3ZeroY();
+        return JmoRng.GetRndVector3ZeroY();
     }
 
     private Vector3 CalculateImpactVelocity(Node source)
