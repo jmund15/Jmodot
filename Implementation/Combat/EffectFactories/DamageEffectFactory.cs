@@ -2,6 +2,7 @@ using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
+using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
 
@@ -59,7 +60,7 @@ public partial class DamageEffectFactory : CombatEffectFactory
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
             //GD.Print($"Crit chance: {critChance}");
-            isCritical = System.Random.Shared.NextSingle() < critChance;
+            isCritical = MiscUtils.GetRndFloat() < critChance;
 
             if (isCritical)
             {
