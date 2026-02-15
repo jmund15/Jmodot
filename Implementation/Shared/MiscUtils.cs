@@ -19,6 +19,30 @@ public static class MiscUtils
         return normF * (max - min) + min;
     }
 
+    /// <summary>Returns a random int in [min, max] (inclusive both ends). Matches GD.RandRange(int, int) behavior.</summary>
+    public static int GetRndInRange(int min, int max)
+    {
+        return Rnd.Next(min, max + 1);
+    }
+
+    /// <summary>Returns +1f or -1f randomly.</summary>
+    public static float GetRndSign()
+    {
+        return Rnd.Next(2) == 0 ? 1f : -1f;
+    }
+
+    /// <summary>Returns a random int in [0, max). For array indexing.</summary>
+    public static int GetRndInt(int max)
+    {
+        return Rnd.Next(max);
+    }
+
+    /// <summary>Returns a random float in [0, 1). Replaces GD.Randf() and Random.Shared.NextSingle().</summary>
+    public static float GetRndFloat()
+    {
+        return Rnd.NextSingle();
+    }
+
     public static Vector2 GetRndVector2()
     {
         var x = GetRndInRange(-1.0f, 1.0f);
