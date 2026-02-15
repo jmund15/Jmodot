@@ -5,7 +5,7 @@ using Stats;
 using GCol = Godot.Collections;
 
 /// <summary>
-/// A BaseFloatValueDefinition that calculates damage from impact velocity
+/// A self-damage strategy that uses ImpactDamageProfile for velocity-based damage
 /// with an optional flat/stat-driven base component.
 ///
 /// Supports three designer configurations:
@@ -17,7 +17,7 @@ using GCol = Godot.Collections;
 /// scaling only the velocity component, not the base.
 /// </summary>
 [GlobalClass, Tool]
-public partial class ImpactDamageDefinition : BaseFloatValueDefinition
+public partial class ImpactSelfDamageDefinition : BaseSelfDamageDefinition
 {
     private BaseFloatValueDefinition? _baseDamageDefinition;
 
@@ -36,7 +36,7 @@ public partial class ImpactDamageDefinition : BaseFloatValueDefinition
 
     /// <summary>
     /// Optional flat/stat-driven base damage added to velocity damage.
-    /// Resolved independently of velocity context via ResolveFloatValue(stats).
+    /// Resolved independently of velocity context.
     /// Use ConstantFloatDefinition for a flat floor, AttributeFloatDefinition for stat-driven.
     /// NOT [Export] — serialization handled via _Set/_Get/_GetPropertyList to avoid
     /// InvalidCastException in the generated setter during [Tool] deserialization.
@@ -48,20 +48,9 @@ public partial class ImpactDamageDefinition : BaseFloatValueDefinition
     }
 
     /// <summary>
-    /// Returns the base damage portion (without velocity context).
-    /// Returns 0 if no BaseDamageDefinition is set (backward compatible).
-    /// </summary>
-    public override float ResolveFloatValue(IStatProvider? stats)
-        => _baseDamageDefinition?.ResolveFloatValue(stats) ?? 0f;
-
-    /// <summary>
     /// Resolves total damage: base + velocity-scaled component.
-    /// Called by the collision runner when it detects this definition type.
     /// </summary>
-    /// <param name="impactVelocity">The velocity magnitude at impact (always positive).</param>
-    /// <param name="stats">Optional stat provider for resolving BaseDamageDefinition.</param>
-    /// <returns>BaseDamage + (Profile damage * DamageMultiplier).</returns>
-    public float ResolveWithVelocity(float impactVelocity, IStatProvider? stats = null)
+    public override float ResolveCollisionDamage(float impactVelocity, IStatProvider? stats)
     {
         float baseDamage = _baseDamageDefinition?.ResolveFloatValue(stats) ?? 0f;
 
@@ -74,7 +63,7 @@ public partial class ImpactDamageDefinition : BaseFloatValueDefinition
 
     // ─── Manual Serialization ───────────────────────────
     // Required for polymorphic BaseFloatValueDefinition field to avoid
-    // InvalidCastException during [Tool] deserialization (same pattern as DurableCollisionResponse).
+    // InvalidCastException during [Tool] deserialization.
 
     public override Variant _Get(StringName property)
     {
