@@ -10,6 +10,11 @@ public static class JmoRng
 {
     public static readonly Random Rnd = new(Guid.NewGuid().GetHashCode());
 
+    /// <summary>
+    /// Returns a random float in [min, max). The max value is exclusive due to
+    /// <see cref="Random.NextSingle"/> returning [0, 1). Contrast with the int
+    /// overload which is [min, max] inclusive.
+    /// </summary>
     public static float GetRndInRange(float min, float max)
     {
         var normF = Rnd.NextSingle();
@@ -40,6 +45,7 @@ public static class JmoRng
         return Rnd.NextSingle();
     }
 
+    /// <summary>Returns a normalized random 2D direction vector with components in [-1, 1).</summary>
     public static Vector2 GetRndVector2()
     {
         var x = GetRndInRange(-1.0f, 1.0f);
@@ -47,6 +53,7 @@ public static class JmoRng
         return new Vector2(x, y).Normalized();
     }
 
+    /// <summary>Returns a normalized random 3D direction vector with components in [-1, 1).</summary>
     public static Vector3 GetRndVector3()
     {
         var x = GetRndInRange(-1.0f, 1.0f);
@@ -55,6 +62,7 @@ public static class JmoRng
         return new Vector3(x, y, z).Normalized();
     }
 
+    /// <summary>Returns a normalized random 3D direction with positive Y (upward hemisphere). Y in [0, 1).</summary>
     public static Vector3 GetRndVector3PosY()
     {
         var x = GetRndInRange(-1.0f, 1.0f);
@@ -63,6 +71,7 @@ public static class JmoRng
         return new Vector3(x, y, z).Normalized();
     }
 
+    /// <summary>Returns a normalized random direction on the XZ plane (Y = 0). Useful for horizontal scatter.</summary>
     public static Vector3 GetRndVector3ZeroY()
     {
         var rnd2 = GetRndVector2();
