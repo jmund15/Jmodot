@@ -104,6 +104,12 @@ public static partial class BBDataSig
     /// </summary>
     public static readonly StringName ReactionComponent = new("ReactionComponent");
 
+    /// <summary>
+    /// VelocityGatedPayloadManager for passive spell mode.
+    /// Set when collision module transitions to PassiveCollisionResponse.
+    /// </summary>
+    public static readonly StringName VelocityGatedPayload = new("VelocityGatedPayload");
+
     #endregion
 
     #region FORMATION_PROPERTIES
