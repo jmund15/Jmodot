@@ -7,6 +7,7 @@ using System.IO;
 using System.Reflection;
 using Godot.Collections;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 #endregion
@@ -38,7 +39,8 @@ public static class NodeExts
         }
         else
         {
-            GD.PrintErr("Couldn't Safely Queue Free node: ", node.Name, ", node is not valid");
+            var typeName = node?.GetType().Name ?? "Unknown";
+            JmoLogger.Warning(typeName, "Couldn't Safely Queue Free node, node is not valid");
         }
     }
 
@@ -75,8 +77,9 @@ public static class NodeExts
             var value = prop.GetValue(node);
             if (value == null)
             {
+                var ownerName = node.Owner?.Name ?? "[no owner]";
                 throw new NodeConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {node.Owner.Name}.", node);
+                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
             }
         }
 
@@ -126,6 +129,11 @@ public static class NodeExts
         {
             throw new InvalidDataException(
                 "ERROR || Scene is null, cannot get node!"); // why would scene tree be null? could be possible
+        }
+
+        if (scene.CurrentScene == null)
+        {
+            throw new InvalidDataException($"CurrentScene is null, cannot find {typeof(T).Name}!");
         }
 
         if (includeScene && scene.CurrentScene is T tScene)
