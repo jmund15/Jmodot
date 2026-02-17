@@ -1,5 +1,4 @@
 using Godot;
-using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;

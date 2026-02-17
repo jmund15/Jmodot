@@ -189,6 +189,6 @@ public partial class CombatLogger : Node, IComponent
 
     // ... IComponent ...
     public bool IsInitialized { get; private set; }
-    public event System.Action Initialized;
+    public event System.Action Initialized = delegate { };
     public Node GetUnderlyingNode() => this;
 }
