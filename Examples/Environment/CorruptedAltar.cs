@@ -12,10 +12,12 @@ public partial class CorruptedAltar : Node, IHealable
 
     public void Heal(float amount, object source)
     {
+        if (amount <= 0) { return; }
+
         _corruption -= amount;
 
         var args = new HealthChangeEventArgs(100f - _corruption, 100f - (_corruption + amount), 100f, source);
-        OnHealed?.Invoke(args);
+        OnHealed.Invoke(args);
 
         if (_corruption <= 0)
         {

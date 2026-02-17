@@ -110,6 +110,11 @@ public readonly struct IntentData
 
     public object GetValue()
     {
+        if (_value == null)
+        {
+            throw JmoLogger.LogAndRethrow(
+                new InvalidOperationException("IntentData has no value (default struct)."), this);
+        }
         return _value;
     }
 }

@@ -84,7 +84,24 @@ public partial class PlayerIntentSource : IntentSourceNode
 
     public override T GetIntent<T>(InputAction inputAction)
     {
-        return (T)_processIntents[inputAction].GetValue();
+        if (!_processIntents.TryGetValue(inputAction, out var intentData))
+        {
+            throw JmoLogger.LogAndRethrow(
+                new System.Collections.Generic.KeyNotFoundException(
+                    $"InputAction '{inputAction.ActionName}' not found in process intents."),
+                this);
+        }
+
+        var value = intentData.GetValue();
+        if (value is T typedValue)
+        {
+            return typedValue;
+        }
+
+        throw JmoLogger.LogAndRethrow(
+            new System.InvalidCastException(
+                $"Intent for '{inputAction.ActionName}' is {value?.GetType().Name ?? "null"}, not {typeof(T).Name}."),
+            this);
     }
 
     /// <summary>

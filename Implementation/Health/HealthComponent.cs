@@ -168,7 +168,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
 
         // Emit initial values for any listeners that are set up during their own Initialize phase.
-        OnMaxHealthChanged?.Invoke(MaxHealth);
+        OnMaxHealthChanged.Invoke(MaxHealth);
     }
 
     public event Action Initialized = delegate { };
@@ -296,11 +296,11 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, MaxHealth, source);
 
         // Invoke the specific resurrection event first for systems that only care about this transition.
-        OnResurrected?.Invoke(eventArgs);
+        OnResurrected.Invoke(eventArgs);
 
         // Then invoke the general change/heal events for broader systems like UI.
-        OnHealthChanged?.Invoke(eventArgs);
-        OnHealed?.Invoke(eventArgs);
+        OnHealthChanged.Invoke(eventArgs);
+        OnHealed.Invoke(eventArgs);
     }
 
     /// <summary>
@@ -367,15 +367,15 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
         // --- Event Invocation ---
         var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source);
-        OnHealthChanged?.Invoke(eventArgs);
+        OnHealthChanged.Invoke(eventArgs);
 
         if (eventArgs.HealthDelta < 0)
         {
-            OnDamaged?.Invoke(eventArgs);
+            OnDamaged.Invoke(eventArgs);
         }
         else
         {
-            OnHealed?.Invoke(eventArgs);
+            OnHealed.Invoke(eventArgs);
         }
 
         // --- State Transition Logic ---
@@ -383,7 +383,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         if (_currentHealth <= 0 && !IsDead)
         {
             IsDead = true;
-            OnDied?.Invoke(eventArgs);
+            OnDied.Invoke(eventArgs);
         }
     }
 
@@ -400,7 +400,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         float previousMaxHealth = _lastResolvedMaxHealth;
         _lastResolvedMaxHealth = newMaxHealth;
 
-        OnMaxHealthChanged?.Invoke(newMaxHealth);
+        OnMaxHealthChanged.Invoke(newMaxHealth);
 
         if (ChangeHealthOnMaxChange)
         {

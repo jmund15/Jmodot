@@ -11,11 +11,13 @@ public partial class DestructibleBarricade : Node, IDamageable
 
     public void TakeDamage(float amount, object source)
     {
+        if (amount <= 0) { return; }
+
         _durability -= amount;
 
         // We can still use the event args for consistency
         var args = new HealthChangeEventArgs(_durability, _durability + amount, 100f, source);
-        OnDamaged?.Invoke(args);
+        OnDamaged.Invoke(args);
 
         if (_durability <= 0)
         {

@@ -21,31 +21,31 @@ public partial class GameRegistry : Resource
     ///     All affinities in the game, indexed by their AffinityName for fast lookup.
     ///     This is automatically populated from the Game GlobalRegistry.
     /// </summary>
-    private Dictionary<StringName, Affinity> _affinityLookup = new();
+    private Dictionary<StringName, Affinity>? _affinityLookup;
 
     /// <summary>
     ///     All attributes in the game, indexed by their AttributeName for fast lookup.
     ///     This is automatically populated from the Game GlobalRegistry.
     /// </summary>
-    private Dictionary<StringName, Attribute> _attributeLookup = new();
+    private Dictionary<StringName, Attribute>? _attributeLookup;
 
     /// <summary>
     ///     All categories in the game, indexed by their CategoryName for fast lookup.
     ///     This is automatically populated from the Game GlobalRegistry.
     /// </summary>
-    private Dictionary<StringName, Category> _categoryLookup = new();
+    private Dictionary<StringName, Category>? _categoryLookup;
 
     /// <summary>
     ///     All identities in the game, indexed by their IdentityName for fast lookup.
     ///     This is automatically populated from the Game GlobalRegistry.
     /// </summary>
-    private Dictionary<StringName, Identity> _identityLookup = new();
+    private Dictionary<StringName, Identity>? _identityLookup;
 
     /// <summary>
     ///     All input actions in the game, indexed by their ActionName for fast lookup.
     ///     This is automatically populated from the Game GlobalRegistry.
     /// </summary>
-    private Dictionary<StringName, InputAction> _inputActionLookup = new();
+    private Dictionary<StringName, InputAction>? _inputActionLookup;
 
     [ExportGroup("Resource Collectors")]
     [Export]
@@ -100,21 +100,22 @@ public partial class GameRegistry : Resource
 
     public void RebuildRegistry()
     {
-        // Clear existing data
-        Identities.Clear();
-        Categories.Clear();
-        InputActions.Clear();
-        Attributes.Clear();
-        Affinities.Clear();
+        // Build new collections first, then swap atomically to avoid
+        // a window where lookups see null dictionaries mid-rebuild.
+        var newIdentities = ProcessCollections<Identity>(IdentityCollection);
+        var newCategories = ProcessCollections<Category>(CategoryCollection);
+        var newInputActions = ProcessCollections<InputAction>(InputActionCollection);
+        var newAttributes = ProcessCollections<Attribute>(AttributeCollection);
+        var newAffinities = ProcessCollections<Affinity>(AffinityCollection);
 
-        // Load resources from collections
-        Identities = ProcessCollections<Identity>(IdentityCollection);
-        Categories = ProcessCollections<Category>(CategoryCollection);
-        InputActions = ProcessCollections<InputAction>(InputActionCollection);
-        Attributes = ProcessCollections<Attribute>(AttributeCollection);
-        Affinities = ProcessCollections<Affinity>(AffinityCollection);
+        // Atomic swap — no null intermediate state
+        Identities = newIdentities;
+        Categories = newCategories;
+        InputActions = newInputActions;
+        Attributes = newAttributes;
+        Affinities = newAffinities;
 
-        // Clear lookup dictionaries to force rebuild on next access
+        // Invalidate lookup caches so they rebuild from the new arrays on next access
         _identityLookup = null;
         _categoryLookup = null;
         _inputActionLookup = null;
