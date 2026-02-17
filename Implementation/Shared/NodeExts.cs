@@ -318,17 +318,19 @@ public static class NodeExts
         }
         else
         {
-            Array<Node> nodesToParse = root.GetChildren();
+            var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
-                var cursor = nodesToParse[0];
-                nodesToParse.Remove(cursor);
+                var cursor = nodesToParse.Dequeue();
                 if (cursor is T castedNode)
                 {
                     childArray.Add(castedNode);
                 }
 
-                nodesToParse.AddRange(cursor.GetChildren());
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
@@ -350,17 +352,19 @@ public static class NodeExts
         }
         else
         {
-            Array<Node> nodesToParse = root.GetChildren();
+            var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
-                var cursor = nodesToParse[0];
-                nodesToParse.Remove(cursor);
+                var cursor = nodesToParse.Dequeue();
                 if (cursor is T castedNode)
                 {
                     childArray.Add(castedNode);
                 }
 
-                nodesToParse.AddRange(cursor.GetChildren());
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
@@ -400,17 +404,19 @@ public static class NodeExts
         }
         else
         {
-            Array<Node> nodesToParse = root.GetChildren();
+            var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
-                var cursor = nodesToParse[0];
-                nodesToParse.Remove(cursor);
+                var cursor = nodesToParse.Dequeue();
                 if (cursor.IsInGroup(groupName))
                 {
                     groupChildren.Add(cursor);
                 }
 
-                nodesToParse.AddRange(cursor.GetChildren());
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
