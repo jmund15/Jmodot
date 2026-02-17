@@ -28,11 +28,11 @@ public abstract partial class StatusRunner : Node
     /// Tags associated with this status (e.g., "Stun", "Poison", "Buff").
     /// Used by the StatusEffectComponent to track active states.
     /// </summary>
-    public IEnumerable<CombatTag> Tags { get; set; } = [];
+    public IEnumerable<CombatTag> Tags { get; protected set; } = [];
     /// <summary>
     /// Optional visual scene to spawn and hold for the duration of the status.
     /// </summary>
-    public PackedScene? PersistentVisuals { get; set; }
+    public PackedScene? PersistentVisuals { get; protected set; }
     
     /// <summary>
     /// Optional visual effect (tint, flash, shader) to apply to the target during the status.
