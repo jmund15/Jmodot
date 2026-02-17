@@ -19,7 +19,7 @@ public partial class ProbabilityToRun : BTCondition
     public override void OnParentTaskEnter()
     {
         // Roll the dice only once when the parent task enters.
-        _lastCheckResult = MiscUtils.Rnd.NextSingle() < RunProbability;
+        _lastCheckResult = JmoRng.Rnd.NextSingle() < RunProbability;
     }
 
     public override bool Check()

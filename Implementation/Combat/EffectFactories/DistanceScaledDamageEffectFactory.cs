@@ -2,6 +2,7 @@ using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
+using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat.EffectFactories;
 
@@ -68,7 +69,7 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
         if (CritChanceAttrOverride != null && stats != null)
         {
             float critChance = stats.GetStatValue<float>(CritChanceAttrOverride);
-            isCritical = System.Random.Shared.NextSingle() < critChance;
+            isCritical = JmoRng.GetRndFloat() < critChance;
 
             if (isCritical)
             {
