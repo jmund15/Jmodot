@@ -26,7 +26,6 @@ public static class MovementExtensions
             weightedGrav = body.GetGravity();
         }
 
-        //GD.Print("weighted grav: ", weightedGrav);
         return weightedGrav;
     }
 
@@ -43,7 +42,6 @@ public static class MovementExtensions
             weightedGrav = customGravity;
         }
 
-        //GD.Print("weighted grav: ", weightedGrav);
         return weightedGrav;
     }
 

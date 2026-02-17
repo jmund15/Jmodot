@@ -1,3 +1,6 @@
+// Intentionally in the global namespace for extension method discoverability.
+// 93+ files use these extensions without explicit imports. Do not add a namespace declaration.
+
 #region
 
 using System;
@@ -144,31 +147,6 @@ public static class NodeExts
         return scene.CurrentScene.GetFirstChildOfType<T>(includeSubChildren);
     }
 
-    //public static T? GetFirstChildOfTypeOldWArray<T>(this Node root, bool includeSubChildren = true) where T : Node
-    //{
-    //    if (!includeSubChildren)
-    //    {
-    //        Array<Node> children = root.GetChildren();
-    //        foreach (var node in children)
-    //        {
-    //            if (node is T castedNode)
-    //                return castedNode;
-    //        }
-    //    }
-    //    else
-    //    {
-    //        Array<Node> nodesToParse = root.GetChildren();
-    //        while (nodesToParse.Count > 0)
-    //        {
-    //            var cursor = nodesToParse[0];
-    //            nodesToParse.Remove(cursor);
-    //            if (cursor is T castedNode)
-    //                return castedNode;
-    //            nodesToParse.AddRange(cursor.GetChildren());
-    //        }
-    //    }
-    //    return null;
-    //}
     public static bool TryGetNode<T>(this Node root, string nodePath, [MaybeNullWhen(false)] out T? result)
         where T : Node
     {
@@ -244,12 +222,10 @@ public static class NodeExts
         }
         else
         {
-            //Array<Node> nodesToParse = root.GetChildren();
             var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
                 var cursor = nodesToParse.Dequeue();
-                //nodesToParse.Remove(cursor);
                 if (cursor is T castedNode)
                 {
                     result = castedNode;
@@ -370,22 +346,7 @@ public static class NodeExts
 
         return childArray;
     }
-    // SAME AS "GetChildrenOfType" once we added the "includeSubChildren" param, so it's redundant
-    //public static Array<T> GetAllNodesOfType<[MustBeVariant] T>(this Node root) where T : Node
-    //{
-    //    Array<Node> nodesToParse = root.GetChildren();
-    //    Array<T> castedNodes = new Array<T>();
-    //    while (nodesToParse.Count > 0)
-    //    {
-    //        var cursor = nodesToParse[0];
-    //        nodesToParse.Remove(cursor);
-    //        if (cursor is T castedNode)
-    //            castedNodes.Add(castedNode);
-    //        nodesToParse.AddRange(cursor.GetChildren());
-    //    }
 
-    //    return castedNodes;
-    //}
     public static Array<Node> GetAllChildrenNodesInGroup(this Node root, StringName groupName,
         bool includeSubChildren = true)
     {
@@ -427,14 +388,12 @@ public static class NodeExts
     {
         var currentScene = (Engine.GetMainLoop() as SceneTree)?.CurrentScene;
         return currentScene == null ? new Array<T>() : currentScene.GetChildrenOfType<T>(includeSubChildren);
-        //includeSubChildren ? currentScene.GetAllNodesOfType<T>() : currentScene.GetChildrenOfType<T>();
     }
 
     public static IEnumerable<T> GetAllNodesOfInterfaceInScene<T>(bool includeSubChildren = true) where T : class
     {
         var currentScene = (Engine.GetMainLoop() as SceneTree)?.CurrentScene;
         return currentScene == null ? new List<T>() : currentScene.GetChildrenOfInterface<T>(includeSubChildren);
-        //includeSubChildren ? currentScene.GetAllNodesOfType<T>() : currentScene.GetChildrenOfType<T>();
     }
 
     #endregion
