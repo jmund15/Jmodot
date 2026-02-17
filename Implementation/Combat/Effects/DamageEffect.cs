@@ -7,7 +7,6 @@ using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
-using System;
 using System.Collections.Generic;
 using Core.Combat.Reactions;
 using Shared;
@@ -93,10 +92,4 @@ public struct DamageEffect : ICombatEffect
             return null;
         }
     }
-    public void Cancel()
-    {
-        EffectCompleted?.Invoke(this, false);
-    }
-
-    public event Action<ICombatEffect, bool> EffectCompleted;
 }

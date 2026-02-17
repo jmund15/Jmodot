@@ -7,7 +7,6 @@ using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
-using System;
 using System.Collections.Generic;
 using Core.Combat.EffectDefinitions;
 using Core.Combat.Reactions;
@@ -92,10 +91,4 @@ public struct DistanceScaledDamageEffect : ICombatEffect
         };
     }
 
-    public void Cancel()
-    {
-        EffectCompleted?.Invoke(this, false);
-    }
-
-    public event Action<ICombatEffect, bool> EffectCompleted;
 }
