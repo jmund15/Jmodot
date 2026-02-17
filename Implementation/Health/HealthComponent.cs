@@ -10,6 +10,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Core.Stats;
 using Jmodot.Core.Health;
 using Jmodot.Core.Pooling;
+using Jmodot.Core.Shared.Attributes;
 using Shared;
 using Attribute = Core.Stats.Attribute;
 
@@ -39,7 +40,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     #region Dependencies & Configuration
 
     [ExportGroup("Stat System Integration")]
-    [Export]
+    [Export, RequiredExport]
     private BaseFloatValueDefinition _maxHealthDefinition = null!;
 
     /// <summary>
