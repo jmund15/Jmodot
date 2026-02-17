@@ -18,6 +18,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     private readonly ExternalForceReceiver3D _forceReceiver3D;
     private readonly Node3D _owner;
     private readonly IStatProvider _stats;
+    private readonly Attribute? _stabilityAttr;
 
     private Vector3 _frameImpulses = Vector3.Zero;
 
@@ -25,13 +26,14 @@ public class MovementProcessor3D : IMovementProcessor3D
         ICharacterController3D controller,
         IStatProvider statsProvider,
         ExternalForceReceiver3D forceReceiver3D,
-        Node3D owner)
+        Node3D owner,
+        Attribute? stabilityAttr = null)
     {
         this._controller = controller;
         this._stats = statsProvider;
         this._forceReceiver3D = forceReceiver3D;
         this._owner = owner;
-
+        this._stabilityAttr = stabilityAttr;
     }
 
     /// <summary>
@@ -56,7 +58,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         ApplyExternalForces(delta);
 
         // --- 4. Get Velocity Offset (NOT stored - fresh each frame, friction-independent) ---
-        var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
+        var velocityOffset = ScaleByStability(_forceReceiver3D.GetTotalVelocityOffset(_owner));
 
         // --- 5. Execute the Final Move with offset ---
         _controller.AddVelocity(velocityOffset);
@@ -81,7 +83,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         this.ApplyExternalForces(delta);
 
         // 3. Get velocity offset (friction-independent)
-        var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
+        var velocityOffset = ScaleByStability(_forceReceiver3D.GetTotalVelocityOffset(_owner));
 
         // 4. Execute the move with offset
         _controller.AddVelocity(velocityOffset);
@@ -109,6 +111,17 @@ public class MovementProcessor3D : IMovementProcessor3D
     private void ApplyExternalForces(float delta)
     {
         var externalForce = this._forceReceiver3D.GetTotalForce(this._owner);
-        this._controller.AddVelocity(externalForce * delta);
+        this._controller.AddVelocity(ScaleByStability(externalForce) * delta);
+    }
+
+    private Vector3 ScaleByStability(Vector3 force)
+    {
+        if (_stabilityAttr == null)
+        {
+            return force;
+        }
+
+        var stability = _stats.GetStatValue<float>(_stabilityAttr, 0f);
+        return StabilityScaling.ScaleForce(force, stability);
     }
 }

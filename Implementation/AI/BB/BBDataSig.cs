@@ -99,10 +99,38 @@ public static partial class BBDataSig
     public static readonly StringName SpellCastDirection = new("SpellCastDirection");
 
     /// <summary>
+    /// The normalized cast force (0.0-1.0) stored at spell initialization time.
+    /// Used by growth effects and other charge-dependent behaviors.
+    /// </summary>
+    public static readonly StringName SpellCastForce = new("SpellCastForce");
+
+    /// <summary>
     /// Component that handles reaction system wiring for IReactionTarget entities.
     /// Auto-subscribes to hitbox events and routes through ReactionResolver.
     /// </summary>
     public static readonly StringName ReactionComponent = new("ReactionComponent");
+
+    #endregion
+
+    #region FORCE_DETECTION_PROPERTIES
+
+    /// <summary>
+    /// True when external force has overwhelmed the entity's control.
+    /// Written by ForceControlLossDetector, consumed by ControlLostCondition.
+    /// </summary>
+    public static readonly StringName ControlLost = new("ControlLost");
+
+    /// <summary>
+    /// Context data about the dominant force causing control loss.
+    /// Written alongside ControlLost for CapturedState to read.
+    /// </summary>
+    public static readonly StringName ForceContext = new("ForceContext");
+
+    /// <summary>
+    /// True when a wall collision occurs during the captured state.
+    /// Written by CapturedState, consumed by WallCollisionCondition.
+    /// </summary>
+    public static readonly StringName WallCollision = new("WallCollision");
 
     #endregion
 

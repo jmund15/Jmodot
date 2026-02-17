@@ -87,6 +87,56 @@ public partial class ExternalForceReceiver3D : Area3D, IPoolResetable
     }
 
     /// <summary>
+    /// Finds the force provider contributing the strongest force to the target.
+    /// Returns the provider as a Node3D for BB storage, or null if no providers are active.
+    /// </summary>
+    public (Node3D? source, Vector3 force) GetDominantForceSource(Node3D target)
+    {
+        Node3D? dominantSource = null;
+        var dominantForce = Vector3.Zero;
+        var maxMagnitudeSq = 0f;
+
+        foreach (var provider in _activeAreaProviders)
+        {
+            var force = provider.GetForceFor(target);
+            var magSq = force.LengthSquared();
+            if (magSq > maxMagnitudeSq)
+            {
+                maxMagnitudeSq = magSq;
+                dominantForce = force;
+                dominantSource = provider as Node3D;
+            }
+        }
+
+        foreach (var provider in _internalProviders)
+        {
+            var force = provider.GetForceFor(target);
+            var magSq = force.LengthSquared();
+            if (magSq > maxMagnitudeSq)
+            {
+                maxMagnitudeSq = magSq;
+                dominantForce = force;
+                dominantSource = provider as Node3D;
+            }
+        }
+
+        // Also check velocity offset providers (wave drag is offset-based)
+        foreach (var provider in _activeOffsetProviders)
+        {
+            var offset = provider.GetVelocityOffsetFor(target);
+            var magSq = offset.LengthSquared();
+            if (magSq > maxMagnitudeSq)
+            {
+                maxMagnitudeSq = magSq;
+                dominantForce = offset;
+                dominantSource = provider as Node3D;
+            }
+        }
+
+        return (dominantSource, dominantForce);
+    }
+
+    /// <summary>
     ///     Calculates the total aggregated force from all currently active environmental zones.
     ///     Forces are stored in velocity and affected by friction next frame.
     /// </summary>

@@ -21,6 +21,14 @@ public partial class VelocityDragOffsetProvider3D : Area3D, IVelocityOffsetProvi
         _dragRatio = Mathf.Clamp(dragRatio, 0f, 1f);
     }
 
+    /// <summary>
+    /// Update drag ratio at runtime (e.g., tier-based scaling).
+    /// </summary>
+    public void SetDragRatio(float dragRatio)
+    {
+        _dragRatio = Mathf.Clamp(dragRatio, 0f, 1f);
+    }
+
     public Vector3 GetVelocityOffsetFor(Node3D target)
     {
         if (_velocitySource == null)
