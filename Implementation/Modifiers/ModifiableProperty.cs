@@ -141,7 +141,6 @@ public class ModifiableProperty<T> : IModifiableProperty
         var postCancelledMods = sortedModifiers.Where(mod => !(mod.EffectTags?.Any(tagsToCancel.Contains) ?? false)).ToList();
 
         HashSet<string> collectedContextTags = [];
-        List<IModifier<T>> toRemoveMods = [];
         foreach (var mod in postCancelledMods)
         {
             foreach (var tag in mod.ContextTags)

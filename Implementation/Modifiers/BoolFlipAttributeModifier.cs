@@ -1,8 +1,6 @@
 namespace Jmodot.Core.Modifiers;
 
-using global::Jmodot.Core.Modifiers;
 using Godot.Collections;
-using Stats;
 
 /// <summary>
 ///     Resource for flipping an attributes bool value.
