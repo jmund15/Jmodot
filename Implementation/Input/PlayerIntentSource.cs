@@ -20,6 +20,9 @@ public partial class PlayerIntentSource : IntentSourceNode
     // _Process writes into this buffer. _PhysicsProcess copies it to _physicsIntents.
     private readonly Dictionary<InputAction, IntentData> _physicsBuffer = new();
 
+    // Reusable list for clearing transient actions — avoids per-frame allocation.
+    private readonly List<InputAction> _actionsToClear = new();
+
     // This is now a unified, data-driven system. No more special-casing movement.
     [ExportGroup("Action Bindings")]
     [Export]
@@ -207,19 +210,19 @@ public partial class PlayerIntentSource : IntentSourceNode
         // We do this so "JustPressed" actions don't persist into the next physics frame.
         // Continuous actions like "Pressed" or vectors are left alone, as they will be
         // overwritten by the next _Process call anyway.
-        List<InputAction> actionsToClear = new();
+        _actionsToClear.Clear();
         foreach (var binding in _actionBindings)
         {
             if (binding.PollType == InputActionPollType.JustPressed || binding.PollType == InputActionPollType.JustReleased)
             {
                 if (_physicsBuffer.ContainsKey(binding.Action))
                 {
-                    actionsToClear.Add(binding.Action);
+                    _actionsToClear.Add(binding.Action);
                 }
             }
         }
 
-        foreach (var action in actionsToClear)
+        foreach (var action in _actionsToClear)
         {
             _physicsBuffer.Remove(action);
         }

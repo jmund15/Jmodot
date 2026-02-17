@@ -17,6 +17,16 @@ public partial class GravityForceArea : Area3D, IForceProvider3D
     /// </summary>
     [Export] public float GravityScale { get; set; } = 1.0f;
 
+    private Vector3 _cachedGravityDirection;
+    private float _cachedGravityMagnitude;
+
+    public override void _Ready()
+    {
+        base._Ready();
+        _cachedGravityDirection = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
+        _cachedGravityMagnitude = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
+    }
+
     /// <summary>
     /// Returns the gravity force to apply to the target.
     /// Force = ProjectSettings.Gravity * GravityScale
@@ -33,10 +43,6 @@ public partial class GravityForceArea : Area3D, IForceProvider3D
             return Vector3.Zero;
         }
 
-        // Fetch global gravity from ProjectSettings
-        var gravityVec = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
-        var gravityMag = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
-
-        return gravityVec * gravityMag * GravityScale;
+        return _cachedGravityDirection * _cachedGravityMagnitude * GravityScale;
     }
 }
