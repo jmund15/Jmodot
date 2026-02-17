@@ -2,6 +2,7 @@ namespace Jmodot.Examples.Environment;
 
 using System;
 using Core.Health;
+using Jmodot.Implementation.Shared;
 
 public partial class CorruptedAltar : Node, IHealable
 {
@@ -18,7 +19,7 @@ public partial class CorruptedAltar : Node, IHealable
 
         if (_corruption <= 0)
         {
-            GD.Print("The Altar is cleansed!");
+            JmoLogger.Info(this, "The Altar is cleansed!");
             // Emit a signal, change appearance, etc.
         }
     }

@@ -7,6 +7,7 @@ using System.IO;
 using System.Reflection;
 using Godot.Collections;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 #endregion
@@ -38,7 +39,7 @@ public static class NodeExts
         }
         else
         {
-            GD.PrintErr("Couldn't Safely Queue Free node: ", node.Name, ", node is not valid");
+            JmoLogger.Warning(node, $"Couldn't safely queue-free node: {node.Name}, node is not valid");
         }
     }
 
