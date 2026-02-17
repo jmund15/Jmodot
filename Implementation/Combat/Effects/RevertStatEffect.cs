@@ -31,7 +31,7 @@ public struct RevertStatEffect : ICombatEffect
         // Use Blackboard
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))
         {
-            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
+            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no StatController!");
             return null;
         }
 

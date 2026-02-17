@@ -6,6 +6,7 @@ using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
 using Core.Visual.Effects;
+using Shared;
 using Status;
 
 /// <summary>
@@ -69,10 +70,9 @@ public class TickEffect : ICombatEffect
 
         // 3. Instantiate the Runner (The Node)
         var prefabInst = Prefab.Instantiate();
-        // Note: We cast to TickStatusRunner to access the specific Setup() method.
         if (prefabInst is not TickStatusRunner runner)
         {
-            GD.PrintErr($"Prefab {prefabInst.Name} is not a TickStatusRunner!");
+            JmoLogger.Error(this, $"Prefab {prefabInst.Name} is not a TickStatusRunner!");
             return null;
         }
 

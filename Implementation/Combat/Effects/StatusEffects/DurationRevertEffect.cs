@@ -6,6 +6,7 @@ using Jmodot.Core.Combat.Reactions;
 using AI.BB;
 using Combat;
 using Core.Visual.Effects;
+using Shared;
 using Status;
 
 /// <summary>
@@ -57,10 +58,9 @@ public class DurationRevertEffect : ICombatEffect
 
         // 3. Instantiate the Runner (The Node)
         var prefabInst = Prefab.Instantiate();
-        // Note: We cast to TickStatusRunner to access the specific Setup() method.
         if (prefabInst is not DurationRevertibleStatusRunner runner)
         {
-            GD.PrintErr($"Prefab {prefabInst.Name} is not a DurationRevertibleStatusRunner!");
+            JmoLogger.Error(this, $"Prefab {prefabInst.Name} is not a DurationRevertibleStatusRunner!");
             return null;
         }
 
