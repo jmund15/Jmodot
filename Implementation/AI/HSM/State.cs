@@ -5,6 +5,7 @@ using BB;
 using Core.AI.BB;
 using Core.AI.BehaviorTree;
 using Core.AI.HSM;
+using Core.Stats;
 
 using GColl = Godot.Collections;
 using System.Collections.Generic;
@@ -41,6 +42,13 @@ public partial class State : Node, IState
     /// Modifies the agent's 'SelfInterruptible' property on the blackboard when this state is active.
     /// </summary>
     [Export] protected InterruptibleChange SelfInteruptible = InterruptibleChange.NoChange;
+
+    /// <summary>
+    /// Optional stat context applied while this state is active.
+    /// When set, modifiers associated with this context (via StatContextProfiles)
+    /// are applied on enter and removed on exit.
+    /// </summary>
+    [Export] protected StatContext? ActiveStatContext;
 
     public IBlackboard BB { get; protected set; }
     public Node Agent { get; protected set; }
@@ -105,6 +113,13 @@ public partial class State : Node, IState
             case InterruptibleChange.False:
                 BB.Set(BBDataSig.SelfInteruptible, false); break;
         }
+
+        if (ActiveStatContext != null
+            && BB.TryGet<IStatProvider>(BBDataSig.Stats, out var statProvider))
+        {
+            statProvider!.AddActiveContext(ActiveStatContext);
+        }
+
         OnEnter();
         IsActive = true;
     }
@@ -115,6 +130,13 @@ public partial class State : Node, IState
     public void Exit()
     {
         IsActive = false;
+
+        if (ActiveStatContext != null
+            && BB.TryGet<IStatProvider>(BBDataSig.Stats, out var statProvider))
+        {
+            statProvider!.RemoveActiveContext(ActiveStatContext);
+        }
+
         OnExit();
     }
 
