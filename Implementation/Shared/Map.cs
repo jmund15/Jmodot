@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Shared;
 
+using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -31,12 +32,27 @@ public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
 
     public void Add(T1 t1, T2 t2)
     {
+        if (this._forward.ContainsKey(t1))
+        {
+            throw new ArgumentException($"Forward key '{t1}' already exists in the map.");
+        }
+
+        if (this._reverse.ContainsKey(t2))
+        {
+            throw new ArgumentException($"Reverse key '{t2}' already exists in the map.");
+        }
+
         this._forward.Add(t1, t2);
         this._reverse.Add(t2, t1);
     }
 
     public void Remove(T1 t1)
     {
+        if (!this._forward.ContainsKey(t1))
+        {
+            throw new KeyNotFoundException($"Forward key '{t1}' not found in the map.");
+        }
+
         var revKey = this.Forward[t1];
         this._forward.Remove(t1);
         this._reverse.Remove(revKey);
@@ -44,6 +60,11 @@ public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
 
     public void Remove(T2 t2)
     {
+        if (!this._reverse.ContainsKey(t2))
+        {
+            throw new KeyNotFoundException($"Reverse key '{t2}' not found in the map.");
+        }
+
         var forwardKey = this.Reverse[t2];
         this._reverse.Remove(t2);
         this._forward.Remove(forwardKey);
@@ -66,7 +87,6 @@ public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
         public T4 this[T3 index]
         {
             get => this._dictionary[index];
-            set => this._dictionary[index] = value;
         }
 
         public bool Contains(T3 key)
