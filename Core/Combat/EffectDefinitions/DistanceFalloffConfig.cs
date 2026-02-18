@@ -34,6 +34,11 @@ public partial class DistanceFalloffConfig : Resource
     /// <returns>The multiplier to apply to the effect (0.0 to 1.0+).</returns>
     public float GetMultiplier(float distance)
     {
+        if (MaxRadius <= 0f)
+        {
+            return 1f;
+        }
+
         if (FalloffCurve == null)
         {
             return 1f;
