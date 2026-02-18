@@ -11,6 +11,7 @@ using Core.Combat.EffectDefinitions;
 using Core.Stats;
 using Core.Visual.Effects;
 using Effects.StatusEffects;
+using Shared;
 
 [GlobalClass]
 public partial class TickEffectFactory : CombatEffectFactory
@@ -27,6 +28,12 @@ public partial class TickEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
+        if (PerTickEffect == null)
+        {
+            JmoLogger.Error(this, "TickEffectFactory: PerTickEffect is not assigned!");
+            throw new System.InvalidOperationException("TickEffectFactory: PerTickEffect is not assigned!");
+        }
+
         var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultTickStatusRunner;
 
         // 2. Return the immutable Instruction

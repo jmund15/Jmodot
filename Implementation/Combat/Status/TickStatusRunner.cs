@@ -67,11 +67,18 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     {
         base.Start(target, context);
 
+        if (Duration <= 0 && Interval > 0)
+        {
+            Shared.JmoLogger.Warning(this, "TickStatusRunner: Duration <= 0 with Interval > 0 would cause infinite ticks. Stopping immediately.");
+            Stop();
+            return;
+        }
+
         // Setup Duration Timer
         if (Duration > 0)
         {
             _durationTimer.WaitTime = Duration;
-            _durationTimer.Timeout += () => Stop();
+            _durationTimer.Timeout += OnDurationExpired;
             _durationTimer.Start();
         }
 
@@ -95,8 +102,11 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
         // Spawn Visuals (particle scenes)
         if (TickVisuals != null)
         {
-            var visual = TickVisuals.Instantiate() as Node3D;
-            // TODO: add config for if visuals should be parented to the target or the status effect component
+            var visual = TickVisuals.Instantiate();
+            if (visual is not Node3D)
+            {
+                Shared.JmoLogger.Warning(this, $"TickVisuals instantiated as {visual.GetType().Name}, expected Node3D");
+            }
             Target.OwnerNode.AddChild(visual);
         }
 
@@ -106,8 +116,12 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
         }
     }
 
+    private void OnDurationExpired() => Stop();
+
     public override void Stop(bool wasDispelled = false)
     {
+        _tickTimer.Timeout -= OnTick;
+        _durationTimer.Timeout -= OnDurationExpired;
         _tickTimer.Stop();
         _durationTimer.Stop();
         base.Stop(wasDispelled);
