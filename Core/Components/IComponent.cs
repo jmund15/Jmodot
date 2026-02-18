@@ -18,5 +18,11 @@ public interface IComponent : IGodotNodeInterface
     /// </summary>
     bool Initialize(IBlackboard bb);
     void OnPostInitialize();
+
+    /// <summary>
+    /// Fired when the component has been successfully initialized.
+    /// Implementors MUST initialize this event with <c>= delegate { };</c>
+    /// to guarantee null-safe invocation without conditional checks.
+    /// </summary>
     event Action Initialized;
 }

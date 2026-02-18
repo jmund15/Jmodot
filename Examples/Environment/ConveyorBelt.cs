@@ -27,8 +27,6 @@ public partial class ConveyorBelt : Area3D, IForceProvider3D
 
     public override void _Ready()
     {
-        // TODO: FIX
-        // Cache the global direction on ready to avoid recalculating it every frame.
-        //_globalPushVelocity = Basis.Transform(_localPushDirection).Normalized() * _pushSpeed;
+        _globalPushVelocity = GlobalBasis * (_localPushDirection.Normalized() * _pushSpeed);
     }
 }
