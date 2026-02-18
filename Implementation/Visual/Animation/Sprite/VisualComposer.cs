@@ -59,7 +59,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             Node slotRoot = GetNodeOrNull(config.PathToSlotRoot);
             if (slotRoot == null)
             {
-                GD.PrintErr($"VisualComposer: Invalid path '{config.PathToSlotRoot}' for slot '{config.SlotName}'.");
+                JmoLogger.Error(this, $"VisualComposer: Invalid path '{config.PathToSlotRoot}' for slot '{config.SlotName}'.");
                 continue;
             }
 
@@ -195,9 +195,6 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     private void OnSlotVisualNodesChanged()
     {
-        VisibleNodesChanged?.Invoke();
-        VisualNodesChanged?.Invoke();
-
         _visualNodes = new List<Node>();
         foreach (var slot in _slots.Values)
         {
@@ -209,16 +206,20 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
         {
             _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
         }
+
+        VisibleNodesChanged.Invoke();
+        VisualNodesChanged.Invoke();
     }
+
     private void OnSlotVisibleNodesChanged()
     {
-        VisibleNodesChanged?.Invoke();
-
         _visibleNodes = new List<Node>();
         foreach (var slot in _slots.Values)
         {
             _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
         }
+
+        VisibleNodesChanged.Invoke();
     }
 
     #endregion

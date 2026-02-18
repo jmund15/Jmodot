@@ -95,11 +95,6 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
         }
     }
 
-    private void InstantiateEquippedItem(VisualItemData item)
-    {
-        _slotRoot.AddChild(_currentInstance);
-    }
-
     public void Unequip(bool force = false)
     {
         // Prevent unequipping mandatory slots unless forced (e.g. during a swap)

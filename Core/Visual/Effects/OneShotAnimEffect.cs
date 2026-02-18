@@ -17,7 +17,7 @@ public partial class OneShotAnimEffect : Node3D
     /// <summary>
     /// Fired when the animation finishes and the effect is about to be freed.
     /// </summary>
-    public event Action<OneShotAnimEffect>? EffectFinished;
+    public event Action<OneShotAnimEffect> EffectFinished = delegate { };
 
     /// <summary>
     /// When true (default), automatically handles cleanup after the animation finishes.
@@ -88,7 +88,7 @@ public partial class OneShotAnimEffect : Node3D
     /// </summary>
     protected virtual void OnEffectFinished()
     {
-        EffectFinished?.Invoke(this);
+        EffectFinished.Invoke(this);
         if (AutoFree)
         {
             if (OnFinishDestroyStrategy != null)

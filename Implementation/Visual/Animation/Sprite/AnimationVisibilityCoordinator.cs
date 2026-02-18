@@ -82,8 +82,8 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     /// <summary>
     /// Fired when the set of visible nodes changes (animation change, node added/removed).
     /// </summary>
-    public event Action VisibleNodesChanged;
-    public event Action VisualNodesChanged;
+    public event Action VisibleNodesChanged = delegate { };
+    public event Action VisualNodesChanged = delegate { };
 
     public override void _Ready()
     {
@@ -109,6 +109,23 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         if (Engine.IsEditorHint() && Engine.GetMainLoop() is SceneTree sceneTree)
         {
             sceneTree.TreeChanged += UpdateConfigurationWarnings;
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (!Engine.IsEditorHint())
+        {
+            var parent = GetParent();
+            if (parent != null)
+            {
+                parent.ChildEnteredTree -= OnChildEnteredTree;
+            }
+            if (_targetAnimComponent != null)
+            {
+                _targetAnimComponent.AnimStarted -= OnAnimStarted;
+            }
         }
     }
 
@@ -190,7 +207,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
 
             // Initially hide new nodes - they'll be shown if they match the current animation
             SetNodeVisible(node, false);
-            VisualNodesChanged?.Invoke();
+            VisualNodesChanged.Invoke();
         }
     }
 
@@ -238,7 +255,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         }
 
         // Notify listeners that visible nodes have changed
-        VisibleNodesChanged?.Invoke();
+        VisibleNodesChanged.Invoke();
         //GD.Print($"[AnimVis] Animation started: {animName}, showing nodes: {nodesToShow.Count}");
     }
 
@@ -342,7 +359,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
                     if (!matchFound)
                     {
                         warnings.Add($"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
-                        GD.PrintErr($"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
+                        JmoLogger.Error(this, $"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
                     }
                 }
             }

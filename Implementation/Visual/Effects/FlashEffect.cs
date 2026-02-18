@@ -29,6 +29,8 @@ public partial class FlashEffect : VisualEffect
 
     public override void ConfigureTween(Tween tween, VisualEffectHandle handle)
     {
+        if (FlashCount <= 0) { return; }
+
         float totalDuration = Duration;
         float singleFlashDuration = totalDuration / FlashCount;
         float halfFlashDuration = singleFlashDuration / 2;

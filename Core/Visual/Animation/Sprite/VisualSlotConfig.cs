@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Visual.Animation.Sprite;
 
 using Godot;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// Configuration for a visual slot (Head, Body, Weapon).
@@ -16,7 +17,7 @@ public partial class VisualSlotConfig : Resource
     /// <summary>
     /// Path relative to the VisualComposer to the node where items are spawned.
     /// </summary>
-    [Export]
+    [Export, RequiredExport]
     public NodePath PathToSlotRoot { get; set; } = null!;
 
     /// <summary>
