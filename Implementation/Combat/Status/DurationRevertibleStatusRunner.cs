@@ -50,7 +50,7 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
             //GetTree().CreateTimer(Duration).Timeout += () => Stop();
 
             _durationTimer.WaitTime = Duration;
-            _durationTimer.Timeout += () => Stop();
+            _durationTimer.Timeout += OnDurationExpired;
             _durationTimer.Start();
         }
         else
@@ -62,6 +62,8 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
         }
     }
 
+    private void OnDurationExpired() => Stop();
+
     public override void Stop(bool wasDispelled = false)
     {
         // Revert effect (null-guard: GetRevertEffect returns null when stat wasn't applied)
@@ -70,6 +72,7 @@ public partial class DurationRevertibleStatusRunner : StatusRunner
         {
             Target.ApplyEffect(revertEffect, Context);
         }
+        _durationTimer.Timeout -= OnDurationExpired;
         _durationTimer.Stop();
 
         base.Stop(wasDispelled);

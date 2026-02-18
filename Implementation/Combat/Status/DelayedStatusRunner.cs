@@ -62,6 +62,7 @@ public partial class DelayedStatusRunner : StatusRunner
 
     public override void Stop(bool wasDispelled = false)
     {
+        _delayTimer.Timeout -= OnDelayFinished;
         _delayTimer.Stop();
         base.Stop(wasDispelled);
     }
