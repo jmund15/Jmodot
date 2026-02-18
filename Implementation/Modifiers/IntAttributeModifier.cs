@@ -1,6 +1,8 @@
 namespace Jmodot.Core.Modifiers;
 
+using System;
 using Godot.Collections;
+using Jmodot.Implementation.Shared;
 using Stats;
 
 /// <summary>
@@ -31,21 +33,17 @@ public partial class IntAttributeModifier : Resource, IIntModifier, IModifier<in
     [Export] public Array<string> RequiredContextTags { get; private set; } = new();
     public int Modify(int currentValue)
     {
-        // The Modify method knows how to interpret its own Value based on its Stage.
+        if (!Enum.IsDefined(Stage))
+        {
+            JmoLogger.Warning(this, $"Unknown CalculationStage '{Stage}' in IntAttributeModifier");
+            return currentValue;
+        }
+
         return Stage switch
         {
-            // For the BaseAdd stage, it applies its value additively.
             CalculationStage.BaseAdd => currentValue + Value,
-
-            // For the PercentAdd stage, return the whole number percentage (e.g., 10 for +10%).
-            // The IntCalculationStrategy applies this as: baseValue * ((100 + totalBonus) / 100).
             CalculationStage.PercentAdd => Value,
-
-            // For the FinalMultiply stage, it applies its value multiplicatively.
             CalculationStage.FinalMultiply => currentValue * Value,
-
-            // Default case should never be hit but ensures safety.
-            // TODO: error logging could be added here.
             _ => currentValue
         };
     }
