@@ -103,11 +103,20 @@ public class CombatLog
 
     public void PruneOldEventsByFrameCutoff(ulong frameCutoff)
     {
-        // TODO: fill out
+        var keysToRemove = _resultsByFrame.Keys.Where(k => k < frameCutoff).ToList();
+        foreach (var key in keysToRemove)
+        {
+            _resultsByFrame.Remove(key);
+        }
     }
+
     public void PruneOldEventsByCombatTimeCutoff(float combatTimeCutoff)
     {
-        // TODO: fill out
+        var keysToRemove = _resultsByCombatTime.Keys.Where(k => k < combatTimeCutoff).ToList();
+        foreach (var key in keysToRemove)
+        {
+            _resultsByCombatTime.Remove(key);
+        }
     }
 
     public IEnumerable<T> GetAllCombatResultsWithinLastFrameAmount<T>(ulong frameAmt) where T : CombatResult
