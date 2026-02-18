@@ -15,14 +15,6 @@ using Shared.GodotExceptions;
     [GlobalClass, Tool]
     public partial class CompoundState : State
     {
-        public enum DebugViewPosition
-        {
-            TopLeft,
-            TopRight,
-            BottomLeft,
-            BottomRight
-        }
-
         [Export]
         public State InitialSubState { get; protected set; }
 
@@ -39,7 +31,7 @@ using Shared.GodotExceptions;
         /// </summary>
         [ExportGroup("Debugging")]
         [Export] private bool _enableDebugView = false;
-        [Export] private DebugViewPosition _debugViewPosition = DebugViewPosition.TopRight;
+        [Export] private DebugAIPanel.DebugViewPosition _debugViewPosition = DebugAIPanel.DebugViewPosition.TopRight;
 
         public State PrimarySubState { get; protected set; }
 
@@ -60,6 +52,8 @@ using Shared.GodotExceptions;
             {
                 _debugComponent = new DebugSMComponent();
                 AddChild(_debugComponent);
+                _debugComponent.Init(Name, Agent as Node3D);
+                _debugComponent.SetDisplayPosition(_debugViewPosition);
             }
 
             foreach (var child in this.GetChildrenOfType<State>(false))

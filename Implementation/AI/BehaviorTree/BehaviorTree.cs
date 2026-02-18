@@ -37,20 +37,13 @@ public partial class BehaviorTree : Node
     /// </summary>
     [Export] public bool SelfSufficient { get; private set; }
 
-    public enum DebugViewPosition
-    {
-        TopLeft,
-        TopRight,
-        BottomLeft,
-        BottomRight
-    }
     [ExportGroup("Debugging")]
     /// <summary>
     /// If true, a debug overlay will be instantiated to visualize the tree's activity at runtime.
     /// </summary>
     [Export] private bool _enableDebugView = false;
 
-    [Export] private DebugViewPosition _debugViewPosition = DebugViewPosition.TopLeft;
+    [Export] private DebugAIPanel.DebugViewPosition _debugViewPosition = DebugAIPanel.DebugViewPosition.TopLeft;
 
     public bool IsInitialized { get; private set; }
     public BehaviorTask RootTask { get; private set; } = null!; // Set in Init(), exception if missing
@@ -135,12 +128,15 @@ public partial class BehaviorTree : Node
 
         if (_enableDebugView && !Engine.IsEditorHint())
         {
-            var canvas = new CanvasLayer { Name = "BTDebugCanvas" };
-            AddChild(canvas);
             var debugComponent = new DebugBTComponent();
-            AddChild(debugComponent); // Add the UI as a child of the tree itself.
-            debugComponent.Init(this); // Initialize it with a reference to this tree.
-            debugComponent.SetDisplayPosition(_debugViewPosition); // New method call
+            AddChild(debugComponent);
+            debugComponent.Init(RootTask, Name, AgentNode as Node3D);
+            debugComponent.SetDisplayPosition(_debugViewPosition);
+            debugComponent.BuildTreeView();
+
+            TreeEnabled += debugComponent.OnTreeEnabled;
+            TreeDisabled += debugComponent.OnTreeDisabled;
+            TreeReset += debugComponent.OnTreeReset;
         }
 
         IsInitialized = true;
