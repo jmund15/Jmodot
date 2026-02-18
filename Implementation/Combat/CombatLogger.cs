@@ -41,7 +41,12 @@ public partial class CombatLogger : Node, IComponent
             JmoLogger.Error(this, $"CombatLogger must have a Combatant Component to operate!");
             return false;
         }
-        Combatant = c!;
+        if (c == null)
+        {
+            JmoLogger.Error(this, "CombatantComponent resolved to null from Blackboard!");
+            return false;
+        }
+        Combatant = c;
 
         IsInitialized = true;
         Initialized?.Invoke();
