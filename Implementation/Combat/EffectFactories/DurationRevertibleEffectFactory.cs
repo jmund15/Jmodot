@@ -29,7 +29,7 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
         if (effect is not IRevertibleCombatEffect revertibleEffect)
         {
             JmoLogger.Error(this, $"{RevertibleEffect.ResourcePath}'s effect is not revertible!");
-            return null!;
+            throw new System.InvalidOperationException($"DurationRevertibleEffectFactory: RevertibleEffect does not produce an IRevertibleCombatEffect");
         }
         return new DurationRevertEffect(
             runner,
