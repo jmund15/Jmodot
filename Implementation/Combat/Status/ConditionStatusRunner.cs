@@ -14,7 +14,12 @@ public partial class ConditionStatusRunner : StatusRunner
 
     public override void _Ready()
     {
-        _checkTimer = GetNode<Timer>("CheckTimer");
+        _checkTimer = GetNodeOrNull<Timer>("CheckTimer");
+        if (_checkTimer == null)
+        {
+            _checkTimer = new Timer { Name = "CheckTimer" };
+            AddChild(_checkTimer);
+        }
         _checkTimer.OneShot = true;
         _checkTimer.Autostart = false;
     }
