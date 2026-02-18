@@ -10,7 +10,7 @@ public partial class FloatCalculationStrategy : Resource, ICalculationStrategy<f
 {
     public float Calculate(float baseValue, IReadOnlyList<IModifier<float>> modifiers)
     {
-        var activeModifiers = modifiers.OfType<IFloatModifier>();
+        var activeModifiers = modifiers.OfType<IFloatModifier>().ToList();
         // --- Stage 1: BaseAdd ---
         foreach (var mod in activeModifiers)
         {
