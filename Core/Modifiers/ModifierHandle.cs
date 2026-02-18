@@ -15,7 +15,7 @@ public sealed class ModifierHandle
 
     internal ModifierHandle(IModifiableProperty property, Guid modifierId)
     {
-        Property = property;
+        Property = property ?? throw new ArgumentNullException(nameof(property));
         ModifierId = modifierId;
     }
 }
