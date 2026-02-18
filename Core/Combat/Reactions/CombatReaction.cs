@@ -10,8 +10,8 @@ using Stats;
 /// </summary>
 public abstract record CombatResult
 {
-    public Node Source { get; init; }
-    public Node Target { get; init; }
+    public Node? Source { get; init; }
+    public Node? Target { get; init; }
     public IEnumerable<CombatTag> Tags { get; init; }
 }
 
