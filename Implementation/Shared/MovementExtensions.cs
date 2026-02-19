@@ -7,6 +7,9 @@ public static class MovementExtensions
     /// Gets a Vector2 from a Vector3, ignoring the Y component.
     /// </summary>
     public static Vector2 GetFlattenedVector2(this Vector3 vec) => new(vec.X, vec.Z);
+    /// <summary>
+    /// Gets a Vector3 from a Vector2, inserting 0 for the Y component: (X, 0, Y).
+    /// </summary>
     public static Vector3 GetFlatVector3(this Vector2 vec) => new(vec.X, 0f, vec.Y);
     #endregion
     #region VELOCITY_EXTENSIONS

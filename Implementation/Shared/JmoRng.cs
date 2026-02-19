@@ -56,12 +56,12 @@ public static class JmoRng
         return Rnd.NextSingle();
     }
 
-    private const int MaxRetries = 10;
+    private const int MaxAttempts = 10;
 
     /// <summary>Returns a normalized random 2D direction vector with components in [-1, 1).</summary>
     public static Vector2 GetRndVector2()
     {
-        for (int i = 0; i < MaxRetries; i++)
+        for (int i = 0; i < MaxAttempts; i++)
         {
             var vec = new Vector2(GetRndInRange(-1.0f, 1.0f), GetRndInRange(-1.0f, 1.0f));
             if (!vec.IsZeroApprox())
@@ -76,7 +76,7 @@ public static class JmoRng
     /// <summary>Returns a normalized random 3D direction vector with components in [-1, 1).</summary>
     public static Vector3 GetRndVector3()
     {
-        for (int i = 0; i < MaxRetries; i++)
+        for (int i = 0; i < MaxAttempts; i++)
         {
             var vec = new Vector3(GetRndInRange(-1.0f, 1.0f), GetRndInRange(-1.0f, 1.0f), GetRndInRange(-1.0f, 1.0f));
             if (!vec.IsZeroApprox())
@@ -91,7 +91,7 @@ public static class JmoRng
     /// <summary>Returns a normalized random 3D direction with positive Y (upward hemisphere). Y in [0, 1).</summary>
     public static Vector3 GetRndVector3PosY()
     {
-        for (int i = 0; i < MaxRetries; i++)
+        for (int i = 0; i < MaxAttempts; i++)
         {
             var vec = new Vector3(GetRndInRange(-1.0f, 1.0f), GetRndInRange(0f, 1.0f), GetRndInRange(-1.0f, 1.0f));
             if (!vec.IsZeroApprox())

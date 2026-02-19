@@ -97,8 +97,9 @@ public static class NodeExts
             var value = field.GetValue(node);
             if (value == null)
             {
+                var ownerName = node.Owner?.Name ?? "[no owner]";
                 throw new NodeConfigurationException(
-                    $"Required export '{field.Name}' must be assigned in the Inspector.", node);
+                    $"Required export '{field.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
             }
         }
     }

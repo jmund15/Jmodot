@@ -48,24 +48,22 @@ public class Map<T1, T2> : IEnumerable<KeyValuePair<T1, T2>>
 
     public void Remove(T1 t1)
     {
-        if (!this._forward.ContainsKey(t1))
+        if (!this._forward.TryGetValue(t1, out var revKey))
         {
             throw new KeyNotFoundException($"Forward key '{t1}' not found in the map.");
         }
 
-        var revKey = this.Forward[t1];
         this._forward.Remove(t1);
         this._reverse.Remove(revKey);
     }
 
     public void Remove(T2 t2)
     {
-        if (!this._reverse.ContainsKey(t2))
+        if (!this._reverse.TryGetValue(t2, out var forwardKey))
         {
             throw new KeyNotFoundException($"Reverse key '{t2}' not found in the map.");
         }
 
-        var forwardKey = this.Reverse[t2];
         this._reverse.Remove(t2);
         this._forward.Remove(forwardKey);
     }
