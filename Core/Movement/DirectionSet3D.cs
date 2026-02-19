@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Movement;
 
 using System.Collections.Generic;
+using System.Linq;
 using Implementation.Shared;
 
 /// <summary>
@@ -15,7 +16,7 @@ public abstract partial class DirectionSet3D : Resource
     /// The collection of normalized direction vectors that make up this set.
     /// This property is populated by the concrete implementations.
     /// </summary>
-    public IEnumerable<Vector3> Directions { get; protected set; } = null!;
+    public IEnumerable<Vector3> Directions { get; protected set; } = Enumerable.Empty<Vector3>();
 
     /// <summary>
     /// Finds the closest direction vector in this set to a given target direction.

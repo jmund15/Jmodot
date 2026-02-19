@@ -20,7 +20,8 @@ public sealed partial class CustomDirectionSet3D : DirectionSet3D
 
     public CustomDirectionSet3D(Array<Vector3> directions)
     {
-        this.Directions = new Array<Vector3>(directions.Select(dir => dir.Normalized()));
+        this.Directions = new Array<Vector3>(
+            directions.Where(dir => dir.LengthSquared() >= 1e-6f).Select(dir => dir.Normalized()));
     }
 
     [Export]
@@ -30,7 +31,8 @@ public sealed partial class CustomDirectionSet3D : DirectionSet3D
         set
         {
             // Ensure all directions are normalized
-            this._customDirections = new Array<Vector3>(value.Select(dir => dir.Normalized()));
+            this._customDirections = new Array<Vector3>(
+                value.Where(dir => dir.LengthSquared() >= 1e-6f).Select(dir => dir.Normalized()));
             this.Directions = this.CustomDirections; // Update the base Directions property
         }
     }

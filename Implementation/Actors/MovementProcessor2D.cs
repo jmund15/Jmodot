@@ -40,20 +40,30 @@ public class MovementProcessor2D : IMovementProcessor2D
     public void ProcessMovement(IMovementStrategy2D strategy2D, Vector2 desiredDirection, float delta)
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
-        // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
             strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, _stats, delta);
         _controller.SetVelocity(characterVelocity);
 
-        // --- 2. Apply Impulses
+        // --- 2. Apply Impulses (stored in velocity) ---
         _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector2.Zero; // reset after applied
+        _frameImpulses = Vector2.Zero;
 
-        // --- 2. Apply External Forces (Gravity, Environment) ---
+        // --- 3. Apply External Forces (stored - will be affected by friction next frame) ---
         ApplyExternalForces(delta);
 
-        // --- 4. Execute the Final Move ---
+        // --- 4. Get Velocity Offset (NOT stored - fresh each frame, friction-independent) ---
+        var velocityOffset = _forceReceiver2D.GetTotalVelocityOffset(_owner);
+
+        // --- 5. Execute the Final Move with offset ---
+        var baseVelocity = _controller.Velocity;
+        var combined = baseVelocity + velocityOffset;
+        _controller.SetVelocity(combined);
         _controller.Move();
+
+        // --- 6. Isolate collision delta and apply to base velocity only ---
+        var postCollision = _controller.Velocity;
+        var collisionDelta = postCollision - combined;
+        _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
     /// <summary>
@@ -70,8 +80,19 @@ public class MovementProcessor2D : IMovementProcessor2D
         // 2. Apply external forces
         this.ApplyExternalForces(delta);
 
-        // 2. Execute the move
-        this._controller.Move();
+        // 3. Get velocity offset (friction-independent)
+        var velocityOffset = _forceReceiver2D.GetTotalVelocityOffset(_owner);
+
+        // 4. Execute the move with offset, isolating collision effects
+        var baseVelocity = _controller.Velocity;
+        var combined = baseVelocity + velocityOffset;
+        _controller.SetVelocity(combined);
+        _controller.Move();
+
+        // 5. Apply collision delta to base velocity only
+        var postCollision = _controller.Velocity;
+        var collisionDelta = postCollision - combined;
+        _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
     /// <summary>
@@ -82,6 +103,15 @@ public class MovementProcessor2D : IMovementProcessor2D
     public void ApplyImpulse(Vector2 impulse)
     {
         _frameImpulses += impulse;
+    }
+
+    /// <summary>
+    ///     Discards any pending impulses that have not yet been applied.
+    ///     Useful when transitioning between states that should not carry over queued impulses.
+    /// </summary>
+    public void ClearImpulses()
+    {
+        _frameImpulses = Vector2.Zero;
     }
 
     private void ApplyExternalForces(float delta)

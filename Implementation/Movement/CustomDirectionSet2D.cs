@@ -20,7 +20,8 @@ public sealed partial class CustomDirectionSet2D : DirectionSet2D
 
     public CustomDirectionSet2D(Array<Vector2> directions)
     {
-        this.Directions = new Array<Vector2>(directions.Select(dir => dir.Normalized()));
+        this.Directions = new Array<Vector2>(
+            directions.Where(dir => dir.LengthSquared() >= 1e-6f).Select(dir => dir.Normalized()));
     }
 
     [Export]
@@ -30,7 +31,8 @@ public sealed partial class CustomDirectionSet2D : DirectionSet2D
         set
         {
             // Ensure all directions are normalized
-            this._customDirections = new Array<Vector2>(value.Select(dir => dir.Normalized()));
+            this._customDirections = new Array<Vector2>(
+                value.Where(dir => dir.LengthSquared() >= 1e-6f).Select(dir => dir.Normalized()));
             this.Directions = this.CustomDirections; // Update the base Directions property
         }
     }

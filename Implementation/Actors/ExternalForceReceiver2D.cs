@@ -85,12 +85,18 @@ public partial class ExternalForceReceiver2D : Area2D, IPoolResetable
 
         foreach (var provider in _activeAreaProviders)
         {
-            totalForce += provider.GetForceFor(target);
+            if (GodotObject.IsInstanceValid((GodotObject)provider))
+            {
+                totalForce += provider.GetForceFor(target);
+            }
         }
 
         foreach (var provider in _internalProviders)
         {
-            totalForce += provider.GetForceFor(target);
+            if (GodotObject.IsInstanceValid((GodotObject)provider))
+            {
+                totalForce += provider.GetForceFor(target);
+            }
         }
 
         return totalForce;
@@ -108,7 +114,10 @@ public partial class ExternalForceReceiver2D : Area2D, IPoolResetable
 
         foreach (var provider in _activeOffsetProviders)
         {
-            totalOffset += provider.GetVelocityOffsetFor(target);
+            if (GodotObject.IsInstanceValid((GodotObject)provider))
+            {
+                totalOffset += provider.GetVelocityOffsetFor(target);
+            }
         }
 
         return totalOffset;
