@@ -17,9 +17,8 @@ public class MovementProcessor2D : IMovementProcessor2D
     private readonly ICharacterController2D _controller;
     private readonly ExternalForceReceiver2D _forceReceiver2D;
     private readonly Node2D _owner;
-    private readonly IStatProvider _stats; // Now it needs a reference to the StatController
+    private readonly IStatProvider _stats;
 
-    //private readonly Vector2 _gravity = Vector2.Down * 9.8f;
     private Vector2 _frameImpulses = Vector2.Zero;
 
     public MovementProcessor2D(
@@ -32,10 +31,6 @@ public class MovementProcessor2D : IMovementProcessor2D
         this._stats = statsProvider;
         this._forceReceiver2D = forceReceiver2D;
         this._owner = owner;
-
-        var gravityVec = ProjectSettings.GetSetting("physics/2d/default_gravity_vector").AsVector2();
-        var gravityMag = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
-        GD.Print($"gravity vec: {gravityVec}\ngravity mag: {gravityMag}");
     }
 
     /// <summary>
@@ -48,12 +43,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         // The strategy does the heavy lifting of getting stats.
         var characterVelocity =
             strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, _stats, delta);
-        _controller.SetVelocity(characterVelocity
-            );
-
-
-        // TODO: currently adding to keep 'ApplyImpulse' functionality, but should probably be set and add impulses after
-        //GD.Print($"moving with vec: {characterVelocity}");
+        _controller.SetVelocity(characterVelocity);
 
         // --- 2. Apply Impulses
         _controller.AddVelocity(_frameImpulses);
@@ -92,7 +82,6 @@ public class MovementProcessor2D : IMovementProcessor2D
     public void ApplyImpulse(Vector2 impulse)
     {
         _frameImpulses += impulse;
-        //this._controller.AddVelocity(impulse);
     }
 
     private void ApplyExternalForces(float delta)

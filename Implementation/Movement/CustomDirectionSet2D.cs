@@ -18,10 +18,9 @@ public sealed partial class CustomDirectionSet2D : DirectionSet2D
         this.Directions = this.CustomDirections;
     }
 
-    // should keep? or make distinct
     public CustomDirectionSet2D(Array<Vector2> directions)
     {
-        this.Directions = directions;
+        this.Directions = new Array<Vector2>(directions.Select(dir => dir.Normalized()));
     }
 
     [Export]

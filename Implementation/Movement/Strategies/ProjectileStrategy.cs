@@ -1,21 +1,16 @@
 namespace Jmodot.Implementation.Movement.Strategies;
 
-using Actors;
-using Core.Movement.Strategies;
 using Core.Stats;
-using Jmodot.Core.Movement;
-using Godot;
 
 /// <summary>
-/// A simple movement strategy for projectiles that just move forward based on their current velocity.
+/// A simple movement strategy for projectiles that passes through the desired direction unchanged.
+/// The caller is responsible for pre-computing the direction and speed.
 /// </summary>
-public class ProjectileStrategy : IMovementStrategy3D
+[GlobalClass]
+public partial class ProjectileStrategy : BaseMovementStrategy3D
 {
-    public Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
+    public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
     {
-        // Projectiles typically just keep their velocity
-        // If we wanted to enforce a constant speed, we could do it here.
-
         return desiredDirection;
     }
 }

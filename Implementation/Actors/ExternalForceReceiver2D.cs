@@ -2,64 +2,115 @@ namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
 using Core.Environment;
+using Core.Pooling;
 
 /// <summary>
 ///     A component that should be attached to any character or actor that can be affected
-///     by external environmental forces. It uses a Godot Area2D to detect and collect
-///     all active IForceProviders in its vicinity, aggregating their effects into a
-///     single, clean vector that the MovementProcessor can query.
+///     by external environmental forces and velocity offsets. It uses a Godot Area2D to detect
+///     and collect all active providers in its vicinity, aggregating their effects into
+///     clean vectors that the MovementProcessor can query.
 /// </summary>
 [GlobalClass]
-public partial class ExternalForceReceiver2D : Area2D
+public partial class ExternalForceReceiver2D : Area2D, IPoolResetable
 {
-    // Using a HashSet provides efficient add/remove operations and prevents duplicates.
-    private readonly HashSet<IForceProvider2D> _activeForceProviders = new();
+    private readonly HashSet<IForceProvider2D> _activeAreaProviders = new();
+    private readonly HashSet<IForceProvider2D> _internalProviders = new();
+    private readonly HashSet<IVelocityOffsetProvider2D> _activeOffsetProviders = new();
+
+    private bool _signalsConnected;
 
     public override void _Ready()
     {
-        // Ensure this component does not collide with the character's own physics layers.
-        // It should only interact with layers designated for environmental effects.
+        if (!_signalsConnected)
+        {
+            this.AreaEntered += OnProviderEntered;
+            this.AreaExited += OnProviderExited;
+            _signalsConnected = true;
+        }
+    }
 
-        // Connect to signals for automatic tracking of force providers.
-        this.AreaEntered += this.OnProviderEntered;
-        this.AreaExited += this.OnProviderExited;
+    /// <summary>
+    /// Resets state for object pooling. Called automatically via IPoolResetable when parent returns to pool.
+    /// </summary>
+    public void OnPoolReset()
+    {
+        _activeAreaProviders.Clear();
+        _activeOffsetProviders.Clear();
+    }
+
+    public void RegisterInternalProvider(IForceProvider2D provider)
+    {
+        _internalProviders.Add(provider);
+    }
+
+    public void UnregisterInternalProvider(IForceProvider2D provider)
+    {
+        _internalProviders.Remove(provider);
     }
 
     private void OnProviderEntered(Area2D area)
     {
-        if (area is IForceProvider2D provider)
+        if (area is IForceProvider2D forceProvider)
         {
-            this._activeForceProviders.Add(provider);
+            _activeAreaProviders.Add(forceProvider);
+        }
+
+        if (area is IVelocityOffsetProvider2D offsetProvider)
+        {
+            _activeOffsetProviders.Add(offsetProvider);
         }
     }
 
     private void OnProviderExited(Area2D area)
     {
-        if (area is IForceProvider2D provider)
+        if (area is IForceProvider2D forceProvider)
         {
-            this._activeForceProviders.Remove(provider);
+            _activeAreaProviders.Remove(forceProvider);
+        }
+
+        if (area is IVelocityOffsetProvider2D offsetProvider)
+        {
+            _activeOffsetProviders.Remove(offsetProvider);
         }
     }
 
     /// <summary>
     ///     Calculates the total aggregated force from all currently active environmental zones.
-    ///     This is the primary public API for this component.
     /// </summary>
     /// <param name="target">The actor being affected, passed to the force provider for context.</param>
     /// <returns>A single Vector2 representing the sum of all external forces for this frame.</returns>
     public Vector2 GetTotalForce(Node2D target)
     {
-        if (this._activeForceProviders.Count == 0)
+        var totalForce = Vector2.Zero;
+
+        foreach (var provider in _activeAreaProviders)
         {
-            return Vector2.Zero;
+            totalForce += provider.GetForceFor(target);
         }
 
-        var totalForce = Vector2.Zero;
-        foreach (var provider in this._activeForceProviders)
+        foreach (var provider in _internalProviders)
         {
             totalForce += provider.GetForceFor(target);
         }
 
         return totalForce;
+    }
+
+    /// <summary>
+    ///     Gets total velocity offset from all active offset providers.
+    ///     Offsets are NOT stored - calculated fresh each frame for friction-independent effects.
+    /// </summary>
+    /// <param name="target">The actor being affected.</param>
+    /// <returns>A single Vector2 representing the sum of all velocity offsets for this frame.</returns>
+    public Vector2 GetTotalVelocityOffset(Node2D target)
+    {
+        var totalOffset = Vector2.Zero;
+
+        foreach (var provider in _activeOffsetProviders)
+        {
+            totalOffset += provider.GetVelocityOffsetFor(target);
+        }
+
+        return totalOffset;
     }
 }

@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Movement;
 
+using System;
 using Core.Movement;
 
 /// <summary>
@@ -12,6 +13,7 @@ public class CharacterBodyController2D : ICharacterController2D
 
     public CharacterBodyController2D(CharacterBody2D body)
     {
+        ArgumentNullException.ThrowIfNull(body);
         _body = body;
     }
 

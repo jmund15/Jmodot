@@ -7,7 +7,7 @@ using Godot.Collections;
 /// <summary>
 ///     Specialized DirectionSet3D that allows for custom direction vectors to be defined in the Godot Editor.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public sealed partial class CustomDirectionSet3D : DirectionSet3D
 {
     private Array<Vector3> _customDirections = new();
@@ -18,10 +18,9 @@ public sealed partial class CustomDirectionSet3D : DirectionSet3D
         this.Directions = this.CustomDirections;
     }
 
-    // should keep? or make disctinct
     public CustomDirectionSet3D(Array<Vector3> directions)
     {
-        this.Directions = directions;
+        this.Directions = new Array<Vector3>(directions.Select(dir => dir.Normalized()));
     }
 
     [Export]

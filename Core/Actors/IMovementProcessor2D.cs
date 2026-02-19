@@ -1,7 +1,6 @@
 namespace Jmodot.Core.Actors;
 
 using Movement.Strategies;
-using Stats;
 
 public interface IMovementProcessor2D
 {

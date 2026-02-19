@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Movement;
 
+using System;
 using Core.Movement;
 
 /// <summary>
@@ -12,6 +13,7 @@ public class CharacterBodyController3D : ICharacterController3D
 
     public CharacterBodyController3D(CharacterBody3D body)
     {
+        ArgumentNullException.ThrowIfNull(body);
         this._body = body;
     }
 
@@ -44,7 +46,7 @@ public class CharacterBodyController3D : ICharacterController3D
     {
         PreMoveVelocity = _body.Velocity;
         _body.MoveAndSlide();
-        if (_body.Velocity != Vector3.Zero)
+        if (_body.Velocity.LengthSquared() > 1e-6f)
         {
             LastNonZeroVelocity = _body.Velocity;
         }
