@@ -6,7 +6,7 @@ using Jmodot.Implementation.Shared;
 using Stats;
 
 /// <summary>
-///     Resource for modifying a float value. This is the primary tool
+///     Resource for modifying an int value. This is the primary tool
 ///     a designer will use to create all standard buffs, debuffs, and equipment bonuses in the editor.
 ///     It fully implements the IModifier contract, including stages, priority, and tags.
 /// </summary>
@@ -15,11 +15,13 @@ public partial class IntAttributeModifier : Resource, IIntModifier, IModifier<in
 {
     [Export] public CalculationStage Stage { get; private set; } = CalculationStage.BaseAdd;
 
-    //[ExportGroup("Modification Value")]
+    [ExportGroup("Modification Value")]
     /// <summary>
     /// The value to use for the modification. How this is interpreted depends on the Stage.
     /// For BaseAdd: A flat value (e.g., 10 for +10).
     /// For PercentAdd: A whole number percentage (e.g., 10 for +10%, 50 for +50%).
+    ///   Note: Unlike FloatAttributeModifier, Modify() returns the raw Value (not divided by 100).
+    ///   The IntCalculationStrategy compensates with (100 + bonus) / 100f.
     /// For FinalMultiply: A multiplier (e.g., 2 for x2).
     /// </summary>
     [Export]

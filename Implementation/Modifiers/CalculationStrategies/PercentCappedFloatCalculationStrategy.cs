@@ -17,8 +17,8 @@ using Jmodot.Core.Stats;
 public partial class PercentCappedFloatCalculationStrategy : Resource, ICalculationStrategy<float>
 {
     /// <summary>
-    /// Maximum total percentage bonus (as a decimal).
-    /// E.g., 1.0 means max +100% bonus, 0.5 means max +50%.
+    /// Maximum total percentage bonus (as a whole number percentage).
+    /// E.g., 100 means max +100% bonus, 50 means max +50%.
     /// Defaults to float.MaxValue (no cap).
     /// </summary>
     [Export] public float MaxPercentBonus { get; set; } = float.MaxValue;
@@ -58,8 +58,8 @@ public partial class PercentCappedFloatCalculationStrategy : Resource, ICalculat
             }
         }
 
-        // Cap the percentage bonus
-        totalPercentBonus = Math.Min(totalPercentBonus, MaxPercentBonus);
+        // Cap the percentage bonus (convert whole-number cap to decimal fraction)
+        totalPercentBonus = Math.Min(totalPercentBonus, MaxPercentBonus / 100f);
 
         baseValue *= 1.0f + totalPercentBonus;
 

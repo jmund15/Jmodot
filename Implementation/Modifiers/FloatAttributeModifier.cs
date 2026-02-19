@@ -15,11 +15,12 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
 {
     [Export] public CalculationStage Stage { get; private set; } = CalculationStage.BaseAdd;
 
-    //[ExportGroup("Modification Value")]
+    [ExportGroup("Modification Value")]
     /// <summary>
     /// The value to use for the modification. How this is interpreted depends on the Stage.
     /// For BaseAdd: A flat value (e.g., 10 for +10).
     /// For PercentAdd: A whole number percentage (e.g., 10 for +10%, 50 for +50%).
+    ///   Note: Modify() returns Value/100f (the decimal fraction). The strategy sums these fractions.
     /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
     /// </summary>
     [Export]

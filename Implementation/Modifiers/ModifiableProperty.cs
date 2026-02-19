@@ -135,6 +135,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         var tagsToCancel = new HashSet<string>();
         foreach (var mod in sortedModifiers)
         {
+            if (mod.CancelsEffectTags == null) { continue; }
             foreach (var tag in mod.CancelsEffectTags)
             {
                 tagsToCancel.Add(tag);
@@ -146,6 +147,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         HashSet<string> collectedContextTags = [];
         foreach (var mod in postCancelledMods)
         {
+            if (mod.ContextTags == null) { continue; }
             foreach (var tag in mod.ContextTags)
             {
                 collectedContextTags.Add(tag);
@@ -155,7 +157,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         var postRequiredMods =
             // keep any mods where any of their required context tags exist in the collected tag hashset
             postCancelledMods.Where(m =>
-                m.RequiredContextTags.Count == 0
+                (m.RequiredContextTags == null || m.RequiredContextTags.Count == 0)
                 ||
                 m.RequiredContextTags.Any(collectedContextTags.Contains)).ToList();
 
