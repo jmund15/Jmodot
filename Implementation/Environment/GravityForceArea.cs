@@ -15,7 +15,7 @@ public partial class GravityForceArea : Area3D, IForceProvider3D
     /// Multiplier for the global gravity value.
     /// 1.0 = normal gravity, 0.5 = half gravity, 2.0 = double gravity, -1.0 = anti-gravity.
     /// </summary>
-    [Export] public float GravityScale { get; set; } = 1.0f;
+    [Export(PropertyHint.Range, "-5,5,0.01")] public float GravityScale { get; set; } = 1.0f;
 
     private Vector3 _cachedGravityDirection;
     private float _cachedGravityMagnitude;
@@ -38,7 +38,7 @@ public partial class GravityForceArea : Area3D, IForceProvider3D
             return Vector3.Zero;
         }
 
-        if (GravityScale == 0.0f)
+        if (Mathf.IsZeroApprox(GravityScale))
         {
             return Vector3.Zero;
         }

@@ -39,7 +39,7 @@ public static class NodeExts
         }
         else
         {
-            JmoLogger.Warning(node, $"Couldn't safely queue-free node: {node.Name}, node is not valid");
+            JmoLogger.Warning(typeof(NodeExts), "Couldn't safely queue-free node: node is not valid or already freed");
         }
     }
 

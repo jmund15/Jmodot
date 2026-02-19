@@ -255,7 +255,7 @@ public partial class GameRegistry : Resource
 
     #region Lookup_Builders
 
-    public void BuildIdentityLookup()
+    protected void BuildIdentityLookup()
     {
         this._identityLookup = new Dictionary<StringName, Identity>();
         if (this.Identities == null)

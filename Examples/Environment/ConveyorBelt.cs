@@ -12,7 +12,7 @@ public partial class ConveyorBelt : Area3D, IForceProvider3D
 {
     private Vector3 _globalPushVelocity;
 
-    /// <summary>The direction the belt pushes, relative to its own orientation.</summary>
+    /// <summary>Direction only — magnitude is ignored (auto-normalized). Use _pushSpeed to control belt force.</summary>
     [Export] private Vector3 _localPushDirection = Vector3.Forward;
 
     /// <summary>The speed of the belt's push in units per second.</summary>
