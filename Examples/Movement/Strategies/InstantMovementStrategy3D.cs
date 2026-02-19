@@ -18,13 +18,13 @@ public partial class InstantMovementStrategy3D : BaseMovementStrategy3D
     /// How quickly the character stops when no input is given.
     /// Higher = snappier stop. Also decays external forces over time.
     /// </summary>
-    [Export] public float Friction { get; set; } = 15.0f;
+    [Export(PropertyHint.Range, "0,50,0.5,or_greater")] public float Friction { get; set; } = 15.0f;
 
     /// <summary>
     /// How quickly the character reaches max speed.
     /// Higher = more instant response to input.
     /// </summary>
-    [Export] public float Acceleration { get; set; } = 200.0f;
+    [Export(PropertyHint.Range, "0,500,1,or_greater")] public float Acceleration { get; set; } = 200.0f;
 
     public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
     {

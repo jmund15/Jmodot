@@ -4,7 +4,11 @@ using Core.Stats;
 
 /// <summary>
 /// A simple movement strategy for projectiles that passes through the desired direction unchanged.
-/// The caller is responsible for pre-computing the direction and speed.
+/// <para>
+/// <b>Contract note:</b> Unlike other strategies where <c>desiredDirection</c> is a normalized unit vector,
+/// this strategy expects <c>desiredDirection</c> to carry the full velocity (direction * speed).
+/// The returned value IS the new velocity — no stat lookups or scaling are performed.
+/// </para>
 /// </summary>
 [GlobalClass]
 public partial class ProjectileStrategy : BaseMovementStrategy3D

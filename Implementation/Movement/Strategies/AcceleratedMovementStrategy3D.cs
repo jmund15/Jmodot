@@ -11,6 +11,7 @@ using Core.Stats;
 [GlobalClass, Tool]
 public partial class AcceleratedMovementStrategy3D : BaseMovementStrategy3D
 {
+    [ExportGroup("Stat Bindings")]
     [Export, RequiredExport] private Attribute _maxSpeedAttr = null!;
     [Export, RequiredExport] private Attribute _accelerationAttr = null!;
     [Export, RequiredExport] private Attribute _frictionAttr = null!;
