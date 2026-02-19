@@ -63,6 +63,7 @@ public partial class ConditionStatusRunner : StatusRunner
     {
         // Apply End Effect
         OnEndEffect.Apply(Target, Context);
+        _checkTimer.Timeout -= OnCheck;
         _checkTimer.Stop();
         base.Stop(wasDispelled);
     }
