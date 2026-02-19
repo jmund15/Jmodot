@@ -24,8 +24,7 @@ public partial class IntAttributeModifier : Resource, IIntModifier, IModifier<in
     ///   The IntCalculationStrategy compensates with (100 + bonus) / 100f.
     /// For FinalMultiply: A multiplier (e.g., 2 for x2).
     /// </summary>
-    [Export]
-    public int Value { get; private set; }
+    [Export] public int Value { get; private set; }
     [Export] public int Priority { get; private set; }
 
     [ExportGroup("EffectTags & Cancellation")]

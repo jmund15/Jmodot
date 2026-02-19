@@ -23,8 +23,7 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     ///   Note: Modify() returns Value/100f (the decimal fraction). The strategy sums these fractions.
     /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
     /// </summary>
-    [Export]
-    public float Value { get; private set; }
+    [Export] public float Value { get; private set; }
     [Export] public int Priority { get; private set; }
 
     [ExportGroup("EffectTags & Cancellation")]

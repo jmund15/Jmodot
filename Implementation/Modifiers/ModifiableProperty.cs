@@ -142,7 +142,9 @@ public class ModifiableProperty<T> : IModifiableProperty
             }
         }
 
-        var postCancelledMods = sortedModifiers.Where(mod => !(mod.EffectTags?.Any(tagsToCancel.Contains) ?? false)).ToList();
+        var postCancelledMods = sortedModifiers
+            .Where(mod => mod.EffectTags == null || !mod.EffectTags.Any(tagsToCancel.Contains))
+            .ToList();
 
         HashSet<string> collectedContextTags = [];
         foreach (var mod in postCancelledMods)

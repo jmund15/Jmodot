@@ -37,6 +37,9 @@ public interface IModifier<T>
 
     /// <summary>
     ///     Applies the modification to a given value.
+    ///     Note: For PercentAdd stage, the return value semantics differ by type:
+    ///     - Float modifiers return Value/100f (decimal fraction). The strategy sums fractions directly.
+    ///     - Int modifiers return the raw Value. The IntCalculationStrategy compensates with (100 + bonus) / 100f.
     /// </summary>
     /// <param name="currentValue">The value as calculated from all previous stages and modifiers.</param>
     /// <returns>The newly modified value.</returns>

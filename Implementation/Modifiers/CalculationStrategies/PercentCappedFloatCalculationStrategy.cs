@@ -21,7 +21,7 @@ public partial class PercentCappedFloatCalculationStrategy : Resource, ICalculat
     /// E.g., 100 means max +100% bonus, 50 means max +50%.
     /// Defaults to float.MaxValue (no cap).
     /// </summary>
-    [Export] public float MaxPercentBonus { get; set; } = float.MaxValue;
+    [Export(PropertyHint.Range, "0,1000,1,or_greater")] public float MaxPercentBonus { get; set; } = float.MaxValue;
 
     /// <summary>
     /// Optional cap on the final calculated value.
