@@ -29,14 +29,14 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     private Timer _durationTimer;
 
     public void Setup(float duration, float interval, ICombatEffect tickEffect, PackedScene? tickVisuals,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        PackedScene? persistentVisuals, IEnumerable<CombatTag> tags,
         VisualEffect? visualEffect = null, VisualEffect? tickVisualEffect = null)
     {
         Duration = duration;
         Interval = interval;
         TickEffect = tickEffect;
         TickVisuals = tickVisuals;
-        PersistentVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
         StatusVisualEffect = visualEffect;
         TickVisualEffect = tickVisualEffect;
@@ -96,7 +96,7 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
         // Per-tick visual effect (flash/pulse via VisualEffectController)
         if (TickVisualEffect != null)
         {
-            _visualController?.PlayEffect(TickVisualEffect);
+            VisualController?.PlayEffect(TickVisualEffect);
         }
 
         // Spawn Visuals (particle scenes)

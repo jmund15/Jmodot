@@ -39,8 +39,9 @@ public abstract partial class StatusRunner : Node
     /// </summary>
     public VisualEffect? StatusVisualEffect { get; set; }
     
+    private bool _stopped;
     private Node? _visualInstance;
-    protected VisualEffectController? _visualController;
+    protected VisualEffectController? VisualController { get; private set; }
 
     protected HitContext Context { get; private set; }
     protected ICombatant Target { get; private set; }
@@ -69,8 +70,8 @@ public abstract partial class StatusRunner : Node
         
         if (StatusVisualEffect != null)
         {
-            _visualController = FindVisualController(target);
-            _visualController?.PlayEffect(StatusVisualEffect);
+            VisualController = FindVisualController(target);
+            VisualController?.PlayEffect(StatusVisualEffect);
         }
         
         // Subclasses implement specific logic (Timers, Visuals)
@@ -82,15 +83,18 @@ public abstract partial class StatusRunner : Node
     /// <param name="wasDispelled"></param>
     public virtual void Stop(bool wasDispelled = false)
     {
+        if (_stopped) { return; }
+        _stopped = true;
+
         if (_visualInstance != null && IsInstanceValid(_visualInstance))
         {
             _visualInstance.QueueFree();
             _visualInstance = null;
         }
-        
-        if (StatusVisualEffect != null && _visualController != null && IsInstanceValid(_visualController))
+
+        if (StatusVisualEffect != null && VisualController != null && IsInstanceValid(VisualController))
         {
-            _visualController.StopEffect(StatusVisualEffect);
+            VisualController.StopEffect(StatusVisualEffect);
         }
 
         OnStatusFinished?.Invoke(this, wasDispelled);

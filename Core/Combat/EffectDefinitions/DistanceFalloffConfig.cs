@@ -13,7 +13,8 @@ public partial class DistanceFalloffConfig : Resource
     /// The falloff curve. X-axis: Normalized distance (0=epicenter, 1=MaxRadius).
     /// Y-axis: Multiplier (0-1+). If null, returns 1.0 (no falloff).
     /// </summary>
-    [Export, RequiredExport] public Curve FalloffCurve { get; set; } = null!;
+    /// <remarks>Optional: if null, GetMultiplier returns 1.0 (no falloff applied).</remarks>
+    [Export] public Curve? FalloffCurve { get; set; }
 
     /// <summary>
     /// The radius for normalization. At distance >= MaxRadius, curve samples at X=1.

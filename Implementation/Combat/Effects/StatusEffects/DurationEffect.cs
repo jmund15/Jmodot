@@ -72,7 +72,13 @@ public class DurationEffect : ICombatEffect
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.
-        bool wasAccepted = statusComp!.AddStatus(runner, target, context);
+        if (statusComp == null)
+        {
+            JmoLogger.Error(this, "StatusEffectComponent resolved to null from Blackboard!");
+            return null;
+        }
+
+        bool wasAccepted = statusComp.AddStatus(runner, target, context);
 
         if (!wasAccepted)
         {

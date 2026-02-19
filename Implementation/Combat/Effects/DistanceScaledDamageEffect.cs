@@ -74,7 +74,13 @@ public struct DistanceScaledDamageEffect : ICombatEffect
             return null;
         }
 
-        health!.TakeDamage(finalDamage, context.Attacker);
+        if (health == null)
+        {
+            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' HealthComponent resolved to null!");
+            return null;
+        }
+
+        health.TakeDamage(finalDamage, context.Attacker);
 
         // 5. Return result
         return new DamageResult

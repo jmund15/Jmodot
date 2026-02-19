@@ -15,12 +15,12 @@ public partial class DelayedStatusRunner : StatusRunner
 
     public void Setup(float delay,
         ICombatEffect effect,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        PackedScene? persistentVisuals, IEnumerable<CombatTag> tags,
         VisualEffect? visualEffect = null)
     {
         Delay = delay;
         Effect = effect;
-        PersistentVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
         StatusVisualEffect = visualEffect;
     }

@@ -1,7 +1,7 @@
 namespace Jmodot.Implementation.Combat.Effects;
 
 using System.Collections.Generic;
-using System.Reflection.Metadata;
+
 using AI.BB;
 using Core.Combat;
 using Core.Combat.Reactions;
@@ -35,7 +35,13 @@ public struct RevertStatEffect : ICombatEffect
             return null;
         }
 
-        stats!.RemoveModifier(ModifierToRevert);
+        if (stats == null)
+        {
+            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' StatController resolved to null!");
+            return null;
+        }
+
+        stats.RemoveModifier(ModifierToRevert);
         return new StatResult()
         {
             Source = context.Source,

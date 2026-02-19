@@ -55,12 +55,12 @@ public struct StatEffect : IRevertibleCombatEffect
             JmoLogger.Warning(this, $"Target '{target.GetUnderlyingNode().Name}' has no StatController!");
             return null;
         }
-        if (!stats!.TryAddModifier(Attribute, Modifier, this, out var handle))
+        if (stats == null || !stats.TryAddModifier(Attribute, Modifier, this, out var handle))
         {
             JmoLogger.Debug(this, $"StatEffect skipped — target '{target.GetUnderlyingNode().Name}' lacks attribute '{Attribute.AttributeName}'");
             return null;
         }
-        Handle = handle!;
+        Handle = handle;
         return new StatResult()
         {
             Source = context.Source,

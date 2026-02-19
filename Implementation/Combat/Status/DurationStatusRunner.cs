@@ -18,13 +18,13 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
 
     public void Setup(float duration,
         ICombatEffect? startEffect, ICombatEffect? endEffect,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        PackedScene? persistentVisuals, IEnumerable<CombatTag> tags,
         VisualEffect? visualEffect = null)
     {
         Duration = duration;
         OnStartEffect = startEffect;
         OnEndEffect = endEffect;
-        PersistentVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
         StatusVisualEffect = visualEffect;
     }

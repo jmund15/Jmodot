@@ -17,7 +17,7 @@ public partial class DelayedEffectFactory : CombatEffectFactory
     [Export] public BaseFloatValueDefinition Delay { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export, RequiredExport] public CombatEffectFactory EffectToApply { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
-    [Export] public PackedScene PersistentVisuals { get; set; }
+    [Export] public PackedScene? PersistentVisuals { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {

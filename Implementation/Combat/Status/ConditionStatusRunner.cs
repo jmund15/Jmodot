@@ -49,12 +49,18 @@ public partial class ConditionStatusRunner : StatusRunner
 
     private void OnCheck()
     {
-        // Apply Tick Effect
-        OnTickEffect.Apply(Target, Context);
-
-        // Check Condition
-        if (Condition.Check(Target, Context))
+        try
         {
+            OnTickEffect.Apply(Target, Context);
+
+            if (Condition.Check(Target, Context))
+            {
+                Stop();
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Shared.JmoLogger.Error(this, $"ConditionStatusRunner.OnCheck failed: {ex.Message}");
             Stop();
         }
     }

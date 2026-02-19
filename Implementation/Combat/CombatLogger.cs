@@ -8,6 +8,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Implementation.Combat;
 using Jmodot.Core.Combat;
 using Shared;
+using System;
 using System.Text;
 using Status;
 
@@ -194,6 +195,6 @@ public partial class CombatLogger : Node, IComponent
 
     // ... IComponent ...
     public bool IsInitialized { get; private set; }
-    public event System.Action Initialized = delegate { };
+    public event Action Initialized = delegate { };
     public Node GetUnderlyingNode() => this;
 }
