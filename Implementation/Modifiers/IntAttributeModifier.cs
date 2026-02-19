@@ -44,8 +44,11 @@ public partial class IntAttributeModifier : Resource, IIntModifier, IModifier<in
             // For the FinalMultiply stage, it applies its value multiplicatively.
             CalculationStage.FinalMultiply => currentValue * Value,
 
+            // Override: return the modifier's value directly, ignoring currentValue.
+            // Used for enum-backed int stats with IntOverrideStrategy.
+            CalculationStage.Override => Value,
+
             // Default case should never be hit but ensures safety.
-            // TODO: error logging could be added here.
             _ => currentValue
         };
     }

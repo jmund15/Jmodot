@@ -24,5 +24,12 @@ public enum CalculationStage
     ///     Stage 3: Final, independent multipliers are applied in order of priority.
     ///     Use this for critical, situational effects like "*2 for a Critical Hit" or "*0 for a Stun".
     /// </summary>
-    FinalMultiply = 300
+    FinalMultiply = 300,
+
+    /// <summary>
+    ///     Override: The modifier's value replaces the current value entirely, ignoring base.
+    ///     Used with IntOverrideStrategy for enum-backed int stats (RepeatMode, ChargeRelease, etc.)
+    ///     where the highest-priority modifier wins outright rather than adding arithmetically.
+    /// </summary>
+    Override = 400
 }
