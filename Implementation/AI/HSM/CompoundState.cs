@@ -164,7 +164,7 @@ using Shared.GodotExceptions;
             if (PrimarySubState != oldSubState)
             {
                 // This can happen if a transition signal arrives late, after another transition has already occurred.
-                JmoLogger.Warning(this, $"Received transition from '{oldSubState.Name}', but current state is '{PrimarySubState.Name}'. Ignoring stale transition.");
+                JmoLogger.Debug(this, $"Received transition from '{oldSubState.Name}', but current state is '{PrimarySubState.Name}'. Ignoring stale transition.");
                 return;
             }
 
