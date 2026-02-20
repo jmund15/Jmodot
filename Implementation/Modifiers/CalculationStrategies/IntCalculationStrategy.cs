@@ -10,7 +10,7 @@ public partial class IntCalculationStrategy : Resource, ICalculationStrategy<int
 {
     public int Calculate(int baseValue, IReadOnlyList<IModifier<int>> modifiers)
     {
-        var activeModifiers = modifiers.OfType<IIntModifier>();
+        var activeModifiers = modifiers.OfType<IIntModifier>().ToList();
         // --- Stage 1: BaseAdd ---
         foreach (var mod in activeModifiers)
         {

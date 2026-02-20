@@ -11,7 +11,7 @@ public interface IModifiableProperty
 {
     /// <summary>
     /// Creates a Copy of the Property.
-    /// Implementations will likely copy oover modifiers shallowly
+    /// Implementations will likely copy over modifiers shallowly
     /// (i.e. not creating direct copies of the GUIDs of the mods or the mods themselves)
     /// </summary>
     /// <returns></returns>

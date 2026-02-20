@@ -1,6 +1,8 @@
 namespace Jmodot.Core.Modifiers;
 
+using System;
 using Godot.Collections;
+using Jmodot.Implementation.Shared;
 using Stats;
 
 /// <summary>
@@ -13,15 +15,15 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
 {
     [Export] public CalculationStage Stage { get; private set; } = CalculationStage.BaseAdd;
 
-    //[ExportGroup("Modification Value")]
+    [ExportGroup("Modification Value")]
     /// <summary>
     /// The value to use for the modification. How this is interpreted depends on the Stage.
     /// For BaseAdd: A flat value (e.g., 10 for +10).
     /// For PercentAdd: A whole number percentage (e.g., 10 for +10%, 50 for +50%).
+    ///   Note: Modify() returns Value/100f (the decimal fraction). The strategy sums these fractions.
     /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
     /// </summary>
-    [Export]
-    public float Value { get; private set; }
+    [Export] public float Value { get; private set; }
     [Export] public int Priority { get; private set; }
 
     [ExportGroup("EffectTags & Cancellation")]
@@ -31,21 +33,17 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     [Export] public Array<string> RequiredContextTags { get; private set; } = new();
     public float Modify(float currentValue)
     {
-        // The Modify method knows how to interpret its own Value based on its Stage.
+        if (!Enum.IsDefined(Stage))
+        {
+            JmoLogger.Warning(this, $"Unknown CalculationStage '{Stage}' in FloatAttributeModifier");
+            return currentValue;
+        }
+
         return Stage switch
         {
-            // For the BaseAdd stage, it applies its value additively.
             CalculationStage.BaseAdd => currentValue + Value,
-
-            // For the PercentAdd stage, convert the whole number percentage to decimal form.
-            // e.g., Value of 10 (meaning +10%) returns 0.1 for the pipeline to sum up.
             CalculationStage.PercentAdd => Value / 100f,
-
-            // For the FinalMultiply stage, it applies its value multiplicatively.
             CalculationStage.FinalMultiply => currentValue * Value,
-
-            // Default case should never be hit but ensures safety.
-            // TODO: error logging could be added here.
             _ => currentValue
         };
     }

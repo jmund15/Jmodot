@@ -41,7 +41,7 @@ public class ModifiableProperty<T> : IModifiableProperty
     protected T _cachedValue;
     protected bool _isDirty = true;
 
-    public event Action<Variant> OnValueChanged = null!;
+    public event Action<Variant> OnValueChanged = delegate { };
 
     public ModifiableProperty(T baseValue, ICalculationStrategy<T> calculationStrategy)
     {
@@ -71,6 +71,9 @@ public class ModifiableProperty<T> : IModifiableProperty
     /// <returns>The unique Guid generated for this modifier application.</returns>
     public Guid AddModifier(IModifier<T> modifier, object owner)
     {
+        if (modifier == null) { throw new ArgumentNullException(nameof(modifier)); }
+        if (owner == null) { throw new ArgumentNullException(nameof(owner)); }
+
         var newEntry = new ModifierEntry(modifier, owner);
         _modifierEntries.Add(newEntry);
         _isDirty = true;
@@ -97,7 +100,7 @@ public class ModifiableProperty<T> : IModifiableProperty
     /// </summary>
     public void RemoveAllModifiersFromSource(object owner)
     {
-        var removedCount = _modifierEntries.RemoveAll(entry => entry.Owner.Equals(owner));
+        var removedCount = _modifierEntries.RemoveAll(entry => Equals(entry.Owner, owner));
         if (removedCount > 0)
         {
             _isDirty = true;
@@ -132,18 +135,21 @@ public class ModifiableProperty<T> : IModifiableProperty
         var tagsToCancel = new HashSet<string>();
         foreach (var mod in sortedModifiers)
         {
+            if (mod.CancelsEffectTags == null) { continue; }
             foreach (var tag in mod.CancelsEffectTags)
             {
                 tagsToCancel.Add(tag);
             }
         }
 
-        var postCancelledMods = sortedModifiers.Where(mod => !(mod.EffectTags?.Any(tagsToCancel.Contains) ?? false)).ToList();
+        var postCancelledMods = sortedModifiers
+            .Where(mod => mod.EffectTags == null || !mod.EffectTags.Any(tagsToCancel.Contains))
+            .ToList();
 
         HashSet<string> collectedContextTags = [];
-        List<IModifier<T>> toRemoveMods = [];
         foreach (var mod in postCancelledMods)
         {
+            if (mod.ContextTags == null) { continue; }
             foreach (var tag in mod.ContextTags)
             {
                 collectedContextTags.Add(tag);
@@ -153,7 +159,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         var postRequiredMods =
             // keep any mods where any of their required context tags exist in the collected tag hashset
             postCancelledMods.Where(m =>
-                m.RequiredContextTags.Count == 0
+                (m.RequiredContextTags == null || m.RequiredContextTags.Count == 0)
                 ||
                 m.RequiredContextTags.Any(collectedContextTags.Contains)).ToList();
 
@@ -229,7 +235,15 @@ public class ModifiableProperty<T> : IModifiableProperty
             // We use the generic AddModifier via the interface to handle type-casting correctly.
             // Note: We use the existing Modifier resource and its original Owner.
             // This ensures that the target property now has a "copy" of the modifier application.
-            target.AddModifier((Resource)entry.Modifier, entry.Owner);
+            if (entry.Modifier is Resource resource)
+            {
+                target.AddModifier(resource, entry.Owner);
+            }
+            else
+            {
+                JmoLogger.Warning(typeof(ModifiableProperty<T>),
+                    $"Cannot transfer modifier of type {entry.Modifier.GetType().Name} — not a Resource");
+            }
         }
     }
 
