@@ -168,6 +168,16 @@ using Shared.GodotExceptions;
                 return;
             }
 
+            // Guard: reject transitions targeting nodes outside this CompoundState's hierarchy.
+            // A missing CanPropagateUp=true on a cross-hierarchy transition resource would silently
+            // adopt a foreign node as PrimarySubState, corrupting the state machine.
+            if (!FiniteSubStates.ContainsKey(newSubState))
+            {
+                JmoLogger.Error(this, $"Transition target '{newSubState.Name}' is not a child of CompoundState '{Name}'. " +
+                    $"The transition resource likely needs CanPropagateUp=true. Transition rejected.");
+                return;
+            }
+
             PrimarySubState.Exit();
             FiniteSubStates[PrimarySubState] = false;
 
