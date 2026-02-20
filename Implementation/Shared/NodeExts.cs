@@ -42,8 +42,7 @@ public static class NodeExts
         }
         else
         {
-            var typeName = node?.GetType().Name ?? "Unknown";
-            JmoLogger.Warning(typeName, "Couldn't Safely Queue Free node, node is not valid");
+            JmoLogger.Warning(typeof(NodeExts), "Couldn't safely queue-free node: node is not valid or already freed");
         }
     }
 

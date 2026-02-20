@@ -14,8 +14,8 @@ using GCol = Godot.Collections;
 public partial class InputMappingProfile : Resource
 {
     [Export]
-    public GCol.Array<ActionBinding> ActionBindings { get; set; } = new();
+    public GCol.Array<ActionBinding> ActionBindings { get; private set; } = new();
 
     [Export]
-    public GCol.Array<VectorActionBinding> VectorBindings { get; set; } = new();
+    public GCol.Array<VectorActionBinding> VectorBindings { get; private set; } = new();
 }

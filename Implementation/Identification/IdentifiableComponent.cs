@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Identification;
 
 using Core.Identification;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 ///     A generic component for giving simple scene objects (props, triggers, etc.) a semantic identity.
@@ -11,8 +12,15 @@ using Core.Identification;
 public partial class IdentifiableComponent : Node, IIdentifiable
 {
     /// <summary>The Identity resource that defines this simple object.</summary>
-    [Export]
-    public Identity Identity { get; private set; }
+    [Export, RequiredExport]
+    public Identity Identity { get; private set; } = null!;
+
+    public override void _Ready()
+    {
+        base._Ready();
+        if (Engine.IsEditorHint()) { return; }
+        this.ValidateRequiredExports();
+    }
 
     /// <inheritdoc />
     public Identity GetIdentity()

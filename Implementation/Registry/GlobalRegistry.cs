@@ -1,12 +1,16 @@
 namespace Jmodot.Implementation.Registry;
 
+using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
+using Jmodot.Implementation.Shared.GodotExceptions;
+
 /// <summary>
 ///     A global singleton (Autoload) that provides convenient, static access to the
 ///     project's central GameRegistry resource, which acts as the database for the framework.
 /// </summary>
 public partial class GlobalRegistryLIB : Node
 {
-    [Export(PropertyHint.File, "*.tres")] private string _registryResourcePath;
+    [Export(PropertyHint.File, "*.tres"), RequiredExport] private string _registryResourcePath = null!;
 
     /// <summary>A static instance of the singleton for easy access.</summary>
     public static GlobalRegistryLIB Instance { get; private set; }
@@ -23,21 +27,15 @@ public partial class GlobalRegistryLIB : Node
         }
 
         Instance = this;
-
-        if (string.IsNullOrEmpty(this._registryResourcePath))
-        {
-            GD.PrintErr("GlobalRegistry requires a path to a GameRegistry resource.");
-            return;
-        }
+        this.ValidateRequiredExports();
 
         DB = GD.Load<GameRegistry>(this._registryResourcePath);
         if (DB == null)
         {
-            GD.PrintErr($"Failed to load GameRegistry from path: {this._registryResourcePath}");
-            return; // Fail-fast: don't proceed with null DB
+            throw new NodeConfigurationException(
+                $"Failed to load GameRegistry from path: {_registryResourcePath}", this);
         }
 
-        //DEBUG, should happen automatically in editor right?
         DB.RebuildRegistry();
     }
 }

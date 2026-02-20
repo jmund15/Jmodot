@@ -5,32 +5,36 @@ using Jmodot.Implementation.Shared;
 
 /// <summary>
 ///     A lightweight, type-safe container for a single piece of input intent data.
-///     It acts as a "Tagged Union", holding one of several possible data types.
-///     This revised design removes the explicit enum, relying on the safer and cleaner
-///     "TryGet" pattern for value access.
+///     Implemented as a typed discriminated union with separate fields per type,
+///     eliminating boxing allocations on the hot path (constructed every frame).
 /// </summary>
 public readonly struct IntentData
 {
-    // Internal fields to hold the data. Using a "private readonly" field is a C# pattern
-    // that allows us to differentiate which value is active, even without an enum.
-    private readonly object _value;
+    private enum ValueType : byte { None = 0, Bool = 1, Float = 2, Vector2 = 3 }
+
+    private readonly ValueType _type;
+    private readonly bool _boolValue;
+    private readonly float _floatValue;
+    private readonly Vector2 _vec2Value;
 
     // --- Constructors ---
     public IntentData(bool value)
     {
-        this._value = value;
+        _type = ValueType.Bool;
+        _boolValue = value;
     }
 
     public IntentData(float value)
     {
-        this._value = value;
+        _type = ValueType.Float;
+        _floatValue = value;
     }
 
     public IntentData(Vector2 value)
     {
-        this._value = value;
+        _type = ValueType.Vector2;
+        _vec2Value = value;
     }
-
 
     // --- Safe "TryGet" Accessors ---
     public bool GetBool()
@@ -38,10 +42,11 @@ public readonly struct IntentData
         if (!TryGetBool(out var b))
         {
             throw JmoLogger.LogAndRethrow(
-                new InvalidOperationException($"Cannot get bool from intent data  '{_value}'"), this);
+                new InvalidOperationException($"Cannot get bool from IntentData of type '{_type}'"), this);
         }
         return b!.Value;
     }
+
     /// <summary>
     ///     Safely retrieves the value if it is a bool. This is the primary and safest
     ///     way to access the contained data.
@@ -50,9 +55,9 @@ public readonly struct IntentData
     /// <returns>True if the held data was a bool, otherwise false.</returns>
     public bool TryGetBool(out bool? value)
     {
-        if (this._value is bool boolValue)
+        if (_type == ValueType.Bool)
         {
-            value = boolValue;
+            value = _boolValue;
             return true;
         }
 
@@ -65,18 +70,19 @@ public readonly struct IntentData
         if (!TryGetFloat(out var f))
         {
             throw JmoLogger.LogAndRethrow(
-                new InvalidOperationException($"Cannot get float from intent data  '{_value}'"), this);
+                new InvalidOperationException($"Cannot get float from IntentData of type '{_type}'"), this);
         }
         return f!.Value;
     }
+
     /// <summary>
     ///     Safely retrieves the value if it is a float.
     /// </summary>
     public bool TryGetFloat(out float? value)
     {
-        if (this._value is float floatValue)
+        if (_type == ValueType.Float)
         {
-            value = floatValue;
+            value = _floatValue;
             return true;
         }
 
@@ -89,18 +95,19 @@ public readonly struct IntentData
         if (!TryGetVector2(out var vec2))
         {
             throw JmoLogger.LogAndRethrow(
-                new InvalidOperationException($"Cannot get Vector2 from intent data  '{_value}'"), this);
+                new InvalidOperationException($"Cannot get Vector2 from IntentData of type '{_type}'"), this);
         }
         return vec2!.Value;
     }
+
     /// <summary>
     ///     Safely retrieves the value if it is a Vector2.
     /// </summary>
     public bool TryGetVector2(out Vector2? value)
     {
-        if (this._value is Vector2 vector2Value)
+        if (_type == ValueType.Vector2)
         {
-            value = vector2Value;
+            value = _vec2Value;
             return true;
         }
 
@@ -108,8 +115,20 @@ public readonly struct IntentData
         return false;
     }
 
+    /// <summary>
+    ///     Returns the value as a boxed object. This is the backward-compatible path
+    ///     that does allocate — use typed accessors (GetBool/GetFloat/GetVector2) on
+    ///     the hot path instead.
+    /// </summary>
     public object GetValue()
     {
-        return _value;
+        return _type switch
+        {
+            ValueType.Bool => _boolValue,
+            ValueType.Float => _floatValue,
+            ValueType.Vector2 => _vec2Value,
+            _ => throw JmoLogger.LogAndRethrow(
+                new InvalidOperationException("IntentData has no value (default struct)."), this)
+        };
     }
 }

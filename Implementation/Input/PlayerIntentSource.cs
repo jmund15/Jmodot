@@ -20,6 +20,9 @@ public partial class PlayerIntentSource : IntentSourceNode
     // _Process writes into this buffer. _PhysicsProcess copies it to _physicsIntents.
     private readonly Dictionary<InputAction, IntentData> _physicsBuffer = new();
 
+    // Reusable list for clearing transient actions — avoids per-frame allocation.
+    private readonly List<InputAction> _actionsToClear = new();
+
     // This is now a unified, data-driven system. No more special-casing movement.
     [ExportGroup("Action Bindings")]
     [Export]
@@ -41,17 +44,6 @@ public partial class PlayerIntentSource : IntentSourceNode
         }
         _actionBindings = profile.ActionBindings;
         _vectorBindings = profile.VectorBindings;
-
-        // GD.Print("Applied Mapping Profile to Intent Source.\nAction Bindings:");
-        // foreach (var actionBinding in _actionBindings)
-        // {
-        //     GD.Print($"action: {actionBinding.Action.ActionName}; godot action binding: {actionBinding.GodotActionName}");
-        // }
-        // GD.Print($"Vector Bindings:");
-        // foreach (var vectorBinding in _vectorBindings)
-        // {
-        //     GD.Print($"action: {vectorBinding.Action.ActionName}; godot vector binding DOWN: {vectorBinding.Down}");
-        // }
     }
 
     public override void _Ready()
@@ -59,6 +51,12 @@ public partial class PlayerIntentSource : IntentSourceNode
         base._Ready();
         if (Engine.IsEditorHint()) { return; }
         this.ValidateRequiredExports();
+
+        // Pre-size dictionaries to avoid rehash allocations during first frames
+        int capacity = _actionBindings.Count + _vectorBindings.Count;
+        _processIntents = new Dictionary<InputAction, IntentData>(capacity);
+        _physicsIntents = new Dictionary<InputAction, IntentData>(capacity);
+
         ProcessFrameUpdateIntentStates();
         PhysicsFramePublishBuffer();
     }
@@ -84,7 +82,24 @@ public partial class PlayerIntentSource : IntentSourceNode
 
     public override T GetIntent<T>(InputAction inputAction)
     {
-        return (T)_processIntents[inputAction].GetValue();
+        if (!_processIntents.TryGetValue(inputAction, out var intentData))
+        {
+            throw JmoLogger.LogAndRethrow(
+                new System.Collections.Generic.KeyNotFoundException(
+                    $"InputAction '{inputAction.ActionName}' not found in process intents."),
+                this);
+        }
+
+        var value = intentData.GetValue();
+        if (value is T typedValue)
+        {
+            return typedValue;
+        }
+
+        throw JmoLogger.LogAndRethrow(
+            new System.InvalidCastException(
+                $"Intent for '{inputAction.ActionName}' is {value?.GetType().Name ?? "null"}, not {typeof(T).Name}."),
+            this);
     }
 
     /// <summary>
@@ -190,19 +205,19 @@ public partial class PlayerIntentSource : IntentSourceNode
         // We do this so "JustPressed" actions don't persist into the next physics frame.
         // Continuous actions like "Pressed" or vectors are left alone, as they will be
         // overwritten by the next _Process call anyway.
-        List<InputAction> actionsToClear = new();
+        _actionsToClear.Clear();
         foreach (var binding in _actionBindings)
         {
             if (binding.PollType == InputActionPollType.JustPressed || binding.PollType == InputActionPollType.JustReleased)
             {
                 if (_physicsBuffer.ContainsKey(binding.Action))
                 {
-                    actionsToClear.Add(binding.Action);
+                    _actionsToClear.Add(binding.Action);
                 }
             }
         }
 
-        foreach (var action in actionsToClear)
+        foreach (var action in _actionsToClear)
         {
             _physicsBuffer.Remove(action);
         }

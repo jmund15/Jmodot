@@ -6,5 +6,5 @@ using AI.BB;
 public interface IEntity
 {
     IBlackboard BB { get; }
-    List<IComponent> Components { get; }
+    IReadOnlyList<IComponent> Components { get; }
 }

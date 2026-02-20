@@ -5,6 +5,7 @@ using Godot;
 using System.Collections.Generic;
 using System.Linq;
 using Implementation.Shared;
+using Jmodot.Core.Shared.Attributes;
 using GCol = Godot.Collections;
 
 /// <summary>
@@ -16,8 +17,15 @@ using GCol = Godot.Collections;
 public partial class InputProfileDatabase : Node
 {
     [ExportGroup("Keyboard Profiles")]
-    [Export] private InputMappingProfile _keyboardWasdProfile;
-    [Export] private InputMappingProfile _keyboardArrowsProfile;
+    [Export, RequiredExport] private InputMappingProfile _keyboardWasdProfile = null!;
+    [Export, RequiredExport] private InputMappingProfile _keyboardArrowsProfile = null!;
+
+    public override void _Ready()
+    {
+        base._Ready();
+        if (Engine.IsEditorHint()) { return; }
+        this.ValidateRequiredExports();
+    }
 
     [ExportGroup("Generated Gamepad Profiles")]
     // Drag your generated profiles here in the Inspector, in order:
