@@ -13,7 +13,7 @@ using Jmodot.Core.Shared.Attributes;
 /// Combines a Base Name (State) with a Direction Suffix.
 /// </summary>
 [GlobalClass, Tool]
-public partial class AnimationOrchestrator : Node, IAnimComponent
+public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
 {
     [Export, RequiredExport] private Node _targetAnimatorNode = null!;
     [Export] public string DirectionSuffixSeparator { get; set; } = "_";
@@ -54,27 +54,36 @@ public partial class AnimationOrchestrator : Node, IAnimComponent
         _targetAnimator = _targetAnimatorNode as IAnimComponent;
         if (_targetAnimator == null)
         {
-            GD.PrintErr($"Orchestrator '{Name}': Target is not an IAnimComponent.");
+            JmoLogger.Error(this, $"Orchestrator '{Name}': Target is not an IAnimComponent.");
             SetProcess(false);
             return;
         }
 
         // Forward events
-        _targetAnimator.AnimStarted += n => AnimStarted?.Invoke(n);
-        _targetAnimator.AnimFinished += n => AnimFinished?.Invoke(n);
-
-        //_targetAnimator.AnimStarted += n => JmoLogger.Info(this, $"Animation '{n}' started in Orchestrator of '{GetOwner().Name}");
+        _targetAnimator.AnimStarted += OnTargetAnimStarted;
+        _targetAnimator.AnimFinished += OnTargetAnimFinished;
     }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (_targetAnimator != null)
+        {
+            _targetAnimator.AnimStarted -= OnTargetAnimStarted;
+            _targetAnimator.AnimFinished -= OnTargetAnimFinished;
+        }
+    }
+
+    private void OnTargetAnimStarted(StringName n) => AnimStarted.Invoke(n);
+    private void OnTargetAnimFinished(StringName n) => AnimFinished.Invoke(n);
 
     /// <summary>
     /// Updates the direction. Triggers a smooth update to preserve animation time.
     /// </summary>
     public void SetDirection(Vector3 direction)
     {
-        if (direction.IsZeroApprox())
-        {
-            return;
-        }
+        if (direction.IsZeroApprox()) { return; }
+        if (DirectionSet == null) { return; }
 
         var closestDir = DirectionSet.GetClosestDirection(direction);
         if (!DirectionLabels.TryGetValue(closestDir, out var newLabel))

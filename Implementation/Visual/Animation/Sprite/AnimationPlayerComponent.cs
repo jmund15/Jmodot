@@ -3,18 +3,19 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 using Godot;
 using System;
 using Core.Visual.Animation.Sprite;
+using Shared;
 
 [Tool]
 [GlobalClass]
 public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
 {
-    public event Action<StringName> AnimStarted;
-    public event Action<StringName> AnimFinished;
+    public event Action<StringName> AnimStarted = delegate { };
+    public event Action<StringName> AnimFinished = delegate { };
 
     public override void _Ready()
     {
-        AnimationStarted += animName => AnimStarted?.Invoke(animName);
-        AnimationFinished += animName => AnimFinished?.Invoke(animName);
+        AnimationStarted += animName => AnimStarted.Invoke(animName);
+        AnimationFinished += animName => AnimFinished.Invoke(animName);
     }
 
     public void StartAnim(StringName animName)
@@ -25,7 +26,7 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
         }
         else
         {
-            GD.PrintErr($"Animation '{animName}' not found in AnimationPlayer '{Name}'.");
+            JmoLogger.Error(this, $"Animation '{animName}' not found in AnimationPlayer '{Name}'.");
         }
     }
     public void StopAnim() => this.Stop();
@@ -64,7 +65,7 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
         else
         {
             // Don't stop a valid animation just because the new one doesn't exist.
-            GD.PrintErr($"Cannot update to animation '{animName}': not found in AnimationPlayer '{Name}'.");
+            JmoLogger.Error(this, $"Cannot update to animation '{animName}': not found in AnimationPlayer '{Name}'.");
         }
     }
 

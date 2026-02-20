@@ -7,7 +7,7 @@ public class AnimatedStateSimple : IAnimatedState
 {
     public bool IsAnimated { get; }
     public StringName? AnimationName { get; }
-    public AnimationOrchestrator? AnimationOrchestrator { get; }
+    public IAnimationOrchestrator? AnimationOrchestrator { get; }
 
     // reusable logic here
 }

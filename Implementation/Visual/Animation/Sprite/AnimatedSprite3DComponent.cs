@@ -5,6 +5,7 @@ using Core.Visual.Animation.Sprite;
 
 using Godot;
 using Core.Visual.Sprite;
+using Shared;
 
 /// <summary>
 /// An IAnimComponent and ISpriteComponent implementation that directly inherits from AnimatedSprite3D.
@@ -40,7 +41,7 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         }
         else
         {
-            GD.PrintErr($"Animation '{animName}' not found in SpriteFrames for node '{this.Name}'.");
+            JmoLogger.Error(this, $"Animation '{animName}' not found in SpriteFrames for node '{this.Name}'.");
         }
     }
 
@@ -79,7 +80,7 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
         }
         else
         {
-            GD.PrintErr($"Cannot update to animation '{animName}': not found in SpriteFrames for node '{this.Name}'.");
+            JmoLogger.Error(this, $"Cannot update to animation '{animName}': not found in SpriteFrames for node '{this.Name}'.");
         }
     }
 

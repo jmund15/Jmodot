@@ -10,6 +10,13 @@ using Shared;
 /// A resource that provides an animation name variant based on a continuous 3D direction,
 /// snapped to the closest direction defined in a DirectionSet3D resource.
 /// </summary>
+/// <remarks>
+/// KNOWN RISK: Instances of this Resource are typically shared as .tres files.
+/// The mutable field (_currentVariant) holds per-instance state on a shared Resource.
+/// This works because Godot loads unique copies per scene, but can cause issues if
+/// Resources are explicitly shared via code (Resource.LocalToScene or manual assignment).
+/// If sharing becomes a problem, implement IRuntimeCopyable or use a separate runtime state object.
+/// </remarks>
 [GlobalClass]
 public partial class Directional3DVariantSource : AnimVariantSource
 {

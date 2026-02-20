@@ -4,6 +4,8 @@ using Godot;
 using Godot.Collections;
 using System.Linq;
 using Core.Visual.Animation.Model;
+using Shared;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 /// The central controller for the model-based animation system. It does not build names,
@@ -13,17 +15,18 @@ using Core.Visual.Animation.Model;
 [GlobalClass]
 public partial class ModelAnimationOrchestrator : Node
 {
-    [Export] private NodePath _targetControllerPath;
+    [Export, RequiredExport] private NodePath _targetControllerPath = null!;
     [Export] public Array<ModelAnimParameterSource> ParameterSources { get; set; } = new();
 
     private IAnim3DController _targetController;
 
     public override void _Ready()
     {
+        this.ValidateRequiredExports();
         _targetController = GetNode<Node>(_targetControllerPath) as IAnim3DController;
         if (_targetController == null)
         {
-            GD.PrintErr($"Orchestrator3D '{Name}': Target at '{_targetControllerPath}' is not a valid IAnim3DController.");
+            JmoLogger.Error(this, $"Orchestrator3D '{Name}': Target at '{_targetControllerPath}' is not a valid IAnim3DController.");
             SetProcess(false);
         }
     }
@@ -59,6 +62,6 @@ public partial class ModelAnimationOrchestrator : Node
         }
     }
 
-    public void PlayState(StringName stateName) => _targetController.TravelToState(stateName);
-    public void FireAction(StringName actionName) => _targetController.TriggerOneShot(actionName);
+    public void PlayState(StringName stateName) => _targetController?.TravelToState(stateName);
+    public void FireAction(StringName actionName) => _targetController?.TriggerOneShot(actionName);
 }

@@ -18,7 +18,7 @@ public partial class FlashEffect : VisualEffect
     /// <summary>
     /// Number of complete flash cycles (on-off pairs) during the effect duration.
     /// </summary>
-    [Export] public int FlashCount { get; set; } = 4;
+    [Export(PropertyHint.Range, "1, 20, 1")] public int FlashCount { get; set; } = 4;
 
     public FlashEffect()
     {
@@ -29,6 +29,8 @@ public partial class FlashEffect : VisualEffect
 
     public override void ConfigureTween(Tween tween, VisualEffectHandle handle)
     {
+        if (FlashCount <= 0) { return; }
+
         float totalDuration = Duration;
         float singleFlashDuration = totalDuration / FlashCount;
         float halfFlashDuration = singleFlashDuration / 2;

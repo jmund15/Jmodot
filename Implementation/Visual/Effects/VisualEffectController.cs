@@ -292,6 +292,10 @@ public partial class VisualEffectController : Node, IComponent
 
     private void UnsubscribeFromProviders()
     {
+        foreach (var provider in _providers)
+        {
+            provider.VisibleNodesChanged -= RefreshVisualNodes;
+        }
         _providers.Clear();
     }
 

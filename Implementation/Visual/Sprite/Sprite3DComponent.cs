@@ -12,6 +12,8 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
 {
     public float GetSpriteHeight()
     {
+        if (Vframes <= 0) { return 0f; }
+
         // 1. Determine the base pixel height (use RegionRect if enabled, else full Texture)
         float baseHeight = RegionEnabled ? RegionRect.Size.Y : (Texture?.GetHeight() ?? 0f);
 
@@ -23,6 +25,8 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     public float GetSpriteHalfHeight() => GetSpriteHeight() / 2f;
     public float GetSpriteWidth()
     {
+        if (Hframes <= 0) { return 0f; }
+
         // 1. Determine the base pixel width (use RegionRect if enabled, else full Texture)
         float baseWidth = RegionEnabled ? RegionRect.Size.X : (Texture?.GetWidth() ?? 0f);
 
