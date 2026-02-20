@@ -1,3 +1,6 @@
+// Intentionally in the global namespace for extension method discoverability.
+// 93+ files use these extensions without explicit imports. Do not add a namespace declaration.
+
 #region
 
 using System;
@@ -7,6 +10,7 @@ using System.IO;
 using System.Reflection;
 using Godot.Collections;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 #endregion
@@ -38,7 +42,8 @@ public static class NodeExts
         }
         else
         {
-            GD.PrintErr("Couldn't Safely Queue Free node: ", node.Name, ", node is not valid");
+            var typeName = node?.GetType().Name ?? "Unknown";
+            JmoLogger.Warning(typeName, "Couldn't Safely Queue Free node, node is not valid");
         }
     }
 
@@ -75,8 +80,9 @@ public static class NodeExts
             var value = prop.GetValue(node);
             if (value == null)
             {
+                var ownerName = node.Owner?.Name ?? "[no owner]";
                 throw new NodeConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {node.Owner.Name}.", node);
+                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
             }
         }
 
@@ -91,8 +97,9 @@ public static class NodeExts
             var value = field.GetValue(node);
             if (value == null)
             {
+                var ownerName = node.Owner?.Name ?? "[no owner]";
                 throw new NodeConfigurationException(
-                    $"Required export '{field.Name}' must be assigned in the Inspector.", node);
+                    $"Required export '{field.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
             }
         }
     }
@@ -128,6 +135,11 @@ public static class NodeExts
                 "ERROR || Scene is null, cannot get node!"); // why would scene tree be null? could be possible
         }
 
+        if (scene.CurrentScene == null)
+        {
+            throw new InvalidDataException($"CurrentScene is null, cannot find {typeof(T).Name}!");
+        }
+
         if (includeScene && scene.CurrentScene is T tScene)
         {
             return tScene;
@@ -136,31 +148,6 @@ public static class NodeExts
         return scene.CurrentScene.GetFirstChildOfType<T>(includeSubChildren);
     }
 
-    //public static T? GetFirstChildOfTypeOldWArray<T>(this Node root, bool includeSubChildren = true) where T : Node
-    //{
-    //    if (!includeSubChildren)
-    //    {
-    //        Array<Node> children = root.GetChildren();
-    //        foreach (var node in children)
-    //        {
-    //            if (node is T castedNode)
-    //                return castedNode;
-    //        }
-    //    }
-    //    else
-    //    {
-    //        Array<Node> nodesToParse = root.GetChildren();
-    //        while (nodesToParse.Count > 0)
-    //        {
-    //            var cursor = nodesToParse[0];
-    //            nodesToParse.Remove(cursor);
-    //            if (cursor is T castedNode)
-    //                return castedNode;
-    //            nodesToParse.AddRange(cursor.GetChildren());
-    //        }
-    //    }
-    //    return null;
-    //}
     public static bool TryGetNode<T>(this Node root, string nodePath, [MaybeNullWhen(false)] out T? result)
         where T : Node
     {
@@ -236,12 +223,10 @@ public static class NodeExts
         }
         else
         {
-            //Array<Node> nodesToParse = root.GetChildren();
             var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
                 var cursor = nodesToParse.Dequeue();
-                //nodesToParse.Remove(cursor);
                 if (cursor is T castedNode)
                 {
                     result = castedNode;
@@ -310,17 +295,19 @@ public static class NodeExts
         }
         else
         {
-            Array<Node> nodesToParse = root.GetChildren();
+            var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
-                var cursor = nodesToParse[0];
-                nodesToParse.Remove(cursor);
+                var cursor = nodesToParse.Dequeue();
                 if (cursor is T castedNode)
                 {
                     childArray.Add(castedNode);
                 }
 
-                nodesToParse.AddRange(cursor.GetChildren());
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
@@ -342,38 +329,25 @@ public static class NodeExts
         }
         else
         {
-            Array<Node> nodesToParse = root.GetChildren();
+            var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
-                var cursor = nodesToParse[0];
-                nodesToParse.Remove(cursor);
+                var cursor = nodesToParse.Dequeue();
                 if (cursor is T castedNode)
                 {
                     childArray.Add(castedNode);
                 }
 
-                nodesToParse.AddRange(cursor.GetChildren());
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
         return childArray;
     }
-    // SAME AS "GetChildrenOfType" once we added the "includeSubChildren" param, so it's redundant
-    //public static Array<T> GetAllNodesOfType<[MustBeVariant] T>(this Node root) where T : Node
-    //{
-    //    Array<Node> nodesToParse = root.GetChildren();
-    //    Array<T> castedNodes = new Array<T>();
-    //    while (nodesToParse.Count > 0)
-    //    {
-    //        var cursor = nodesToParse[0];
-    //        nodesToParse.Remove(cursor);
-    //        if (cursor is T castedNode)
-    //            castedNodes.Add(castedNode);
-    //        nodesToParse.AddRange(cursor.GetChildren());
-    //    }
 
-    //    return castedNodes;
-    //}
     public static Array<Node> GetAllChildrenNodesInGroup(this Node root, StringName groupName,
         bool includeSubChildren = true)
     {
@@ -392,17 +366,19 @@ public static class NodeExts
         }
         else
         {
-            Array<Node> nodesToParse = root.GetChildren();
+            var nodesToParse = new Queue<Node>(root.GetChildren());
             while (nodesToParse.Count > 0)
             {
-                var cursor = nodesToParse[0];
-                nodesToParse.Remove(cursor);
+                var cursor = nodesToParse.Dequeue();
                 if (cursor.IsInGroup(groupName))
                 {
                     groupChildren.Add(cursor);
                 }
 
-                nodesToParse.AddRange(cursor.GetChildren());
+                foreach (var child in cursor.GetChildren())
+                {
+                    nodesToParse.Enqueue(child);
+                }
             }
         }
 
@@ -413,14 +389,12 @@ public static class NodeExts
     {
         var currentScene = (Engine.GetMainLoop() as SceneTree)?.CurrentScene;
         return currentScene == null ? new Array<T>() : currentScene.GetChildrenOfType<T>(includeSubChildren);
-        //includeSubChildren ? currentScene.GetAllNodesOfType<T>() : currentScene.GetChildrenOfType<T>();
     }
 
     public static IEnumerable<T> GetAllNodesOfInterfaceInScene<T>(bool includeSubChildren = true) where T : class
     {
         var currentScene = (Engine.GetMainLoop() as SceneTree)?.CurrentScene;
         return currentScene == null ? new List<T>() : currentScene.GetChildrenOfInterface<T>(includeSubChildren);
-        //includeSubChildren ? currentScene.GetAllNodesOfType<T>() : currentScene.GetChildrenOfType<T>();
     }
 
     #endregion

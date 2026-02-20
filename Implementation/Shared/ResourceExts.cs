@@ -1,3 +1,6 @@
+// Intentionally in the global namespace for extension method discoverability.
+// Multiple files use these extensions without explicit imports. Do not add a namespace declaration.
+
 using System.Reflection;
 using Godot;
 using Jmodot.Core.Shared.Attributes;

@@ -99,7 +99,7 @@ public static class JmoLogger
                 break;
             default:
                 // If it overrides ToString(), use it. Otherwise use Type Name.
-                var str = context.ToString();
+                var str = context.ToString() ?? string.Empty;
                 // Check if default ToString (Namespace.ClassName) was returned
                 if (str == context.GetType().ToString())
                 {

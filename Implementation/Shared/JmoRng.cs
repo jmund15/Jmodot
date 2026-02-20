@@ -17,6 +17,11 @@ public static class JmoRng
     /// </summary>
     public static float GetRndInRange(float min, float max)
     {
+        if (min > max)
+        {
+            throw new ArgumentException($"min ({min}) must not be greater than max ({max}).");
+        }
+
         var normF = Rnd.NextSingle();
         return normF * (max - min) + min;
     }
@@ -24,6 +29,12 @@ public static class JmoRng
     /// <summary>Returns a random int in [min, max] (inclusive both ends). Matches GD.RandRange(int, int) behavior.</summary>
     public static int GetRndInRange(int min, int max)
     {
+        if (max == int.MaxValue)
+        {
+            // Rnd.Next(min, max+1) would overflow. Use long arithmetic via NextInt64.
+            return (int)Rnd.NextInt64(min, (long)max + 1);
+        }
+
         return Rnd.Next(min, max + 1);
     }
 
@@ -45,36 +56,58 @@ public static class JmoRng
         return Rnd.NextSingle();
     }
 
+    private const int MaxAttempts = 10;
+
     /// <summary>Returns a normalized random 2D direction vector with components in [-1, 1).</summary>
     public static Vector2 GetRndVector2()
     {
-        var x = GetRndInRange(-1.0f, 1.0f);
-        var y = GetRndInRange(-1.0f, 1.0f);
-        return new Vector2(x, y).Normalized();
+        for (int i = 0; i < MaxAttempts; i++)
+        {
+            var vec = new Vector2(GetRndInRange(-1.0f, 1.0f), GetRndInRange(-1.0f, 1.0f));
+            if (!vec.IsZeroApprox())
+            {
+                return vec.Normalized();
+            }
+        }
+
+        return Vector2.Right;
     }
 
     /// <summary>Returns a normalized random 3D direction vector with components in [-1, 1).</summary>
     public static Vector3 GetRndVector3()
     {
-        var x = GetRndInRange(-1.0f, 1.0f);
-        var y = GetRndInRange(-1.0f, 1.0f);
-        var z = GetRndInRange(-1.0f, 1.0f);
-        return new Vector3(x, y, z).Normalized();
+        for (int i = 0; i < MaxAttempts; i++)
+        {
+            var vec = new Vector3(GetRndInRange(-1.0f, 1.0f), GetRndInRange(-1.0f, 1.0f), GetRndInRange(-1.0f, 1.0f));
+            if (!vec.IsZeroApprox())
+            {
+                return vec.Normalized();
+            }
+        }
+
+        return Vector3.Right;
     }
 
     /// <summary>Returns a normalized random 3D direction with positive Y (upward hemisphere). Y in [0, 1).</summary>
     public static Vector3 GetRndVector3PosY()
     {
-        var x = GetRndInRange(-1.0f, 1.0f);
-        var y = GetRndInRange(0f, 1.0f);
-        var z = GetRndInRange(-1.0f, 1.0f);
-        return new Vector3(x, y, z).Normalized();
+        for (int i = 0; i < MaxAttempts; i++)
+        {
+            var vec = new Vector3(GetRndInRange(-1.0f, 1.0f), GetRndInRange(0f, 1.0f), GetRndInRange(-1.0f, 1.0f));
+            if (!vec.IsZeroApprox())
+            {
+                return vec.Normalized();
+            }
+        }
+
+        return Vector3.Up;
     }
 
     /// <summary>Returns a normalized random direction on the XZ plane (Y = 0). Useful for horizontal scatter.</summary>
     public static Vector3 GetRndVector3ZeroY()
     {
         var rnd2 = GetRndVector2();
-        return new Vector3(rnd2.X, 0f, rnd2.Y).Normalized();
+        var vec = new Vector3(rnd2.X, 0f, rnd2.Y);
+        return vec.IsZeroApprox() ? Vector3.Right : vec.Normalized();
     }
 }
