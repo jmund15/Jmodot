@@ -40,6 +40,13 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
     private readonly HashSet<StatContext> _activeContexts = new();
 
+    /// <summary>
+    ///     Optional injected context profiles. When set via <see cref="SetContextProfiles"/>,
+    ///     these are used instead of GlobalRegistry for context lookups — enabling testability
+    ///     and decoupling from the global singleton.
+    /// </summary>
+    private Godot.Collections.Dictionary<StatContext, StatProfile>? _contextProfiles;
+
     private EntityStatSheet _archetype = null!;
 
     // --- Initialization ---
@@ -356,10 +363,23 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
             property.RemoveAllModifiersFromSource(owner);
         }
     }
+    /// <summary>
+    ///     Injects context profiles for decoupled context lookups.
+    ///     When set, <see cref="AddActiveContext"/> and <see cref="RemoveActiveContext"/>
+    ///     use these profiles instead of the GlobalRegistry singleton.
+    /// </summary>
+    public void SetContextProfiles(Godot.Collections.Dictionary<StatContext, StatProfile> profiles)
+    {
+        _contextProfiles = profiles;
+    }
+
     public void AddActiveContext(StatContext context)
     {
         _activeContexts.Add(context);
-        if (GlobalRegistry.DB.StatContextProfiles.TryGetValue(context, out var profile))
+
+        // Prefer injected profiles; fall back to GlobalRegistry for backward compatibility.
+        var lookup = _contextProfiles ?? GlobalRegistry.DB?.StatContextProfiles;
+        if (lookup != null && lookup.TryGetValue(context, out var profile))
         {
             foreach (var (attribute, modifier) in profile.Modifiers)
             {

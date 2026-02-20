@@ -1,5 +1,5 @@
 // --- IUtilityTask.cs ---
-namespace JmoAI.UtilityAI;
+namespace Jmodot.Implementation.AI.UtilityAI;
 
 /// <summary>
 /// Contract for any BT action that can be used by the UtilitySelector.

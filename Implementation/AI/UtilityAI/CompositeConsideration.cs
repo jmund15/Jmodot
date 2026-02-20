@@ -1,5 +1,5 @@
 // --- CompositeConsideration.cs ---
-namespace JmoAI.UtilityAI;
+namespace Jmodot.Implementation.AI.UtilityAI;
 
 using System.Linq;
 using Godot;

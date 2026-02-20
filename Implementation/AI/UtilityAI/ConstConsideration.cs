@@ -1,5 +1,5 @@
 // --- ConstConsideration.cs ---
-namespace JmoAI.UtilityAI;
+namespace Jmodot.Implementation.AI.UtilityAI;
 
 using Godot;
 using Jmodot.Core.AI.BB;

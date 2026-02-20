@@ -50,6 +50,11 @@ public partial class SquadManager : Node
     private List<IBlackboard> _memberBlackboards = new();
     private List<Node3D> _memberNodes = new();
 
+    /// <summary>
+    /// Read-only view of current squad members.
+    /// </summary>
+    public IReadOnlyList<Node3D> Members => _memberNodes;
+
     // Formation state
     private FormationDefinition? _currentFormation;
     private FormationAnchorMode _currentAnchorMode;
