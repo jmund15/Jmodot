@@ -45,6 +45,11 @@ public partial class IntAttributeModifier : Resource, IIntModifier, IModifier<in
             CalculationStage.BaseAdd => currentValue + Value,
             CalculationStage.PercentAdd => Value,
             CalculationStage.FinalMultiply => currentValue * Value,
+
+            // Override: return the modifier's value directly, ignoring currentValue.
+            // Used for enum-backed int stats with IntOverrideStrategy.
+            CalculationStage.Override => Value,
+
             _ => currentValue
         };
     }
