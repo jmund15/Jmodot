@@ -1,12 +1,12 @@
 namespace Jmodot.Core.Movement;
 
-// IRigidController2D.cs (A new, separate interface)
+using Shared;
 
 /// <summary>
 ///     The definitive, low-level interface for applying physics forces to a RigidBody2D.
 ///     Commands correspond to applying forces and impulses within Godot's physics simulation.
 /// </summary>
-public interface IRigidController2D
+public interface IRigidController2D : IGodotNodeInterface
 {
     Vector2 GlobalPosition { get; }
     Vector2 LinearVelocity { get; } // Read-only for rigid bodies

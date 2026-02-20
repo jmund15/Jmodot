@@ -1,10 +1,8 @@
 namespace Jmodot.Examples.Movement.Strategies;
 
-using Core.Movement.Strategies;
-using Core.Stats;
+using Jmodot.Core.Shared.Attributes;
+using Jmodot.Core.Stats;
 using Jmodot.Implementation.Movement.Strategies;
-using Jmodot.Implementation.Registry;
-using PushinPotions.Global;
 
 /// <summary>
 /// Provides responsive "instant" feeling movement while still allowing external forces
@@ -12,23 +10,25 @@ using PushinPotions.Global;
 /// Uses high friction + high acceleration to achieve snappy control.
 /// </summary>
 [GlobalClass, Tool]
-public partial class InstantMovementStrategy3D : BaseMovementStrategy3D, IMovementStrategy3D
+public partial class InstantMovementStrategy3D : BaseMovementStrategy3D
 {
+    [Export, RequiredExport] private Attribute _maxSpeedAttr = null!;
+
     /// <summary>
     /// How quickly the character stops when no input is given.
     /// Higher = snappier stop. Also decays external forces over time.
     /// </summary>
-    [Export] public float Friction { get; set; } = 15.0f;
+    [Export(PropertyHint.Range, "0,50,0.5,or_greater")] public float Friction { get; set; } = 15.0f;
 
     /// <summary>
     /// How quickly the character reaches max speed.
     /// Higher = more instant response to input.
     /// </summary>
-    [Export] public float Acceleration { get; set; } = 200.0f;
+    [Export(PropertyHint.Range, "0,500,1,or_greater")] public float Acceleration { get; set; } = 200.0f;
 
     public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
     {
-        var maxSpeed = stats.GetStatValue<float>(GlobalRegistry.DB.MaxSpeedAttr);
+        var maxSpeed = stats.GetStatValue<float>(_maxSpeedAttr);
 
         // Work with horizontal velocity only (Y handled separately for gravity, etc.)
         var xzVel = new Vector3(currentVelocity.X, 0, currentVelocity.Z);

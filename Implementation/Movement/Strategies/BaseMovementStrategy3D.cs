@@ -3,7 +3,7 @@ namespace Jmodot.Implementation.Movement.Strategies;
 using Core.Stats;
 using Core.Movement.Strategies;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class BaseMovementStrategy3D : Resource, IMovementStrategy3D
 {
     public BaseMovementStrategy3D() { }

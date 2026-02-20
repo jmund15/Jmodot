@@ -59,11 +59,19 @@ public class MovementProcessor3D : IMovementProcessor3D
         var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
 
         // --- 5. Execute the Final Move with offset ---
-        _controller.AddVelocity(velocityOffset);
+        // Store base velocity before adding offset, so we can isolate collision effects
+        var baseVelocity = _controller.Velocity;
+        var combined = baseVelocity + velocityOffset;
+        _controller.SetVelocity(combined);
         _controller.Move();
 
-        // --- 6. Remove offset so it's not affected by friction next frame ---
-        _controller.AddVelocity(-velocityOffset);
+        // --- 6. Isolate collision delta and apply to base velocity only ---
+        // After MoveAndSlide, velocity may differ from combined due to collisions.
+        // We extract what collision changed and apply that to the base velocity,
+        // discarding the offset cleanly without corrupting post-collision velocity.
+        var postCollision = _controller.Velocity;
+        var collisionDelta = postCollision - combined;
+        _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
     /// <summary>
@@ -83,12 +91,16 @@ public class MovementProcessor3D : IMovementProcessor3D
         // 3. Get velocity offset (friction-independent)
         var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
 
-        // 4. Execute the move with offset
-        _controller.AddVelocity(velocityOffset);
-        this._controller.Move();
+        // 4. Execute the move with offset, isolating collision effects
+        var baseVelocity = _controller.Velocity;
+        var combined = baseVelocity + velocityOffset;
+        _controller.SetVelocity(combined);
+        _controller.Move();
 
-        // 5. Remove offset so it's not stored
-        _controller.AddVelocity(-velocityOffset);
+        // 5. Apply collision delta to base velocity only
+        var postCollision = _controller.Velocity;
+        var collisionDelta = postCollision - combined;
+        _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
     /// <summary>

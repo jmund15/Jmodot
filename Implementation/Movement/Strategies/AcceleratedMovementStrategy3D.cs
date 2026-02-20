@@ -1,38 +1,38 @@
 namespace Jmodot.Implementation.Movement.Strategies;
 
-using Core.Movement.Strategies;
+using Core.Shared.Attributes;
 using Core.Stats;
-using PushinPotions.Global;
-using Registry;
 
 /// <summary>
-///     A concrete movement strategy that produces smooth, accelerated movement based on the
-///     standard properties of a VelocityProfile. This is a robust default for most ground or air characters.
+///     A concrete movement strategy that produces smooth, accelerated movement.
+///     Uses MoveToward for both acceleration and friction, creating a robust default
+///     for most ground or air characters.
 /// </summary>
-[GlobalClass]
-public partial class AcceleratedMovementStrategy3D : Resource, IMovementStrategy3D
+[GlobalClass, Tool]
+public partial class AcceleratedMovementStrategy3D : BaseMovementStrategy3D
 {
-    public Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
+    [ExportGroup("Stat Bindings")]
+    [Export, RequiredExport] private Attribute _maxSpeedAttr = null!;
+    [Export, RequiredExport] private Attribute _accelerationAttr = null!;
+    [Export, RequiredExport] private Attribute _frictionAttr = null!;
+
+    public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
     {
-        var registry = GlobalRegistry.Instance;
-        // The strategy's recipe for calculating the new velocity.
-        var targetVelocity = desiredDirection * stats.GetStatValue<float>(GlobalRegistry.DB.MaxSpeedAttr);
+        var maxSpeed = stats.GetStatValue<float>(_maxSpeedAttr);
+        var targetVelocity = desiredDirection * maxSpeed;
         var newVelocity = currentVelocity;
 
-        // If there's input, accelerate towards the target.
         if (!desiredDirection.IsZeroApprox())
         {
             newVelocity = newVelocity.MoveToward(targetVelocity,
-                stats.GetStatValue<float>(GlobalRegistry.DB.AccelerationAttr) * delta);
+                stats.GetStatValue<float>(_accelerationAttr) * delta);
         }
-        else // If no input, apply friction.
+        else
         {
-            // Note: a more complex strategy could use the BrakingMultiplier here.
             newVelocity = newVelocity.MoveToward(Vector3.Zero,
-                stats.GetStatValue<float>(GlobalRegistry.DB.FrictionAttr) * delta);
+                stats.GetStatValue<float>(_frictionAttr) * delta);
         }
 
-        // TODO: make sure y is handled correctly (does acceleration/friction apply to gravity?)
         return newVelocity;
     }
 }
