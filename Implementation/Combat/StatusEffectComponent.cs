@@ -115,7 +115,11 @@ public partial class StatusEffectComponent : Node, IComponent
         }
 
         // Step 2: Process category interactions (e.g., Water cancels Fire)
-        ProcessCategoryInteractions(runner);
+        if (!ProcessCategoryInteractions(runner))
+        {
+            JmoLogger.Info(this, $"Status rejected by category interaction: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
+            return false;
+        }
 
         // Step 3: Add the runner
         AddChild(runner);
@@ -276,13 +280,13 @@ public partial class StatusEffectComponent : Node, IComponent
 
     /// <summary>
     /// Processes category interactions for an incoming runner.
-    /// May cancel, reduce, or amplify existing effects based on registry rules.
+    /// Returns false if the incoming runner should be rejected (CancelIncoming/CancelBoth).
     /// </summary>
-    private void ProcessCategoryInteractions(StatusRunner incomingRunner)
+    private bool ProcessCategoryInteractions(StatusRunner incomingRunner)
     {
         if (InteractionRegistry == null)
         {
-            return;
+            return true;
         }
 
         // Get all elemental categories from the incoming runner's tags
@@ -294,8 +298,10 @@ public partial class StatusEffectComponent : Node, IComponent
 
         if (incomingCategories.Count == 0)
         {
-            return;
+            return true;
         }
+
+        bool rejectIncoming = false;
 
         // Check each incoming category against active runners
         foreach (var incomingCategory in incomingCategories)
@@ -318,19 +324,21 @@ public partial class StatusEffectComponent : Node, IComponent
                         continue;
                     }
 
-                    ApplyInteractionEffect(interaction, activeRunner, incomingRunner);
+                    ApplyInteractionEffect(interaction, activeRunner, incomingRunner, ref rejectIncoming);
                 }
             }
         }
+
+        return !rejectIncoming;
     }
 
-    private void ApplyInteractionEffect(CategoryInteraction interaction, StatusRunner existingRunner, StatusRunner incomingRunner)
+    private void ApplyInteractionEffect(CategoryInteraction interaction, StatusRunner existingRunner, StatusRunner incomingRunner, ref bool rejectIncoming)
     {
         switch (interaction.Effect)
         {
             case CategoryInteractionEffect.CancelExisting:
                 existingRunner.Stop(wasDispelled: true);
-                JmoLogger.Info(this, $"Interaction canceled existing effect");
+                JmoLogger.Info(this, "Interaction canceled existing effect");
                 break;
 
             case CategoryInteractionEffect.ReduceDuration:
@@ -343,9 +351,8 @@ public partial class StatusEffectComponent : Node, IComponent
 
             case CategoryInteractionEffect.CancelBoth:
                 existingRunner.Stop(wasDispelled: true);
-                // Note: incoming runner will be canceled by caller if needed
-                // For now, we just cancel existing
-                JmoLogger.Info(this, $"Interaction canceled existing effect (mutual)");
+                rejectIncoming = true;
+                JmoLogger.Info(this, "Interaction canceled both incoming and existing effects");
                 break;
 
             case CategoryInteractionEffect.Amplify:
@@ -357,13 +364,12 @@ public partial class StatusEffectComponent : Node, IComponent
                 break;
 
             case CategoryInteractionEffect.CancelIncoming:
-                // This would need to be handled differently - signal to caller
-                JmoLogger.Info(this, $"Interaction would cancel incoming (not yet implemented)");
+                rejectIncoming = true;
+                JmoLogger.Info(this, "Interaction canceled incoming effect");
                 break;
 
             case CategoryInteractionEffect.Transform:
-                // Transform requires spawning new effect - complex, defer for now
-                JmoLogger.Info(this, $"Transform interaction not yet implemented");
+                JmoLogger.Warning(this, "Transform interaction not yet implemented");
                 break;
         }
     }

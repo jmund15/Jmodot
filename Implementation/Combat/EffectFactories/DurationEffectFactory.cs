@@ -30,7 +30,7 @@ public partial class DurationEffectFactory : CombatEffectFactory
             OnStartEffect?.Create(stats),
             OnEndEffect?.Create(stats),
             PersistentVisuals,
-            Tags = Tags,
+            Tags,
             TargetVisualEffect
         );
     }

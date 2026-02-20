@@ -18,13 +18,13 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
 
     public void Setup(float duration,
         ICombatEffect? startEffect, ICombatEffect? endEffect,
-        PackedScene? persistantVisuals, IEnumerable<CombatTag> tags,
+        PackedScene? persistentVisuals, IEnumerable<CombatTag> tags,
         VisualEffect? visualEffect = null)
     {
         Duration = duration;
         OnStartEffect = startEffect;
         OnEndEffect = endEffect;
-        PersistentVisuals = persistantVisuals;
+        PersistentVisuals = persistentVisuals;
         Tags = tags;
         StatusVisualEffect = visualEffect;
     }
@@ -55,7 +55,7 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
         if (Duration > 0)
         {
             _durationTimer.WaitTime = Duration;
-            _durationTimer.Timeout += () => Stop();
+            _durationTimer.Timeout += OnDurationExpired;
             _durationTimer.Start();
         }
         else
@@ -65,6 +65,8 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
         }
     }
 
+    private void OnDurationExpired() => Stop();
+
     public override void Stop(bool wasDispelled = false)
     {
         // Apply End Effect
@@ -72,6 +74,7 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
         {
             Target.ApplyEffect(OnEndEffect, Context);
         }
+        _durationTimer.Timeout -= OnDurationExpired;
         _durationTimer.Stop();
 
         base.Stop(wasDispelled);

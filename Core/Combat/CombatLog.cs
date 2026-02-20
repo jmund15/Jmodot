@@ -3,7 +3,6 @@ namespace Jmodot.Core.Combat;
 using Godot;
 using System.Collections.Generic;
 using System.Linq;
-using Jmodot.Core.Combat;
 using Reactions;
 
 /// <summary>
@@ -103,29 +102,38 @@ public class CombatLog
 
     public void PruneOldEventsByFrameCutoff(ulong frameCutoff)
     {
-        // TODO: fill out
+        var keysToRemove = _resultsByFrame.Keys.Where(k => k < frameCutoff).ToList();
+        foreach (var key in keysToRemove)
+        {
+            _resultsByFrame.Remove(key);
+        }
     }
+
     public void PruneOldEventsByCombatTimeCutoff(float combatTimeCutoff)
     {
-        // TODO: fill out
+        var keysToRemove = _resultsByCombatTime.Keys.Where(k => k < combatTimeCutoff).ToList();
+        foreach (var key in keysToRemove)
+        {
+            _resultsByCombatTime.Remove(key);
+        }
     }
 
     public IEnumerable<T> GetAllCombatResultsWithinLastFrameAmount<T>(ulong frameAmt) where T : CombatResult
     {
         var frameCutoff = Engine.GetPhysicsFrames() - frameAmt;
-        var allowedCtxs = _resultsByFrame.Keys.Where(ctx => ctx >= frameCutoff);
-        var allResults =
-            _resultsByFrame.Where(pair => allowedCtxs.Contains(pair.Key)).Select(pair => pair.Value);
-        return allResults.SelectMany(x => x).OfType<T>();
+        return _resultsByFrame
+            .Where(pair => pair.Key >= frameCutoff)
+            .SelectMany(pair => pair.Value)
+            .OfType<T>();
     }
 
     public IEnumerable<T> GetAllCombatResultsWithinCombatTime<T>(float combatTimeThreshold) where T : CombatResult
     {
         var combatTimeCutoff = CombatTimeElapsed - combatTimeThreshold;
-        var allowedCtxs = _resultsByCombatTime.Keys.Where(ctx => ctx >= combatTimeCutoff);
-        var allResults =
-            _resultsByCombatTime.Where(pair => allowedCtxs.Contains(pair.Key)).Select(pair => pair.Value);
-        return allResults.SelectMany(x => x).OfType<T>();
+        return _resultsByCombatTime
+            .Where(pair => pair.Key >= combatTimeCutoff)
+            .SelectMany(pair => pair.Value)
+            .OfType<T>();
     }
 
     #region Helpers

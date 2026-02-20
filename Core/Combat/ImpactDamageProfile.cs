@@ -130,6 +130,11 @@ public partial class ImpactDamageProfile : Resource
             return 0f;
         }
 
+        if (MaxVelocityForCurve <= 0f)
+        {
+            return 0f;
+        }
+
         // Normalize velocity to [0, 1] range based on MaxVelocityForCurve
         float normalizedVelocity = Math.Clamp(velocity / MaxVelocityForCurve, 0f, 1f);
 

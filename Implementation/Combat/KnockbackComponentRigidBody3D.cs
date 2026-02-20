@@ -91,6 +91,14 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		JmoLogger.Info(this, $"TODO: Apply impulse {impulse} to RigidBody3D");
 	}
 
+	public override void _ExitTree()
+	{
+		if (_combatant != null)
+		{
+			_combatant.CombatResultEvent -= OnCombatResult;
+		}
+	}
+
 	#endregion
 
 	#region INTERFACE_IMPLEMENTATION

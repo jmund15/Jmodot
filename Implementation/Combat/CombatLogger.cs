@@ -8,6 +8,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Implementation.Combat;
 using Jmodot.Core.Combat;
 using Shared;
+using System;
 using System.Text;
 using Status;
 
@@ -41,7 +42,12 @@ public partial class CombatLogger : Node, IComponent
             JmoLogger.Error(this, $"CombatLogger must have a Combatant Component to operate!");
             return false;
         }
-        Combatant = c!;
+        if (c == null)
+        {
+            JmoLogger.Error(this, "CombatantComponent resolved to null from Blackboard!");
+            return false;
+        }
+        Combatant = c;
 
         IsInitialized = true;
         Initialized?.Invoke();
@@ -189,6 +195,6 @@ public partial class CombatLogger : Node, IComponent
 
     // ... IComponent ...
     public bool IsInitialized { get; private set; }
-    public event System.Action Initialized;
+    public event Action Initialized = delegate { };
     public Node GetUnderlyingNode() => this;
 }

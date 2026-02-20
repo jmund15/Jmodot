@@ -29,7 +29,7 @@ public partial class CategoryInteraction : Resource
     /// <summary>
     /// Magnitude for duration-based effects (ReduceDuration, Amplify).
     /// </summary>
-    [Export] public float Magnitude { get; private set; } = 0f;
+    [Export(PropertyHint.Range, "0,100,0.1")] public float Magnitude { get; private set; } = 0f;
 
     /// <summary>
     /// If true, the interaction works in both directions

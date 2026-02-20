@@ -461,6 +461,7 @@ using AI.BB;
             catch
             {
                 // GetCollisionExceptions() can throw if a body in the list was freed (Godot bug #77793)
+                Shared.JmoLogger.Warning(this, "GetCollisionExceptions failed (Godot #77793 - freed body in exceptions list)");
                 return false;
             }
         }

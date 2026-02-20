@@ -3,7 +3,6 @@ using System;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
-using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Health;
 using Jmodot.Core.Health;
 using Jmodot.Implementation.AI.BB;
@@ -32,8 +31,17 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     #endregion
 
     #region Dependencies
-    [Export, RequiredExport] public HealthComponent Health { get; private set; } = null!;
-    [Export, RequiredExport] public StatusEffectComponent StatusComponent { get; private set; } = null!;
+    /// <summary>
+    /// Resolved via Inspector or Blackboard fallback in Initialize().
+    /// Not [RequiredExport] because spells may not Inspector-assign these.
+    /// </summary>
+    [Export] public HealthComponent? Health { get; private set; }
+
+    /// <summary>
+    /// Resolved via Inspector or Blackboard fallback in Initialize().
+    /// Not [RequiredExport] because spells may not Inspector-assign these.
+    /// </summary>
+    [Export] public StatusEffectComponent? StatusComponent { get; private set; }
     #endregion
 
     // The "Universal" Event.
@@ -45,7 +53,6 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     {
         base._Ready();
         if (Engine.IsEditorHint()) { return; }
-        this.ValidateRequiredExports();
     }
     #endregion
 
@@ -130,13 +137,13 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         if (Health == null)
         {
             bb.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health);
-            Health = health!;
+            Health = health;
         }
 
         if (StatusComponent == null)
         {
             bb.TryGet<StatusEffectComponent>(BBDataSig.StatusEffects, out var statusComponent);
-            StatusComponent = statusComponent!;
+            StatusComponent = statusComponent;
         }
 
         IsInitialized = true;

@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
 using GCol = Godot.Collections;
@@ -14,9 +15,9 @@ public partial class DelayedEffectFactory : CombatEffectFactory
 {
     [Export] public PackedScene? RunnerOverride { get; set; }
     [Export] public BaseFloatValueDefinition Delay { get; set; } = new ConstantFloatDefinition(1.0f);
-    [Export] public CombatEffectFactory EffectToApply { get; set; }
+    [Export, RequiredExport] public CombatEffectFactory EffectToApply { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
-    [Export] public PackedScene PersistentVisuals { get; set; }
+    [Export] public PackedScene? PersistentVisuals { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {

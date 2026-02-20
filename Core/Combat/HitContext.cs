@@ -9,34 +9,34 @@ public class HitContext
     /// <summary>
     /// The root owner of the attack (e.g., The Player).
     /// </summary>
-    public Node Attacker { get; set; }
+    public Node Attacker { get; init; }
 
     /// <summary>
     /// The specific object causing the hit (e.g., The Arrow, The Sword, The Trap).
     /// </summary>
-    public Node Source { get; set; }
+    public Node Source { get; init; }
 
     /// <summary>
     /// The normalized direction from the Source/Attacker to the Victim.
     /// Used for determining knockback direction.
     /// </summary>
-    public Vector3 HitDirection { get; set; }
+    public Vector3 HitDirection { get; init; }
 
     /// <summary>
     /// The linear velocity of the Source at the moment of impact.
     /// Used for calculating dynamic force (e.g. speed-based knockback).
     /// </summary>
-    public Vector3 ImpactVelocity { get; set; }
+    public Vector3 ImpactVelocity { get; init; }
 
     /// <summary>
     /// The world-space position of the attack's epicenter (e.g., hitbox center).
     /// Used for distance-based damage/knockback falloff calculations.
     /// </summary>
-    public Vector3 EpicenterPosition { get; set; }
+    public Vector3 EpicenterPosition { get; init; }
 
     /// <summary>
     /// The distance from the epicenter to the hurtbox center.
     /// Pre-calculated for convenience in effect calculations.
     /// </summary>
-    public float DistanceFromEpicenter { get; set; }
+    public float DistanceFromEpicenter { get; init; }
 }

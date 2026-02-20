@@ -7,7 +7,6 @@ using Jmodot.Core.Visual.Effects;
 
 namespace Jmodot.Implementation.Combat.Effects;
 
-using System;
 using System.Collections.Generic;
 using Core.Combat.EffectDefinitions;
 using Core.Combat.Reactions;
@@ -75,7 +74,13 @@ public struct DistanceScaledDamageEffect : ICombatEffect
             return null;
         }
 
-        health!.TakeDamage(finalDamage, context.Attacker);
+        if (health == null)
+        {
+            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' HealthComponent resolved to null!");
+            return null;
+        }
+
+        health.TakeDamage(finalDamage, context.Attacker);
 
         // 5. Return result
         return new DamageResult
@@ -92,10 +97,4 @@ public struct DistanceScaledDamageEffect : ICombatEffect
         };
     }
 
-    public void Cancel()
-    {
-        EffectCompleted?.Invoke(this, false);
-    }
-
-    public event Action<ICombatEffect, bool> EffectCompleted;
 }

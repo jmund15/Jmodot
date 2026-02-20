@@ -102,6 +102,14 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		EmitSignal(SignalName.KnockbackApplied, direction, finalForce);
 	}
 
+	public override void _ExitTree()
+	{
+		if (_combatant != null)
+		{
+			_combatant.CombatResultEvent -= OnCombatResult;
+		}
+	}
+
 	#endregion
 
 	#region INTERFACE_IMPLEMENTATION
