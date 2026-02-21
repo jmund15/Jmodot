@@ -38,6 +38,7 @@ using Shared.GodotExceptions;
         public Dictionary<State, bool> FiniteSubStates { get; protected set; } = new();
 
         private DebugSMComponent _debugComponent;
+        private (State from, State to)? _lastGuardedTransition;
 
         [Signal]
         public delegate void EnteredCompoundStateEventHandler();
@@ -144,7 +145,12 @@ using Shared.GodotExceptions;
             // Primarily used for exported StateTransitions in the inspector that don't have all the contextual informtion about the running state.
             if (!urgent && !PrimarySubState.CanExit(newSubState))
             {
-                JmoLogger.Debug(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
+                var guardKey = (PrimarySubState, newSubState);
+                if (_lastGuardedTransition != guardKey)
+                {
+                    JmoLogger.Debug(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
+                    _lastGuardedTransition = guardKey;
+                }
                 return;
             }
 
@@ -175,6 +181,7 @@ using Shared.GodotExceptions;
             PrimarySubState.Exit();
             FiniteSubStates[PrimarySubState] = false;
 
+            _lastGuardedTransition = null;
             PrimarySubState = newSubState;
             FiniteSubStates[PrimarySubState] = true;
             PrimarySubState.Enter();
