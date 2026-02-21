@@ -70,7 +70,7 @@ public static class JmoMath
     /// </summary>
     /// <param name="current">Current value.</param>
     /// <param name="target">Target value to approach.</param>
-    /// <param name="speed">Convergence rate (units/sec). 0 = no movement.</param>
+    /// <param name="speed">Decay rate (1/s). Higher = faster convergence. 0 = no movement.</param>
     /// <param name="delta">Frame delta time in seconds.</param>
     public static float ExpDecay(float current, float target, float speed, float delta)
     {
