@@ -19,12 +19,20 @@ public partial class GravityForceArea : Area3D, IForceProvider3D
 
     private Vector3 _cachedGravityDirection;
     private float _cachedGravityMagnitude;
+    private bool _gravityInitialized;
 
     public override void _Ready()
     {
         base._Ready();
+        EnsureGravityInitialized();
+    }
+
+    private void EnsureGravityInitialized()
+    {
+        if (_gravityInitialized) { return; }
         _cachedGravityDirection = ProjectSettings.GetSetting("physics/3d/default_gravity_vector").AsVector3();
         _cachedGravityMagnitude = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
+        _gravityInitialized = true;
     }
 
     /// <summary>
@@ -43,6 +51,7 @@ public partial class GravityForceArea : Area3D, IForceProvider3D
             return Vector3.Zero;
         }
 
+        EnsureGravityInitialized();
         return _cachedGravityDirection * _cachedGravityMagnitude * GravityScale;
     }
 }

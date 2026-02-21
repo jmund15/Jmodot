@@ -19,10 +19,15 @@ public partial class CurveConsideration : UtilityConsideration
 
     protected override float CalculateBaseScore(IBlackboard context)
     {
-        if (SampleCurve == null || BaseConsideration == null)
+        if (BaseConsideration == null)
         {
             return 0f;
         }
-        return SampleCurve.Sample(BaseConsideration.Evaluate(context));
+        float baseScore = BaseConsideration.Evaluate(context);
+        if (SampleCurve == null)
+        {
+            return baseScore;
+        }
+        return SampleCurve.Sample(baseScore);
     }
 }

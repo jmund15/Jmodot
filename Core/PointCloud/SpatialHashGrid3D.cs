@@ -1,5 +1,6 @@
 namespace Jmodot.Core.PointCloud;
 
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -17,6 +18,11 @@ public class SpatialHashGrid3D
 
     public SpatialHashGrid3D(float cellSize)
     {
+        if (cellSize <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cellSize),
+                cellSize, "Cell size must be positive.");
+        }
         _inverseCellSize = 1f / cellSize;
     }
 

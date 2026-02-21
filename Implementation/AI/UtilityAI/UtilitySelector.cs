@@ -105,6 +105,11 @@ public partial class UtilitySelector : CompositeTask
         float maxScore = -1.0f;
         foreach (var task in validTasks)
         {
+            if (task.Consideration == null)
+            {
+                JmoLogger.Warning(this, $"Utility task '{((Node)task).Name}' has no Consideration assigned — skipping.");
+                continue;
+            }
             float score = task.Consideration.Evaluate(BB);
             taskScores[task] = score;
             if (score > maxScore)

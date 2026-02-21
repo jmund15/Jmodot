@@ -61,6 +61,18 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <param name="archetype">The data template used to define this entity's stats.</param>
     public void InitializeFromStatSheet(EntityStatSheet archetype)
     {
+        ArgumentNullException.ThrowIfNull(archetype);
+        InitializeFromStatSheet(archetype, new HashSet<EntityStatSheet>());
+    }
+
+    private void InitializeFromStatSheet(EntityStatSheet archetype, HashSet<EntityStatSheet> visited)
+    {
+        if (!visited.Add(archetype))
+        {
+            throw new InvalidOperationException(
+                $"Circular stat sheet inheritance detected: '{archetype.ResourceName}' was already visited in the inheritance chain.");
+        }
+
         _archetype = archetype;
 
         // --- 0. Inheritance: Initialize from base sheet first (if present) ---
@@ -68,7 +80,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         // then child values override them below.
         if (archetype.BaseStatSheet != null)
         {
-            InitializeFromStatSheet(archetype.BaseStatSheet);
+            InitializeFromStatSheet(archetype.BaseStatSheet, visited);
         }
 
         // --- 1. Initialize Universal Stats ---
@@ -188,7 +200,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
             {
                 return typedProp;
             }
-            JmoLogger.LogAndRethrow(
+            throw JmoLogger.LogAndRethrow(
                 new InvalidCastException($"value for attribute {attribute} is not of type {typeof(T)}"),
                 this
             );
@@ -243,12 +255,17 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
     public T GetMechanicData<T>(MechanicType mechanicType) where T : MechanicData
     {
-        if (_mechanicLibrary.TryGetValue(mechanicType, out var data))
+        if (!_mechanicLibrary.TryGetValue(mechanicType, out var data))
         {
-            return data as T;
+            throw new KeyNotFoundException(
+                $"MechanicType '{mechanicType.ResourceName}' not found in StatController.");
         }
-        // todo: throw instead
-        return null;
+        if (data is not T typedData)
+        {
+            throw new InvalidCastException(
+                $"MechanicData for '{mechanicType.ResourceName}' is {data.GetType().Name}, not {typeof(T).Name}.");
+        }
+        return typedData;
     }
 
     /// <summary>
@@ -439,6 +456,14 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         // If no contextual version exists, fall back to the universal version.
         if (_stats.TryGetValue(attribute, out var universalProp))
         {
+            // Extract the generic type parameter from ModifiableProperty<T> rather than
+            // using Variant.Obj.GetType(), which returns Double for float values due to
+            // Godot's Variant system storing all floating-point numbers as doubles.
+            var propType = universalProp.GetType();
+            if (propType.IsGenericType)
+            {
+                return propType.GetGenericArguments()[0];
+            }
             return universalProp.GetValueAsVariant().Obj!.GetType();
         }
 

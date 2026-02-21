@@ -144,13 +144,16 @@ public partial class EllipsoidCloudShape : PointCloudShapeStrategy
         Vector3 radii, float yMin, float yMax, int count, float jitter, float spacing, Random rng)
     {
         var points = new List<Vector3>(count);
-        for (int i = 0; i < count; i++)
+        int maxAttempts = count * 50;
+        int attempts = 0;
+        while (points.Count < count && attempts < maxAttempts)
         {
+            attempts++;
             float y = (float)(rng.NextDouble() * (yMax - yMin) + yMin);
 
             float yNorm = y / radii.Y;
             float crossFactor = 1.0f - yNorm * yNorm;
-            if (crossFactor <= 0) { i--; continue; }
+            if (crossFactor <= 0) { continue; }
 
             float crossFactorSqrt = Mathf.Sqrt(crossFactor);
             float crossRx = radii.X * crossFactorSqrt;
