@@ -59,6 +59,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     private Dictionary<StringName, List<Node>> _visibilityCache = new();
     private List<Node> _allManagedNodes = new();
     private IAnimComponent _targetAnimComponent = null!;
+    private bool _subscribedToParentChildEnteredTree;
 
     /// <summary>
     /// Extracts the animation lookup key from a node name by stripping the prefix
@@ -99,7 +100,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
             if (parent != null)
             {
                 parent.ChildEnteredTree += OnChildEnteredTree;
-                // TODO: add exit tree handler
+                _subscribedToParentChildEnteredTree = true;
             }
         }
 
@@ -117,10 +118,14 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         base._ExitTree();
         if (!Engine.IsEditorHint())
         {
-            var parent = GetParent();
-            if (parent != null)
+            if (_subscribedToParentChildEnteredTree)
             {
-                parent.ChildEnteredTree -= OnChildEnteredTree;
+                var parent = GetParent();
+                if (parent != null && IsInstanceValid(parent))
+                {
+                    parent.ChildEnteredTree -= OnChildEnteredTree;
+                }
+                _subscribedToParentChildEnteredTree = false;
             }
             if (_targetAnimComponent != null)
             {
