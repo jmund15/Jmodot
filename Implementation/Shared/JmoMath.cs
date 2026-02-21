@@ -61,4 +61,40 @@ public static class JmoMath
     {
         return Enum.GetValues<T>();
     }
+
+    /// <summary>
+    /// Frame-rate-independent exponential decay smoothing.
+    /// Smoothly moves <paramref name="current"/> toward <paramref name="target"/> at a rate
+    /// controlled by <paramref name="speed"/>. Higher speed = faster convergence.
+    /// Mathematically: Lerp(current, target, 1 - exp(-speed * delta)).
+    /// </summary>
+    /// <param name="current">Current value.</param>
+    /// <param name="target">Target value to approach.</param>
+    /// <param name="speed">Convergence rate (units/sec). 0 = no movement.</param>
+    /// <param name="delta">Frame delta time in seconds.</param>
+    public static float ExpDecay(float current, float target, float speed, float delta)
+    {
+        if (speed <= 0f) { return current; }
+        return Mathf.Lerp(current, target, 1f - Mathf.Exp(-speed * delta));
+    }
+
+    /// <summary>
+    /// Frame-rate-independent exponential decay smoothing for Vector2.
+    /// </summary>
+    public static Vector2 ExpDecay(Vector2 current, Vector2 target, float speed, float delta)
+    {
+        if (speed <= 0f) { return current; }
+        float t = 1f - Mathf.Exp(-speed * delta);
+        return current.Lerp(target, t);
+    }
+
+    /// <summary>
+    /// Frame-rate-independent exponential decay smoothing for Vector3.
+    /// </summary>
+    public static Vector3 ExpDecay(Vector3 current, Vector3 target, float speed, float delta)
+    {
+        if (speed <= 0f) { return current; }
+        float t = 1f - Mathf.Exp(-speed * delta);
+        return current.Lerp(target, t);
+    }
 }
