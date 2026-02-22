@@ -86,6 +86,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         if (DirectionSet == null) { return; }
 
         var closestDir = DirectionSet.GetClosestDirection(direction);
+        if (closestDir.IsZeroApprox()) { return; } // DirectionSet not yet initialized or empty
         if (!DirectionLabels.TryGetValue(closestDir, out var newLabel))
         {
             JmoLogger.Error(this, $"Direction Set '{DirectionSet.ResourceName}' does not contain direction '{closestDir}");
