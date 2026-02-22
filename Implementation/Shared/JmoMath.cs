@@ -74,6 +74,7 @@ public static class JmoMath
     /// <param name="delta">Frame delta time in seconds.</param>
     public static float ExpDecay(float current, float target, float speed, float delta)
     {
+        if (delta <= 0f) { return current; }
         if (speed <= 0f) { return current; }
         return Mathf.Lerp(current, target, 1f - Mathf.Exp(-speed * delta));
     }
@@ -83,6 +84,7 @@ public static class JmoMath
     /// </summary>
     public static Vector2 ExpDecay(Vector2 current, Vector2 target, float speed, float delta)
     {
+        if (delta <= 0f) { return current; }
         if (speed <= 0f) { return current; }
         float t = 1f - Mathf.Exp(-speed * delta);
         return current.Lerp(target, t);
@@ -93,6 +95,7 @@ public static class JmoMath
     /// </summary>
     public static Vector3 ExpDecay(Vector3 current, Vector3 target, float speed, float delta)
     {
+        if (delta <= 0f) { return current; }
         if (speed <= 0f) { return current; }
         float t = 1f - Mathf.Exp(-speed * delta);
         return current.Lerp(target, t);
