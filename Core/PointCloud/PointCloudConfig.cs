@@ -9,7 +9,7 @@ using Jmodot.Core.Shared.Attributes;
 /// Defines the distribution algorithm, shape strategy, spacing, and density parameters.
 /// Reusable across different systems (explosions, AoE spawns, procedural placement).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class PointCloudConfig : Resource
 {
     /// <summary>
