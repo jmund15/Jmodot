@@ -7,6 +7,7 @@ using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Actors;
 using Jmodot.Core.Combat.Reactions;
+using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
 
@@ -52,9 +53,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	[Export] public bool FlattenKnockback { get; set; } = true;
 
 	/// <summary>
-	/// Multiplier applied to all knockback forces. Use to tune knockback sensitivity.
+	/// Resistance to knockback forces. Uses diminishing returns formula:
+	/// resistanceFactor = 1 / (1 + stability).
+	/// 0 = no resistance (full knockback), 1 = half force, 3 = quarter force.
+	/// Same formula used by PushableComponent3D for consistent resistance.
 	/// </summary>
-	[Export] public float KnockbackMultiplier { get; set; } = 1.0f;
+	[Export(PropertyHint.Range, "0,20,0.1")] public float Stability { get; set; }
 
 	#endregion
 
@@ -90,8 +94,8 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// <param name="force">The magnitude of the knockback force.</param>
 	public void ApplyKnockback(Vector3 direction, float force)
 	{
-		var finalForce = force * KnockbackMultiplier;
-		var impulse = direction * finalForce;
+		var scaledForce = force * StabilityScaling.CalculateResistanceFactor(Stability);
+		var impulse = direction * scaledForce;
 
 		if (FlattenKnockback)
 		{
@@ -99,7 +103,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		}
 
 		_movementProcessor.ApplyImpulse(impulse);
-		EmitSignal(SignalName.KnockbackApplied, direction, finalForce);
+		EmitSignal(SignalName.KnockbackApplied, direction, scaledForce);
 	}
 
 	public override void _ExitTree()

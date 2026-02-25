@@ -6,6 +6,7 @@ using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
 
@@ -45,9 +46,11 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	[Export, RequiredExport] public RigidBody3D TargetRigidBody { get; set; } = null!;
 
 	/// <summary>
-	/// Multiplier applied to all knockback forces.
+	/// Resistance to knockback forces. Uses diminishing returns formula:
+	/// resistanceFactor = 1 / (1 + stability).
+	/// 0 = no resistance, 1 = half force, 3 = quarter force.
 	/// </summary>
-	[Export] public float KnockbackMultiplier { get; set; } = 1.0f;
+	[Export(PropertyHint.Range, "0,20,0.1")] public float Stability { get; set; }
 
 	#endregion
 
@@ -81,13 +84,13 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 			return;
 		}
 
-		var finalForce = force * KnockbackMultiplier;
-		var impulse = direction * finalForce;
+		var scaledForce = force * StabilityScaling.CalculateResistanceFactor(Stability);
+		var impulse = direction * scaledForce;
 
 		// TODO: Implement actual impulse application
 		// _rigidBody.ApplyCentralImpulse(impulse);
 
-		EmitSignal(SignalName.KnockbackApplied, direction, finalForce);
+		EmitSignal(SignalName.KnockbackApplied, direction, scaledForce);
 		JmoLogger.Info(this, $"TODO: Apply impulse {impulse} to RigidBody3D");
 	}
 
