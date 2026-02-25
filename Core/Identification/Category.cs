@@ -10,7 +10,7 @@ namespace Jmodot.Core.Identification;
 ///     Crucially, because it is a Resource, it can contain its own data, such as default relationships
 ///     to other categories, which a simple string tag (like a Godot Group) cannot do.
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class Category : Resource
 {
     /// <summary>

@@ -8,7 +8,7 @@ using Godot;
 /// Each concrete shape defines how points are generated within its volume
 /// and how to test containment. Exported as a Godot Resource for data-driven configuration.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class PointCloudShapeStrategy : Resource
 {
     /// <summary>

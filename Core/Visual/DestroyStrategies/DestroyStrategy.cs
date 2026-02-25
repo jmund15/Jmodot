@@ -9,7 +9,7 @@ using Godot;
 /// with a callback for completion notification.
 /// Implementations MUST invoke onFinished exactly once when destruction is complete.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class DestroyStrategy : Resource
 {
     /// <summary>

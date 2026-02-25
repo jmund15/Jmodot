@@ -10,7 +10,7 @@ using Godot;
 /// Scale components define the half-extents in each axis.
 /// When Y-cutoff is active, restricts the Y generation range accordingly.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class BoxCloudShape : PointCloudShapeStrategy
 {
     public override List<Vector3> Generate(Vector3 scale, PointCloudGenerationParams p)

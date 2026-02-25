@@ -10,7 +10,7 @@ using Godot;
 /// When YMinNormalized > 0, generates in a vertical slice (hemisphere, quarter, etc.).
 /// Scale.X is used as the sphere radius.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class SphereCloudShape : PointCloudShapeStrategy
 {
     public override List<Vector3> Generate(Vector3 scale, PointCloudGenerationParams p)

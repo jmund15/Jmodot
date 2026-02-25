@@ -10,7 +10,7 @@ using Godot;
 /// Scale components define the X, Y, Z radii of the ellipsoid.
 /// When Y-cutoff is active, restricts the Y generation range accordingly.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class EllipsoidCloudShape : PointCloudShapeStrategy
 {
     public override List<Vector3> Generate(Vector3 scale, PointCloudGenerationParams p)

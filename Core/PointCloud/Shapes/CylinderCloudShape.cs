@@ -10,7 +10,7 @@ using Godot;
 /// Scale.X = radius, Scale.Y = half-height. Scale.Z is unused.
 /// When Y-cutoff is active, restricts the Y generation range accordingly.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CylinderCloudShape : PointCloudShapeStrategy
 {
     public override List<Vector3> Generate(Vector3 scale, PointCloudGenerationParams p)
