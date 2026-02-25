@@ -126,13 +126,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// </summary>
 	public bool Initialize(IBlackboard bb)
 	{
-		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!))
+		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!) || _movementProcessor == null)
 		{
 			JmoLogger.Error(this, "Required dependency BBDataSig.MovementProcessor not found");
 			return false;
 		}
 
-		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!))
+		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!) || _combatant == null)
 		{
 			JmoLogger.Error(this, "Required dependency BBDataSig.CombatantComponent not found");
 			return false;

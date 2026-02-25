@@ -111,7 +111,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 	public bool Initialize(IBlackboard bb)
 	{
-		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!))
+		if (!bb.TryGet(BBDataSig.CombatantComponent, out _combatant!) || _combatant == null)
 		{
 			JmoLogger.Error(this, "Required dependency BBDataSig.CombatantComponent not found");
 			return false;
