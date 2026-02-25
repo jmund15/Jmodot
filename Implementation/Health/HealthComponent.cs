@@ -253,6 +253,16 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
             newHealth = 1f;
         }
 
+        // Indestructible floor-cap: health unchanged but damage was dealt.
+        // Fire events manually so visual feedback (flash, fragments) still triggers.
+        if (IsIndestructible && Mathf.IsEqualApprox(newHealth, _currentHealth))
+        {
+            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source);
+            OnHealthChanged.Invoke(args);
+            OnDamaged.Invoke(args);
+            return;
+        }
+
         SetHealth(newHealth, source);
     }
 
