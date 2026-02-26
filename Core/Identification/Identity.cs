@@ -28,12 +28,13 @@ public partial class Identity : Resource
 
     /// <summary>
     /// Checks whether this identity belongs to the specified category.
-    /// Matches by CategoryName for consistency with string-safe comparisons across loaded resources.
+    /// Uses hierarchical matching — returns true if any of this identity's categories
+    /// matches or descends from the target category.
     /// </summary>
     public bool HasCategory(Category category)
     {
         if (category == null || Categories == null) { return false; }
-        return Categories.Any(c => c?.CategoryName == category.CategoryName);
+        return Categories.Any(c => c?.IsOrDescendsFrom(category) == true);
     }
 
     #region Test Helpers

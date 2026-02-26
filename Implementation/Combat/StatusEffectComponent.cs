@@ -155,22 +155,13 @@ public partial class StatusEffectComponent : Node, IComponent
     }
 
     /// <summary>
-    /// Gets all active runners with the specified elemental identity.
-    /// </summary>
-    public IEnumerable<StatusRunner> GetRunnersWithIdentity(Identity identity)
-    {
-        return _activeRunners.Where(r =>
-            r.Tags.Any(t => t?.ElementalCategory == identity));
-    }
-
-    /// <summary>
-    /// Gets all active runners whose tags have an ElementalCategory containing the specified category.
-    /// Matches by CategoryName for consistency with ReactionMatcher.
+    /// Gets all active runners whose tags match or descend from the specified category.
+    /// Uses hierarchical matching — a query for "Fire" matches tags like "Burn" if Burn descends from Fire.
     /// </summary>
     public IEnumerable<StatusRunner> GetRunnersWithCategory(Category category)
     {
         return _activeRunners.Where(r =>
-            r.Tags.Any(t => t?.ElementalCategory?.HasCategory(category) == true));
+            r.Tags.Any(t => t?.IsOrDescendsFrom(category) == true));
     }
 
     /// <summary>
@@ -289,36 +280,34 @@ public partial class StatusEffectComponent : Node, IComponent
             return true;
         }
 
-        // Get all elemental categories from the incoming runner's tags
-        var incomingCategories = incomingRunner.Tags
-            .Where(t => t?.ElementalCategory != null)
-            .Select(t => t!.ElementalCategory!)
-            .Distinct()
+        // Get all tags from the incoming runner (CombatTag IS a Category now)
+        var incomingTags = incomingRunner.Tags
+            .Where(t => t != null)
             .ToList();
 
-        if (incomingCategories.Count == 0)
+        if (incomingTags.Count == 0)
         {
             return true;
         }
 
         bool rejectIncoming = false;
 
-        // Check each incoming category against active runners
-        foreach (var incomingCategory in incomingCategories)
+        // Check each incoming tag against active runners
+        foreach (var incomingTag in incomingTags)
         {
             // Get runners to affect (copy list to avoid modification during iteration)
             var runnersToProcess = _activeRunners.ToList();
 
             foreach (var activeRunner in runnersToProcess)
             {
-                foreach (var tag in activeRunner.Tags)
+                foreach (var activeTag in activeRunner.Tags)
                 {
-                    if (tag?.ElementalCategory == null)
+                    if (activeTag == null)
                     {
                         continue;
                     }
 
-                    var interaction = InteractionRegistry.GetInteraction(incomingCategory, tag.ElementalCategory);
+                    var interaction = InteractionRegistry.GetInteraction(incomingTag, activeTag);
                     if (interaction == null)
                     {
                         continue;

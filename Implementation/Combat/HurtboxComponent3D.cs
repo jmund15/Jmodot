@@ -82,20 +82,26 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     #region Public API
 
     /// <summary>
+    /// Checks whether this hurtbox can currently accept a hit.
+    /// Extracted from ProcessHit to allow pre-validation before payload interception.
+    /// </summary>
+    /// <returns>True if the hurtbox is active, initialized, has a combatant, and is not invulnerable.</returns>
+    public bool CanReceiveHit()
+    {
+        if (!IsActive) { return false; }
+        if (!IsInitialized || _combatant == null) { return false; }
+        if (IsInvulnerable) { return false; }
+        return true;
+    }
+
+    /// <summary>
     /// Called DIRECTLY by HitboxComponent3D.
     /// This is the receiving end of the Handshake.
     /// </summary>
     /// <returns>True if the hit was processed, False if rejected.</returns>
     public bool ProcessHit(IAttackPayload payload)
     {
-        // 0. Check if active (how did we get here?)
-        if (!IsActive) { return false; }
-
-        // 1. Validation
-        if (!IsInitialized || _combatant == null) { return false; }
-
-        // 2. Gatekeeping (Cheap check)
-        if (IsInvulnerable) { return false; }
+        if (!CanReceiveHit()) { return false; }
 
         // 3. Context Creation
         // Maps the Payload Source to the Context so effects know what hit them.

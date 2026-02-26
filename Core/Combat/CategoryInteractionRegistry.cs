@@ -6,7 +6,7 @@ using Jmodot.Core.Identification;
 
 /// <summary>
 /// Registry that stores and looks up Category interactions.
-/// Used to determine what happens when effects with different elemental
+/// Used to determine what happens when effects with different
 /// categories interact (e.g., Water cancels Fire).
 /// </summary>
 [GlobalClass]
@@ -18,12 +18,12 @@ public partial class CategoryInteractionRegistry : Resource
     [Export] public Godot.Collections.Array<CategoryInteraction> Interactions { get; private set; } = new();
 
     /// <summary>
-    /// Finds the interaction rule for the given incoming and existing identities.
+    /// Finds the interaction rule for the given incoming and existing categories.
     /// </summary>
-    /// <param name="incoming">The identity of the effect being applied.</param>
-    /// <param name="existing">The identity of the active effect.</param>
+    /// <param name="incoming">The category of the effect being applied.</param>
+    /// <param name="existing">The category of the active effect.</param>
     /// <returns>The matching interaction, or null if none found.</returns>
-    public CategoryInteraction? GetInteraction(Identity? incoming, Identity? existing)
+    public CategoryInteraction? GetInteraction(Category? incoming, Category? existing)
     {
         if (incoming == null || existing == null)
         {
@@ -42,12 +42,12 @@ public partial class CategoryInteractionRegistry : Resource
     }
 
     /// <summary>
-    /// Gets all interactions that apply when the given identity is incoming.
-    /// Includes bidirectional interactions where this identity could be "existing".
+    /// Gets all interactions that apply when the given category is incoming.
+    /// Includes bidirectional interactions where this category could be "existing".
     /// </summary>
-    /// <param name="incoming">The identity of the effect being applied.</param>
+    /// <param name="incoming">The category of the effect being applied.</param>
     /// <returns>All matching interactions.</returns>
-    public IEnumerable<CategoryInteraction> GetInteractionsForIncoming(Identity? incoming)
+    public IEnumerable<CategoryInteraction> GetInteractionsForIncoming(Category? incoming)
     {
         if (incoming == null)
         {
@@ -56,11 +56,11 @@ public partial class CategoryInteractionRegistry : Resource
 
         foreach (var interaction in Interactions)
         {
-            if (interaction.IncomingCategory == incoming)
+            if (incoming.IsOrDescendsFrom(interaction.IncomingCategory))
             {
                 yield return interaction;
             }
-            else if (interaction.IsBidirectional && interaction.ExistingCategory == incoming)
+            else if (interaction.IsBidirectional && incoming.IsOrDescendsFrom(interaction.ExistingCategory))
             {
                 yield return interaction;
             }
