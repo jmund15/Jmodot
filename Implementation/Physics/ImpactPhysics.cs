@@ -8,7 +8,7 @@ using Godot;
 ///   - Entity-entity: use <see cref="CombineRestitution"/> (geometric mean).
 ///   - Surface bounce: use DurableCollisionResponse.VelocityRetention directly.
 /// For wall bounces: pass stabilityB=float.MaxValue, velocityB=Zero — the formula
-/// degenerates to simple reflection * COR, matching current BouncePhysicsStrategy behavior.
+/// degenerates to simple reflection * COR (standard wall bounce).
 /// </summary>
 public static class ImpactPhysics
 {

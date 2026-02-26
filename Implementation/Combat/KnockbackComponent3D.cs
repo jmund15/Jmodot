@@ -56,7 +56,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// Resistance to knockback forces. Uses diminishing returns formula:
 	/// resistanceFactor = 1 / (1 + stability).
 	/// 0 = no resistance (full knockback), 1 = half force, 3 = quarter force.
-	/// Same formula used by PushableComponent3D for consistent resistance.
+	/// Same formula used by PhysicsInteractionComponent for consistent resistance.
 	/// </summary>
 	[Export(PropertyHint.Range, "0,20,0.1")] public float Stability { get; set; }
 
