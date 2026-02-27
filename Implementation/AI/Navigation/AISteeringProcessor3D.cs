@@ -46,6 +46,12 @@ public partial class AISteeringProcessor3D : Node
     public IOrderedEnumerable<BaseAIConsideration3D> SortedConsiderations { get; private set; }
 
     /// <summary>
+    /// Runtime considerations registered dynamically by BT actions.
+    /// Kept separate from _considerations (Inspector-authored) to preserve editor data.
+    /// </summary>
+    private readonly List<BaseAIConsideration3D> _runtimeConsiderations = new();
+
+    /// <summary>
     /// A dictionary to hold the aggregated scores for each direction during a single frame's calculation.
     /// </summary>
     private Dictionary<Vector3, float> _scores = new();
@@ -86,8 +92,43 @@ public partial class AISteeringProcessor3D : Node
             consideration?.Initialize(MovementDirections);
         }
 
-        SortedConsiderations = _considerations.OrderBy(c => c.Priority);
+        RebuildSortedConsiderations();
     }
+
+    /// <summary>
+    /// Registers a consideration at runtime. Used by BT actions to dynamically add
+    /// steering behaviors (wander, flee, etc.) when their task becomes active.
+    /// </summary>
+    public void RegisterConsideration(BaseAIConsideration3D consideration)
+    {
+        if (_runtimeConsiderations.Contains(consideration)) { return; }
+        _runtimeConsiderations.Add(consideration);
+        consideration.Initialize(MovementDirections);
+        RebuildSortedConsiderations();
+    }
+
+    /// <summary>
+    /// Unregisters a previously registered runtime consideration.
+    /// Used by BT actions to remove their steering behaviors when their task ends.
+    /// </summary>
+    public void UnregisterConsideration(BaseAIConsideration3D consideration)
+    {
+        if (!_runtimeConsiderations.Remove(consideration)) { return; }
+        RebuildSortedConsiderations();
+    }
+
+    private void RebuildSortedConsiderations()
+    {
+        SortedConsiderations = _considerations
+            .Concat(_runtimeConsiderations)
+            .OrderBy(c => c.Priority);
+    }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetMovementDirections(DirectionSet3D directions) => MovementDirections = directions;
+#endif
+    #endregion
 
     public override void _PhysicsProcess(double delta)
     {
