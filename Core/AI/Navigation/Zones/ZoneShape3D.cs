@@ -10,7 +10,7 @@ using Godot;
 /// Follows the Resource Strategy Hierarchy pattern: abstract [GlobalClass] base
 /// with concrete subclasses saved as .tres or SubResources.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class ZoneShape3D : Resource
 {
     /// <summary>

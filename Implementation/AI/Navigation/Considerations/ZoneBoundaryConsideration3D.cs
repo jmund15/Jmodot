@@ -4,30 +4,47 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
+using Core.AI.Navigation.Zones;
 using Core.Movement;
 
 /// <summary>
-/// Soft spatial containment tied to a zone defined on the blackboard.
-/// As the agent approaches the zone boundary, outward-facing directions
-/// progressively lose interest — creating a natural "soft leash" that
-/// curves the agent back toward the center.
+/// Soft spatial containment that penalizes outward-facing directions near zone boundaries.
+/// Creates a natural "soft leash" — the agent curves back toward the interior without
+/// hitting an invisible wall.
 ///
-/// Zone data is stored on BB as Vector4(centerX, centerY, centerZ, radius).
-/// This decouples the consideration from Godot physics (Area3D/CollisionShape3D)
-/// and keeps the core math testable.
+/// Two zone sourcing modes:
 ///
-/// Sphere shape only (v1). Box support can be added by extending the
-/// distance calculation to use per-axis extents.
+/// 1. Shape-based (recommended): Set _zoneShape to a ZoneShape3D resource (e.g., SphereZoneShape3D).
+///    Zone center is either self-managed (captured from agent's first evaluation position)
+///    or BB-sourced (when _boundaryZoneKey is set). Shape handles geometry math.
+///
+/// 2. Legacy BB path: When _zoneShape is null and _boundaryZoneKey is set, reads
+///    Vector4(centerX, centerY, centerZ, radius) from BB. Inline sphere math.
+///    Preserved for backward compatibility.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
 
-    [ExportGroup("Zone Configuration")]
+    [ExportGroup("Zone Shape")]
 
     /// <summary>
-    /// BB key for the zone data. Expected type: Vector4(centerX, centerY, centerZ, radius).
+    /// Zone geometry definition (sphere, box, etc.). Handles normalized distance
+    /// and direction-to-interior calculations for the configured shape.
+    /// When set: uses shape-based evaluation with self-managed or BB center.
+    /// When null: falls back to legacy Vector4 BB path.
+    /// </summary>
+    [Export]
+    private ZoneShape3D? _zoneShape;
+
+    [ExportGroup("Zone Center")]
+
+    /// <summary>
+    /// Optional BB key for externally-managed zone center.
+    /// When null (default): center auto-captured from agent's first evaluation position.
+    /// When set: center read from BB as Vector4(centerX, centerY, centerZ, *).
+    /// Also enables legacy Vector4 path when _zoneShape is null.
     /// </summary>
     [Export]
     private StringName? _boundaryZoneKey;
@@ -58,6 +75,13 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
 
     #endregion
 
+    /// <summary>
+    /// Zone center captured on first evaluation (self-managed mode only).
+    /// Persists across BT register/unregister cycles for "home base" behavior.
+    /// Reset via ResetSelfZone() for redeployment scenarios.
+    /// </summary>
+    private Vector3? _selfZoneCenter;
+
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions,
         SteeringDecisionContext3D context3D,
@@ -65,9 +89,58 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        // Read zone data from BB
-        if (_boundaryZoneKey == null ||
-            !blackboard.TryGet<Vector4>(_boundaryZoneKey, out var zoneData))
+        if (_zoneShape != null)
+        {
+            return CalculateShapeBasedScores(scores, directions, context3D, blackboard);
+        }
+
+        if (_boundaryZoneKey != null)
+        {
+            return CalculateLegacyBBScores(scores, directions, context3D, blackboard);
+        }
+
+        return scores;
+    }
+
+    /// <summary>
+    /// Shape-based evaluation path. Uses ZoneShape3D for geometry math.
+    /// Center sourced from self-managed capture or BB.
+    /// </summary>
+    private Dictionary<Vector3, float> CalculateShapeBasedScores(
+        Dictionary<Vector3, float> scores,
+        DirectionSet3D directions,
+        SteeringDecisionContext3D context3D,
+        IBlackboard blackboard)
+    {
+        if (!TryResolveCenter(context3D.AgentPosition, blackboard, out var zoneCenter))
+        {
+            return scores;
+        }
+
+        float normalizedDist = _zoneShape!.GetNormalizedDistance(context3D.AgentPosition, zoneCenter);
+        float penaltyStrength = CalculateBoundaryPenalty(normalizedDist, _falloffStartNormalized, _falloffCurve);
+
+        if (penaltyStrength <= 0f)
+        {
+            return scores;
+        }
+
+        Vector3 towardInterior = _zoneShape.GetDirectionToInterior(context3D.AgentPosition, zoneCenter);
+        ApplyBoundaryPenalties(scores, directions, towardInterior, penaltyStrength);
+        return scores;
+    }
+
+    /// <summary>
+    /// Legacy BB path. Reads Vector4(centerX, centerY, centerZ, radius) from BB.
+    /// Inline sphere math for backward compatibility.
+    /// </summary>
+    private Dictionary<Vector3, float> CalculateLegacyBBScores(
+        Dictionary<Vector3, float> scores,
+        DirectionSet3D directions,
+        SteeringDecisionContext3D context3D,
+        IBlackboard blackboard)
+    {
+        if (!blackboard.TryGet<Vector4>(_boundaryZoneKey!, out var zoneData))
         {
             return scores;
         }
@@ -80,11 +153,8 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             return scores;
         }
 
-        // Calculate how far agent is from center (XZ plane, normalized)
         float normalizedDist = CalculateNormalizedDistanceFromCenter(
             context3D.AgentPosition, zoneCenter, radius);
-
-        // Calculate penalty strength based on distance
         float penaltyStrength = CalculateBoundaryPenalty(
             normalizedDist, _falloffStartNormalized, _falloffCurve);
 
@@ -93,16 +163,50 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             return scores;
         }
 
-        // Direction toward center (XZ plane)
         Vector3 toCenter = zoneCenter - context3D.AgentPosition;
         toCenter.Y = 0;
         if (toCenter.LengthSquared() < 0.001f)
         {
             return scores;
         }
-        Vector3 towardCenter = toCenter.Normalized();
 
-        // Score each direction
+        ApplyBoundaryPenalties(scores, directions, toCenter.Normalized(), penaltyStrength);
+        return scores;
+    }
+
+    /// <summary>
+    /// Resolves the zone center from self-managed state or BB.
+    /// </summary>
+    private bool TryResolveCenter(Vector3 agentPosition, IBlackboard blackboard, out Vector3 center)
+    {
+        if (_boundaryZoneKey != null)
+        {
+            // BB-sourced center (for shared/external zones)
+            if (!blackboard.TryGet<Vector4>(_boundaryZoneKey, out var zoneData))
+            {
+                center = Vector3.Zero;
+                return false;
+            }
+            center = new Vector3(zoneData.X, zoneData.Y, zoneData.Z);
+            return true;
+        }
+
+        // Self-managed center: capture agent position on first evaluation
+        _selfZoneCenter ??= agentPosition;
+        center = _selfZoneCenter.Value;
+        return true;
+    }
+
+    /// <summary>
+    /// Applies boundary penalties to all directions based on their alignment with
+    /// the toward-interior vector. Shared between shape-based and legacy paths.
+    /// </summary>
+    private void ApplyBoundaryPenalties(
+        Dictionary<Vector3, float> scores,
+        DirectionSet3D directions,
+        Vector3 towardInterior,
+        float penaltyStrength)
+    {
         foreach (var dir in directions.Directions)
         {
             Vector3 flatDir = new Vector3(dir.X, 0, dir.Z);
@@ -113,11 +217,17 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             flatDir = flatDir.Normalized();
 
             scores[dir] = CalculateDirectionPenalty(
-                flatDir, towardCenter, penaltyStrength, _penaltyWeight);
+                flatDir, towardInterior, penaltyStrength, _penaltyWeight);
         }
-
-        return scores;
     }
+
+    /// <summary>
+    /// Clears the self-managed zone center. Next evaluation re-captures agent position.
+    /// Call when redeploying a pooled critter to a new location.
+    /// </summary>
+    public void ResetSelfZone() => _selfZoneCenter = null;
+
+    #region Static Math (Shared)
 
     /// <summary>
     /// Calculates the agent's normalized distance from zone center on the XZ plane.
@@ -167,8 +277,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     /// <summary>
     /// Calculates the score adjustment for a single direction based on its alignment
     /// with the center direction. Directions pointing away from center get negative
-    /// scores. Directions toward center are unaffected (zero). Perpendicular directions
-    /// get zero.
+    /// scores. Directions toward center are unaffected (zero).
     /// </summary>
     public static float CalculateDirectionPenalty(
         Vector3 direction, Vector3 towardCenter, float penaltyStrength, float weight)
@@ -178,18 +287,17 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             return 0f;
         }
 
-        // Dot product: +1 = toward center, -1 = away from center, 0 = perpendicular
         float alignment = direction.Dot(towardCenter);
 
-        // Only penalize directions pointing AWAY from center (negative alignment)
         if (alignment >= 0f)
         {
             return 0f;
         }
 
-        // alignment is negative, so this produces a negative score (penalty)
         return alignment * penaltyStrength * weight;
     }
+
+    #endregion
 
     #region Test Helpers
 #if TOOLS
@@ -197,6 +305,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     internal void SetPenaltyWeight(float value) => _penaltyWeight = value;
     internal void SetFalloffStart(float value) => _falloffStartNormalized = value;
     internal void SetFalloffCurve(Curve? curve) => _falloffCurve = curve;
+    internal void SetZoneShape(ZoneShape3D? shape) => _zoneShape = shape;
 #endif
     #endregion
 }

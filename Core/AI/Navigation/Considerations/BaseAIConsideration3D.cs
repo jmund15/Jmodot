@@ -13,7 +13,7 @@ using GColl = Godot.Collections;
 /// dictionary of scores, where each key is a direction and each value is a float
 /// representing the "interest" or "danger" associated with moving in that direction.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class BaseAIConsideration3D : Resource
 {
     /// <summary>

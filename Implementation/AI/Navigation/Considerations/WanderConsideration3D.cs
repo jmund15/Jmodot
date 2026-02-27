@@ -18,7 +18,7 @@ using Shared;
 /// Per-instance random time offset prevents synchronized wandering across
 /// critters sharing the same .tres resource.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class WanderConsideration3D : BaseAIConsideration3D
 {
     /// <summary>
@@ -107,11 +107,14 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        // Check active flag — conservative default: inactive when missing
-        var key = _activeKey ?? DefaultActiveKey;
-        if (!blackboard.TryGet<bool>(key, out var active) || !active)
+        // When _activeKey is null, the consideration is always active (dynamic registration
+        // handles lifecycle). When set, check the BB flag for backward compatibility.
+        if (_activeKey != null)
         {
-            return scores;
+            if (!blackboard.TryGet<bool>(_activeKey, out var active) || !active)
+            {
+                return scores;
+            }
         }
 
         // Accumulate time from physics frames (pause-aware, deterministic)

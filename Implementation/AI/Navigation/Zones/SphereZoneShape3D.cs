@@ -8,7 +8,7 @@ using Shared;
 /// Spherical zone shape. Containment is based on XZ-plane distance from center.
 /// Simplest and most common zone type — suitable for open-area wandering.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class SphereZoneShape3D : ZoneShape3D
 {
     [Export(PropertyHint.Range, "1.0, 100.0, 0.5")]
