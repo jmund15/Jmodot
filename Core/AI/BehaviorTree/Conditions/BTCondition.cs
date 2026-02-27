@@ -2,6 +2,7 @@ namespace Jmodot.Core.AI.BehaviorTree.Conditions;
 
 using BB;
 using Implementation.AI.BehaviorTree.Tasks;
+using Implementation.Shared;
 
 /// <summary>
 /// A base class for condition resources used by BehaviorTasks.
@@ -17,8 +18,17 @@ public abstract partial class BTCondition : Resource
     /// If false, the task will return FAILURE. This is useful for conditions like timers
     /// or counters where reaching the limit is a success condition.
     /// </summary>
+    [ExportGroup("Abort Behavior")]
     [Export]
     public bool SucceedOnAbort { get; private set; }
+
+    /// <summary>
+    /// If true, this condition's abort bypasses CanAbort() — unconditional termination.
+    /// Use for damage, death, or non-negotiable interrupts.
+    /// Mirrors HSM's StateTransition.Urgent flag.
+    /// </summary>
+    [Export]
+    public bool UrgentAbort { get; private set; }
 
     protected BehaviorTask OwnerTask { get; private set; } = null!;
     protected Node Agent { get; private set; } = null!;
@@ -26,10 +36,16 @@ public abstract partial class BTCondition : Resource
 
     /// <summary>
     /// Initializes the condition with its owner task, agent, and blackboard context.
-    /// This is called once when the Behavior Tree is initialized.
+    /// Called on cloned runtime instances during BehaviorTask.Init().
     /// </summary>
     public virtual void Init(BehaviorTask owner, Node agent, IBlackboard bb)
     {
+        if (OwnerTask is not null && IsInstanceValid(OwnerTask) && OwnerTask != owner)
+        {
+            JmoLogger.Error(this, $"BTCondition '{ResourceName}' is being shared. " +
+                "Each instance must belong to exactly one task.");
+            return;
+        }
         this.OwnerTask = owner;
         this.Agent = agent;
         this.BB = bb;
@@ -47,7 +63,9 @@ public abstract partial class BTCondition : Resource
 
     /// <summary>
     /// The core logic of the condition. Evaluates the condition and returns the result.
-    /// This method should be fast and avoid side effects.
+    /// Must avoid external side effects (e.g., modifying blackboard, affecting other systems).
+    /// Condition-internal state mutation (e.g., starting a cooldown timer) is acceptable
+    /// when it's integral to the condition's own lifecycle.
     /// </summary>
     /// <returns>True if the condition is met, otherwise false.</returns>
     public abstract bool Check();

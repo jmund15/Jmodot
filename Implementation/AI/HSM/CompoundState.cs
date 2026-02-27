@@ -156,8 +156,11 @@ using Shared.GodotExceptions;
 
             if (canPropagateUp && !FiniteSubStates.ContainsKey(newSubState))
             {
-                //JmoLogger.Info(this, $"Couldn't find '{newSubState.Name}' as a child of {Name}. Going up the hierarchy.");
+                // Forward the active transition up the hierarchy so the committing
+                // CompoundState can call OnTransitionCommitted on its conditions.
+                ActiveTransition = oldSubState.ActiveTransition;
                 EmitSignal(SignalName.TransitionState, this, newSubState, urgent, true);
+                ActiveTransition = null;
                 return;
             }
 
@@ -184,7 +187,21 @@ using Shared.GodotExceptions;
             _lastGuardedTransition = null;
             PrimarySubState = newSubState;
             FiniteSubStates[PrimarySubState] = true;
+            // Capture the committed transition BEFORE Enter() — resilient to future
+            // re-entrant transitions that could clear the originating state's ActiveTransition.
+            var committedTransition = oldSubState.ActiveTransition;
+
             PrimarySubState.Enter();
+            if (committedTransition != null)
+            {
+                foreach (var condition in committedTransition.Conditions)
+                {
+                    if (condition.IsValid())
+                    {
+                        condition.OnTransitionCommitted(Agent, BB);
+                    }
+                }
+            }
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);

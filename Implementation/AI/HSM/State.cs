@@ -55,6 +55,13 @@ public partial class State : Node, IState
     public bool IsInitialized { get; protected set; }
     public bool IsActive { get; protected set; }
 
+    /// <summary>
+    /// The transition currently being evaluated. Set before EmitSignal, cleared after.
+    /// Used by CompoundState to call OnTransitionCommitted on conditions after a successful commit.
+    /// Relies on Godot signals being synchronous — the handler runs inline before this is cleared.
+    /// </summary>
+    internal StateTransition? ActiveTransition { get; set; }
+
     public void Init(Node agent, IBlackboard bb)
     {
         Agent = agent;
@@ -242,20 +249,19 @@ public partial class State : Node, IState
 
             if (conditionsMet && _resolvedTransitions.TryGetValue(transition, out State targetState))
             {
-                // // Resolve the NodePath to get the actual State node instance.
-                //var targetState = GetNode<State>(transition.TargetStatePath);
-
-                //GD.Print($"Attempting to transition to {targetState.Name} from {Name} due to transition conditions met.");
-
                 if (!targetState.IsValid())
                 {
                     JmoLogger.Error(this, $"Transition condition met, but NodePath '{transition.TargetStatePath}' did not resolve to a valid State node.");
-                    continue; // Try the next transition
+                    continue;
                 }
 
-                //JmoLogger.Info(this, $"[HSM Debug] State '{Name}' firing transition to '{targetState.Name}' (urgent={transition.Urgent}, canPropagateUp={transition.CanPropagateUp})");
+                // Store the active transition so CompoundState can call OnTransitionCommitted
+                // on its conditions after a successful commit. Cleared after EmitSignal returns
+                // (Godot signals are synchronous — handler runs inline).
+                ActiveTransition = transition;
                 EmitSignal(SignalName.TransitionState, this, targetState, transition.Urgent, transition.CanPropagateUp);
-                return; // Stop after the first valid transition is found.
+                ActiveTransition = null;
+                return;
             }
         }
     }

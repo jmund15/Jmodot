@@ -106,6 +106,13 @@ public partial class CooldownCondition : BTCondition
             JmoLogger.Info(this, "Cooldown finished. Ready.");
         };
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetTriggerMode(CooldownTrigger value) => TriggerMode = value;
+    internal void SetIsReady(bool value) => _isReady = value;
+#endif
+    #endregion
 }
 /*
  * Why passing the owner task is acceptable and correct here

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BehaviorTree;
 using Core.AI.BehaviorTree.Conditions;
-using Godot.Collections;
+using GColl = Godot.Collections;
 using Jmodot.Core.AI;
 using Jmodot.Core.AI.BB;
 using Shared;
@@ -17,6 +17,7 @@ using Shared;
     public abstract partial class BehaviorTask : Node, IBehaviorTask
     {
         private TaskStatus _status;
+        private bool _exitCalled;
         /// <summary>
         /// Gets or sets the current execution status of the task.
         /// Setting this value will automatically fire the TaskStatusChanged signal.
@@ -33,9 +34,10 @@ using Shared;
         }
 
         /// <summary>
-        /// A list of conditions that must be met for this task to run or continue running.
+        /// Designer-facing condition configs. These are cloned during Init() into runtime instances.
+        /// Original configs are never touched at runtime — safe to share across tasks.
         /// </summary>
-        [Export] public Array<BTCondition> Conditions { get; private set; } = new();
+        [Export] public GColl.Array<BTCondition> Conditions { get; private set; } = new();
 
         /// <summary>
         /// If true, this task will re-evaluate its conditions every frame while running.
@@ -48,6 +50,12 @@ using Shared;
         protected IBlackboard BB { get; private set; }  = null!;
         public string TaskName { get; private set; } = string.Empty;
 
+        /// <summary>
+        /// Runtime condition instances, cloned from [Export] Conditions during Init().
+        /// All lifecycle methods operate on these, never on the original configs.
+        /// </summary>
+        private readonly List<BTCondition> _activeConditions = new();
+
         [Signal]
         public delegate void TaskStatusChangedEventHandler(TaskStatus newStatus);
 
@@ -58,11 +66,30 @@ using Shared;
             this.Status = TaskStatus.Fresh;
             this.TaskName = Name;
 
-            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            // Clone condition configs into runtime instances.
+            // Original [Export] configs are never modified — safe to share.
+            _activeConditions.Clear();
+            foreach (var config in Conditions.Where(c => c.IsValid()))
             {
-                condition.Init(this, agent, bb);
+                var instance = (BTCondition)config.Duplicate(true);
+                instance.Init(this, agent, bb);
+                _activeConditions.Add(instance);
             }
         }
+
+    #region Test Helpers
+#if TOOLS
+        /// <summary>
+        /// Injects a condition directly as a runtime instance, bypassing clone.
+        /// For testing only. Call AFTER Init().
+        /// </summary>
+        internal void InjectRuntimeCondition(BTCondition condition)
+        {
+            condition.Init(this, Agent, BB);
+            _activeConditions.Add(condition);
+        }
+#endif
+    #endregion
 
         /// <summary>
         /// Template Method: Enters the task. Checks conditions first.
@@ -70,6 +97,7 @@ using Shared;
         /// </summary>
         public void Enter()
         {
+            _exitCalled = false;
             Status = TaskStatus.Fresh;
 
             if (!CheckAllConditions(out _))
@@ -78,7 +106,7 @@ using Shared;
                 return;
             }
 
-            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            foreach (var condition in _activeConditions)
             {
                 condition.OnParentTaskEnter();
             }
@@ -92,16 +120,22 @@ using Shared;
         }
 
         /// <summary>
-        /// Template Method: Exits the task.
+        /// Template Method: Unconditionally exits the task (called by parent composite).
+        /// Unlike condition-based abort, Exit() always fires — there is no negotiation.
         /// Do not override this. Override OnExit() for custom logic.
+        /// <para>
+        /// HSM contrast: equivalent to State.Exit(). Condition-based abort with CanAbort()
+        /// mirrors HSM's CanExit() / Urgent duality.
+        /// </para>
         /// </summary>
         public void Exit()
         {
-            if (Status == TaskStatus.Running)
+            if (!_exitCalled)
             {
                 OnExit();
+                _exitCalled = true;
             }
-            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            foreach (var condition in _activeConditions)
             {
                 condition.OnParentTaskExit();
             }
@@ -118,7 +152,21 @@ using Shared;
 
             if (MonitorConditions && !CheckAllConditions(out var failingCondition))
             {
-                JmoLogger.Info(this, $"Task aborted due to failed condition monitoring: {failingCondition!.ResourceName}");
+                bool isUrgent = failingCondition!.UrgentAbort;
+
+                if (!isUrgent && !CanAbort())
+                {
+                    // Abort deferred — task continues processing to wind down
+                    OnProcessFrame(delta);
+                    return;
+                }
+
+                JmoLogger.Info(this, $"Task aborted: {failingCondition.ResourceName}");
+                if (!_exitCalled)
+                {
+                    OnExit();
+                    _exitCalled = true;
+                }
                 Status = failingCondition.SucceedOnAbort ? TaskStatus.Success : TaskStatus.Failure;
                 return;
             }
@@ -155,10 +203,28 @@ using Shared;
         /// </summary>
         protected virtual void OnProcessPhysics(float delta) { }
 
+        /// <summary>
+        /// Called when a monitoring condition fails. Override to defer abort
+        /// (e.g., wait for animation/tween to finish). Default: true (immediate abort).
+        /// <para>
+        /// While deferred, OnProcessFrame() continues each frame so the task can wind down.
+        /// The parent composite sees Running and waits. When CanAbort() returns true on a
+        /// later frame, the abort fires normally.
+        /// </para>
+        /// <para>
+        /// Contract: MUST eventually return true, or the tree stalls.
+        /// Bypassed by conditions with <see cref="BTCondition.UrgentAbort"/>=true.
+        /// </para>
+        /// <para>
+        /// HSM equivalent: State.CanExit(). UrgentAbort mirrors StateTransition.Urgent.
+        /// </para>
+        /// </summary>
+        protected virtual bool CanAbort() => true;
+
         private bool CheckAllConditions(out BTCondition? failingCondition)
         {
             failingCondition = null;
-            foreach (var condition in Conditions.Where(c => c.IsValid()))
+            foreach (var condition in _activeConditions)
             {
                 if (condition.Check())
                 {

@@ -2,12 +2,13 @@ namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
 using Core.AI.BB;
 using Core.AI.HSM;
+using Core.Shared.Attributes;
 using Implementation.Shared;
 
 /// <summary>
 /// A transition condition that checks for a boolean "flag" on the blackboard.
-/// Crucially, it consumes the flag (sets it to false) immediately after a successful check,
-/// ensuring the transition is only triggered once per event.
+/// The flag is consumed (set to false) only when the transition commits via
+/// <see cref="OnTransitionCommitted"/>, ensuring the flag survives if CanExit() blocks.
 /// </summary>
 [GlobalClass]
 public partial class BBFlagCondition : TransitionCondition
@@ -15,9 +16,13 @@ public partial class BBFlagCondition : TransitionCondition
     /// <summary>
     /// The key/name of the boolean variable on the blackboard to check.
     /// </summary>
-    [Export]
+    [Export, RequiredExport]
     public StringName BBFlagSignature { get; private set; } = null!;
 
+    /// <summary>
+    /// Pure read — returns true if the flag is set, false otherwise.
+    /// Does NOT consume the flag. Consumption is deferred to OnTransitionCommitted.
+    /// </summary>
     public override bool Check(Node agent, IBlackboard bb)
     {
         if (string.IsNullOrEmpty(BBFlagSignature))
@@ -26,21 +31,24 @@ public partial class BBFlagCondition : TransitionCondition
             return false;
         }
 
-        // Get the primitive variable from the blackboard.
-        var flag = bb.Get<bool>(BBFlagSignature);
-
-        // Check if the flag exists and is true.
-        if (flag != null && flag)
+        if (!bb.TryGet<bool>(BBFlagSignature, out var flag))
         {
-            // The flag is set. Consume it immediately.
-            bb.Set(BBFlagSignature, false);
-
-            // Allow the transition.
-            return true;
+            return false;
         }
+        return flag;
+    }
 
-        // The flag was not set, do not transition.
-        return false;
+    /// <summary>
+    /// Consumes the flag after the transition has fully committed.
+    /// </summary>
+    public override void OnTransitionCommitted(Node agent, IBlackboard bb)
+    {
+        if (string.IsNullOrEmpty(BBFlagSignature)) { return; }
+
+        if (bb.TryGet<bool>(BBFlagSignature, out var flag) && flag)
+        {
+            bb.Set(BBFlagSignature, false);
+        }
     }
 
     // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
@@ -52,4 +60,10 @@ public partial class BBFlagCondition : TransitionCondition
         }
         return [];
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetBBFlagSignature(StringName value) => BBFlagSignature = value;
+#endif
+    #endregion
 }
