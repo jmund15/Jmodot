@@ -14,17 +14,29 @@ public partial class ProbabilityToRun : BTCondition
     [Export(PropertyHint.Range, "0.0, 1.0, 0.01")]
     public float RunProbability { get; private set; } = 0.5f;
 
-    private bool _lastCheckResult = false;
+    private bool _lastCheckResult;
+    private bool _isActive;
 
     public override void OnParentTaskEnter()
     {
-        // Roll the dice only once when the parent task enters.
         _lastCheckResult = JmoRng.Rnd.NextSingle() < RunProbability;
+        _isActive = true;
+    }
+
+    public override void OnParentTaskExit()
+    {
+        _isActive = false;
     }
 
     public override bool Check()
     {
-        // Return the result of the roll that was made on entry.
+        if (!_isActive) { return true; }
         return _lastCheckResult;
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetRunProbability(float value) => RunProbability = value;
+#endif
+    #endregion
 }

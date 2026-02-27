@@ -14,15 +14,22 @@ public partial class TimeLimit : BTCondition
     public float Limit { get; private set; } = 1.0f;
 
     private double _startTime;
+    private bool _isActive;
 
     public override void OnParentTaskEnter()
     {
         _startTime = Time.GetTicksMsec();
+        _isActive = true;
+    }
+
+    public override void OnParentTaskExit()
+    {
+        _isActive = false;
     }
 
     public override bool Check()
     {
-        // The condition is "true" as long as the time limit has NOT been exceeded.
+        if (!_isActive) { return true; }
         return (Time.GetTicksMsec() - _startTime) / 1000.0 < Limit;
     }
 }
