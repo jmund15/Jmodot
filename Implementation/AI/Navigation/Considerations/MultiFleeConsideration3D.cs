@@ -57,7 +57,7 @@ public partial class MultiFleeConsideration3D : BaseAIConsideration3D
 
     #endregion
 
-    private List<Vector3> _orderedDirections = null!;
+    private List<Vector3>? _orderedDirections;
 
     public override void Initialize(DirectionSet3D directions)
     {
@@ -110,7 +110,7 @@ public partial class MultiFleeConsideration3D : BaseAIConsideration3D
             }
         }
 
-        if (_propagateScores)
+        if (_propagateScores && _orderedDirections != null)
         {
             SteeringPropagation.PropagateScores(
                 scores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
