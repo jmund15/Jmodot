@@ -38,6 +38,12 @@ public partial class NavWanderAction : BehaviorAction
     private Vector3 _zoneCenter;
     private bool _navActive;
 
+    /// <summary>Protected accessors for subclass target selection overrides.</summary>
+    protected AINavigator3D? NavAgent => _navAgent;
+    protected ZoneShape3D? TargetZone => _targetZone;
+    protected Vector3 ZoneCenter => _zoneCenter;
+    protected int MaxTargetAttempts => _maxTargetAttempts;
+
     protected override void OnEnter()
     {
         base.OnEnter();
@@ -98,7 +104,11 @@ public partial class NavWanderAction : BehaviorAction
         _navActive = false;
     }
 
-    private void PickNewTarget()
+    /// <summary>
+    /// Picks a new navigation target within the configured zone. Override in subclasses
+    /// to customize target selection (e.g., history-aware search patterns).
+    /// </summary>
+    protected virtual void PickNewTarget()
     {
         if (_navAgent == null || _targetZone == null) { return; }
 
