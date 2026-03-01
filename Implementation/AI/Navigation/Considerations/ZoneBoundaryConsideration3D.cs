@@ -94,7 +94,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             return CalculateShapeBasedScores(scores, directions, context3D, blackboard);
         }
 
-        if (_boundaryZoneKey != null)
+        if (!string.IsNullOrEmpty(_boundaryZoneKey))
         {
             return CalculateLegacyBBScores(scores, directions, context3D, blackboard);
         }
@@ -179,7 +179,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     /// </summary>
     private bool TryResolveCenter(Vector3 agentPosition, IBlackboard blackboard, out Vector3 center)
     {
-        if (_boundaryZoneKey != null)
+        if (!string.IsNullOrEmpty(_boundaryZoneKey))
         {
             // BB-sourced center (for shared/external zones)
             if (!blackboard.TryGet<Vector4>(_boundaryZoneKey, out var zoneData))
