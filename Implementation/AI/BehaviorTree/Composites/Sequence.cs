@@ -40,6 +40,22 @@ public partial class Sequence : CompositeTask
         _runningChildIdx = -1;
     }
 
+    protected override void OnProcessPhysics(float delta)
+    {
+        if (_runningChildIdx >= 0 && _runningChildIdx < ChildTasks.Count)
+        {
+            ChildTasks[_runningChildIdx].ProcessPhysics(delta);
+        }
+    }
+
+    protected override void OnProcessFrame(float delta)
+    {
+        if (_runningChildIdx >= 0 && _runningChildIdx < ChildTasks.Count)
+        {
+            ChildTasks[_runningChildIdx].ProcessFrame(delta);
+        }
+    }
+
     private void OnChildStatusChanged(TaskStatus newStatus)
     {
         if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
