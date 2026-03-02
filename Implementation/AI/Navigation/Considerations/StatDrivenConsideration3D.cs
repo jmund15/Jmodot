@@ -157,7 +157,7 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
         // 9. Apply score propagation if enabled
         if (_propagateScores)
         {
-            Propagate(ref scores);
+            SteeringPropagation.PropagateScores(scores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
         }
 
         return scores;
@@ -182,45 +182,5 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
 
         // Get stat value, fallback to default if not found
         return stats.GetStatValue<float>(InfluenceRangeAttribute, DefaultInfluenceRange);
-    }
-
-    /// <summary>
-    /// Propagates scores to neighboring directions for smoother steering.
-    /// </summary>
-    private void Propagate(ref Dictionary<Vector3, float> scores)
-    {
-        if (_orderedDirections == null || _orderedDirections.Count == 0)
-        {
-            return;
-        }
-
-        var initialScores = new Dictionary<Vector3, float>(scores);
-        int dirCount = _orderedDirections.Count;
-
-        for (int i = 0; i < dirCount; i++)
-        {
-            float initialScore = initialScores[_orderedDirections[i]];
-            if (initialScore <= 0f)
-            {
-                continue;
-            }
-
-            float propWeight = initialScore * _propDiminishWeight;
-
-            // Propagate to left and right neighbors
-            for (int j = 1; j <= _dirsToPropagate; j++)
-            {
-                // Left neighbor with wrap-around
-                int leftIndex = (i - j + dirCount) % dirCount;
-                scores[_orderedDirections[leftIndex]] += propWeight;
-
-                // Right neighbor with wrap-around
-                int rightIndex = (i + j) % dirCount;
-                scores[_orderedDirections[rightIndex]] += propWeight;
-
-                // Diminish weight for next set of neighbors
-                propWeight *= _propDiminishWeight;
-            }
-        }
     }
 }

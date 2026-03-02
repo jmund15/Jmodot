@@ -119,7 +119,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
 
         if (_propagateScores)
         {
-            Propagate(ref finalScores);
+            SteeringPropagation.PropagateScores(finalScores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
         }
 
         return finalScores;
@@ -263,38 +263,5 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
         return blendedDirection.Normalized();
     }
 
-    /// <summary>
-    /// Propagates scores to neighboring directions to create a smoother AI response.
-    /// </summary>
-    private void Propagate(ref Dictionary<Vector3, float> scores)
-    {
-        if (_orderedDirections == null || _orderedDirections.Count == 0) { return; }
-
-        var initialScores = new Dictionary<Vector3, float>(scores);
-        int dirCount = _orderedDirections.Count;
-
-        for (int i = 0; i < dirCount; i++)
-        {
-            float initialScore = initialScores[_orderedDirections[i]];
-            if (initialScore <= 0f) { continue; }
-
-            float propWeight = initialScore * _propDiminishWeight;
-
-            // Propagate to the left and right neighbors.
-            for (int j = 1; j <= _dirsToPropagate; j++)
-            {
-                // Left neighbor with wrap-around
-                int leftIndex = (i - j + dirCount) % dirCount;
-                scores[_orderedDirections[leftIndex]] += propWeight;
-
-                // Right neighbor with wrap-around
-                int rightIndex = (i + j) % dirCount;
-                scores[_orderedDirections[rightIndex]] += propWeight;
-
-                // Diminish the weight for the next set of neighbors
-                propWeight *= _propDiminishWeight;
-            }
-        }
-    }
     #endregion
 }
