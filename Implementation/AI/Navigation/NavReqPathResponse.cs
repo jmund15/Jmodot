@@ -4,5 +4,6 @@ public enum NavReqPathResponse
 {
     Success,
     TooCloseToPrevTarget,
-    Unreachable
+    Unreachable,
+    MapNotReady
 }
