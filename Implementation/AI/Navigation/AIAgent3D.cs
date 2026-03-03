@@ -67,6 +67,7 @@ public partial class AIAgent3D : Node3D
         // The agent is responsible for ensuring its components are ready.
         _steeringProcessor3D.Initialize();
         RegisterComponentsOnBlackboard();
+        _affinities.Initialize(_blackboard);
 
         _navigator.TargetReached += OnTargetReached;
         _navigator.VelocityComputed += OnNavigatorVelocityComputed;
@@ -93,7 +94,7 @@ public partial class AIAgent3D : Node3D
             _navigator.GetOwner<Node3D>().GlobalPosition, // Get position from navigator's owner
             -_navigator.GetOwner<Node3D>().GlobalBasis.Z,
             _navigator.GetOwner<CharacterBody3D>().Velocity, // Get current velocity from the body
-            _navigator.GetIdealDirection(),
+            targetDirection,
             _navigator.TargetPosition
         );
 

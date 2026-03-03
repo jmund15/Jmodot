@@ -1,9 +1,12 @@
 namespace Jmodot.Implementation.AI.HSM;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Core.AI;
 using Core.AI.BB;
 using Core.AI.HSM;
+using Debug;
 using Shared;
 using Shared.GodotExceptions;
 
@@ -13,7 +16,7 @@ using Shared.GodotExceptions;
     /// core component for building hierarchical state machines.
     /// </summary>
     [GlobalClass, Tool]
-    public partial class CompoundState : State
+    public partial class CompoundState : State, IDebugNestingProvider
     {
         [Export]
         public State InitialSubState { get; protected set; }
@@ -39,6 +42,64 @@ using Shared.GodotExceptions;
 
         private DebugSMComponent _debugComponent;
         private (State from, State to)? _lastGuardedTransition;
+        private List<IDebugPanelProvider>? _nestedProviders;
+
+        #region IDebugNestingProvider
+
+        public string DebugTabName => "Behavior";
+        public int DebugTabOrder => 0;
+        public bool HasDebugData => PrimarySubState.IsValid();
+
+        public IReadOnlyList<IDebugPanelProvider> NestedProviders
+        {
+            get
+            {
+                if (_nestedProviders == null)
+                {
+                    _nestedProviders = new List<IDebugPanelProvider>();
+                    foreach (var state in FiniteSubStates.Keys)
+                    {
+                        foreach (var child in state.GetChildrenOfInterface<IDebugPanelProvider>(false))
+                        {
+                            _nestedProviders.Add(child);
+                        }
+                    }
+                }
+                return _nestedProviders;
+            }
+        }
+
+        public IDebugPanelProvider? ActiveNestedProvider
+        {
+            get
+            {
+                if (!PrimarySubState.IsValid()) { return null; }
+                return PrimarySubState.TryGetFirstChildOfInterface<IDebugPanelProvider>(out var provider, false)
+                    ? provider
+                    : null;
+            }
+        }
+
+        public event Action<IDebugPanelProvider?> ActiveNestedProviderChanged = delegate { };
+
+        public Control CreateDebugContent()
+        {
+            var debugSM = new DebugSMComponent { EmbeddedMode = true };
+            debugSM.Init(Name, Agent as Node3D);
+            return debugSM;
+        }
+
+        public void UpdateDebugContent(double delta)
+        {
+            // Timer updates handled by DebugSMComponent's own _Process
+        }
+
+        public void OnDebugContentHidden()
+        {
+            // No expensive work to pause
+        }
+
+        #endregion
 
         [Signal]
         public delegate void EnteredCompoundStateEventHandler();
@@ -49,7 +110,8 @@ using Shared.GodotExceptions;
 
         protected override void OnInit()
         {
-            if (_enableDebugView && !Engine.IsEditorHint())
+            bool dashboardPresent = GetParent()?.TryGetFirstChildOfType<AIDebugDashboard>(out _, true) == true;
+            if (_enableDebugView && !Engine.IsEditorHint() && !dashboardPresent)
             {
                 _debugComponent = new DebugSMComponent();
                 AddChild(_debugComponent);
@@ -205,6 +267,7 @@ using Shared.GodotExceptions;
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
+            ActiveNestedProviderChanged.Invoke(ActiveNestedProvider);
 
             JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }

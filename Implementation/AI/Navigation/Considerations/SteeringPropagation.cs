@@ -20,11 +20,15 @@ public static class SteeringPropagation
     /// <param name="directions">Ordered list of directions (circular — last wraps to first).</param>
     /// <param name="neighborCount">How many neighbors on each side receive bleed.</param>
     /// <param name="diminishWeight">Multiplier per step (0 = no spread, 1 = no falloff).</param>
+    /// <param name="propagateNegative">When true, negative scores also bleed to neighbors
+    /// (used by avoidance considerations like StaticBody3DConsideration). Default false
+    /// preserves original behavior of only propagating positive scores.</param>
     public static void PropagateScores(
         Dictionary<Vector3, float> scores,
         List<Vector3> directions,
         int neighborCount,
-        float diminishWeight)
+        float diminishWeight,
+        bool propagateNegative = false)
     {
         if (directions == null || directions.Count == 0)
         {
@@ -40,10 +44,10 @@ public static class SteeringPropagation
             original[i] = scores.GetValueOrDefault(directions[i], 0f);
         }
 
-        // For each direction with a positive score, bleed to neighbors
+        // For each direction with a non-zero score, bleed to neighbors
         for (int i = 0; i < count; i++)
         {
-            if (original[i] <= 0f)
+            if (propagateNegative ? original[i] == 0f : original[i] <= 0f)
             {
                 continue;
             }
@@ -57,7 +61,7 @@ public static class SteeringPropagation
                 scores[directions[rightIdx]] += bleed;
 
                 // Bleed to the left neighbor (wrap around)
-                int leftIdx = (i - step % count + count) % count;
+                int leftIdx = ((i - step) % count + count) % count;
                 scores[directions[leftIdx]] += bleed;
             }
         }

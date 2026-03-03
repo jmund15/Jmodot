@@ -5,6 +5,8 @@ using System.Linq;
 using Composites;
 using Core.AI;
 using Core.AI.BB;
+using Debug;
+using HSM;
 using Shared;
 using Shared.GodotExceptions;
 using Tasks;
@@ -15,7 +17,7 @@ using Tasks;
 /// a tree of behaviors, either driven by an external system (like a BTState) or running independently.
 /// </summary>
 [GlobalClass, Tool]
-public partial class BehaviorTree : Node
+public partial class BehaviorTree : Node, IDebugPanelProvider
 {
     #region EXPORTS & PROPERTIES
 
@@ -69,6 +71,50 @@ public partial class BehaviorTree : Node
     [Signal] public delegate void TreeDisabledEventHandler();
     [Signal] public delegate void TreeFinishedLoopEventHandler(TaskStatus treeStatus);
     [Signal] public delegate void TreeResetEventHandler();
+
+    #endregion
+
+    #region IDebugPanelProvider
+
+    public string DebugTabName => GetParent() is BTState btState
+        ? $"{btState.Name.ToString().Replace("State", "")} BT"
+        : Name;
+
+    public int DebugTabOrder => 10 + GetIndex();
+
+    public bool HasDebugData => RootTask != null;
+
+    public Control CreateDebugContent()
+    {
+        if (RootTask == null) { return new Label { Text = $"{Name}: Not initialized" }; }
+
+        var debugBT = new DebugBTComponent { EmbeddedMode = true };
+        debugBT.Init(RootTask, Name, AgentNode as Node3D);
+        debugBT.BuildTreeView();
+
+        TreeEnabled += debugBT.OnTreeEnabled;
+        TreeDisabled += debugBT.OnTreeDisabled;
+        TreeReset += debugBT.OnTreeReset;
+
+        debugBT.TreeExiting += () =>
+        {
+            TreeEnabled -= debugBT.OnTreeEnabled;
+            TreeDisabled -= debugBT.OnTreeDisabled;
+            TreeReset -= debugBT.OnTreeReset;
+        };
+
+        return debugBT;
+    }
+
+    public void UpdateDebugContent(double delta)
+    {
+        // Timer updates handled by DebugBTComponent's own _Process
+    }
+
+    public void OnDebugContentHidden()
+    {
+        // No expensive work to pause
+    }
 
     #endregion
 
@@ -126,7 +172,18 @@ public partial class BehaviorTree : Node
         RootTask = rootTask;
         RootTask.Init(AgentNode, Blackboard);
 
-        if (_enableDebugView && !Engine.IsEditorHint())
+        // Walk up to find the entity root and check for dashboard presence
+        bool dashboardPresent = false;
+        var entityRoot = GetParent()?.GetParent(); // BT → BTState → CompoundState → Entity (or BT → Entity)
+        if (GetParent() is BTState)
+        {
+            entityRoot = GetParent()?.GetParent()?.GetParent(); // BT → BTState → CompoundState → Entity
+        }
+        if (entityRoot != null)
+        {
+            dashboardPresent = entityRoot.TryGetFirstChildOfType<AIDebugDashboard>(out _, true);
+        }
+        if (_enableDebugView && !Engine.IsEditorHint() && !dashboardPresent)
         {
             var debugComponent = new DebugBTComponent();
             AddChild(debugComponent);

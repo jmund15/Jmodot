@@ -90,6 +90,13 @@ public abstract partial class DebugAIPanel : Control
     public Node3D? OwnerNode { get; private set; }
 
     /// <summary>
+    /// When true, the panel acts as embedded content inside a parent container (e.g., AIDebugDashboard).
+    /// Skips CanvasLayer creation in _Ready() and slot registration in ShowPanel().
+    /// Must be set before AddChild() triggers _Ready().
+    /// </summary>
+    public bool EmbeddedMode { get; set; }
+
+    /// <summary>
     /// The size of this debug panel. Subclasses should set this before calling ShowPanel().
     /// </summary>
     protected Vector2 PanelSize { get; set; } = new Vector2(300, 200);
@@ -105,12 +112,11 @@ public abstract partial class DebugAIPanel : Control
     {
         if (Engine.IsEditorHint()) { return; }
 
-        _canvasLayer = new CanvasLayer { Name = $"{Name}Canvas" };
-        AddChild(_canvasLayer);
-
-        // Reparent this control under the canvas layer for proper screen-space rendering
-        // We can't reparent ourselves, so we'll add content to the canvas layer instead
-        // Subclasses should add their content via GetContentParent()
+        if (!EmbeddedMode)
+        {
+            _canvasLayer = new CanvasLayer { Name = $"{Name}Canvas" };
+            AddChild(_canvasLayer);
+        }
 
         Hide();
     }
@@ -156,8 +162,11 @@ public abstract partial class DebugAIPanel : Control
     /// </summary>
     public void ShowPanel()
     {
-        RegisterSlot();
-        ApplySlotOffset();
+        if (!EmbeddedMode)
+        {
+            RegisterSlot();
+            ApplySlotOffset();
+        }
         Show();
     }
 
@@ -166,7 +175,10 @@ public abstract partial class DebugAIPanel : Control
     /// </summary>
     public void HidePanel()
     {
-        UnregisterSlot();
+        if (!EmbeddedMode)
+        {
+            UnregisterSlot();
+        }
         Hide();
     }
 

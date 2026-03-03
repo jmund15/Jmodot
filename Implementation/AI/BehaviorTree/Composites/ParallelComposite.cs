@@ -44,6 +44,22 @@ public partial class ParallelComposite : CompositeTask
         }
     }
 
+    protected override void OnProcessPhysics(float delta)
+    {
+        foreach (var child in ChildTasks)
+        {
+            if (child.Status == TaskStatus.Running) { child.ProcessPhysics(delta); }
+        }
+    }
+
+    protected override void OnProcessFrame(float delta)
+    {
+        foreach (var child in ChildTasks)
+        {
+            if (child.Status == TaskStatus.Running) { child.ProcessFrame(delta); }
+        }
+    }
+
     private void OnChildStatusChanged(TaskStatus newStatus)
     {
         if (Status != TaskStatus.Running)

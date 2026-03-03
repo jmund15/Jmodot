@@ -104,10 +104,11 @@ public partial class AIAgentComponent : Node, IAIAgent
         // Always wire the agent (parent node)
         Blackboard.Set(BBDataSig.Agent, parent);
 
-        // Conditionally wire discovered components
+        // Conditionally wire and initialize discovered components
         if (Affinities != null)
         {
             Blackboard.Set(BBDataSig.Affinities, Affinities);
+            Affinities.Initialize(Blackboard);
         }
 
         if (Stats != null)

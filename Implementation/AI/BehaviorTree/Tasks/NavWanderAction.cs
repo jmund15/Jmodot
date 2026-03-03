@@ -3,27 +3,26 @@ namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 using System;
 using BB;
 using Core.AI;
-using Core.AI.Navigation.Considerations;
 using Core.AI.Navigation.Zones;
 using Navigation;
 using Jmodot.AI.Navigation;
 using Shared;
-using GColl = Godot.Collections;
 
 /// <summary>
-/// A BehaviorAction that combines steering consideration management with
-/// navigation target lifecycle. Picks random target points within a zone,
+/// A SteeringBehaviorAction that adds navigation target lifecycle on top of
+/// consideration management. Picks random target points within a zone,
 /// feeds them to an AINavigator3D for pathfinding, and lets considerations
 /// (wander + zone boundary + nav path) blend via score summation.
+///
+/// For aimless wandering without navigation targets, use SteeringBehaviorAction
+/// directly with WanderConsideration3D + ZoneBoundaryConsideration3D.
 ///
 /// Graceful degradation: when no AINavigator3D is present, behaves identically
 /// to SteeringBehaviorAction (considerations register, no nav targets).
 /// </summary>
 [GlobalClass, Tool]
-public partial class NavWanderAction : BehaviorAction
+public partial class NavWanderAction : SteeringBehaviorAction
 {
-    [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
-
     [ExportGroup("Navigation")]
     [Export] private ZoneShape3D? _targetZone;
 
@@ -33,26 +32,22 @@ public partial class NavWanderAction : BehaviorAction
     [Export(PropertyHint.Range, "1, 20, 1")]
     private int _maxTargetAttempts = 5;
 
-    private AISteeringProcessor3D? _cachedSteering;
     private AINavigator3D? _navAgent;
     private Vector3 _zoneCenter;
     private bool _navActive;
+    private bool _pendingFirstTarget;
+
+    /// <summary>Protected accessors for subclass target selection overrides.</summary>
+    protected AINavigator3D? NavAgent => _navAgent;
+    protected ZoneShape3D? TargetZone => _targetZone;
+    protected Vector3 ZoneCenter => _zoneCenter;
+    protected int MaxTargetAttempts => _maxTargetAttempts;
 
     protected override void OnEnter()
     {
         base.OnEnter();
 
-        if (!TryGetSteering(out var steering))
-        {
-            JmoLogger.Error(this, "No AISteeringProcessor3D found on agent — cannot register considerations.");
-            Status = TaskStatus.Failure;
-            return;
-        }
-
-        foreach (var consideration in _considerations)
-        {
-            steering.RegisterConsideration(consideration);
-        }
+        if (Status == TaskStatus.Failure) { return; }
 
         ResolveNavAgent();
 
@@ -60,7 +55,7 @@ public partial class NavWanderAction : BehaviorAction
         {
             _zoneCenter = ((Node3D)Agent).GlobalPosition;
             _navActive = true;
-            PickNewTarget();
+            _pendingFirstTarget = true;
         }
         else
         {
@@ -72,6 +67,13 @@ public partial class NavWanderAction : BehaviorAction
     {
         if (!_navActive || _navAgent == null) { return; }
 
+        if (_pendingFirstTarget)
+        {
+            _pendingFirstTarget = false;
+            PickNewTarget();
+            return;
+        }
+
         if (_navAgent.IsNavigationFinished() || IsTargetReached())
         {
             PickNewTarget();
@@ -80,25 +82,22 @@ public partial class NavWanderAction : BehaviorAction
 
     protected override void OnExit()
     {
-        base.OnExit();
-
-        if (TryGetSteering(out var steering))
-        {
-            foreach (var consideration in _considerations)
-            {
-                steering.UnregisterConsideration(consideration);
-            }
-        }
-
         if (_navAgent != null)
         {
             TryClearNavPath();
         }
 
         _navActive = false;
+        _pendingFirstTarget = false;
+
+        base.OnExit();
     }
 
-    private void PickNewTarget()
+    /// <summary>
+    /// Picks a new navigation target within the configured zone. Override in subclasses
+    /// to customize target selection (e.g., history-aware search patterns).
+    /// </summary>
+    protected virtual void PickNewTarget()
     {
         if (_navAgent == null || _targetZone == null) { return; }
 
@@ -153,31 +152,12 @@ public partial class NavWanderAction : BehaviorAction
         }
     }
 
-    private bool TryGetSteering(out AISteeringProcessor3D steering)
-    {
-        if (_cachedSteering != null)
-        {
-            steering = _cachedSteering;
-            return true;
-        }
-
-        if (Agent.TryGetFirstChildOfType(out AISteeringProcessor3D? found) && found != null)
-        {
-            _cachedSteering = found;
-            steering = found;
-            return true;
-        }
-
-        steering = null!;
-        return false;
-    }
-
     #region Test Helpers
 #if TOOLS
-    internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
     internal void SetTargetZone(ZoneShape3D zone) => _targetZone = zone;
     internal void SetTargetReachDistance(float distance) => _targetReachDistance = distance;
     internal void SetMaxTargetAttempts(int attempts) => _maxTargetAttempts = attempts;
+    internal bool IsNavPendingFirstTarget() => _pendingFirstTarget;
 #endif
     #endregion
 }

@@ -109,7 +109,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 
         // When _activeKey is null, the consideration is always active (dynamic registration
         // handles lifecycle). When set, check the BB flag for backward compatibility.
-        if (_activeKey != null)
+        if (!string.IsNullOrEmpty(_activeKey))
         {
             if (!blackboard.TryGet<bool>(_activeKey, out var active) || !active)
             {
