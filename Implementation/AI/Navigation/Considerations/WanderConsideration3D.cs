@@ -12,8 +12,8 @@ using Shared;
 /// directional interest on the XZ plane. Creates organic meandering behavior
 /// without waypoints or targets.
 ///
-/// Checks a BB bool flag (configurable key) to enable/disable scoring.
-/// When disabled, returns zero scores — allowing a BT to toggle move/idle pacing.
+/// Lifecycle is controlled by the HSM+BTState registration pattern — the
+/// SteeringBehaviorAction registers/unregisters this consideration on enter/exit.
 ///
 /// Per-instance random time offset prevents synchronized wandering across
 /// critters sharing the same .tres resource.
@@ -21,30 +21,17 @@ using Shared;
 [GlobalClass, Tool]
 public partial class WanderConsideration3D : BaseAIConsideration3D
 {
-    /// <summary>
-    /// Default BB key used when no custom active key is configured.
-    /// </summary>
-    public static readonly StringName DefaultActiveKey = new("WanderActive");
-
     #region Exported Parameters
 
     [ExportGroup("Noise Configuration")]
 
     /// <summary>
-    /// The noise resource driving direction variation. Different configurations
-    /// produce different movement personalities: low frequency = lazy drift,
+    /// The noise resource driving direction variation. Controls temporal evolution
+    /// speed via its Frequency property: low frequency = lazy drift,
     /// high frequency = jittery exploration.
     /// </summary>
     [Export]
     private FastNoiseLite? _noise;
-
-    /// <summary>
-    /// How fast the noise samples evolve over time.
-    /// Low values (0.1-0.3) = slow, lazy direction changes.
-    /// High values (1.0-3.0) = rapid, energetic direction changes.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.05, 5.0, 0.05")]
-    private float _noiseTimeScale = 0.5f;
 
     [ExportGroup("Steering Behavior")]
 
@@ -55,27 +42,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
     private float _wanderWeight = 0.8f;
 
-    /// <summary>
-    /// BB key for the bool flag that enables/disables wandering.
-    /// When the flag is false or missing, returns zero scores.
-    /// </summary>
-    [Export]
-    private StringName? _activeKey;
-
-    [ExportGroup("Score Propagation")]
-
-    [Export]
-    private bool _propagateScores = true;
-
-    [Export(PropertyHint.Range, "1, 4, 1")]
-    private int _dirsToPropagate = 2;
-
-    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")]
-    private float _propDiminishWeight = 0.5f;
-
     #endregion
-
-    private List<Vector3> _orderedDirections = null!;
 
     /// <summary>
     /// Per-instance time offset to desync critters sharing the same noise resource.
@@ -90,7 +57,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 
     public override void Initialize(DirectionSet3D directions)
     {
-        _orderedDirections = directions.Directions.ToList();
+        base.Initialize(directions);
         _timeOffset = JmoRng.GetRndInRange(0f, 1000f);
         _accumulatedTime = 0f;
 
@@ -107,19 +74,9 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        // When _activeKey is null, the consideration is always active (dynamic registration
-        // handles lifecycle). When set, check the BB flag for backward compatibility.
-        if (!string.IsNullOrEmpty(_activeKey))
-        {
-            if (!blackboard.TryGet<bool>(_activeKey, out var active) || !active)
-            {
-                return scores;
-            }
-        }
-
         // Accumulate time from physics frames (pause-aware, deterministic)
         _accumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
-        float time = _accumulatedTime * _noiseTimeScale + _timeOffset;
+        float time = _accumulatedTime + _timeOffset;
         float noiseX = _noise?.GetNoise1D(time) ?? 0f;
         float noiseZ = _noise?.GetNoise1D(time + 1000f) ?? 0f;
 
@@ -143,12 +100,6 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
             }
         }
 
-        // Propagate scores to neighbors
-        if (_propagateScores)
-        {
-            SteeringPropagation.PropagateScores(scores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
-        }
-
         return scores;
     }
 
@@ -166,11 +117,8 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     #region Test Helpers
 #if TOOLS
     internal void SetWanderWeight(float value) => _wanderWeight = value;
-    internal void SetNoiseTimeScale(float value) => _noiseTimeScale = value;
     internal void SetNoise(FastNoiseLite? noise) => _noise = noise;
-    internal void SetActiveKey(StringName? key) => _activeKey = key;
     internal void SetTimeOffset(float offset) => _timeOffset = offset;
-    internal void SetPropagateScores(bool value) => _propagateScores = value;
 #endif
     #endregion
 }

@@ -47,9 +47,15 @@ public readonly struct SteeringDecisionContext3D
     /// </summary>
     public readonly Vector3 TargetPosition;
 
+    /// <summary>
+    /// Physics frame delta time (seconds). Used by AISteeringProcessor3D for turn rate
+    /// smoothing. Zero or unset disables time-dependent smoothing calculations.
+    /// </summary>
+    public readonly float PhysicsDelta;
+
     public SteeringDecisionContext3D(AIPerceptionManager3D memory,
         Vector3 agentPosition, Vector3 agentFacing, Vector3 agentVelocity, Vector3 nextPathPointDirection,
-        Vector3 targetPosition)
+        Vector3 targetPosition, float physicsDelta = 0f)
     {
         this.Memory = memory;
         this.AgentPosition = agentPosition;
@@ -57,5 +63,6 @@ public readonly struct SteeringDecisionContext3D
         this.AgentVelocity = agentVelocity;
         this.NextPathPointDirection = nextPathPointDirection;
         this.TargetPosition = targetPosition;
+        this.PhysicsDelta = physicsDelta;
     }
 }

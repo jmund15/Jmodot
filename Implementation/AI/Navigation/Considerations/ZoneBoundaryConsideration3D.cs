@@ -126,7 +126,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
         }
 
         Vector3 towardInterior = _zoneShape.GetDirectionToInterior(context3D.AgentPosition, zoneCenter);
-        ApplyBoundaryPenalties(scores, directions, towardInterior, penaltyStrength);
+        ApplyBoundaryPenalties(scores, directions, towardInterior, penaltyStrength, normalizedDist);
         return scores;
     }
 
@@ -170,7 +170,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             return scores;
         }
 
-        ApplyBoundaryPenalties(scores, directions, toCenter.Normalized(), penaltyStrength);
+        ApplyBoundaryPenalties(scores, directions, toCenter.Normalized(), penaltyStrength, normalizedDist);
         return scores;
     }
 
@@ -200,12 +200,14 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     /// <summary>
     /// Applies boundary penalties to all directions based on their alignment with
     /// the toward-interior vector. Shared between shape-based and legacy paths.
+    /// Passes normalizedDistance through for rubber-band behavior outside the zone.
     /// </summary>
     private void ApplyBoundaryPenalties(
         Dictionary<Vector3, float> scores,
         DirectionSet3D directions,
         Vector3 towardInterior,
-        float penaltyStrength)
+        float penaltyStrength,
+        float normalizedDistance)
     {
         foreach (var dir in directions.Directions)
         {
@@ -217,7 +219,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             flatDir = flatDir.Normalized();
 
             scores[dir] = CalculateDirectionPenalty(
-                flatDir, towardInterior, penaltyStrength, _penaltyWeight);
+                flatDir, towardInterior, penaltyStrength, _penaltyWeight, normalizedDistance);
         }
     }
 
@@ -275,12 +277,30 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     }
 
     /// <summary>
+    /// How far outside the zone (as fraction of zone radius) it takes to reach
+    /// full return strictness. 0.3 = full strictness at 130% radius.
+    /// </summary>
+    private const float ReturnTransitionRange = 0.3f;
+
+    /// <summary>
+    /// At full return strictness, the alignment threshold shifts this high.
+    /// 0.8 means only directions within ~37° of center escape penalty.
+    /// </summary>
+    private const float MaxReturnThreshold = 0.8f;
+
+    /// <summary>
     /// Calculates the score adjustment for a single direction based on its alignment
     /// with the center direction. Directions pointing away from center get negative
     /// scores. Directions toward center are unaffected (zero).
+    ///
+    /// When normalizedDistance > 1.0 (outside zone), progressively shifts the penalty
+    /// threshold so non-inward directions are also penalized — creating a rubber-band
+    /// return force. No positive scores are added; inward directions are attractive
+    /// by being the only ones without a penalty.
     /// </summary>
     public static float CalculateDirectionPenalty(
-        Vector3 direction, Vector3 towardCenter, float penaltyStrength, float weight)
+        Vector3 direction, Vector3 towardCenter, float penaltyStrength, float weight,
+        float normalizedDistance = 0f)
     {
         if (penaltyStrength <= 0f)
         {
@@ -289,12 +309,24 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
 
         float alignment = direction.Dot(towardCenter);
 
-        if (alignment >= 0f)
+        // When outside zone, shift the "safe" threshold upward so non-inward
+        // directions get penalized. The further outside, the stricter.
+        float threshold = 0f;
+        if (normalizedDistance > 1.0f)
+        {
+            float overshoot = Mathf.Clamp(
+                (normalizedDistance - 1.0f) / ReturnTransitionRange, 0f, 1f);
+            threshold = overshoot * MaxReturnThreshold;
+        }
+
+        float adjustedAlignment = alignment - threshold;
+
+        if (adjustedAlignment >= 0f)
         {
             return 0f;
         }
 
-        return alignment * penaltyStrength * weight;
+        return adjustedAlignment * penaltyStrength * weight;
     }
 
     #endregion
