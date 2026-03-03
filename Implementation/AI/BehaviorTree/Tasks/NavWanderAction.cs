@@ -69,6 +69,7 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         if (_pendingFirstTarget)
         {
+            if (!_navAgent.IsMapReady()) { return; }
             _pendingFirstTarget = false;
             PickNewTarget();
             return;

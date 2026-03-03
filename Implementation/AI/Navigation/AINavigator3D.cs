@@ -73,6 +73,12 @@ public partial class AINavigator3D : NavigationAgent3D
     }
 
     /// <summary>
+    /// Returns true if the navigation map has completed at least one synchronization cycle.
+    /// Queries made before the first sync will fail with Godot engine errors.
+    /// </summary>
+    public bool IsMapReady() => NavigationServer3D.MapGetIterationId(GetNavigationMap()) > 0;
+
+    /// <summary>
     /// Sets the target position for the navigation agent. This is the primary method
     /// for commanding the agent to move to a new location.
     /// </summary>
@@ -89,6 +95,12 @@ public partial class AINavigator3D : NavigationAgent3D
         // Check if the target point is on a valid navigation mesh.
         // Using GetNavigationMap() is more direct than iterating all maps.
         Rid map = GetNavigationMap();
+
+        if (NavigationServer3D.MapGetIterationId(map) == 0)
+        {
+            return NavReqPathResponse.MapNotReady;
+        }
+
         Vector3 closestPointOnNavmesh = NavigationServer3D.MapGetClosestPoint(map, globalPosition);
 
         // Allow for a small tolerance in case the target is slightly off the mesh.

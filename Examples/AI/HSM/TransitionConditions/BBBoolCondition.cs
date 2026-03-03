@@ -21,28 +21,17 @@ public partial class BBBoolCondition : TransitionCondition
     {
         if (string.IsNullOrEmpty(BBSignature))
         {
-            JmoLogger.Warning(this, $"Can't check for transition condition, BBSignature is null or empty!");
+            JmoLogger.Warning(this, "Can't check for transition condition, BBSignature is null or empty!");
             return false;
         }
 
-        // Get the boolean variable from the blackboard.
-        var bbVal = bb.Get<bool>(BBSignature);
-
-        if (bbVal == null)
+        if (!bb.TryGet<bool>(BBSignature, out var bbVal))
         {
-            JmoLogger.Warning(this, $"Can't check for transition condition, the blackboard value for {BBSignature} is not of type bool.");
+            JmoLogger.Warning(this, $"BB key '{BBSignature}' not found — defaulting to false.");
             return false;
         }
 
-        // Check if the flag exists and is true.
-        if (bbVal == Value)
-        {
-            // Allow the transition.
-            return true;
-        }
-
-        // Do not transition.
-        return false;
+        return bbVal == Value;
     }
 
     // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
