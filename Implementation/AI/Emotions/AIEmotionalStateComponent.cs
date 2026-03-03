@@ -2,8 +2,10 @@ namespace Jmodot.Implementation.AI.Emotions;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Affinities;
 using BB;
+using Core.AI;
 using Core.AI.Affinities;
 using Core.AI.BB;
 using Core.AI.Emotions;
@@ -22,7 +24,7 @@ using Shared;
 ///     Decay math is computed on-demand when intensity is queried.
 /// </summary>
 [GlobalClass]
-public partial class AIEmotionalStateComponent : Node, IComponent, IBlackboardProvider, IEmotionalStateProvider
+public partial class AIEmotionalStateComponent : Node, IComponent, IBlackboardProvider, IEmotionalStateProvider, IDebugPanelProvider
 {
     /// <summary>Fallback decay profile when no per-stimulus override is provided.</summary>
     [Export] public EmotionDecayProfile? DefaultDecayProfile { get; private set; }
@@ -207,6 +209,99 @@ public partial class AIEmotionalStateComponent : Node, IComponent, IBlackboardPr
             EmotionChanged.Invoke(type, oldIntensity, newIntensity);
         }
     }
+
+    #region IDebugPanelProvider
+
+    public string DebugTabName => "Emotions";
+    public int DebugTabOrder => 20;
+    public bool HasDebugData => _emotions.Values.Any(e => e.IsActive);
+
+    private VBoxContainer? _debugContainer;
+    private readonly Dictionary<EmotionType, (HBoxContainer Row, ColorRect Bar, Label ValueLabel)> _debugRows = new();
+    private const float BAR_MAX_WIDTH = 200f;
+
+    public Control CreateDebugContent()
+    {
+        _debugContainer = new VBoxContainer { Name = "EmotionDebugContent" };
+        _debugRows.Clear();
+
+        foreach (var (type, instance) in _emotions)
+        {
+            if (instance.IsActive)
+            {
+                AddDebugRow(type, instance.CurrentIntensity);
+            }
+        }
+
+        return _debugContainer;
+    }
+
+    public void UpdateDebugContent(double delta)
+    {
+        if (_debugContainer == null) { return; }
+
+        // Update existing rows
+        foreach (var (type, instance) in _emotions)
+        {
+            if (instance.IsActive)
+            {
+                if (_debugRows.TryGetValue(type, out var row))
+                {
+                    row.Bar.CustomMinimumSize = new Vector2(instance.CurrentIntensity * BAR_MAX_WIDTH, row.Bar.CustomMinimumSize.Y);
+                    row.ValueLabel.Text = $"{instance.CurrentIntensity:F2}";
+                }
+                else
+                {
+                    AddDebugRow(type, instance.CurrentIntensity);
+                }
+            }
+            else if (_debugRows.ContainsKey(type))
+            {
+                RemoveDebugRow(type);
+            }
+        }
+    }
+
+    public void OnDebugContentHidden()
+    {
+        // No expensive work to pause
+    }
+
+    private void AddDebugRow(EmotionType type, float intensity)
+    {
+        if (_debugContainer == null) { return; }
+
+        var row = new HBoxContainer { Name = $"EmotionRow_{type.EmotionName}" };
+
+        var nameLabel = new Label
+        {
+            Text = type.EmotionName,
+            CustomMinimumSize = new Vector2(80, 20)
+        };
+        row.AddChild(nameLabel);
+
+        var bar = new ColorRect
+        {
+            Color = type.DebugColor,
+            CustomMinimumSize = new Vector2(intensity * BAR_MAX_WIDTH, 16)
+        };
+        row.AddChild(bar);
+
+        var valueLabel = new Label { Text = $"{intensity:F2}" };
+        row.AddChild(valueLabel);
+
+        _debugContainer.AddChild(row);
+        _debugRows[type] = (row, bar, valueLabel);
+    }
+
+    private void RemoveDebugRow(EmotionType type)
+    {
+        if (!_debugRows.TryGetValue(type, out var row)) { return; }
+        row.Row.QueueFree();
+        _debugRows.Remove(type);
+    }
+
+    #endregion
 
     #region Test Helpers
 

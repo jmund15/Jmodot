@@ -2,7 +2,9 @@ namespace Jmodot.Implementation.AI.Affinities;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using BB;
+using Core.AI;
 using Core.AI.Affinities;
 using Core.AI.BB;
 using Core.Components;
@@ -22,9 +24,15 @@ using GCol = Godot.Collections;
 ///     Internally backed by <see cref="ModifiableProperty{T}"/> with a clamped [0,1] calculation
 ///     strategy, giving affinities the full modifier pipeline (temporary buffs, status effects,
 ///     priority, tags) while preserving the simple Get/Set/Modify public API.
+///
+///     <b>Personality vs Emotional State:</b> Affinities represent stable personality traits
+///     (tendency toward fear, greed, etc.), NOT runtime emotional state. A Fear affinity of 0.8
+///     means "highly predisposed to fear," not "currently 80% afraid." Runtime emotional state
+///     (decaying intensity from stimuli) is a separate architectural concern — see perception
+///     system's <c>Perception3DInfo</c> / <c>MemoryDecayStrategy</c> for the reference pattern.
 /// </summary>
 [GlobalClass]
-public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvider
+public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvider, IDebugPanelProvider
 {
     /// <summary>
     /// Designer-authored base values. Converted to <see cref="ModifiableProperty{T}"/>
@@ -167,6 +175,18 @@ public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvid
     /// Applies a temporary modifier to an affinity (e.g., a status effect raising Fear).
     /// Returns a handle for precise removal. The effective value is clamped to [0,1].
     /// </summary>
+    /// <remarks>
+    /// <b>Stage guidance for [0,1] clamped affinity space:</b>
+    /// <list type="bullet">
+    ///   <item><b>BaseAdd</b> (recommended): "+0.2 Fear tendency" is intuitive and predictable.</item>
+    ///   <item><b>PercentAdd</b> (avoid): Non-intuitive in [0,1]. Effect scales with base
+    ///     (tiny at low bases, absorbed by clamp at high bases).</item>
+    ///   <item><b>FinalMultiply</b> (×0 only): Only useful for suppressing an affinity entirely.</item>
+    /// </list>
+    ///
+    /// Modifiers on affinities represent temporary personality shifts (status effects, potions),
+    /// NOT emotional reactions to stimuli. Emotional intensity decay is a separate layer.
+    /// </remarks>
     public ModifierHandle AddModifier(Affinity affinity, IModifier<float> modifier, object owner)
     {
         var prop = GetOrCreateProperty(affinity);
@@ -274,4 +294,82 @@ public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvid
         }
         return null;
     }
+
+    #region IDebugPanelProvider
+
+    public string DebugTabName => "Affinities";
+    public int DebugTabOrder => 30;
+    public bool HasDebugData => _properties.Count > 0;
+
+    private VBoxContainer? _debugContainer;
+    private readonly Dictionary<Affinity, (HBoxContainer Row, ProgressBar Bar, Label ValueLabel)> _debugRows = new();
+    private const float BAR_MAX_WIDTH = 200f;
+
+    public Control CreateDebugContent()
+    {
+        _debugContainer = new VBoxContainer { Name = "AffinityDebugContent" };
+        _debugRows.Clear();
+
+        foreach (var (affinity, prop) in _properties)
+        {
+            AddDebugRow(affinity, prop.Value);
+        }
+
+        return _debugContainer;
+    }
+
+    public void UpdateDebugContent(double delta)
+    {
+        if (_debugContainer == null) { return; }
+
+        foreach (var (affinity, prop) in _properties)
+        {
+            if (_debugRows.TryGetValue(affinity, out var row))
+            {
+                row.Bar.Value = prop.Value;
+                row.ValueLabel.Text = $"{prop.Value:F2}";
+            }
+            else
+            {
+                AddDebugRow(affinity, prop.Value);
+            }
+        }
+    }
+
+    public void OnDebugContentHidden()
+    {
+        // No expensive work to pause
+    }
+
+    private void AddDebugRow(Affinity affinity, float value)
+    {
+        if (_debugContainer == null) { return; }
+
+        var row = new HBoxContainer { Name = $"AffinityRow_{affinity.AffinityName}" };
+
+        var nameLabel = new Label
+        {
+            Text = affinity.AffinityName,
+            CustomMinimumSize = new Vector2(80, 20)
+        };
+        row.AddChild(nameLabel);
+
+        var bar = new ProgressBar
+        {
+            MinValue = 0f,
+            MaxValue = 1f,
+            Value = value,
+            CustomMinimumSize = new Vector2(BAR_MAX_WIDTH, 16),
+            ShowPercentage = false
+        };
+        row.AddChild(bar);
+
+        var valueLabel = new Label { Text = $"{value:F2}" };
+        row.AddChild(valueLabel);
+
+        _debugContainer.AddChild(row);
+        _debugRows[affinity] = (row, bar, valueLabel);
+    }
+
+    #endregion
 }

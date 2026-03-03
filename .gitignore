@@ -55,6 +55,7 @@ mono_logs/
 
 # Build results
 [Dd]ebug/
+!Implementation/AI/Debug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
