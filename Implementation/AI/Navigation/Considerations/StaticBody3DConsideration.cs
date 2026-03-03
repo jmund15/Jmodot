@@ -13,6 +13,9 @@ using Jmodot.Core.Shared.Attributes;
 /// A consideration that scores directions based on proximity to static bodies of a specific Category.
 /// It is used to create avoidance or attraction behaviors towards environmental objects like walls,
 /// cover points, or hazards.
+///
+/// Note: This consideration requires PropagateNegative=true on its SteeringPropagationConfig
+/// so that negative avoidance scores bleed to neighboring directions for smoother steering.
 /// </summary>
 [GlobalClass]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
@@ -38,31 +41,6 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     [Export] private Vector2 _distanceDiminishRange = new Vector2(1.0f, 5.0f);
 
-    [ExportGroup("Score Propagation")]
-    /// <summary>
-    /// If enabled, the calculated score for the closest direction will be "bled" to its
-    /// neighboring directions, creating a smoother, less jerky avoidance response.
-    /// </summary>
-    [Export] private bool _propagateScores = true;
-
-    /// <summary>
-    /// The number of neighboring directions on each side to propagate the score to.
-    /// </summary>
-    [Export(PropertyHint.Range, "1, 8, 1")] private int _dirsToPropagate = 2;
-
-    /// <summary>
-    /// The multiplier applied to the score for each step of propagation. A value of 0.5
-    /// means the first neighbor gets 50% of the original score, the second gets 25%, etc.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")] private float _propDiminishWeight = 0.5f;
-
-    private List<Vector3> _orderedDirections = null!;
-
-    public override void Initialize(DirectionSet3D directions)
-    {
-        _orderedDirections = directions.Directions.ToList();
-    }
-
     protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
@@ -86,12 +64,6 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
             // Find the direction in our set that best matches the direction to the object.
             Vector3 closestDir = directions.GetClosestDirection(toTargetDir);
             scores[closestDir] += scoreAmount;
-        }
-
-        if (_propagateScores)
-        {
-            SteeringPropagation.PropagateScores(scores, _orderedDirections, _dirsToPropagate,
-                _propDiminishWeight, propagateNegative: true);
         }
 
         return scores;

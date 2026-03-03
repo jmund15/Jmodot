@@ -56,38 +56,13 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     [Export] private bool _hasVerticalMovement = false;
 
-    [ExportGroup("Score Propagation")]
-
-    /// <summary>
-    /// If enabled, the calculated score for an ideal direction will be "bled" to its
-    /// neighboring directions, creating a smoother, less jerky response.
-    /// </summary>
-    [Export] private bool _propagateScores = true;
-
-    /// <summary>
-    /// The number of neighboring directions on each side to propagate the score to.
-    /// </summary>
-    [Export(PropertyHint.Range, "1, 8, 1")]
-    private int _dirsToPropagate = 2;
-
-    /// <summary>
-    /// The multiplier applied to the score for each step of propagation. A value of 0.5
-    /// means the first neighbor gets 50% of the original score, the second gets 25%, etc.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")]
-    private float _propDiminishWeight = 0.5f;
     #endregion
 
     private const float Epsilon = 0.001f;
-    private List<Vector3> _orderedDirections = null!; // Cached for propagation logic
 
-    /// <summary>
-    /// Caches the ordered list of directions from the DirectionSet3D. This is crucial
-    /// for the score propagation logic to find a direction's neighbors reliably.
-    /// </summary>
     public override void Initialize(DirectionSet3D directions)
     {
-        _orderedDirections = directions.Directions.ToList();
+        base.Initialize(directions);
 
         if (_targetCategory == null)
         {
@@ -115,11 +90,6 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
             {
                 finalScores[score.Key] += score.Value;
             }
-        }
-
-        if (_propagateScores)
-        {
-            SteeringPropagation.PropagateScores(finalScores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
         }
 
         return finalScores;
