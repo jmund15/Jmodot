@@ -2,9 +2,12 @@ namespace Jmodot.Implementation.AI.HSM;
 
 using System.Collections.Generic;
 using System.Linq;
+using BB;
 using BehaviorTree;
 using Core.AI;
 using Core.AI.BB;
+using Jmodot.Core.Movement.Strategies;
+using Jmodot.Implementation.Movement.Strategies;
 using Shared;
 using Shared.GodotExceptions;
 
@@ -28,6 +31,13 @@ using Shared.GodotExceptions;
         [Export(PropertyHint.NodeType, "State")]
         protected State _onTreeFailureState;
 
+        /// <summary>
+        /// Optional movement strategy applied while this BTState is active.
+        /// Written to BB[ActiveMovementStrategy] on enter, cleared on exit.
+        /// Entity-level ProcessMovement reads this to determine movement feel per state.
+        /// </summary>
+        [Export] protected BaseMovementStrategy3D? MovementStrategyOverride;
+
         private BehaviorTree _tree = null!; // Set in OnInit, exception thrown if missing
 
         protected override void OnInit()
@@ -45,12 +55,24 @@ using Shared.GodotExceptions;
         protected override void OnEnter()
         {
             base.OnEnter();
+
+            if (MovementStrategyOverride != null)
+            {
+                BB.Set(BBDataSig.ActiveMovementStrategy, (IMovementStrategy3D)MovementStrategyOverride);
+            }
+
             _tree.Enter();
         }
 
         protected override void OnExit()
         {
             base.OnExit();
+
+            if (MovementStrategyOverride != null)
+            {
+                BB.Set<IMovementStrategy3D?>(BBDataSig.ActiveMovementStrategy, null);
+            }
+
             _tree.Exit();
         }
 
@@ -113,4 +135,10 @@ using Shared.GodotExceptions;
             // Concatenate warnings from the base State class.
             return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
         }
+
+        #region Test Helpers
+#if TOOLS
+        internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => MovementStrategyOverride = strategy;
+#endif
+        #endregion
     }

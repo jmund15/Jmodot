@@ -72,6 +72,13 @@ public static partial class BBDataSig
 
     public static readonly StringName PerceptionComp = new("PerceptionComponent");
 
+    /// <summary>
+    /// The movement strategy override set by the current BTState.
+    /// Read by entity-level ProcessMovement to determine movement feel.
+    /// Type: BaseMovementStrategy3D (nullable — null means use entity default).
+    /// </summary>
+    public static readonly StringName ActiveMovementStrategy = new("ActiveMovementStrategy");
+
     #region AI_PROPERTIES
 
     public static readonly StringName OwnedVehicle = new("OwnedVehicle");
