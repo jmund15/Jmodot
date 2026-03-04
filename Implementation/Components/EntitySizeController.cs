@@ -111,6 +111,15 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
             {
                 JmoLogger.Debug(this, $"Discovered {_scalableShapes.Count} collision shapes to scale");
             }
+
+            // [POOL:DIAG] Log discovered shapes and their base scales
+            foreach (var entry in _scalableShapes)
+            {
+                var queued = entry.Shape.IsQueuedForDeletion();
+                JmoLogger.Info(this,
+                    $"[POOL:DIAG] ESC.Init shape={entry.Shape.Name} baseScale=({entry.BaseScale.X:F3},{entry.BaseScale.Y:F3},{entry.BaseScale.Z:F3}) " +
+                    $"queuedForDeletion={queued} frame={Engine.GetProcessFrames()}");
+            }
         }
 
         // Cache visual base scale
@@ -147,6 +156,11 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     {
         _runtimeScaleMultiplier = Mathf.Clamp(multiplier, MIN_RUNTIME_MULTIPLIER, MaxSize);
         var currentSize = _stats?.GetStatValue<float>(SizeAttribute, 1.0f) ?? 1.0f;
+
+        JmoLogger.Info(this,
+            $"[POOL:DIAG] ESC.SetRuntimeScaleMultiplier mult={_runtimeScaleMultiplier:F3} statSize={currentSize:F3} " +
+            $"shapeCount={_scalableShapes.Count} frame={Engine.GetProcessFrames()}");
+
         ApplyScale(currentSize);
     }
 
@@ -165,9 +179,13 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
         var clampedSize = SizeScalingUtils.ClampSize(
             sizeMultiplier * _runtimeScaleMultiplier, MinSize, MaxSize);
 
-        // Scale all discovered collision shapes
+        // Scale all discovered collision shapes (skip invalid/dying shapes as defense-in-depth)
         foreach (var entry in _scalableShapes)
         {
+            if (!GodotObject.IsInstanceValid(entry.Shape) || entry.Shape.IsQueuedForDeletion())
+            {
+                continue;
+            }
             entry.Shape.Scale = SizeScalingUtils.ApplyScale(entry.BaseScale, clampedSize);
         }
 
@@ -196,6 +214,10 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     /// </summary>
     public void OnPoolReset()
     {
+        JmoLogger.Info(this,
+            $"[POOL:DIAG] ESC.OnPoolReset START shapeCount={_scalableShapes.Count} " +
+            $"runtimeMult={_runtimeScaleMultiplier:F3} frame={Engine.GetProcessFrames()}");
+
         // 1. Unsubscribe from stat changes (CRITICAL: prevents subscription leak)
         if (_stats != null && SizeAttribute != null)
         {
@@ -225,6 +247,9 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
         // 5. Reset initialization flag
         IsInitialized = false;
+
+        JmoLogger.Info(this,
+            $"[POOL:DIAG] ESC.OnPoolReset END shapeCount={_scalableShapes.Count} runtimeMult={_runtimeScaleMultiplier:F3}");
     }
 
     #region Static Discovery Methods
@@ -247,6 +272,15 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
         foreach (var shape in allShapes)
         {
+            // Skip shapes pending QueueFree — prevents pool return/re-acquire race condition
+            // where old (shrunken) shapes from FreeDynamicChildren haven't been freed yet
+            if (shape.IsQueuedForDeletion())
+            {
+                JmoLogger.Warning(typeof(EntitySizeController),
+                    $"[POOL:DIAG] DiscoverScalableShapes SKIPPED QueueFree'd shape: {shape.Name}");
+                continue;
+            }
+
             // Skip if shape is explicitly excluded
             if (excludedShapes != null && excludedShapes.Contains(shape))
             {
