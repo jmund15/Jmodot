@@ -8,9 +8,16 @@ using Core.AI.Navigation.Zones;
 using Core.Movement;
 
 /// <summary>
-/// Soft spatial containment that penalizes outward-facing directions near zone boundaries.
-/// Creates a natural "soft leash" — the agent curves back toward the interior without
-/// hitting an invisible wall.
+/// Dual-mode spatial containment that scores directions near zone boundaries.
+///
+/// Two independent scoring axes:
+/// - Penalty (repulsion): negative scores for outward-facing directions near the edge.
+///   Creates a natural "soft leash." Includes rubber-band return when outside the zone.
+/// - Attraction (pull): positive scores for inward-facing directions.
+///   Ensures the agent always has a viable direction, preventing stalls.
+///
+/// Both modes are independently configurable with weight, ramp range, and optional curve.
+/// Default config (attraction weight = 0) is fully backward compatible.
 ///
 /// Two zone sourcing modes:
 ///
@@ -49,29 +56,67 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     [Export]
     private StringName? _boundaryZoneKey;
 
-    [ExportGroup("Penalty Behavior")]
+    [ExportGroup("Penalty (Away-From-Center Repulsion)")]
 
     /// <summary>
-    /// Maximum penalty weight applied at the zone boundary edge.
-    /// Higher values create stronger containment.
+    /// Maximum penalty score magnitude at full ramp strength and perfect alignment.
+    /// Score = alignment × rampStrength × penaltyMaxWeight (always negative).
+    /// 0 disables penalty entirely.
     /// </summary>
-    [Export(PropertyHint.Range, "0.5, 5.0, 0.1")]
-    private float _penaltyWeight = 2.0f;
+    [Export(PropertyHint.Range, "0.0, 5.0, 0.1")]
+    private float _penaltyMaxWeight = 2.0f;
 
     /// <summary>
-    /// Normalized distance (0-1) where the penalty falloff begins.
+    /// Normalized distance where the penalty ramp begins.
     /// 0.7 means penalty starts at 70% of the way from center to edge.
-    /// Lower values create earlier, gentler containment.
     /// </summary>
-    [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
-    private float _falloffStartNormalized = 0.7f;
+    [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
+    private float _penaltyRampStart = 0.7f;
 
     /// <summary>
-    /// Optional curve for non-linear falloff. X axis = 0 (at falloff start) to 1 (at edge).
-    /// Y axis = penalty multiplier (0-1). Null = linear falloff.
+    /// Normalized distance where the penalty ramp reaches full strength.
+    /// 1.0 = at zone edge (default, backward compatible).
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
+    private float _penaltyRampEnd = 1.0f;
+
+    /// <summary>
+    /// Optional curve for non-linear penalty ramp. X = 0 (at ramp start) to 1 (at ramp end).
+    /// Y = penalty multiplier (0-1). Null = linear ramp.
     /// </summary>
     [Export]
-    private Curve? _falloffCurve;
+    private Curve? _penaltyCurve;
+
+    [ExportGroup("Attraction (Toward-Center Pull)")]
+
+    /// <summary>
+    /// Maximum positive score for inward-facing directions at full ramp strength.
+    /// Score = alignment × rampStrength × attractionMaxWeight (always positive).
+    /// 0 disables attraction (backward compatible default).
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0, 5.0, 0.1")]
+    private float _attractionMaxWeight = 0f;
+
+    /// <summary>
+    /// Normalized distance where attraction begins.
+    /// 1.0 = outside zone only (default). 0.0 = attraction everywhere.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
+    private float _attractionRampStart = 1.0f;
+
+    /// <summary>
+    /// Normalized distance where attraction reaches full strength.
+    /// 1.3 = full attraction at 130% of zone radius.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
+    private float _attractionRampEnd = 1.3f;
+
+    /// <summary>
+    /// Optional curve for non-linear attraction ramp. X = 0 (at ramp start) to 1 (at ramp end).
+    /// Y = attraction multiplier (0-1). Null = linear ramp.
+    /// </summary>
+    [Export]
+    private Curve? _attractionCurve;
 
     #endregion
 
@@ -118,15 +163,19 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
         }
 
         float normalizedDist = _zoneShape!.GetNormalizedDistance(context3D.AgentPosition, zoneCenter);
-        float penaltyStrength = CalculateBoundaryPenalty(normalizedDist, _falloffStartNormalized, _falloffCurve);
+        float penaltyStrength = CalculateRampStrength(
+            normalizedDist, _penaltyRampStart, _penaltyRampEnd, _penaltyCurve);
+        float attractionStrength = CalculateRampStrength(
+            normalizedDist, _attractionRampStart, _attractionRampEnd, _attractionCurve);
 
-        if (penaltyStrength <= 0f)
+        if (penaltyStrength <= 0f && attractionStrength <= 0f)
         {
             return scores;
         }
 
         Vector3 towardInterior = _zoneShape.GetDirectionToInterior(context3D.AgentPosition, zoneCenter);
-        ApplyBoundaryPenalties(scores, directions, towardInterior, penaltyStrength, normalizedDist);
+        ApplyBoundaryScores(scores, directions, towardInterior,
+            penaltyStrength, attractionStrength, normalizedDist);
         return scores;
     }
 
@@ -155,10 +204,12 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
 
         float normalizedDist = CalculateNormalizedDistanceFromCenter(
             context3D.AgentPosition, zoneCenter, radius);
-        float penaltyStrength = CalculateBoundaryPenalty(
-            normalizedDist, _falloffStartNormalized, _falloffCurve);
+        float penaltyStrength = CalculateRampStrength(
+            normalizedDist, _penaltyRampStart, _penaltyRampEnd, _penaltyCurve);
+        float attractionStrength = CalculateRampStrength(
+            normalizedDist, _attractionRampStart, _attractionRampEnd, _attractionCurve);
 
-        if (penaltyStrength <= 0f)
+        if (penaltyStrength <= 0f && attractionStrength <= 0f)
         {
             return scores;
         }
@@ -170,7 +221,8 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             return scores;
         }
 
-        ApplyBoundaryPenalties(scores, directions, toCenter.Normalized(), penaltyStrength, normalizedDist);
+        ApplyBoundaryScores(scores, directions, toCenter.Normalized(),
+            penaltyStrength, attractionStrength, normalizedDist);
         return scores;
     }
 
@@ -198,15 +250,17 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     }
 
     /// <summary>
-    /// Applies boundary penalties to all directions based on their alignment with
-    /// the toward-interior vector. Shared between shape-based and legacy paths.
-    /// Passes normalizedDistance through for rubber-band behavior outside the zone.
+    /// Applies both penalty and attraction scores to all directions.
+    /// Penalty: negative scores for outward-facing directions (existing rubber-band behavior).
+    /// Attraction: positive scores for inward-facing directions (new).
+    /// Both are independently weighted and ramped.
     /// </summary>
-    private void ApplyBoundaryPenalties(
+    private void ApplyBoundaryScores(
         Dictionary<Vector3, float> scores,
         DirectionSet3D directions,
         Vector3 towardInterior,
         float penaltyStrength,
+        float attractionStrength,
         float normalizedDistance)
     {
         foreach (var dir in directions.Directions)
@@ -218,8 +272,22 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             }
             flatDir = flatDir.Normalized();
 
-            scores[dir] = CalculateDirectionPenalty(
-                flatDir, towardInterior, penaltyStrength, _penaltyWeight, normalizedDistance);
+            // Penalty pass: outward directions get negative scores
+            if (penaltyStrength > 0f)
+            {
+                scores[dir] += CalculateDirectionPenalty(
+                    flatDir, towardInterior, penaltyStrength, _penaltyMaxWeight, normalizedDistance);
+            }
+
+            // Attraction pass: inward directions get positive scores
+            if (attractionStrength > 0f && _attractionMaxWeight > 0f)
+            {
+                float alignment = flatDir.Dot(towardInterior);
+                if (alignment > 0f)
+                {
+                    scores[dir] += alignment * attractionStrength * _attractionMaxWeight;
+                }
+            }
         }
     }
 
@@ -245,35 +313,41 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     }
 
     /// <summary>
-    /// Calculates the penalty strength (0-1) based on normalized distance.
-    /// Returns 0 inside the safe zone (before falloffStart).
-    /// Returns 0-1 in the falloff zone (linear or curve-shaped).
-    /// Clamped to 1 at or beyond the edge.
+    /// Generalized ramp function. Returns 0 before rampStart, ramps 0→1 between
+    /// rampStart and rampEnd, clamps at 1 beyond rampEnd. Optional curve for non-linearity.
+    /// Used by both penalty and attraction systems.
     /// </summary>
-    public static float CalculateBoundaryPenalty(
-        float normalizedDistance, float falloffStart, Curve? curve)
+    public static float CalculateRampStrength(
+        float normalizedDistance, float rampStart, float rampEnd, Curve? curve)
     {
-        if (normalizedDistance <= falloffStart)
+        if (normalizedDistance < rampStart)
         {
             return 0f;
         }
 
-        // Map distance from [falloffStart, 1.0] to [0, 1]
-        float falloffRange = 1f - falloffStart;
-        if (falloffRange <= 0f)
+        float rampRange = rampEnd - rampStart;
+        if (rampRange <= 0f)
         {
-            return normalizedDistance >= 1f ? 1f : 0f;
+            return normalizedDistance >= rampStart ? 1f : 0f;
         }
 
-        float t = Mathf.Clamp((normalizedDistance - falloffStart) / falloffRange, 0f, 1f);
+        float t = Mathf.Clamp((normalizedDistance - rampStart) / rampRange, 0f, 1f);
 
-        // Apply curve if provided
         if (curve != null)
         {
             t = curve.Sample(t);
         }
 
         return t;
+    }
+
+    /// <summary>
+    /// Backward-compatible wrapper. Equivalent to CalculateRampStrength with rampEnd=1.0.
+    /// </summary>
+    public static float CalculateBoundaryPenalty(
+        float normalizedDistance, float falloffStart, Curve? curve)
+    {
+        return CalculateRampStrength(normalizedDistance, falloffStart, 1.0f, curve);
     }
 
     /// <summary>
@@ -334,10 +408,16 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     #region Test Helpers
 #if TOOLS
     internal void SetBoundaryZoneKey(StringName key) => _boundaryZoneKey = key;
-    internal void SetPenaltyWeight(float value) => _penaltyWeight = value;
-    internal void SetFalloffStart(float value) => _falloffStartNormalized = value;
-    internal void SetFalloffCurve(Curve? curve) => _falloffCurve = curve;
+    internal void SetPenaltyMaxWeight(float value) => _penaltyMaxWeight = value;
+    internal void SetPenaltyRampStart(float value) => _penaltyRampStart = value;
+    internal void SetPenaltyRampEnd(float value) => _penaltyRampEnd = value;
+    internal void SetPenaltyCurve(Curve? curve) => _penaltyCurve = curve;
     internal void SetZoneShape(ZoneShape3D? shape) => _zoneShape = shape;
+    internal float GetAttractionMaxWeight() => _attractionMaxWeight;
+    internal void SetAttractionMaxWeight(float value) => _attractionMaxWeight = value;
+    internal void SetAttractionRampStart(float value) => _attractionRampStart = value;
+    internal void SetAttractionRampEnd(float value) => _attractionRampEnd = value;
+    internal void SetAttractionCurve(Curve? curve) => _attractionCurve = curve;
 #endif
     #endregion
 }

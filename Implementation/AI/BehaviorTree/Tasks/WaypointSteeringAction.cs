@@ -4,16 +4,14 @@ using System;
 using System.Collections.Generic;
 using BB;
 using Core.AI;
-using Core.AI.Navigation.Zones;
 using Navigation;
 using Jmodot.AI.Navigation;
 using Shared;
 
 /// <summary>
-/// A SteeringBehaviorAction that adds navigation target lifecycle on top of
-/// consideration management. Picks random target points within a zone,
-/// feeds them to an AINavigator3D for pathfinding, and lets considerations
-/// (wander + zone boundary + nav path) blend via score summation.
+/// A SteeringBehaviorAction that adds waypoint lifecycle management on top of
+/// consideration management. Delegates target selection to a WaypointSelectionStrategy,
+/// detects target reach, and repeats.
 ///
 /// For aimless wandering without navigation targets, use SteeringBehaviorAction
 /// directly with WanderConsideration3D + ZoneBoundaryConsideration3D.
@@ -22,16 +20,18 @@ using Shared;
 /// to SteeringBehaviorAction (considerations register, no nav targets).
 /// </summary>
 [GlobalClass, Tool]
-public partial class NavWanderAction : SteeringBehaviorAction
+public partial class WaypointSteeringAction : SteeringBehaviorAction
 {
     [ExportGroup("Navigation")]
-    [Export] private ZoneShape3D? _targetZone;
+
+    /// <summary>
+    /// Required waypoint selection strategy. Handles where and how to pick targets.
+    /// The action handles when (on enter, on reach, on nav finish).
+    /// </summary>
+    [Export] private WaypointSelectionStrategy? _waypointStrategy;
 
     [Export(PropertyHint.Range, "0.5, 10.0, 0.1")]
     private float _targetReachDistance = 1.5f;
-
-    [Export(PropertyHint.Range, "1, 20, 1")]
-    private int _maxTargetAttempts = 5;
 
     /// <summary>
     /// When true, the action succeeds (TaskStatus.Success) upon reaching its target
@@ -39,14 +39,8 @@ public partial class NavWanderAction : SteeringBehaviorAction
     /// </summary>
     [Export] private bool _succeedOnReach = false;
 
-    /// <summary>
-    /// Optional composable waypoint selection strategy. When set, delegates target
-    /// selection to the strategy instead of using default random sampling.
-    /// </summary>
-    [Export] private WaypointSelectionStrategy? _waypointStrategy;
-
     private AINavigator3D? _navAgent;
-    private Vector3 _zoneCenter;
+    private Vector3 _originPosition;
     private bool _navActive;
     private bool _pendingFirstTarget;
     private readonly Queue<Vector3> _waypointHistory = new();
@@ -59,9 +53,9 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         ResolveNavAgent();
 
-        if (_navAgent != null && _targetZone != null)
+        if (_navAgent != null && _waypointStrategy != null)
         {
-            _zoneCenter = ((Node3D)Agent).GlobalPosition;
+            _originPosition = ((Node3D)Agent).GlobalPosition;
             _navActive = true;
             _pendingFirstTarget = true;
         }
@@ -107,35 +101,15 @@ public partial class NavWanderAction : SteeringBehaviorAction
         base.OnExit();
     }
 
-    /// <summary>
-    /// Picks a new navigation target within the configured zone. Delegates to
-    /// the waypoint strategy when set, otherwise uses default random sampling.
-    /// </summary>
     private void PickNewTarget()
     {
-        if (_navAgent == null || _targetZone == null) { return; }
+        if (_navAgent == null || _waypointStrategy == null) { return; }
 
-        if (_waypointStrategy != null)
+        var context = new WaypointContext(_originPosition, ((Node3D)Agent).GlobalPosition);
+        if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
         {
-            var context = new WaypointContext(_zoneCenter, ((Node3D)Agent).GlobalPosition);
-            if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
-            {
-                JmoLogger.Warning(this, "WaypointStrategy failed to find target.");
-            }
-            return;
+            JmoLogger.Warning(this, "WaypointStrategy failed to find target.");
         }
-
-        for (int i = 0; i < _maxTargetAttempts; i++)
-        {
-            Vector3 candidate = _targetZone.SampleRandomInteriorPoint(_zoneCenter);
-            var response = _navAgent.RequestNewNavPath(candidate, overridePathCalcThresh: 0f);
-            if (response == NavReqPathResponse.Success)
-            {
-                return;
-            }
-        }
-
-        JmoLogger.Warning(this, $"Failed to find reachable target after {_maxTargetAttempts} attempts — staying on current path.");
     }
 
     private bool IsTargetReached()
@@ -165,9 +139,8 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
     #region Test Helpers
 #if TOOLS
-    internal void SetTargetZone(ZoneShape3D zone) => _targetZone = zone;
+    internal void SetWaypointStrategy(WaypointSelectionStrategy strategy) => _waypointStrategy = strategy;
     internal void SetTargetReachDistance(float distance) => _targetReachDistance = distance;
-    internal void SetMaxTargetAttempts(int attempts) => _maxTargetAttempts = attempts;
     internal bool IsNavPendingFirstTarget() => _pendingFirstTarget;
     internal bool IsSucceedOnReach() => _succeedOnReach;
     internal void SetSucceedOnReach(bool value) => _succeedOnReach = value;
