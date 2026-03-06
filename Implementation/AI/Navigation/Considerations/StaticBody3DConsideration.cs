@@ -45,7 +45,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
-        if (_targetCategory == null) { return scores; }
+        if (_targetCategory == null || context3D.Memory == null) { return scores; }
 
         // Get all perceived objects that match our target category.
         var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
@@ -72,6 +72,12 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// <summary>
     /// Calculates a weight multiplier (0.0 to 1.0) based on distance to a target.
     /// </summary>
+    #region Test Helpers
+#if TOOLS
+    internal void SetTargetCategory(Category category) => _targetCategory = category;
+#endif
+    #endregion
+
     private float GetDistanceConsideration(float distance)
     {
         if (distance <= _distanceDiminishRange.X) { return 1.0f; }

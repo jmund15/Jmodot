@@ -79,6 +79,8 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     {
         var finalScores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
+        if (_targetCategory == null || context3D.Memory == null) { return finalScores; }
+
         // Get all relevant targets from the agent's perception manager.
         var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
 
