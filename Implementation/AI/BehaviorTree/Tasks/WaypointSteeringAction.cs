@@ -41,6 +41,7 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
 
     private AINavigator3D? _navAgent;
     private Vector3 _originPosition;
+    private bool _originCaptured;
     private bool _navActive;
     private bool _pendingFirstTarget;
     private readonly Queue<Vector3> _waypointHistory = new();
@@ -55,7 +56,11 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
 
         if (_navAgent != null && _waypointStrategy != null)
         {
-            _originPosition = ((Node3D)Agent).GlobalPosition;
+            if (!_originCaptured)
+            {
+                _originPosition = ((Node3D)Agent).GlobalPosition;
+                _originCaptured = true;
+            }
             _navActive = true;
             _pendingFirstTarget = true;
         }
@@ -146,6 +151,8 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     internal void SetSucceedOnReach(bool value) => _succeedOnReach = value;
     internal WaypointSelectionStrategy? GetWaypointStrategy() => _waypointStrategy;
     internal Queue<Vector3> GetWaypointHistory() => _waypointHistory;
+    internal Vector3 GetOriginPosition() => _originPosition;
+    internal void SetOriginPositionForTest(Vector3 pos) => _originPosition = pos;
 #endif
     #endregion
 }
