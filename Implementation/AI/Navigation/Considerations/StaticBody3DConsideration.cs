@@ -8,6 +8,7 @@ using Core.AI.Navigation.Considerations;
 using Core.Identification;
 using Core.Movement;
 using Jmodot.Core.Shared.Attributes;
+using Shared;
 
 /// <summary>
 /// A consideration that scores directions based on proximity to static bodies of a specific Category.
@@ -33,6 +34,8 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     [Export, RequiredExport] private Category _targetCategory = null!;
 
+    private bool _missingMemoryLogged;
+
     [ExportGroup("Distance Weighting")]
     /// <summary>
     /// Defines the range over which the consideration's weight is applied.
@@ -45,7 +48,22 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
-        if (_targetCategory == null || context3D.Memory == null) { return scores; }
+        if (_targetCategory == null) { return scores; }
+
+        if (context3D.Memory == null)
+        {
+            if (!_missingMemoryLogged)
+            {
+                JmoLogger.Error(this,
+                    $"StaticBody3DConsideration requires an AIPerceptionManager3D " +
+                    "but the steering context has Memory=null. The entity must pass a non-null " +
+                    "AIPerceptionManager3D when constructing SteeringDecisionContext3D " +
+                    "(see CritterEntity._PhysicsProcess or equivalent). " +
+                    "This consideration will have NO EFFECT until Memory is provided.");
+                _missingMemoryLogged = true;
+            }
+            return scores;
+        }
 
         // Get all perceived objects that match our target category.
         var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);

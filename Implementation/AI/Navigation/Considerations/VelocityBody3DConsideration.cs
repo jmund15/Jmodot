@@ -58,6 +58,7 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
 
     #endregion
 
+    private bool _missingMemoryLogged;
     private const float Epsilon = 0.001f;
 
     public override void Initialize(DirectionSet3D directions)
@@ -79,7 +80,21 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
     {
         var finalScores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
-        if (_targetCategory == null || context3D.Memory == null) { return finalScores; }
+        if (_targetCategory == null) { return finalScores; }
+
+        if (context3D.Memory == null)
+        {
+            if (!_missingMemoryLogged)
+            {
+                JmoLogger.Error(this,
+                    $"VelocityBody3DConsideration '{ResourceName}' requires an AIPerceptionManager3D " +
+                    "but the steering context has no Memory. The entity must wire a perception system " +
+                    "and pass it when constructing SteeringDecisionContext3D. " +
+                    "This consideration will have no effect until Memory is provided.");
+                _missingMemoryLogged = true;
+            }
+            return finalScores;
+        }
 
         // Get all relevant targets from the agent's perception manager.
         var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
@@ -235,5 +250,11 @@ public partial class VelocityBody3DConsideration : BaseAIConsideration3D
         return blendedDirection.Normalized();
     }
 
+    #endregion
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetTargetCategory(Category category) => _targetCategory = category;
+#endif
     #endregion
 }
