@@ -178,6 +178,17 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
         return _slots.TryGetValue(slotName, out var slot) ? slot.CurrentItem : null;
     }
 
+    /// <summary>
+    /// Returns visual nodes belonging to a specific named slot.
+    /// Returns empty list if slot doesn't exist or has no visual nodes.
+    /// </summary>
+    public IReadOnlyList<Node> GetVisualNodesForSlot(string slotName)
+    {
+        return _slots.TryGetValue(slotName, out var slot)
+            ? slot.GetCurrentVisualNodes()
+            : [];
+    }
+
     #region IVisualSpriteProvider Implementation
 
     public event Action VisibleNodesChanged = delegate { };
