@@ -57,25 +57,6 @@ public partial class AISteeringProcessor3D : Node
     [Export] private bool _snapToDirectionSet = false;
 
     /// <summary>
-    /// Maximum turn speed in degrees per second. Controls how fast the steering output
-    /// can change direction between frames (slerp-clamped on the XZ plane).
-    /// 0 = unlimited (no smoothing, raw direction used). 180 = full U-turn in 1 second.
-    /// Exposed as a public property for future ModifiableProperty stat wrapping.
-    /// </summary>
-    [Export(PropertyHint.Range, "0, 720, 1")]
-    private float _maxTurnRateDegrees = 0f;
-
-    /// <summary>
-    /// Public accessor for turn rate. Allows owning entities to wrap this with
-    /// ModifiableProperty for status effects (e.g., slow debuff reducing turn speed).
-    /// </summary>
-    public float MaxTurnRateDegrees
-    {
-        get => _maxTurnRateDegrees;
-        set => _maxTurnRateDegrees = value;
-    }
-
-    /// <summary>
     /// Considerations are sorted by priority to ensure a deterministic evaluation order, though
     /// in practice the order of addition does not change the final sum.
     /// </summary>
@@ -93,18 +74,13 @@ public partial class AISteeringProcessor3D : Node
     private Dictionary<Vector3, float> _scores = new();
 
     /// <summary>
-    /// Tracks the previous frame's output direction for turn rate smoothing.
-    /// Reset to zero when direction goes to zero (idle).
-    /// </summary>
-    private Vector3 _previousDirection;
-
-    /// <summary>
     /// The final, normalized direction vector calculated in the last frame. This can be used
     /// for debugging or for other systems to know the AI's current intent.
     /// </summary>
     public Vector3 DesiredDirection { get; private set; }
 
-    [ExportGroup("Debug")] private bool _showNavigationDebugArrows;
+    [ExportGroup("Debug")]
+    [Export] private bool _showNavigationDebugArrows;
 
     public override string[] _GetConfigurationWarnings()
     {
@@ -288,19 +264,12 @@ public partial class AISteeringProcessor3D : Node
         if (finalDirection.IsZeroApprox())
         {
             DesiredDirection = Vector3.Zero;
-            // Don't update _previousDirection on idle — preserve last known heading
         }
         else
         {
-            var normalized = _snapToDirectionSet
+            DesiredDirection = _snapToDirectionSet
                 ? MovementDirections.GetClosestDirection(finalDirection.Normalized())
                 : finalDirection.Normalized();
-
-            // Apply turn rate limiting if configured
-            DesiredDirection = ApplyTurnRateLimit(
-                _previousDirection, normalized, _maxTurnRateDegrees, context3D.PhysicsDelta);
-
-            _previousDirection = DesiredDirection;
         }
 
         return DesiredDirection;

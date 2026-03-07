@@ -1,7 +1,6 @@
 namespace Jmodot.Implementation.AI.Navigation;
 
 using System.Collections.Generic;
-using Core.AI.Navigation.Zones;
 using Shared;
 
 /// <summary>
@@ -17,11 +16,6 @@ using Shared;
 [GlobalClass, Tool]
 public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
 {
-    [Export] private ZoneShape3D? _zone;
-
-    [Export(PropertyHint.Range, "1, 20, 1")]
-    private int _maxAttempts = 5;
-
     [Export(PropertyHint.Range, "2.0, 20.0, 0.5")]
     private float _minWaypointDistance = 5.0f;
 
@@ -52,12 +46,6 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
         AINavigator3D nav, WaypointContext context,
         Queue<Vector3> waypointHistory)
     {
-        if (_zone == null)
-        {
-            JmoLogger.Warning(this, "HistoryAwareWaypoint: no zone configured.");
-            return false;
-        }
-
         // Tier 1: Strict — reject candidates too close to any history point
         if (TryPickValidTarget(nav, context, waypointHistory))
         {
@@ -85,9 +73,9 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
         AINavigator3D nav, WaypointContext context,
         Queue<Vector3> waypointHistory)
     {
-        for (int i = 0; i < _maxAttempts; i++)
+        for (int i = 0; i < MaxAttempts; i++)
         {
-            Vector3 candidate = _zone!.SampleRandomInteriorPoint(context.OriginPosition);
+            Vector3 candidate = SampleCandidate(nav, context);
             if (!IsValidWaypoint(candidate, waypointHistory, _minWaypointDistance))
             {
                 continue;
@@ -107,9 +95,9 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
         AINavigator3D nav, WaypointContext context,
         Queue<Vector3> waypointHistory)
     {
-        for (int i = 0; i < _maxAttempts; i++)
+        for (int i = 0; i < MaxAttempts; i++)
         {
-            Vector3 candidate = _zone!.SampleRandomInteriorPoint(context.OriginPosition);
+            Vector3 candidate = SampleCandidate(nav, context);
             var response = nav.RequestNewNavPath(candidate, overridePathCalcThresh: 0f);
             if (response == NavReqPathResponse.Success)
             {
@@ -118,7 +106,7 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
             }
         }
 
-        JmoLogger.Warning(this, $"HistoryAwareWaypoint: failed to find any reachable target after {_maxAttempts} attempts.");
+        JmoLogger.Warning(this, $"HistoryAwareWaypoint: failed to find any reachable target after {MaxAttempts} attempts.");
         return false;
     }
 
@@ -133,14 +121,10 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
 
     #region Test Helpers
 #if TOOLS
-    internal void SetZone(ZoneShape3D? zone) => _zone = zone;
-    internal void SetMaxAttempts(int value) => _maxAttempts = value;
     internal void SetMinWaypointDistance(float value) => _minWaypointDistance = value;
     internal void SetMaxHistorySize(int value) => _maxHistorySize = value;
     internal float GetMinWaypointDistance() => _minWaypointDistance;
     internal int GetMaxHistorySize() => _maxHistorySize;
-    internal ZoneShape3D? GetZone() => _zone;
-    internal int GetMaxAttempts() => _maxAttempts;
 
     internal void AddToHistoryForTest(Vector3 wp, Queue<Vector3> history)
     {

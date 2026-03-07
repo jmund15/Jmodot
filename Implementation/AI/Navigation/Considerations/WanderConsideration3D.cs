@@ -11,10 +11,6 @@ using Shared;
 /// A steering consideration that uses FastNoiseLite to generate time-varying
 /// directional interest on the XZ plane. Creates organic meandering behavior
 /// without waypoints or targets.
-///
-/// Lifecycle is controlled by the HSM+BTState registration pattern — the
-/// SteeringBehaviorAction registers/unregisters this consideration on enter/exit.
-///
 /// Per-instance random time offset prevents synchronized wandering across
 /// critters sharing the same .tres resource.
 /// </summary>
@@ -77,10 +73,9 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
         // Accumulate time from physics frames (pause-aware, deterministic)
         _accumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
         float time = _accumulatedTime + _timeOffset;
-        float noiseX = _noise?.GetNoise1D(time) ?? 0f;
-        float noiseZ = _noise?.GetNoise1D(time + 1000f) ?? 0f;
+        float noiseValue = _noise?.GetNoise1D(time) ?? 0f;
 
-        Vector3 wanderDirection = CalculateNoiseDirection(noiseX, noiseZ);
+        Vector3 wanderDirection = CalculateAngularDirection(noiseValue);
 
         // Score each direction by alignment with wander direction
         foreach (var dir in directions.Directions)
@@ -104,14 +99,15 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     }
 
     /// <summary>
-    /// Calculates a normalized XZ-plane direction from two noise channel values.
-    /// Uses the noise values as X and Z components of a direction vector.
-    /// Returns Vector3.Forward as fallback when both inputs are near zero.
+    /// Converts a single noise value in [-1, 1] to a unit direction on the XZ plane.
+    /// Maps to two full rotations (Tau): [-1,1] → [0, 4π]. This ensures the practical
+    /// noise output range (~[-0.7, 0.7] for Simplex) still sweeps the complete circle,
+    /// giving uniform quadrant coverage regardless of noise distribution clustering near 0.
     /// </summary>
-    public static Vector3 CalculateNoiseDirection(float noiseX, float noiseZ)
+    public static Vector3 CalculateAngularDirection(float noiseValue)
     {
-        var dir = new Vector3(noiseX, 0, noiseZ);
-        return dir.LengthSquared() < 0.0001f ? Vector3.Forward : dir.Normalized();
+        float angle = (noiseValue + 1f) * Mathf.Tau;
+        return new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
     }
 
     #region Test Helpers

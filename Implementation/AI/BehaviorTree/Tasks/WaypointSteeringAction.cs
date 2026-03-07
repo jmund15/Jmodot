@@ -39,11 +39,22 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     /// </summary>
     [Export] private bool _succeedOnReach = false;
 
+    [ExportGroup("Retry")]
+
+    /// <summary>
+    /// When PickNewTarget fails, wait this many seconds before retrying.
+    /// Prevents log spam when waypoint selection repeatedly fails (e.g., zone exceeds nav mesh).
+    /// </summary>
+    [Export(PropertyHint.Range, "0.5, 5.0, 0.1")]
+    private float _pickRetryDelay = 1.0f;
+
     private AINavigator3D? _navAgent;
     private Vector3 _originPosition;
     private bool _originCaptured;
     private bool _navActive;
     private bool _pendingFirstTarget;
+    private bool _pickFailed;
+    private float _retryTimer;
     private readonly Queue<Vector3> _waypointHistory = new();
 
     protected override void OnEnter()
@@ -53,6 +64,9 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
         if (Status == TaskStatus.Failure) { return; }
 
         ResolveNavAgent();
+
+        _pickFailed = false;
+        _retryTimer = 0f;
 
         if (_navAgent != null && _waypointStrategy != null)
         {
@@ -80,6 +94,13 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
             _pendingFirstTarget = false;
             PickNewTarget();
             return;
+        }
+
+        if (_pickFailed)
+        {
+            _retryTimer -= delta;
+            if (_retryTimer > 0f) { return; }
+            _pickFailed = false;
         }
 
         if (_navAgent.IsNavigationFinished() || IsTargetReached())
@@ -114,6 +135,8 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
         if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
         {
             JmoLogger.Warning(this, "WaypointStrategy failed to find target.");
+            _pickFailed = true;
+            _retryTimer = _pickRetryDelay;
         }
     }
 
@@ -153,6 +176,17 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     internal Queue<Vector3> GetWaypointHistory() => _waypointHistory;
     internal Vector3 GetOriginPosition() => _originPosition;
     internal void SetOriginPositionForTest(Vector3 pos) => _originPosition = pos;
+    internal void SetPickRetryDelay(float delay) => _pickRetryDelay = delay;
+    internal bool IsPickCooldownActive() => _pickFailed;
+    /// <summary>
+    /// Bypasses the IsMapReady() gate and directly triggers the first PickNewTarget().
+    /// Required because NavigationServer3D is never ready in unit tests.
+    /// </summary>
+    internal void ForceFirstTargetPick()
+    {
+        _pendingFirstTarget = false;
+        PickNewTarget();
+    }
 #endif
     #endregion
 }

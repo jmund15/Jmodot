@@ -103,6 +103,12 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             TreeReset -= debugBT.OnTreeReset;
         };
 
+        // If BT is already enabled, show immediately (signal was emitted before subscription)
+        if (Enabled)
+        {
+            debugBT.OnTreeEnabled();
+        }
+
         return debugBT;
     }
 

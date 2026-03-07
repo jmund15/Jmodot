@@ -64,7 +64,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     /// 0 disables penalty entirely.
     /// </summary>
     [Export(PropertyHint.Range, "0.0, 5.0, 0.1")]
-    private float _penaltyMaxWeight = 2.0f;
+    private float _penaltyMaxWeight = 1.0f;
 
     /// <summary>
     /// Normalized distance where the penalty ramp begins.
@@ -95,7 +95,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     /// 0 disables attraction (backward compatible default).
     /// </summary>
     [Export(PropertyHint.Range, "0.0, 5.0, 0.1")]
-    private float _attractionMaxWeight = 0f;
+    private float _attractionMaxWeight = 1.0f;
 
     /// <summary>
     /// Normalized distance where attraction begins.
