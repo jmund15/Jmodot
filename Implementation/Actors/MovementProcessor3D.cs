@@ -1,9 +1,12 @@
 namespace Jmodot.Implementation.Actors;
 
+using System.Collections.Generic;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
 using Core.Stats;
+using Movement.Strategies;
+using Shared;
 
 /// <summary>
 ///     The definitive high-level orchestrator for character movement. Its sole responsibility
@@ -20,6 +23,8 @@ public class MovementProcessor3D : IMovementProcessor3D
     private readonly IStatProvider _stats;
 
     private Vector3 _frameImpulses = Vector3.Zero;
+    private Vector3 _previousDirection;
+    private readonly HashSet<int> _warnedTurnLogicConflicts = new();
 
     public MovementProcessor3D(
         ICharacterController3D controller,
@@ -40,11 +45,27 @@ public class MovementProcessor3D : IMovementProcessor3D
     /// </summary>
     public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection, float delta)
     {
-        // --- 1. Calculate Character-Driven Velocity via the Strategy ---
-        // The strategy does the heavy lifting of getting stats.
+        // --- 0. Pre-process Turn Rate (if strategy has a composable TurnProfile) ---
         var inputVelocity = this._controller.Velocity;
+
+        if (strategy3D is BaseMovementStrategy3D { TurnProfile: { } profile } baseStrategy)
+        {
+            if (baseStrategy.HasInternalTurnLogic && _warnedTurnLogicConflicts.Add(baseStrategy.GetHashCode()))
+            {
+                JmoLogger.Warning(baseStrategy,
+                    "TurnProfile is set on a strategy with internal turn logic. Both will apply.");
+            }
+
+            desiredDirection = profile.Apply(_previousDirection, desiredDirection, inputVelocity, _stats, delta);
+        }
+
+        // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         var characterVelocity =
-            strategy3D.CalculateVelocity(inputVelocity, desiredDirection, this._stats, delta);
+            strategy3D.CalculateVelocity(inputVelocity, desiredDirection, _previousDirection, this._stats, delta);
+
+        // Update previous direction from strategy output (reflects any turn rate clamping)
+        var flatVel = new Vector3(characterVelocity.X, 0, characterVelocity.Z);
+        if (!flatVel.IsZeroApprox()) { _previousDirection = flatVel.Normalized(); }
 
         _controller.SetVelocity(characterVelocity);
 
