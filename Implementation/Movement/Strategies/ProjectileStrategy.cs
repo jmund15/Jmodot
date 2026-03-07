@@ -13,7 +13,7 @@ using Core.Stats;
 [GlobalClass]
 public partial class ProjectileStrategy : BaseMovementStrategy3D
 {
-    public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, IStatProvider stats, float delta)
+    public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, Vector3 previousDirection, IStatProvider stats, float delta)
     {
         return desiredDirection;
     }
