@@ -4,14 +4,16 @@ using Identification;
 using Implementation.AI.Perception.Strategies;
 
 /// <summary>
-///     A stateful class representing an AI's "living memory" of a single target. It is created
-///     and managed by the AIPerceptionManager and applies a decay strategy to its confidence,
-///     providing a dynamic and realistic memory model.
+///     A stateful class representing an AI's "living memory" of a single target. It manages
+///     a two-state lifecycle: "actively sensed" (confidence = sensor value) and "remembered"
+///     (confidence = decay strategy applied to last sensed value).
 /// </summary>
 public class Perception3DInfo
 {
     private float _baseConfidence;
     private MemoryDecayStrategy _decayStrategy = null!;
+    private bool _sensingActive = true;
+    private ulong _exitTime;
 
     public Perception3DInfo(Percept3D initialPercept3D)
     {
@@ -28,19 +30,38 @@ public class Perception3DInfo
     public ulong LastUpdateTime { get; private set; }
 
     /// <summary>
-    ///     Calculates and returns the current, time-decayed confidence for this memory. This is an
-    ///     efficient, on-demand property that performs the calculation only when asked.
+    ///     Calculates and returns the current confidence for this memory.
+    ///     While actively sensed, returns the raw sensor confidence.
+    ///     After exit, delegates to the decay strategy.
     /// </summary>
-    public float CurrentConfidence =>
-        this._decayStrategy?.CalculateConfidence(this._baseConfidence,
-            (Time.GetTicksMsec() - this.LastUpdateTime) / 1000.0f) ?? this._baseConfidence;
+    public float CurrentConfidence
+    {
+        get
+        {
+            if (_sensingActive) { return _baseConfidence; }
+            var elapsed = (Time.GetTicksMsec() - _exitTime) / 1000f;
+            return _decayStrategy?.CalculateConfidence(_baseConfidence, elapsed) ?? 0f;
+        }
+    }
 
     /// <summary>Returns true if the memory is still considered active (confidence is above zero).</summary>
-    public bool IsActive => this.CurrentConfidence > 0.001f; // Use a small epsilon to avoid floating point issues.
+    public bool IsActive => this.CurrentConfidence > 0.001f;
 
-    /// <summary>Updates the memory record with information from a new, incoming percept.</summary>
+    /// <summary>
+    ///     Updates the memory record with information from a new, incoming percept.
+    ///     Exit events (confidence ≤ epsilon) transition to "remembered" state.
+    ///     Active detections refresh the sensing state.
+    /// </summary>
     public void Update(Percept3D latestPercept3D)
     {
+        if (latestPercept3D.Confidence <= 0.001f)
+        {
+            _sensingActive = false;
+            _exitTime = latestPercept3D.Timestamp;
+            return;
+        }
+
+        _sensingActive = true;
         this.LastKnownPosition = latestPercept3D.LastKnownPosition;
         this.LastKnownVelocity = latestPercept3D.LastKnownVelocity;
         this.Identity = latestPercept3D.Identity;
