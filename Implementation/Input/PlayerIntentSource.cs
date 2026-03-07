@@ -29,7 +29,7 @@ public partial class PlayerIntentSource : IntentSourceNode
     private GCol.Array<ActionBinding> _actionBindings = new();
 
     [Export] private GCol.Array<VectorBindingBase> _vectorBindings = new();
-    [Export, RequiredExport] private InputMappingProfile _inputProfile = null!;
+    [Export] private InputMappingProfile? _inputProfile;
     [Export] public bool IsActive { get; set; } = true;
 
     private Node3D? _owner;
