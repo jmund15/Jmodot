@@ -14,6 +14,12 @@ public partial class LinearMemoryDecay : MemoryDecayStrategy
     [Export(PropertyHint.Range, "0.1,60.0,0.1")]
     public float ForgetTime { get; private set; } = 10.0f;
 
+    #region Test Helpers
+#if TOOLS
+    internal void SetForgetTime(float value) => ForgetTime = value;
+#endif
+    #endregion
+
     /// <inheritdoc />
     public override float CalculateConfidence(float baseConfidence, float timeSinceUpdate)
     {
