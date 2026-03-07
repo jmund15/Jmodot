@@ -270,6 +270,19 @@ public abstract partial class DebugAIPanel : Control
         return tween;
     }
 
+    /// <summary>
+    /// Kills a pending managed tween for the given target without allocating a new one.
+    /// </summary>
+    protected void KillManagedTween(Node target)
+    {
+        ulong id = target.GetInstanceId();
+        if (_managedTweens.TryGetValue(id, out var existing) && existing.IsValid())
+        {
+            existing.Kill();
+        }
+        _managedTweens.Remove(id);
+    }
+
     #endregion
 
     #region Cleanup

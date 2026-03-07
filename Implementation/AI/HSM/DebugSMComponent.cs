@@ -158,11 +158,13 @@ public partial class DebugSMComponent : DebugAIPanel
             HorizontalAlignment = alignment
         };
 
-        _labelContainer?.AddChild(_currentStateLabel);
+        if (_labelContainer.IsValid()) { _labelContainer.AddChild(_currentStateLabel); }
     }
 
     private void ArchiveLabelAsHistory(Label oldLabel)
     {
+        if (!oldLabel.IsValid()) { return; }
+
         oldLabel.Text = $"  - {oldLabel.Name}: {_currentStateTime:n2}";
         _historyLabels.Enqueue(oldLabel);
 
@@ -170,6 +172,7 @@ public partial class DebugSMComponent : DebugAIPanel
         while (_historyLabels.Count > MAX_HISTORY)
         {
             var prunedLabel = _historyLabels.Dequeue();
+            KillManagedTween(prunedLabel);
             prunedLabel.QueueFree();
         }
 
@@ -183,7 +186,7 @@ public partial class DebugSMComponent : DebugAIPanel
         tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
              .SetDelay(delay)
              .SetEase(Tween.EaseType.In);
-        tween.TweenCallback(Callable.From(label.QueueFree));
+        tween.TweenCallback(Callable.From(() => { if (label.IsValid()) { label.QueueFree(); } }));
     }
 
     protected override void Cleanup()

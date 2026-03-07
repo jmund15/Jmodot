@@ -20,12 +20,21 @@ using Shared;
 ///     <para>Add this node to an entity's scene tree. Call <see cref="Initialize"/> after
 ///     all AI subsystems are initialized.</para>
 /// </summary>
+[GlobalClass]
 public partial class AIDebugDashboard : Node
 {
     #region Exports
 
     [Export] public DebugAIPanel.DebugViewPosition InitialAnchor { get; set; } = DebugAIPanel.DebugViewPosition.TopRight;
     [Export] public Vector2 InitialSize { get; set; } = new(400, 500);
+
+    /// <summary>
+    ///     Optional target entity for external targeting. When set, the dashboard targets
+    ///     this entity's providers instead of requiring the entity to call <see cref="Initialize"/>.
+    ///     Enables sibling configurations where the dashboard is not a child of the entity.
+    ///     Set via the Inspector in playground/test scenes.
+    /// </summary>
+    [Export] public Node? TargetEntity { get; set; }
 
     #endregion
 
@@ -34,6 +43,7 @@ public partial class AIDebugDashboard : Node
     private readonly List<IDebugPanelProvider> _rootProviders = new();
     private readonly Dictionary<IDebugPanelProvider, List<IDebugPanelProvider>> _nestedMap = new();
     private readonly Dictionary<IDebugPanelProvider, Control> _contentCache = new();
+    private readonly Dictionary<IDebugPanelProvider, Control> _nestedContentCache = new();
     private readonly HashSet<IDebugPanelProvider> _allNestedProviders = new();
 
     private CanvasLayer? _canvasLayer;
@@ -42,12 +52,17 @@ public partial class AIDebugDashboard : Node
     private HBoxContainer? _titleBar;
     private HBoxContainer? _tabBar;
     private MarginContainer? _contentArea;
+    private MarginContainer? _nestedContentArea;
+    private IDebugPanelProvider? _activeNestedProvider;
 
     private bool _isDragging;
     private bool _isResizing;
+    private bool _isMinimized;
     private Vector2 _dragOffset;
     private Vector2 _resizeStart;
     private Vector2 _startSize;
+    private Vector2 _preMinimizeSize;
+    private Button? _minimizeButton;
 
     private static int _nextLayer = 100;
     private static readonly Vector2 MinPanelSize = new(300, 200);
@@ -55,8 +70,10 @@ public partial class AIDebugDashboard : Node
     private static readonly Vector2 DefaultViewportSize = new(1920, 1080);
     private const float TITLE_BAR_HEIGHT = 32f;
     private const float RESIZE_GRIP_SIZE = 16f;
+    private const float COMPACT_CONTENT_HEIGHT = 60f;
 
     private Control? _resizeGrip;
+    private HSeparator? _separator;
 
     #endregion
 
@@ -88,6 +105,12 @@ public partial class AIDebugDashboard : Node
 
     /// <summary>The current panel size (for testing resize behavior).</summary>
     public Vector2 PanelSize => _panelContainer?.Size ?? Vector2.Zero;
+
+    /// <summary>Whether the dashboard is currently minimized (collapsed to title bar).</summary>
+    public bool IsMinimized => _isMinimized;
+
+    /// <summary>The currently active nested provider being rendered in the drill-down area.</summary>
+    public IDebugPanelProvider? ActiveNestedProvider => _activeNestedProvider;
 
     /// <summary>
     ///     Returns the root provider at the given index (ordered by DebugTabOrder).
@@ -127,6 +150,22 @@ public partial class AIDebugDashboard : Node
     }
 
     /// <summary>
+    ///     Attempts to initialize the dashboard using the exported <see cref="TargetEntity"/>.
+    ///     Returns true if initialization succeeded, false if TargetEntity is null or
+    ///     the dashboard is already initialized.
+    ///     Called automatically from <see cref="_Ready"/> when TargetEntity is set.
+    ///     Can also be called manually for explicit initialization timing.
+    /// </summary>
+    public bool TryInitializeFromTarget()
+    {
+        if (IsInitialized) { return false; }
+        if (TargetEntity == null) { return false; }
+
+        Initialize(TargetEntity);
+        return true;
+    }
+
+    /// <summary>
     ///     Switches the active tab to the given provider. Lazy-creates content on
     ///     first selection. Notifies the old provider it is hidden.
     /// </summary>
@@ -160,6 +199,16 @@ public partial class AIDebugDashboard : Node
             newContent.Visible = true;
         }
 
+        // Handle nested provider drill-down (HSM→BT)
+        if (provider is IDebugNestingProvider nesting)
+        {
+            ShowNestedContent(nesting.ActiveNestedProvider);
+        }
+        else
+        {
+            HideNestedContent();
+        }
+
         UpdateTabBarSelection();
     }
 
@@ -169,6 +218,7 @@ public partial class AIDebugDashboard : Node
     public void UpdateActiveTab(double delta)
     {
         ActiveProvider?.UpdateDebugContent(delta);
+        _activeNestedProvider?.UpdateDebugContent(delta);
     }
 
     #endregion
@@ -226,6 +276,12 @@ public partial class AIDebugDashboard : Node
     private void OnActiveNestedChanged(IDebugPanelProvider? newActive)
     {
         ExpandedNestedProvider = newActive;
+
+        // Only update nested content if the nesting provider is the active root tab
+        if (ActiveProvider is IDebugNestingProvider)
+        {
+            ShowNestedContent(newActive);
+        }
     }
 
     #endregion
@@ -264,9 +320,9 @@ public partial class AIDebugDashboard : Node
         };
         _titleBar.AddChild(titleLabel);
 
-        var closeButton = new Button { Text = "X", CustomMinimumSize = new Vector2(24, 24) };
-        closeButton.Pressed += OnClosePressed;
-        _titleBar.AddChild(closeButton);
+        _minimizeButton = new Button { Text = "\u2014", CustomMinimumSize = new Vector2(24, 24) };
+        _minimizeButton.Pressed += ToggleMinimize;
+        _titleBar.AddChild(_minimizeButton);
         _mainLayout.AddChild(_titleBar);
 
         // Tab bar (hidden when single provider)
@@ -286,23 +342,32 @@ public partial class AIDebugDashboard : Node
         _tabBar.Visible = _rootProviders.Count > 1;
         _mainLayout.AddChild(_tabBar);
 
-        // Content area
+        // Content area (root provider content)
         _contentArea = new MarginContainer { Name = "ContentArea" };
         _contentArea.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         _mainLayout.AddChild(_contentArea);
 
-        // Resize grip (bottom-right corner)
+        // Separator between root content and nested content (hidden until nested content appears)
+        _separator = new HSeparator { Name = "ContentSeparator", Visible = false };
+        _mainLayout.AddChild(_separator);
+
+        // Nested content area (for IDebugNestingProvider drill-down, e.g., active BT)
+        _nestedContentArea = new MarginContainer { Name = "NestedContentArea" };
+        _nestedContentArea.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        _nestedContentArea.Visible = false;
+        _mainLayout.AddChild(_nestedContentArea);
+
+        // Resize grip — lives on CanvasLayer (NOT PanelContainer) to avoid
+        // container layout forcing it to fill the entire panel area.
+        // Position is tracked manually in _Process to follow the panel's bottom-right corner.
         _resizeGrip = new Control
         {
             Name = "ResizeGrip",
-            CustomMinimumSize = new Vector2(RESIZE_GRIP_SIZE, RESIZE_GRIP_SIZE),
+            Size = new Vector2(RESIZE_GRIP_SIZE, RESIZE_GRIP_SIZE),
             MouseDefaultCursorShape = Control.CursorShape.Fdiagsize
         };
-        _resizeGrip.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        _resizeGrip.GrowHorizontal = Control.GrowDirection.Begin;
-        _resizeGrip.GrowVertical = Control.GrowDirection.Begin;
         _resizeGrip.GuiInput += OnResizeGripGuiInput;
-        _panelContainer.AddChild(_resizeGrip);
+        _canvasLayer.AddChild(_resizeGrip);
 
         // Wire input handlers
         _panelContainer.GuiInput += OnPanelGuiInput;
@@ -368,10 +433,30 @@ public partial class AIDebugDashboard : Node
 
     #region Lifecycle
 
+    public override void _Ready()
+    {
+        if (Engine.IsEditorHint()) { return; }
+
+        if (TargetEntity != null)
+        {
+            // Defer initialization to ensure the target entity's _Ready has completed.
+            // Wrap in void lambda — Callable.From expects Action, not Func<bool>.
+            Callable.From(() => TryInitializeFromTarget()).CallDeferred();
+        }
+    }
+
     public override void _Process(double delta)
     {
         if (!IsInitialized) { return; }
         UpdateActiveTab(delta);
+        UpdateResizeGripPosition();
+    }
+
+    private void UpdateResizeGripPosition()
+    {
+        if (_resizeGrip == null || _panelContainer == null) { return; }
+        _resizeGrip.Position = _panelContainer.Position + _panelContainer.Size
+                               - new Vector2(RESIZE_GRIP_SIZE, RESIZE_GRIP_SIZE);
     }
 
     public override void _ExitTree()
@@ -478,13 +563,113 @@ public partial class AIDebugDashboard : Node
 
     #endregion
 
-    #region Event Handlers
+    #region Nested Content
 
-    private void OnClosePressed()
+    private void ShowNestedContent(IDebugPanelProvider? nestedProvider)
     {
-        if (_canvasLayer != null)
+        // Hide previous nested content
+        if (_activeNestedProvider != null
+            && _nestedContentCache.TryGetValue(_activeNestedProvider, out var oldNested))
         {
-            _canvasLayer.Visible = false;
+            _activeNestedProvider.OnDebugContentHidden();
+            oldNested.Visible = false;
+        }
+
+        _activeNestedProvider = nestedProvider;
+        if (nestedProvider == null || _nestedContentArea == null)
+        {
+            _nestedContentArea?.Hide();
+            return;
+        }
+
+        // Lazy-create nested content (always — even when minimized, so it's ready on maximize)
+        if (!_nestedContentCache.ContainsKey(nestedProvider))
+        {
+            var content = nestedProvider.CreateDebugContent();
+            _nestedContentCache[nestedProvider] = content;
+            _nestedContentArea.AddChild(content);
+        }
+
+        // Don't make visible if minimized — ToggleMinimize() will restore on maximize
+        if (_isMinimized) { return; }
+
+        if (_nestedContentCache.TryGetValue(nestedProvider, out var newNested))
+        {
+            newNested.Visible = true;
+        }
+        if (_separator != null) { _separator.Visible = true; }
+        _nestedContentArea.Show();
+        UpdateContentAreaLayout();
+    }
+
+    private void HideNestedContent()
+    {
+        if (_activeNestedProvider != null
+            && _nestedContentCache.TryGetValue(_activeNestedProvider, out var content))
+        {
+            _activeNestedProvider.OnDebugContentHidden();
+            content.Visible = false;
+        }
+        _activeNestedProvider = null;
+        if (_separator != null) { _separator.Visible = false; }
+        _nestedContentArea?.Hide();
+        UpdateContentAreaLayout();
+    }
+
+    /// <summary>
+    /// Adjusts _contentArea sizing based on whether nested content is visible.
+    /// When nested: compact fixed height (status header). When alone: expand to fill.
+    /// </summary>
+    private void UpdateContentAreaLayout()
+    {
+        if (_contentArea == null) { return; }
+        bool hasNested = _nestedContentArea is { Visible: true };
+        if (hasNested)
+        {
+            _contentArea.SizeFlagsVertical = Control.SizeFlags.Fill;
+            _contentArea.CustomMinimumSize = new Vector2(0, COMPACT_CONTENT_HEIGHT);
+            _contentArea.ClipContents = true;
+        }
+        else
+        {
+            _contentArea.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+            _contentArea.CustomMinimumSize = Vector2.Zero;
+            _contentArea.ClipContents = false;
+        }
+    }
+
+    #endregion
+
+    #region Minimize / Maximize
+
+    private void ToggleMinimize()
+    {
+        if (_panelContainer == null) { return; }
+
+        _isMinimized = !_isMinimized;
+
+        if (_isMinimized)
+        {
+            _preMinimizeSize = _panelContainer.Size;
+            if (_tabBar != null) { _tabBar.Visible = false; }
+            if (_contentArea != null) { _contentArea.Visible = false; }
+            if (_separator != null) { _separator.Visible = false; }
+            if (_nestedContentArea != null) { _nestedContentArea.Visible = false; }
+            _panelContainer.CustomMinimumSize = new Vector2(_panelContainer.CustomMinimumSize.X, TITLE_BAR_HEIGHT);
+            _panelContainer.Size = new Vector2(_panelContainer.Size.X, TITLE_BAR_HEIGHT);
+            if (_minimizeButton != null) { _minimizeButton.Text = "\u25a1"; }
+        }
+        else
+        {
+            _panelContainer.CustomMinimumSize = MinPanelSize;
+            _panelContainer.Size = _preMinimizeSize;
+            if (_tabBar != null) { _tabBar.Visible = _rootProviders.Count > 1; }
+            if (_contentArea != null) { _contentArea.Visible = true; }
+            bool hasNested = _activeNestedProvider != null;
+            if (_separator != null) { _separator.Visible = hasNested; }
+            if (_nestedContentArea != null) { _nestedContentArea.Visible = hasNested; }
+            UpdateContentAreaLayout();
+            if (_minimizeButton != null) { _minimizeButton.Text = "\u2014"; }
         }
     }
 

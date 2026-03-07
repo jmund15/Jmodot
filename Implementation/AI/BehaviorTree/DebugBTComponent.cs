@@ -148,9 +148,10 @@ public partial class DebugBTComponent : DebugAIPanel
 
         foreach (var kvp in _taskToItem)
         {
-            SetItemColor(kvp.Value, _baseBgColor);
             _taskRunTime[kvp.Key] = 0.0f;
             kvp.Value.SetText(1, "0.00");
+            KillManagedTween(kvp.Key);
+            SetItemColor(kvp.Value, _baseBgColor);
         }
     }
 
@@ -170,7 +171,7 @@ public partial class DebugBTComponent : DebugAIPanel
         {
             Name = "BTTreeUI",
             Columns = 2,
-            CustomMinimumSize = PanelSize,
+            CustomMinimumSize = EmbeddedMode ? new Vector2(0, 100) : PanelSize,
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             SizeFlagsVertical = SizeFlags.ExpandFill
         };
@@ -183,6 +184,13 @@ public partial class DebugBTComponent : DebugAIPanel
         _treeUI.SetColumnCustomMinimumWidth(1, 60);
 
         AddChild(_treeUI);
+
+        // In embedded mode, the parent (DebugAIPanel) is a Control — not a Container —
+        // so SizeFlags are ignored. Use anchor-based layout to fill the parent instead.
+        if (EmbeddedMode)
+        {
+            _treeUI.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        }
     }
 
     private void CreateBranchesRecursive(TreeItem parentItem, BehaviorTask parentTask)
@@ -226,30 +234,27 @@ public partial class DebugBTComponent : DebugAIPanel
     {
         if (!_taskToItem.TryGetValue(task, out var item)) { return; }
 
-        // Remove from running set when a task stops running
-        if (newStatus != TaskStatus.Running && _runningTasks.Contains(task))
-        {
-            _runningTasks.Remove(task);
-            _taskRunTime[task] = 0.0f;
-            item.SetText(1, "0.00");
-        }
-
         switch (newStatus)
         {
             case TaskStatus.Running:
+                KillManagedTween(task);
                 if (_runningTasks.Add(task))
                 {
                     _taskRunTime[task] = 0.0f;
+                    item.SetText(1, "0.00");
                 }
                 SetItemColor(item, _runningColor);
                 break;
             case TaskStatus.Success:
-                FlashItemColor(item, _successColor);
+                _runningTasks.Remove(task);
+                SetItemColor(item, _successColor);
                 break;
             case TaskStatus.Failure:
-                FlashItemColor(item, _failureColor);
+                _runningTasks.Remove(task);
+                SetItemColor(item, _failureColor);
                 break;
             case TaskStatus.Fresh:
+                _runningTasks.Remove(task);
                 SetItemColor(item, _baseBgColor);
                 break;
         }
@@ -265,21 +270,27 @@ public partial class DebugBTComponent : DebugAIPanel
         item.SetCustomBgColor(1, color);
     }
 
-    private void FlashItemColor(TreeItem item, Color flashColor)
+    #endregion
+
+    #region Test Helpers
+#if TOOLS
+    internal Color GetTaskColor(BehaviorTask task)
     {
-        SetItemColor(item, flashColor);
-
-        if (!_itemToTask.TryGetValue(item, out var task)) { return; }
-
-        // Use managed tween to prevent stacking on the same task
-        var tween = CreateManagedTween(task);
-        tween.TweenCallback(Callable.From(() =>
-        {
-            var targetColor = _runningTasks.Contains(task) ? _runningColor : _baseBgColor;
-            SetItemColor(item, targetColor);
-        })).SetDelay(0.5f);
+        if (!_taskToItem.TryGetValue(task, out var item)) { return default; }
+        return item.GetCustomBgColor(0);
     }
 
+    internal string GetTaskTimerText(BehaviorTask task)
+    {
+        if (!_taskToItem.TryGetValue(task, out var item)) { return string.Empty; }
+        return item.GetText(1);
+    }
+
+    internal float GetTaskRunTime(BehaviorTask task)
+    {
+        return _taskRunTime.TryGetValue(task, out var time) ? time : -1f;
+    }
+#endif
     #endregion
 
     #region Cleanup
