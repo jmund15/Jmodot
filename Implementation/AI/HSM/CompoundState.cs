@@ -86,6 +86,32 @@ using Shared.GodotExceptions;
         {
             var debugSM = new DebugSMComponent { EmbeddedMode = true };
             debugSM.Init(Name, Agent as Node3D);
+
+            // Wire lifecycle signals (matching BehaviorTree.CreateDebugContent pattern)
+            TransitionedSubState += debugSM.OnTransitionedState;
+            ExitedCompoundState += debugSM.OnExitedCompoundState;
+
+            // EnteredCompoundState is parameterless but OnEnteredCompoundState needs the state.
+            // Store delegate reference for reliable unsubscription.
+            EnteredCompoundStateEventHandler enteredHandler = () =>
+            {
+                if (PrimarySubState.IsValid()) { debugSM.OnEnteredCompoundState(PrimarySubState); }
+            };
+            EnteredCompoundState += enteredHandler;
+
+            debugSM.TreeExiting += () =>
+            {
+                TransitionedSubState -= debugSM.OnTransitionedState;
+                ExitedCompoundState -= debugSM.OnExitedCompoundState;
+                EnteredCompoundState -= enteredHandler;
+            };
+
+            // If already entered, populate immediately
+            if (PrimarySubState.IsValid())
+            {
+                debugSM.OnEnteredCompoundState(PrimarySubState);
+            }
+
             return debugSM;
         }
 
@@ -153,7 +179,7 @@ using Shared.GodotExceptions;
             }
 
             EmitSignal(SignalName.EnteredCompoundState);
-            _debugComponent?.OnEnteredCompoundState(PrimarySubState);
+            if (_debugComponent.IsValid()) { _debugComponent.OnEnteredCompoundState(PrimarySubState); }
         }
 
         protected override void OnExit()
@@ -167,7 +193,7 @@ using Shared.GodotExceptions;
             // Note: We don't set PrimarySubState to null here to support History States.
 
             EmitSignal(SignalName.ExitedCompoundState);
-            _debugComponent?.OnExitedCompoundState();
+            if (_debugComponent.IsValid()) { _debugComponent.OnExitedCompoundState(); }
         }
 
         protected override void OnProcessFrame(float delta)
@@ -266,7 +292,7 @@ using Shared.GodotExceptions;
             }
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
-            _debugComponent?.OnTransitionedState(oldSubState, newSubState);
+            if (_debugComponent.IsValid()) { _debugComponent.OnTransitionedState(oldSubState, newSubState); }
             ActiveNestedProviderChanged.Invoke(ActiveNestedProvider);
 
             //JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");

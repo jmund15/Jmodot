@@ -4,14 +4,12 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Implementation.Modifiers.CalculationStrategies;
-using Implementation.Registry;
 using Implementation.Shared;
 using Mechanics;
 using Microsoft.CSharp.RuntimeBinder;
 using Modifiers;
 using Modifiers.CalculationStrategies;
 using Jmodot.Implementation.Modifiers;
-using PushinPotions.Global;
 using Shared;
 
 /// <summary>
@@ -40,12 +38,6 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
     private readonly HashSet<StatContext> _activeContexts = new();
 
-    /// <summary>
-    ///     Optional injected context profiles. When set via <see cref="SetContextProfiles"/>,
-    ///     these are used instead of GlobalRegistry for context lookups — enabling testability
-    ///     and decoupling from the global singleton.
-    /// </summary>
-    private Godot.Collections.Dictionary<StatContext, StatProfile>? _contextProfiles;
 
     private EntityStatSheet _archetype = null!;
 
@@ -380,30 +372,13 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
             property.RemoveAllModifiersFromSource(owner);
         }
     }
-    /// <summary>
-    ///     Injects context profiles for decoupled context lookups.
-    ///     When set, <see cref="AddActiveContext"/> and <see cref="RemoveActiveContext"/>
-    ///     use these profiles instead of the GlobalRegistry singleton.
-    /// </summary>
-    public void SetContextProfiles(Godot.Collections.Dictionary<StatContext, StatProfile> profiles)
-    {
-        _contextProfiles = profiles;
-    }
-
     public void AddActiveContext(StatContext context)
     {
         _activeContexts.Add(context);
 
-        // Prefer injected profiles; fall back to GlobalRegistry for backward compatibility.
-        var lookup = _contextProfiles ?? GlobalRegistry.DB?.StatContextProfiles;
-        if (lookup != null && lookup.TryGetValue(context, out var profile))
+        foreach (var (attribute, modifier) in context.Modifiers)
         {
-            foreach (var (attribute, modifier) in profile.Modifiers)
-            {
-                // The context resource itself acts as the owner. We don't need to store the
-                // returned handle because we'll use the declarative RemoveActiveContext for cleanup.
-                AddModifier(attribute, modifier, context);
-            }
+            AddModifier(attribute, modifier, context);
         }
     }
 
