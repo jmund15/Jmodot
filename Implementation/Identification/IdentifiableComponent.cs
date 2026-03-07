@@ -27,4 +27,10 @@ public partial class IdentifiableComponent : Node, IIdentifiable
     {
         return this.Identity;
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetIdentity(Identity identity) => Identity = identity;
+#endif
+    #endregion
 }
