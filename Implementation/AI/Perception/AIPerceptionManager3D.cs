@@ -127,6 +127,12 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
         }
     }
 
+    #region Test Helpers
+#if TOOLS
+    internal void SetSensors(Array<Node> sensors) => _sensors = sensors;
+#endif
+    #endregion
+
     #region Public API for AI Brain & Other Systems
 
     /// <summary>Tries to retrieve the memory record for a specific target.</summary>
@@ -147,7 +153,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
         {
             return [];
         }
-        return memorySet;
+        return memorySet.Where(info => info.IsActive);
     }
 
     /// <summary>
