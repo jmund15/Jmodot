@@ -35,4 +35,13 @@ public abstract partial class ZoneShape3D : Resource
     /// Points are on the XZ plane (Y matches center Y).
     /// </summary>
     public abstract Vector3 SampleRandomInteriorPoint(Vector3 center);
+
+    /// <summary>
+    /// Returns true if the given point is inside or on the boundary of the zone.
+    /// Delegates to <see cref="GetNormalizedDistance"/> — contained when distance &lt;= 1.
+    /// </summary>
+    public bool ContainsPoint(Vector3 point, Vector3 center)
+    {
+        return GetNormalizedDistance(point, center) <= 1f;
+    }
 }

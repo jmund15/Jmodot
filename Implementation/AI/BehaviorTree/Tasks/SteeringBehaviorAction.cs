@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 using Core.AI;
 using Core.AI.Navigation.Considerations;
 using Jmodot.AI.Navigation;
+using Navigation.Considerations;
 using Shared;
 using GColl = Godot.Collections;
 
@@ -18,6 +19,9 @@ using GColl = Godot.Collections;
 public partial class SteeringBehaviorAction : BehaviorAction
 {
     [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
+
+    [ExportGroup("Navigation Path Override")]
+    [Export] private NavigationPath3DConsideration? _navPathOverride;
 
     private AISteeringProcessor3D? _cachedSteering;
 
@@ -36,6 +40,11 @@ public partial class SteeringBehaviorAction : BehaviorAction
         {
             steering.RegisterConsideration(consideration);
         }
+
+        if (_navPathOverride != null)
+        {
+            steering.OverrideNavPathConsideration(_navPathOverride);
+        }
     }
 
     protected override void OnExit()
@@ -47,6 +56,11 @@ public partial class SteeringBehaviorAction : BehaviorAction
         foreach (var consideration in _considerations)
         {
             steering.UnregisterConsideration(consideration);
+        }
+
+        if (_navPathOverride != null)
+        {
+            steering.ClearNavPathOverride();
         }
     }
 
@@ -72,6 +86,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
     #region Test Helpers
 #if TOOLS
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
 #endif
     #endregion
 }

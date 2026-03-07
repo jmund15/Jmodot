@@ -8,17 +8,26 @@ using Core.AI.Navigation.Considerations;
 using Core.Movement;
 
 /// <summary>
-/// A consideration that scores directions based on their alignment with the agent's
-/// current navigation path from the AINavigator3D. This creates the primary "desire"
-/// to move towards the goal. The weight can be tuned to make an agent follow its
-/// path more or less strictly.
+/// Scores directions by alignment with the agent's current navigation path direction.
+/// Creates the primary steering "desire" to follow a nav path toward the goal.
+///
+/// <para><b>Ownership:</b> This consideration is owned by <c>AISteeringProcessor3D</c> as a
+/// dedicated singleton slot — NOT placed in the regular <c>_considerations</c> array.
+/// This ensures exactly one nav path consideration is active at a time and prevents
+/// the footgun of forgetting to include it in a BT action's considerations.</para>
+///
+/// <para><b>Override:</b> BT actions can temporarily swap in a custom instance via
+/// <c>SteeringBehaviorAction._navPathOverride</c> for different weights, modifiers,
+/// or scoring algorithms. The override is automatically cleared when the action exits.</para>
+///
+/// <para><b>Self-disabling:</b> Returns all-zero scores when <c>NextPathPointDirection</c>
+/// is zero (no active path), so it contributes nothing during pure flee/wander states.</para>
+///
+/// <para><b>Extensible:</b> Attach <c>SteeringConsiderationModifier3D</c> instances
+/// (e.g., <c>DistanceScalingModifier3D</c>, <c>AffinitySteeringModifier3D</c>) to the
+/// <c>_modifiers</c> array for dynamic weight scaling based on distance, personality, etc.</para>
 /// </summary>
-/// <summary>
-///     The path that defines any weight or modifiers for the base navigation path to the target.
-///     This is typically optional, but if you want certain entities to regard the path strictly or less of a priority
-///     based on certain conditions, use this.
-/// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class NavigationPath3DConsideration : BaseAIConsideration3D
 {
     /// <summary>

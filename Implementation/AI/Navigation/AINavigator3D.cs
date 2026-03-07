@@ -156,6 +156,17 @@ public partial class AINavigator3D : NavigationAgent3D
         JmoLogger.Info(this, "Target reached.");
     }
 
+    /// <summary>
+    /// Returns a random point on the navigation mesh. Used as a zoneless fallback
+    /// by waypoint selection strategies that don't have a zone configured.
+    /// </summary>
+    public Vector3 SampleRandomNavPoint()
+    {
+        Rid map = GetNavigationMap();
+        uint layers = _activeProfile?.NavigationLayers ?? 1;
+        return NavigationServer3D.MapGetRandomPoint(map, layers, false);
+    }
+
     #region HELPER_FUNCTIONS
 
     /// <summary>
