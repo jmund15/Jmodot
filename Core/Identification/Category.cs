@@ -1,5 +1,7 @@
 namespace Jmodot.Core.Identification;
 
+using Implementation.AI.Perception.Strategies;
+
 /// <summary>
 ///     A data-driven Resource representing a high-level, abstract category or "tag".
 ///     This is a cornerstone of the world's semantic system, allowing for broad-level grouping and querying.
@@ -19,10 +21,20 @@ public partial class Category : Resource
     [Export]
     public string CategoryName { get; private set; } = "Unnamed Category";
 
+    /// <summary>
+    ///     Optional decay strategy override for perception. When set, sensors will use this
+    ///     strategy instead of their default for entities belonging to this category.
+    /// </summary>
+    [Export]
+    public MemoryDecayStrategy? PerceptionDecay { get; private set; }
+
     #region Test Helpers
 
     /// <summary>Sets CategoryName for testing purposes.</summary>
     internal void SetCategoryName(string value) => CategoryName = value;
+
+    /// <summary>Sets PerceptionDecay for testing purposes.</summary>
+    internal void SetPerceptionDecay(MemoryDecayStrategy? value) => PerceptionDecay = value;
 
     #endregion
 }
