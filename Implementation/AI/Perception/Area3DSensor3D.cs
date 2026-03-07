@@ -18,6 +18,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 {
     [Export] private MemoryDecayStrategy? _defaultDecayStrategy;
 
+    [ExportGroup("Filtering")]
+    [Export] private Godot.Collections.Array<Category> _categoryFilter = new();
+
     public event Action<IAISensor3D, Percept3D>? PerceptUpdated;
 
     public override void _Ready()
@@ -37,6 +40,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     #region Test Helpers
 #if TOOLS
     internal void SetDefaultDecayStrategy(MemoryDecayStrategy? strategy) => _defaultDecayStrategy = strategy;
+    internal void SetCategoryFilter(Godot.Collections.Array<Category> filter) => _categoryFilter = filter;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
 #endif
@@ -58,6 +62,8 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
         if (!TryResolveIdentity(body, out var identifiable)) { return; }
 
         var identity = identifiable!.GetIdentity();
+        if (_categoryFilter.Count > 0 && !MatchesCategoryFilter(identity)) { return; }
+        var strategy = identity.ResolvePerceptionDecay() ?? _defaultDecayStrategy;
         var velocity = ExtractVelocity(body);
         var position = body.GlobalPosition;
 
@@ -67,10 +73,19 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
             velocity: velocity,
             identity: identity,
             confidence: confidence,
-            decayStrategy: _defaultDecayStrategy
+            decayStrategy: strategy
         );
 
         PerceptUpdated?.Invoke(this, percept);
+    }
+
+    private bool MatchesCategoryFilter(Identity identity)
+    {
+        foreach (var filterCat in _categoryFilter)
+        {
+            if (identity.HasCategory(filterCat)) { return true; }
+        }
+        return false;
     }
 
     private static bool TryResolveIdentity(Node3D body, out IIdentifiable? identifiable)

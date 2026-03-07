@@ -17,6 +17,9 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
     [Export] private MemoryDecayStrategy? _defaultDecayStrategy;
     [Export(PropertyHint.Range, "0.05,1.0,0.01")] private float _pollingInterval = 0.1f;
 
+    [ExportGroup("Filtering")]
+    [Export] private Godot.Collections.Array<Category> _categoryFilter = new();
+
     public event Action<IAISensor3D, Percept3D>? PerceptUpdated;
 
     public Node GetUnderlyingNode() => this;
@@ -34,6 +37,7 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
     #region Test Helpers
 #if TOOLS
     internal void SetDefaultDecayStrategy(MemoryDecayStrategy? strategy) => _defaultDecayStrategy = strategy;
+    internal void SetCategoryFilter(Godot.Collections.Array<Category> filter) => _categoryFilter = filter;
 
     internal void SimulateRayStateChange(int rayIndex, GodotObject? previousCollider, GodotObject? currentCollider,
         Vector3 hitPosition, float rayLength)
@@ -70,6 +74,8 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
         if (!TryResolveIdentity(body, out var identifiable)) { return; }
 
         var identity = identifiable!.GetIdentity();
+        if (_categoryFilter.Count > 0 && !MatchesCategoryFilter(identity)) { return; }
+        var strategy = identity.ResolvePerceptionDecay() ?? _defaultDecayStrategy!;
         float distance = GlobalPosition.DistanceTo(hitPosition);
         float confidence = CalculateConfidence(distance, rayLength);
         var velocity = ExtractVelocity(body);
@@ -80,7 +86,7 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
             velocity: velocity,
             identity: identity,
             confidence: confidence,
-            decayStrategy: _defaultDecayStrategy!
+            decayStrategy: strategy
         );
 
         PerceptUpdated?.Invoke(this, percept);
@@ -91,6 +97,8 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
         if (!TryResolveIdentity(body, out var identifiable)) { return; }
 
         var identity = identifiable!.GetIdentity();
+        if (_categoryFilter.Count > 0 && !MatchesCategoryFilter(identity)) { return; }
+        var strategy = identity.ResolvePerceptionDecay() ?? _defaultDecayStrategy!;
 
         var percept = new Percept3D(
             target: body,
@@ -98,10 +106,19 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
             velocity: Vector3.Zero,
             identity: identity,
             confidence: 0.0f,
-            decayStrategy: _defaultDecayStrategy!
+            decayStrategy: strategy
         );
 
         PerceptUpdated?.Invoke(this, percept);
+    }
+
+    private bool MatchesCategoryFilter(Identity identity)
+    {
+        foreach (var filterCat in _categoryFilter)
+        {
+            if (identity.HasCategory(filterCat)) { return true; }
+        }
+        return false;
     }
 
     private static bool TryResolveIdentity(Node3D body, out IIdentifiable? identifiable)

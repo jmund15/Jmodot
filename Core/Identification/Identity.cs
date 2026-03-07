@@ -2,6 +2,7 @@ namespace Jmodot.Core.Identification;
 
 using System.Linq;
 using Godot.Collections;
+using Implementation.AI.Perception.Strategies;
 
 /// <summary>
 ///     A data-driven Resource that defines the specific identity of an object in the game world.
@@ -34,6 +35,20 @@ public partial class Identity : Resource
     {
         if (category == null || Categories == null) { return false; }
         return Categories.Any(c => c?.CategoryName == category.CategoryName);
+    }
+
+    /// <summary>
+    /// Resolves the perception decay strategy from this identity's categories.
+    /// Returns the PerceptionDecay from the first category that has one, or null if none do.
+    /// </summary>
+    public MemoryDecayStrategy? ResolvePerceptionDecay()
+    {
+        if (Categories == null) { return null; }
+        foreach (var category in Categories)
+        {
+            if (category?.PerceptionDecay != null) { return category.PerceptionDecay; }
+        }
+        return null;
     }
 
     #region Test Helpers
