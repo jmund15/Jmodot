@@ -30,14 +30,6 @@ public partial class EntityStatSheet : Resource
     [Export]
     public GColl.Dictionary<Attribute, Resource> UniversalAttributeStrategies { get; private set; } = new();
 
-    // /// <summary>
-    // ///     A dictionary mapping the character's available movement modes to their physics profiles.
-    // /// </summary>
-    // [ExportGroup("Contextual Movement")]
-    // [Export]
-    // public GColl.Dictionary<StatContext, StatProfile> StatContextProfiles { get; private set; } = new();
-
-
     /// <summary>
     ///     A list of all mechanics (like jumps or dashes) this character is capable of performing.
     ///     A State Machine will query this list to find the data for a specific mechanic.
