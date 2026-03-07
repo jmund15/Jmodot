@@ -269,7 +269,7 @@ using Shared.GodotExceptions;
             _debugComponent?.OnTransitionedState(oldSubState, newSubState);
             ActiveNestedProviderChanged.Invoke(ActiveNestedProvider);
 
-            JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
+            //JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }
 
 
