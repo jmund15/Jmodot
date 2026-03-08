@@ -3,11 +3,13 @@ namespace Jmodot.Implementation.AI.Perception;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Core.AI;
 using Core.AI.Perception;
 using Core.Identification;
 using Core.Shared;
 using Godot.Collections;
 using Implementation.AI.Perception.Strategies;
+using Implementation.Shared;
 
 /// <summary>
 ///     The central hub of the perception system, acting as the AI's short-term memory. It collects
@@ -16,7 +18,7 @@ using Implementation.AI.Perception.Strategies;
 ///     queryable view of the game world.
 /// </summary>
 [GlobalClass]
-public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
+public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPanelProvider
 {
     private readonly System.Collections.Generic.Dictionary<Category, HashSet<Perception3DInfo>> _memoryByCategory = new();
 
@@ -30,9 +32,9 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
     /// <summary>How multiple sensor contributions are combined into a single fused confidence value.</summary>
     [Export] private FusionMode _fusionMode = FusionMode.Additive;
 
-    public event EventHandler<Perception3DInfo> MemoryAddedEventHandler;
-    public event EventHandler<Perception3DInfo> MemoryUpdatedEventHandler;
-    public event EventHandler<Perception3DInfo> MemoryForgottenEventHandler;
+    public event EventHandler<Perception3DInfo> MemoryAddedEventHandler = delegate { };
+    public event EventHandler<Perception3DInfo> MemoryUpdatedEventHandler = delegate { };
+    public event EventHandler<Perception3DInfo> MemoryForgottenEventHandler = delegate { };
 
     public override void _Ready()
     {
@@ -45,11 +47,30 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
                 if (node is Node sensorNode)
                 {
                     var capturedSensor = sensor;
+                    var capturedNode = sensorNode;
                     sensorNode.TreeExiting += () =>
                     {
-                        this.HandleSensorRemoved(capturedSensor);
+                        if (IsInstanceValid(capturedNode))
+                        {
+                            this.HandleSensorRemoved(capturedSensor);
+                        }
                     };
                 }
+            }
+        }
+
+        foreach (var child in GetChildren())
+        {
+            if (child is Timer timer)
+            {
+                var capturedTimer = timer;
+                timer.Timeout += () =>
+                {
+                    if (IsInstanceValid(capturedTimer))
+                    {
+                        this.OnCleanupTimerTimeout();
+                    }
+                };
             }
         }
     }
@@ -121,6 +142,12 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
 
     private void RefuseAndPush(Node3D target, Identity identity)
     {
+        if (identity == null)
+        {
+            JmoLogger.Warning(this, $"RefuseAndPush: null identity for target '{target?.Name}' — skipping");
+            return;
+        }
+
         if (!this._sensorContributions.TryGetValue(target, out var contributions))
         {
             return;
@@ -157,7 +184,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
                 );
                 info.Update(exitPercept);
                 this.AddToCategoryCache(info);
-                this.MemoryUpdatedEventHandler?.Invoke(this, info);
+                this.MemoryUpdatedEventHandler.Invoke(this, info);
             }
 
             return;
@@ -181,14 +208,15 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
             this.RemoveFromCategoryCache(existingInfo);
             existingInfo.Update(fusedPercept);
             this.AddToCategoryCache(existingInfo);
-            this.MemoryUpdatedEventHandler?.Invoke(this, existingInfo);
+            this.MemoryUpdatedEventHandler.Invoke(this, existingInfo);
         }
         else
         {
             var newInfo = new Perception3DInfo(fusedPercept);
             this._memoryByTarget.Add(target, newInfo);
             this.AddToCategoryCache(newInfo);
-            this.MemoryAddedEventHandler?.Invoke(this, newInfo);
+            JmoLogger.Info(this, $"Perception: '{identity.IdentityName}' detected (confidence={fusedConfidence:F2})");
+            this.MemoryAddedEventHandler.Invoke(this, newInfo);
         }
     }
 
@@ -266,16 +294,58 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface
                 continue;
             }
 
-            this.MemoryForgottenEventHandler?.Invoke(this, info);
+            JmoLogger.Info(this, $"Perception: '{info.Identity?.IdentityName}' forgotten");
+            this.MemoryForgottenEventHandler.Invoke(this, info);
             this.RemoveFromCategoryCache(info);
             this._memoryByTarget.Remove(key);
         }
     }
 
+    #region IDebugPanelProvider
+
+    private DebugPerceptionPanel? _debugPanel;
+
+    public string DebugTabName => "Perception";
+    public int DebugTabOrder => 5;
+    public bool HasDebugData => _sensors.Count > 0;
+
+    /// <summary>The registered sensors exposed for debug visualization.</summary>
+    public IReadOnlyList<IAISensor3D> RegisteredSensors =>
+        _sensors.OfType<IAISensor3D>().ToList();
+
+    /// <summary>The fusion mode currently in use.</summary>
+    public FusionMode CurrentFusionMode => _fusionMode;
+
+    public Control CreateDebugContent()
+    {
+        _debugPanel = new DebugPerceptionPanel();
+        _debugPanel.Init(this);
+        return _debugPanel;
+    }
+
+    public void UpdateDebugContent(double delta)
+    {
+        _debugPanel?.Refresh();
+    }
+
+    public void OnDebugContentHidden() { }
+
+    #endregion
+
     #region Test Helpers
 #if TOOLS
     internal void SetSensors(Array<Node> sensors) => _sensors = sensors;
     internal void SetFusionMode(FusionMode mode) => _fusionMode = mode;
+
+    /// <summary>
+    /// Injects a percept directly into the perception pipeline, bypassing sensor physics.
+    /// Use when test nodes can't provide accurate GlobalPosition (orphan nodes).
+    /// </summary>
+    internal void InjectPercept(IAISensor3D sensor, Percept3D percept) =>
+        OnPerceptUpdated(sensor, percept);
+
+    /// <summary>Triggers the cleanup timer manually for testing memory pruning.</summary>
+    internal void SimulateCleanupTimer() => OnCleanupTimerTimeout();
 #endif
     #endregion
 
