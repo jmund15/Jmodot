@@ -60,7 +60,7 @@ public partial class AISteeringProcessor3D : Node
     /// Considerations are sorted by priority to ensure a deterministic evaluation order, though
     /// in practice the order of addition does not change the final sum.
     /// </summary>
-    public IOrderedEnumerable<BaseAIConsideration3D> SortedConsiderations { get; private set; }
+    public IReadOnlyList<BaseAIConsideration3D> SortedConsiderations { get; private set; }
 
     /// <summary>
     /// Runtime considerations registered dynamically by BT actions.
@@ -78,6 +78,29 @@ public partial class AISteeringProcessor3D : Node
     /// for debugging or for other systems to know the AI's current intent.
     /// </summary>
     public Vector3 DesiredDirection { get; private set; }
+
+    /// <summary>
+    /// Layer 1 override: When true, skips all consideration scoring (flee, wander, obstacle
+    /// avoidance) but keeps nav path evaluation. The critter follows the nav agent's path
+    /// to its target position. Navmesh geometry naturally handles obstacle avoidance.
+    /// Use case: CorneredAction shuttle between close navmesh-valid waypoints.
+    /// Single-owner: Only one BT action should set this at a time. Last writer wins —
+    /// if multiple consumers are needed, replace with a push/pop counter.
+    /// </summary>
+    public bool NavigationOnlyMode { get; set; }
+
+    /// <summary>
+    /// Layer 2 override: When set, bypasses ALL steering computation (considerations, nav path,
+    /// synthesis). Returns this raw direction as DesiredDirection. Strongest override.
+    /// Priority: DirectionOverride > NavigationOnlyMode > Normal.
+    /// Use case: Forced/scripted movement, cutscene movement, knockback effects.
+    /// </summary>
+    public Vector3? DirectionOverride { get; set; }
+
+    /// <summary>
+    /// Clears any active direction override, reverting to normal steering or NavigationOnlyMode.
+    /// </summary>
+    public void ClearDirectionOverride() => DirectionOverride = null;
 
     [ExportGroup("Debug")]
     [Export] private bool _showNavigationDebugArrows;
@@ -146,7 +169,8 @@ public partial class AISteeringProcessor3D : Node
     {
         SortedConsiderations = _considerations
             .Concat(_runtimeConsiderations)
-            .OrderBy(c => c.Priority);
+            .OrderBy(c => c.Priority)
+            .ToList();
     }
 
     /// <summary>
@@ -234,19 +258,29 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     public Vector3 CalculateSteering(SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
+        // --- Layer 2: DirectionOverride — complete bypass ---
+        if (DirectionOverride.HasValue)
+        {
+            DesiredDirection = DirectionOverride.Value;
+            return DesiredDirection;
+        }
+
         // --- 1. Reset scores for this frame's calculation ---
         var keys = _scores.Keys.ToList();
         foreach (var key in keys) { _scores[key] = 0f; }
 
         // --- 2. Evaluate all environmental considerations ---
-        // Each consideration adds its own scores to the master dictionary.
-        foreach (var consideration in SortedConsiderations)
+        // Layer 1: NavigationOnlyMode skips consideration scoring entirely.
+        if (!NavigationOnlyMode)
         {
-            consideration.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
+            foreach (var consideration in SortedConsiderations)
+            {
+                consideration.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
+            }
         }
 
         // --- 2b. Evaluate the dedicated nav path consideration ---
-        // Evaluated separately to enforce singleton semantics. Override takes precedence.
+        // Evaluated in both normal and NavigationOnlyMode — nav path always active.
         var activeNavPath = _navPathOverride ?? _navPathConsideration;
         activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
 
