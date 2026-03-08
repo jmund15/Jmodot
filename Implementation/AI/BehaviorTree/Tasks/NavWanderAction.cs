@@ -117,7 +117,7 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         if (_waypointStrategy != null)
         {
-            var context = new WaypointContext(_zoneCenter, ((Node3D)Agent).GlobalPosition);
+            var context = new WaypointContext(_zoneCenter, ((Node3D)Agent).GlobalPosition, BB);
             if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
             {
                 JmoLogger.Warning(this, "WaypointStrategy failed to find target.");

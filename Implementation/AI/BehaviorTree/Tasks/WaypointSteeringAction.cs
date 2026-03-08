@@ -131,7 +131,7 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     {
         if (_navAgent == null || _waypointStrategy == null) { return; }
 
-        var context = new WaypointContext(_originPosition, ((Node3D)Agent).GlobalPosition);
+        var context = new WaypointContext(_originPosition, ((Node3D)Agent).GlobalPosition, BB);
         if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
         {
             JmoLogger.Warning(this, "WaypointStrategy failed to find target.");

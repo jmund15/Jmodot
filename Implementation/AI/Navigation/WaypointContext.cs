@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.AI.Navigation;
 
+using Core.AI.BB;
+
 /// <summary>
 /// Contextual data passed from a waypoint action to its selection strategy.
 /// Extensible: future strategies needing more data (velocity, BB) get new fields
@@ -18,9 +20,23 @@ public readonly struct WaypointContext
     /// </summary>
     public readonly Vector3 CurrentPosition;
 
+    /// <summary>
+    /// Optional blackboard reference for strategies that need BB data (e.g., threat position).
+    /// Null when the calling action doesn't provide one.
+    /// </summary>
+    public readonly IBlackboard? Blackboard;
+
     public WaypointContext(Vector3 originPosition, Vector3 currentPosition)
     {
         OriginPosition = originPosition;
         CurrentPosition = currentPosition;
+        Blackboard = null;
+    }
+
+    public WaypointContext(Vector3 originPosition, Vector3 currentPosition, IBlackboard? blackboard)
+    {
+        OriginPosition = originPosition;
+        CurrentPosition = currentPosition;
+        Blackboard = blackboard;
     }
 }
