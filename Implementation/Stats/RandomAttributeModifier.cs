@@ -16,4 +16,10 @@ public partial class RandomAttributeModifierGroup : Resource
     // TODO: Make a base, empty, abstract resource that all Modifier resources implement, then we don't have to export just Resource!
     [Export]
     public FloatAttributeModifier ModifierToApply { get; private set; } = null!;
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetModifierToApply(FloatAttributeModifier value) => ModifierToApply = value;
+#endif
+    #endregion
 }

@@ -2,6 +2,7 @@ namespace Jmodot.Core.Modifiers;
 
 using System;
 using Godot.Collections;
+using Jmodot.Core.Identification;
 using Jmodot.Implementation.Shared;
 using Stats;
 
@@ -25,6 +26,9 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     /// </summary>
     [Export] public float Value { get; private set; }
     [Export] public int Priority { get; private set; }
+
+    [ExportGroup("Semantic Classification")]
+    [Export] public Array<Category> SemanticCategories { get; private set; } = new();
 
     [ExportGroup("EffectTags & Cancellation")]
     [Export] public Array<string> EffectTags { get; private set; } = new();
