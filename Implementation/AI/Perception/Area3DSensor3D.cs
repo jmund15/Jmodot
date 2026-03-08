@@ -14,9 +14,16 @@ using Strategies;
 /// Identity resolution uses the dual pattern: body is IIdentifiable → child IIdentifiable fallback.
 /// Velocity extracted from CharacterBody3D; zero for static bodies.
 ///
-/// When ContinuousTracking is enabled, tracked bodies are re-polled each physics frame
-/// to update their positions. This is essential for flee/chase behavior where the target
-/// moves within the sensor area — without it, the percept position is stale (set only on entry).
+/// <b>Detection Modes:</b>
+/// <list type="bullet">
+/// <item><b>Signal-driven (default):</b> Uses Godot's body_entered/body_exited signals.
+/// Works for dynamic bodies (CharacterBody3D, RigidBody3D).</item>
+/// <item><b>StaticBodyPolling:</b> Uses DirectSpaceState.IntersectShape each physics frame.
+/// Required for detecting StaticBody3D because Godot's broadphase does not fire
+/// body_entered for static bodies when the Area3D moves as a child of a CharacterBody3D.</item>
+/// <item><b>ContinuousTracking:</b> Re-polls tracked bodies each physics frame to update positions.
+/// Essential for flee/chase where the target moves within the sensor area.</item>
+/// </list>
 /// </summary>
 [GlobalClass]
 public partial class Area3DSensor3D : Area3D, IAISensor3D
@@ -34,7 +41,23 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     /// </summary>
     [Export] private bool _continuousTracking;
 
+    /// <summary>
+    /// When enabled, uses DirectSpaceState.IntersectShape polling instead of body_entered signals.
+    /// Required for detecting StaticBody3D nodes, which don't trigger body_entered on a moving Area3D.
+    /// </summary>
+    [Export] private bool _staticBodyPolling;
+
+    /// <summary>
+    /// How often (in seconds) to poll for static bodies. Lower = more responsive, higher = cheaper.
+    /// Only used when StaticBodyPolling is enabled.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.05, 1.0, 0.05")]
+    private float _pollInterval = 0.25f;
+
     private readonly HashSet<Node3D> _trackedBodies = new();
+    private readonly HashSet<Node3D> _polledBodies = new();
+    private float _pollTimer;
+    private CollisionShape3D? _cachedCollisionShape;
 
     public event Action<IAISensor3D, Percept3D>? PerceptUpdated;
 
@@ -42,6 +65,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     {
         BodyEntered += OnBodyEntered;
         BodyExited += OnBodyExited;
+
+        // Cache the collision shape for IntersectShape polling
+        _cachedCollisionShape = GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
     }
 
     public override void _ExitTree()
@@ -49,10 +75,22 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
         BodyEntered -= OnBodyEntered;
         BodyExited -= OnBodyExited;
         _trackedBodies.Clear();
+        _polledBodies.Clear();
     }
 
     public override void _PhysicsProcess(double delta)
     {
+        // Static body polling via IntersectShape (replaces body_entered for static bodies)
+        if (_staticBodyPolling)
+        {
+            _pollTimer += (float)delta;
+            if (_pollTimer >= _pollInterval)
+            {
+                _pollTimer = 0f;
+                PollStaticBodies();
+            }
+        }
+
         if (!_continuousTracking || _trackedBodies.Count == 0) { return; }
 
         // Re-poll all tracked bodies to update their positions
@@ -71,12 +109,76 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 
     public Node GetUnderlyingNode() => this;
 
+    #region Static Body Polling
+
+    /// <summary>
+    /// Polls for overlapping bodies using DirectSpaceState.IntersectShape.
+    /// This bypasses Godot's broken Area3D overlap tracking for StaticBody3D.
+    /// Tracks entries/exits by comparing against the previous poll's results.
+    /// </summary>
+    private void PollStaticBodies()
+    {
+        if (_cachedCollisionShape?.Shape == null) { return; }
+
+        var spaceState = GetWorld3D()?.DirectSpaceState;
+        if (spaceState == null) { return; }
+
+        var query = new PhysicsShapeQueryParameters3D();
+        query.Shape = _cachedCollisionShape.Shape;
+        query.Transform = GlobalTransform;
+        query.CollisionMask = CollisionMask;
+        query.CollideWithAreas = false;
+        query.CollideWithBodies = true;
+
+        var results = spaceState.IntersectShape(query, 32);
+
+        // Build set of currently detected bodies
+        var currentBodies = new HashSet<Node3D>();
+        foreach (var result in results)
+        {
+            if (result.TryGetValue("collider", out var collider) && collider.Obj is Node3D body)
+            {
+                // Skip the parent body (the critter itself)
+                if (body == GetParent()) { continue; }
+                currentBodies.Add(body);
+            }
+        }
+
+        // Detect new entries (in current but not in previous)
+        foreach (var body in currentBodies)
+        {
+            if (!_polledBodies.Contains(body))
+            {
+                ProcessDetection(body, 1.0f);
+            }
+        }
+
+        // Detect exits (in previous but not in current)
+        foreach (var body in _polledBodies)
+        {
+            if (!currentBodies.Contains(body))
+            {
+                if (body.IsValid())
+                {
+                    ProcessDetection(body, 0.0f);
+                }
+            }
+        }
+
+        _polledBodies.Clear();
+        foreach (var body in currentBodies) { _polledBodies.Add(body); }
+    }
+
+    #endregion
+
     #region Test Helpers
 #if TOOLS
     internal void SetDefaultDecayStrategy(MemoryDecayStrategy? strategy) => _defaultDecayStrategy = strategy;
     internal void SetCategoryFilter(Godot.Collections.Array<Category> filter) => _categoryFilter = filter;
     internal void SetContinuousTracking(bool enabled) => _continuousTracking = enabled;
+    internal void SetStaticBodyPolling(bool enabled) => _staticBodyPolling = enabled;
     internal int TrackedBodyCount => _trackedBodies.Count;
+    internal int PolledBodyCount => _polledBodies.Count;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
     internal void SimulatePhysicsTick(double delta) => _PhysicsProcess(delta);
