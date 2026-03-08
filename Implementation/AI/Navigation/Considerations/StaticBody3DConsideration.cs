@@ -8,6 +8,7 @@ using Core.AI.Navigation.Considerations;
 using Core.Identification;
 using Core.Movement;
 using Jmodot.Core.Shared.Attributes;
+using Physics;
 using Shared;
 
 /// <summary>
@@ -70,16 +71,28 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
 
         foreach (var percept in relevantPercepts)
         {
-            Vector3 toTargetDir = (percept.LastKnownPosition - context3D.AgentPosition).Normalized();
-            float distance = context3D.AgentPosition.DistanceTo(percept.LastKnownPosition);
+            // Use closest surface point for accurate distance/direction on wide objects.
+            // Falls back to percept origin if Target is unavailable.
+            Vector3 closestPoint = percept.Target != null && GodotObject.IsInstanceValid(percept.Target)
+                ? ShapeProximityCalculator.GetClosestSurfacePointOnBody(context3D.AgentPosition, percept.Target)
+                : percept.LastKnownPosition;
 
-            // Calculate the weight based on distance.
+            // Project to XZ plane for ground-based steering (matches PerceptionFleeConsideration3D)
+            var toSurface = new Vector3(
+                closestPoint.X - context3D.AgentPosition.X,
+                0,
+                closestPoint.Z - context3D.AgentPosition.Z);
+            if (toSurface.LengthSquared() < 0.0001f) { continue; }
+
+            Vector3 toTargetDir = toSurface.Normalized();
+            float distance = toSurface.Length();
+
             float distanceWeight = GetDistanceConsideration(distance);
             if (distanceWeight <= 0f) { continue; }
 
             float scoreAmount = _considerationWeight * distanceWeight;
 
-            // Find the direction in our set that best matches the direction to the object.
+            // Find the direction in our set that best matches the direction to the surface.
             Vector3 closestDir = directions.GetClosestDirection(toTargetDir);
             scores[closestDir] += scoreAmount;
         }
@@ -87,20 +100,24 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
         return scores;
     }
 
-    /// <summary>
-    /// Calculates a weight multiplier (0.0 to 1.0) based on distance to a target.
-    /// </summary>
     #region Test Helpers
 #if TOOLS
     internal void SetTargetCategory(Category category) => _targetCategory = category;
+    internal void SetDistanceDiminishRange(Vector2 range) => _distanceDiminishRange = range;
+    internal void SetConsiderationWeight(float weight) => _considerationWeight = weight;
 #endif
     #endregion
 
+    /// <summary>
+    /// Calculates a weight multiplier (0.0 to 1.0) based on distance to a target.
+    /// </summary>
     private float GetDistanceConsideration(float distance)
     {
+        float range = _distanceDiminishRange.Y - _distanceDiminishRange.X;
+        if (range <= 0f) { return 1.0f; }
         if (distance <= _distanceDiminishRange.X) { return 1.0f; }
         if (distance >= _distanceDiminishRange.Y) { return 0.0f; }
 
-        return 1.0f - (distance - _distanceDiminishRange.X) / (_distanceDiminishRange.Y - _distanceDiminishRange.X);
+        return 1.0f - (distance - _distanceDiminishRange.X) / range;
     }
 }
