@@ -116,9 +116,8 @@ public abstract partial class DebugAIPanel : Control
         {
             _canvasLayer = new CanvasLayer { Name = $"{Name}Canvas" };
             AddChild(_canvasLayer);
+            Hide();
         }
-
-        Hide();
     }
 
     public override void _Process(double delta)

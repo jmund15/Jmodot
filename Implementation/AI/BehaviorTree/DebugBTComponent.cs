@@ -17,6 +17,9 @@ using Tasks;
 [Tool]
 public partial class DebugBTComponent : DebugAIPanel
 {
+    private const float CompletionHoldDuration = 0.15f;
+    private const float CompletionFadeDuration = 0.6f;
+
     private readonly Color _baseBgColor = new(Colors.Black, 0.05f);
     private readonly Color _runningColor = new(Colors.Yellow, 0.25f);
     private readonly Color _successColor = new(Colors.Green, 0.25f);
@@ -49,7 +52,7 @@ public partial class DebugBTComponent : DebugAIPanel
     {
         base._Ready();
         EnsureTreeUI();
-        Hide();
+        if (!EmbeddedMode) { Hide(); }
     }
 
     public override void _Process(double delta)
@@ -124,18 +127,43 @@ public partial class DebugBTComponent : DebugAIPanel
     }
 
     /// <summary>
+    /// Sets the embedded height on both this component and its internal Tree control.
+    /// Must be called after BuildTreeView() so the Tree's min size prevents internal scrolling.
+    /// </summary>
+    public void SetEmbeddedHeight(float height)
+    {
+        CustomMinimumSize = new Vector2(0, height);
+        if (_treeUI != null)
+        {
+            _treeUI.CustomMinimumSize = new Vector2(0, height);
+        }
+    }
+
+    /// <summary>
     /// Called when the owning BehaviorTree is enabled.
+    /// In embedded mode, restores full opacity instead of toggling visibility.
     /// </summary>
     public void OnTreeEnabled()
     {
+        if (EmbeddedMode)
+        {
+            Modulate = Colors.White;
+            return;
+        }
         ShowPanel();
     }
 
     /// <summary>
     /// Called when the owning BehaviorTree is disabled.
+    /// In embedded mode, dims the panel instead of hiding it so the tree structure remains inspectable.
     /// </summary>
     public void OnTreeDisabled()
     {
+        if (EmbeddedMode)
+        {
+            Modulate = new Color(1f, 1f, 1f, 0.4f);
+            return;
+        }
         HidePanel();
     }
 
@@ -171,7 +199,7 @@ public partial class DebugBTComponent : DebugAIPanel
         {
             Name = "BTTreeUI",
             Columns = 2,
-            CustomMinimumSize = EmbeddedMode ? new Vector2(0, 100) : PanelSize,
+            CustomMinimumSize = EmbeddedMode ? Vector2.Zero : PanelSize,
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             SizeFlagsVertical = SizeFlags.ExpandFill
         };
@@ -185,11 +213,11 @@ public partial class DebugBTComponent : DebugAIPanel
 
         AddChild(_treeUI);
 
-        // In embedded mode, the parent (DebugAIPanel) is a Control — not a Container —
-        // so SizeFlags are ignored. Use anchor-based layout to fill the parent instead.
         if (EmbeddedMode)
         {
             _treeUI.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+            _treeUI.ScrollHorizontalEnabled = false;
+            _treeUI.ScrollVerticalEnabled = false;
         }
     }
 
@@ -234,6 +262,18 @@ public partial class DebugBTComponent : DebugAIPanel
     {
         if (!_taskToItem.TryGetValue(task, out var item)) { return; }
 
+        bool isStale = task.Status != newStatus;
+
+        if (isStale)
+        {
+            if (newStatus is TaskStatus.Success or TaskStatus.Failure)
+            {
+                var flashColor = newStatus == TaskStatus.Success ? _successColor : _failureColor;
+                ShowCompletionFlash(task, item, flashColor, ColorForStatus(task.Status));
+            }
+            return;
+        }
+
         switch (newStatus)
         {
             case TaskStatus.Running:
@@ -247,17 +287,39 @@ public partial class DebugBTComponent : DebugAIPanel
                 break;
             case TaskStatus.Success:
                 _runningTasks.Remove(task);
-                SetItemColor(item, _successColor);
+                ShowCompletionFlash(task, item, _successColor, _baseBgColor);
                 break;
             case TaskStatus.Failure:
                 _runningTasks.Remove(task);
-                SetItemColor(item, _failureColor);
+                ShowCompletionFlash(task, item, _failureColor, _baseBgColor);
                 break;
             case TaskStatus.Fresh:
                 _runningTasks.Remove(task);
+                KillManagedTween(task);
                 SetItemColor(item, _baseBgColor);
                 break;
         }
+    }
+
+    private Color ColorForStatus(TaskStatus status) => status switch
+    {
+        TaskStatus.Running => _runningColor,
+        TaskStatus.Success => _successColor,
+        TaskStatus.Failure => _failureColor,
+        _ => _baseBgColor
+    };
+
+    private void ShowCompletionFlash(BehaviorTask task, TreeItem item, Color flashColor, Color restoreColor)
+    {
+        SetItemColor(item, flashColor);
+        if (!IsInsideTree()) { return; }
+        var tween = CreateManagedTween(task);
+        tween.TweenMethod(
+            Callable.From((Color c) => { if (IsInstanceValid(item)) { SetItemColor(item, c); } }),
+            flashColor,
+            restoreColor,
+            CompletionFadeDuration
+        ).SetDelay(CompletionHoldDuration);
     }
 
     #endregion
@@ -289,6 +351,11 @@ public partial class DebugBTComponent : DebugAIPanel
     internal float GetTaskRunTime(BehaviorTask task)
     {
         return _taskRunTime.TryGetValue(task, out var time) ? time : -1f;
+    }
+
+    internal void SimulateStaleSignal(BehaviorTask task, TaskStatus staleStatus)
+    {
+        OnTaskStatusChange(task, staleStatus);
     }
 #endif
     #endregion
