@@ -32,6 +32,13 @@ using Shared.GodotExceptions;
         protected State _onTreeFailureState;
 
         /// <summary>
+        /// When true, CanExit() returns false while the BT is actively running (Enabled=true).
+        /// Prevents declarative transitions from interrupting the BT before its timer/logic completes.
+        /// The BT's own terminal status (Success/Failure) remains the authoritative exit mechanism.
+        /// </summary>
+        [Export] protected bool LockUntilTreeComplete;
+
+        /// <summary>
         /// Optional movement strategy applied while this BTState is active.
         /// Written to BB[ActiveMovementStrategy] on enter, cleared on exit.
         /// Entity-level ProcessMovement reads this to determine movement feel per state.
@@ -103,6 +110,15 @@ using Shared.GodotExceptions;
             }
         }
 
+        public override bool CanExit(State newState)
+        {
+            if (LockUntilTreeComplete && _tree.Enabled)
+            {
+                return false;
+            }
+            return base.CanExit(newState);
+        }
+
         public override string[] _GetConfigurationWarnings()
         {
             var warnings = new List<string>();
@@ -139,6 +155,7 @@ using Shared.GodotExceptions;
         #region Test Helpers
 #if TOOLS
         internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => MovementStrategyOverride = strategy;
+        internal void SetLockUntilTreeComplete(bool value) => LockUntilTreeComplete = value;
 #endif
         #endregion
     }

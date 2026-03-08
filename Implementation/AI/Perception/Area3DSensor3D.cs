@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.Perception;
 
 using System;
+using System.Collections.Generic;
 using Core.AI.Perception;
 using Core.Identification;
 using Shared;
@@ -12,6 +13,10 @@ using Strategies;
 ///
 /// Identity resolution uses the dual pattern: body is IIdentifiable → child IIdentifiable fallback.
 /// Velocity extracted from CharacterBody3D; zero for static bodies.
+///
+/// When ContinuousTracking is enabled, tracked bodies are re-polled each physics frame
+/// to update their positions. This is essential for flee/chase behavior where the target
+/// moves within the sensor area — without it, the percept position is stale (set only on entry).
 /// </summary>
 [GlobalClass]
 public partial class Area3DSensor3D : Area3D, IAISensor3D
@@ -20,6 +25,16 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 
     [ExportGroup("Filtering")]
     [Export] private Godot.Collections.Array<Category> _categoryFilter = new();
+
+    [ExportGroup("Tracking")]
+    /// <summary>
+    /// When enabled, bodies inside the sensor area are re-polled each physics frame
+    /// to update their position and velocity. Enable for moving targets (threats, players).
+    /// Leave disabled for static targets (obstacles, environment) to avoid per-frame cost.
+    /// </summary>
+    [Export] private bool _continuousTracking;
+
+    private readonly HashSet<Node3D> _trackedBodies = new();
 
     public event Action<IAISensor3D, Percept3D>? PerceptUpdated;
 
@@ -33,6 +48,25 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     {
         BodyEntered -= OnBodyEntered;
         BodyExited -= OnBodyExited;
+        _trackedBodies.Clear();
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (!_continuousTracking || _trackedBodies.Count == 0) { return; }
+
+        // Re-poll all tracked bodies to update their positions
+        // Use a snapshot to avoid collection modification during iteration
+        var snapshot = new List<Node3D>(_trackedBodies);
+        foreach (var body in snapshot)
+        {
+            if (!body.IsValid())
+            {
+                _trackedBodies.Remove(body);
+                continue;
+            }
+            ProcessDetection(body, 1.0f);
+        }
     }
 
     public Node GetUnderlyingNode() => this;
@@ -41,18 +75,23 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 #if TOOLS
     internal void SetDefaultDecayStrategy(MemoryDecayStrategy? strategy) => _defaultDecayStrategy = strategy;
     internal void SetCategoryFilter(Godot.Collections.Array<Category> filter) => _categoryFilter = filter;
+    internal void SetContinuousTracking(bool enabled) => _continuousTracking = enabled;
+    internal int TrackedBodyCount => _trackedBodies.Count;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
+    internal void SimulatePhysicsTick(double delta) => _PhysicsProcess(delta);
 #endif
     #endregion
 
     private void OnBodyEntered(Node3D body)
     {
+        if (_continuousTracking) { _trackedBodies.Add(body); }
         ProcessDetection(body, 1.0f);
     }
 
     private void OnBodyExited(Node3D body)
     {
+        _trackedBodies.Remove(body);
         ProcessDetection(body, 0.0f);
     }
 

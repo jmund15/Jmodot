@@ -87,6 +87,7 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
                 AddToHistory(candidate, waypointHistory);
                 return true;
             }
+            JmoLogger.Warning(this, $"HistoryAwareWaypoint: failed to calc nav path to valid waypoint with response '{response}'.");
         }
         return false;
     }
