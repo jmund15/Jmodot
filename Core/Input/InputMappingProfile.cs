@@ -17,5 +17,5 @@ public partial class InputMappingProfile : Resource
     public GCol.Array<ActionBinding> ActionBindings { get; private set; } = new();
 
     [Export]
-    public GCol.Array<VectorActionBinding> VectorBindings { get; private set; } = new();
+    public GCol.Array<VectorBindingBase> VectorBindings { get; private set; } = new();
 }

@@ -28,9 +28,11 @@ public partial class PlayerIntentSource : IntentSourceNode
     [Export]
     private GCol.Array<ActionBinding> _actionBindings = new();
 
-    [Export] private GCol.Array<VectorActionBinding> _vectorBindings = new();
+    [Export] private GCol.Array<VectorBindingBase> _vectorBindings = new();
     [Export, RequiredExport] private InputMappingProfile _inputProfile = null!;
     [Export] public bool IsActive { get; set; } = true;
+
+    private Node3D _owner = null!;
 
     /// <summary>
     /// This is the public method for configuring the input source on-the-fly.
@@ -51,6 +53,7 @@ public partial class PlayerIntentSource : IntentSourceNode
         base._Ready();
         if (Engine.IsEditorHint()) { return; }
         this.ValidateRequiredExports();
+        _owner = GetOwner<Node3D>();
 
         // Pre-size dictionaries to avoid rehash allocations during first frames
         int capacity = _actionBindings.Count + _vectorBindings.Count;
@@ -180,11 +183,9 @@ public partial class PlayerIntentSource : IntentSourceNode
         // Process all vector actions
         foreach (var binding in _vectorBindings)
         {
-            if (binding?.Action == null)
-            {
-                continue;
-            }
-            var moveVector = Input.GetVector(binding.Left, binding.Right, binding.Up, binding.Down);
+            if (binding.Action == null) { continue; }
+
+            var moveVector = binding.GetVectorInput(_owner);
             // Vectors are continuous states, so update both dictionaries/buffers.
             _processIntents[binding.Action] = new IntentData(moveVector);
             _physicsBuffer[binding.Action] = new IntentData(moveVector);
