@@ -4,6 +4,13 @@ using System.Collections.Generic;
 using Core.AI.Navigation.Zones;
 
 /// <summary>
+/// Controls what position the zone is centered on when sampling candidates.
+/// Origin: zone center = agent's position when the action first entered ("home base").
+/// Current: zone center = agent's current position ("roaming search").
+/// </summary>
+public enum ZoneCenterMode { Origin, Current }
+
+/// <summary>
 /// Abstract base for composable waypoint selection strategies. Implementations
 /// define how a waypoint action picks its next navigation target.
 /// Designed as a Resource so strategies can be configured per-entity in the Inspector.
@@ -22,10 +29,16 @@ public abstract partial class WaypointSelectionStrategy : Resource
     [Export] private ZoneShape3D? _zone;
 
     /// <summary>
+    /// Controls what the zone is centered on. Origin = spawn position (home base).
+    /// Current = agent's live position (roaming search — zone follows the agent).
+    /// </summary>
+    [Export] private ZoneCenterMode _zoneCenterMode = ZoneCenterMode.Origin;
+
+    /// <summary>
     /// Shared retry budget for candidate sampling loops.
     /// </summary>
-    [Export(PropertyHint.Range, "1, 20, 1")]
-    private int _maxAttempts = 5;
+    [Export(PropertyHint.Range, "1, 25, 1")]
+    private int _maxAttempts = 10;
 
     protected ZoneShape3D? Zone => _zone;
     protected int MaxAttempts => _maxAttempts;
@@ -38,7 +51,10 @@ public abstract partial class WaypointSelectionStrategy : Resource
     {
         if (_zone != null)
         {
-            return _zone.SampleRandomInteriorPoint(context.OriginPosition);
+            var center = _zoneCenterMode == ZoneCenterMode.Current
+                ? context.CurrentPosition
+                : context.OriginPosition;
+            return _zone.SampleRandomInteriorPoint(center);
         }
         return nav.SampleRandomNavPoint();
     }
@@ -58,8 +74,10 @@ public abstract partial class WaypointSelectionStrategy : Resource
 #if TOOLS
     internal void SetZone(ZoneShape3D? zone) => _zone = zone;
     internal void SetMaxAttempts(int value) => _maxAttempts = value;
+    internal void SetZoneCenterMode(ZoneCenterMode mode) => _zoneCenterMode = mode;
     internal ZoneShape3D? GetZone() => _zone;
     internal int GetMaxAttempts() => _maxAttempts;
+    internal ZoneCenterMode GetZoneCenterMode() => _zoneCenterMode;
     internal Vector3 SampleCandidateForTest(AINavigator3D nav, WaypointContext context)
         => SampleCandidate(nav, context);
 #endif
