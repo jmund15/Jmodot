@@ -1,6 +1,6 @@
 namespace Jmodot.Core.Input;
 
-using Shared.Attributes;
+using Jmodot.Core.Shared.Attributes;
 
 [GlobalClass, Tool]
 public abstract partial class VectorBindingBase : Resource

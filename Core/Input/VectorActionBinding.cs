@@ -13,6 +13,6 @@ public partial class VectorActionBinding : VectorBindingBase
     [Export, RequiredExport] public string Down { get; set; } = null!;
     public override Vector2 GetVectorInput(Node3D entity)
     {
-        return Input.GetVector(Left, Right, Up, Down);;
+        return Input.GetVector(Left, Right, Up, Down);
     }
 }

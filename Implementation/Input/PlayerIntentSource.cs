@@ -183,7 +183,7 @@ public partial class PlayerIntentSource : IntentSourceNode
         // Process all vector actions
         foreach (var binding in _vectorBindings)
         {
-            if (binding.Action == null) { continue; }
+            if (binding?.Action == null) { continue; }
 
             var moveVector = binding.GetVectorInput(_owner);
             // Vectors are continuous states, so update both dictionaries/buffers.
