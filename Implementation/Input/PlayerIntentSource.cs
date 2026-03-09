@@ -32,7 +32,7 @@ public partial class PlayerIntentSource : IntentSourceNode
     [Export, RequiredExport] private InputMappingProfile _inputProfile = null!;
     [Export] public bool IsActive { get; set; } = true;
 
-    private Node3D _owner = null!;
+    private Node3D? _owner;
 
     /// <summary>
     /// This is the public method for configuring the input source on-the-fly.
@@ -52,8 +52,8 @@ public partial class PlayerIntentSource : IntentSourceNode
     {
         base._Ready();
         if (Engine.IsEditorHint()) { return; }
-        this.ValidateRequiredExports();
         _owner = GetOwner<Node3D>();
+        this.ValidateRequiredExports();
 
         // Pre-size dictionaries to avoid rehash allocations during first frames
         int capacity = _actionBindings.Count + _vectorBindings.Count;
@@ -180,7 +180,9 @@ public partial class PlayerIntentSource : IntentSourceNode
             }
         }
 
-        // Process all vector actions
+        // Process all vector actions — _owner is set in _Ready() before ValidateRequiredExports
+        if (_owner == null) { return; }
+
         foreach (var binding in _vectorBindings)
         {
             if (binding?.Action == null) { continue; }

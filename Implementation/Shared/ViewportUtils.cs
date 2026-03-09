@@ -35,7 +35,7 @@ public static class ViewportUtils
             _cachedCamera = _cachedRoot.GetViewport().GetCamera3D();
             if (_cachedCamera == null)
             {
-                JmoLogger.Error(_cachedRoot, "No active Camera3D found in viewport for mouse world position lookup.");
+                // Expected during _Ready() before main scene camera exists — not an error.
                 return Vector3.Zero;
             }
         }
