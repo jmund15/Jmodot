@@ -1,6 +1,7 @@
-namespace Jmodot.Core.Input;
+namespace Jmodot.Implementation.Input;
 
-using Implementation.Shared;
+using Core.Input;
+using Shared;
 
 [GlobalClass, Tool]
 public partial class VectorMouseCursorBinding : VectorBindingBase
