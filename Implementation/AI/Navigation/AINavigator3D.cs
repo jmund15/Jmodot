@@ -163,6 +163,21 @@ public partial class AINavigator3D : NavigationAgent3D
     }
 
     /// <summary>
+    /// Projects a world-space position onto the nearest point on the navigation mesh.
+    /// Bridges agent-space coordinates (GlobalPosition) to nav-mesh-space for operations
+    /// that require nav-mesh-aligned Y values (e.g., zone center for waypoint sampling).
+    /// </summary>
+    public Vector3 SnapToNavMesh(Vector3 worldPosition)
+    {
+        Rid map = GetNavigationMap();
+        if (NavigationServer3D.MapGetIterationId(map) < 2)
+        {
+            return worldPosition;
+        }
+        return NavigationServer3D.MapGetClosestPoint(map, worldPosition);
+    }
+
+    /// <summary>
     /// Returns a random point on the navigation mesh. Used as a zoneless fallback
     /// by waypoint selection strategies that don't have a zone configured.
     /// </summary>

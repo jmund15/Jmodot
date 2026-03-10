@@ -61,7 +61,6 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         if (_navAgent != null && _targetZone != null)
         {
-            _zoneCenter = ((Node3D)Agent).GlobalPosition;
             _navActive = true;
             _pendingFirstTarget = true;
         }
@@ -79,6 +78,7 @@ public partial class NavWanderAction : SteeringBehaviorAction
         {
             if (!_navAgent.IsMapReady()) { return; }
             _pendingFirstTarget = false;
+            _zoneCenter = _navAgent.SnapToNavMesh(((Node3D)Agent).GlobalPosition);
             PickNewTarget();
             return;
         }

@@ -54,6 +54,7 @@ public abstract partial class WaypointSelectionStrategy : Resource
             var center = _zoneCenterMode == ZoneCenterMode.Current
                 ? context.CurrentPosition
                 : context.OriginPosition;
+            center = nav.SnapToNavMesh(center);
             return _zone.SampleRandomInteriorPoint(center);
         }
         return nav.SampleRandomNavPoint();
