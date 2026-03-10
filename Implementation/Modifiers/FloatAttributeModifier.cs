@@ -28,6 +28,12 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     [Export] public int Priority { get; private set; }
 
     [ExportGroup("Semantic Classification")]
+    /// <summary>
+    /// Semantic categories for this modifier (e.g., Fire, Ice).
+    /// Used by slot modifiers to target specific modifier types.
+    /// Warning: This is a shared Godot Array on a Resource — consumers should
+    /// create a defensive copy via <c>new Array&lt;Category&gt;(source)</c> before mutating.
+    /// </summary>
     [Export] public Array<Category> SemanticCategories { get; private set; } = new();
 
     [ExportGroup("EffectTags & Cancellation")]

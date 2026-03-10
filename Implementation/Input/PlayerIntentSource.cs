@@ -59,6 +59,10 @@ public partial class PlayerIntentSource : IntentSourceNode
         {
             ApplyMappingProfile(_inputProfile);
         }
+        else if (_actionBindings.Count == 0 && _vectorBindings.Count == 0)
+        {
+            JmoLogger.Warning(this, "No InputMappingProfile assigned and no bindings configured. Call ApplyMappingProfile() before use.");
+        }
 
         // Pre-size dictionaries to avoid rehash allocations during first frames
         int capacity = _actionBindings.Count + _vectorBindings.Count;
