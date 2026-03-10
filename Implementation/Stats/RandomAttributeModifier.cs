@@ -3,6 +3,7 @@ namespace Jmodot.Core.Stats;
 using Godot;
 using Godot.Collections;
 using Jmodot.Core.Modifiers;
+using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Stats;
 
 [GlobalClass]
@@ -14,6 +15,13 @@ public partial class RandomAttributeModifierGroup : Resource
     // We are specific with the type because we know these stats are floats.
     // However, if we ever wanted to generalize this for all modifier var types, we would just export "Resource"
     // TODO: Make a base, empty, abstract resource that all Modifier resources implement, then we don't have to export just Resource!
-    [Export]
+    [Export, RequiredExport]
     public FloatAttributeModifier ModifierToApply { get; private set; } = null!;
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetPossibleAttributes(Godot.Collections.Array<Attribute> value) => PossibleAttributes = value;
+    internal void SetModifierToApply(FloatAttributeModifier value) => ModifierToApply = value;
+#endif
+    #endregion
 }

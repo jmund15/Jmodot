@@ -29,7 +29,7 @@ public partial class PlayerIntentSource : IntentSourceNode
     private GCol.Array<ActionBinding> _actionBindings = new();
 
     [Export] private GCol.Array<VectorBindingBase> _vectorBindings = new();
-    [Export, RequiredExport] private InputMappingProfile _inputProfile = null!;
+    [Export] private InputMappingProfile? _inputProfile;
     [Export] public bool IsActive { get; set; } = true;
 
     private Node3D? _owner;
@@ -53,7 +53,16 @@ public partial class PlayerIntentSource : IntentSourceNode
         base._Ready();
         if (Engine.IsEditorHint()) { return; }
         _owner = GetOwner<Node3D>();
-        this.ValidateRequiredExports();
+
+        // Auto-apply inspector profile if set (otherwise caller must use ApplyMappingProfile)
+        if (_inputProfile != null)
+        {
+            ApplyMappingProfile(_inputProfile);
+        }
+        else if (_actionBindings.Count == 0 && _vectorBindings.Count == 0)
+        {
+            JmoLogger.Warning(this, "No InputMappingProfile assigned and no bindings configured. Call ApplyMappingProfile() before use.");
+        }
 
         // Pre-size dictionaries to avoid rehash allocations during first frames
         int capacity = _actionBindings.Count + _vectorBindings.Count;

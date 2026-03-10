@@ -80,9 +80,17 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             }
         }
 
-        if (_useFlipHDebug && _debugOrchestrator != null)
+        if (_useFlipHDebug && _debugOrchestrator != null && _flipHDirSet != null)
         {
             _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        if (_debugOrchestrator != null)
+        {
+            _debugOrchestrator.AnimStarted -= OnOrchAnimStarted;
         }
     }
 
@@ -176,6 +184,17 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     public VisualItemData? GetEquippedItem(string slotName)
     {
         return _slots.TryGetValue(slotName, out var slot) ? slot.CurrentItem : null;
+    }
+
+    /// <summary>
+    /// Returns visual nodes belonging to a specific named slot.
+    /// Returns empty list if slot doesn't exist or has no visual nodes.
+    /// </summary>
+    public IReadOnlyList<Node> GetVisualNodesForSlot(string slotName)
+    {
+        return _slots.TryGetValue(slotName, out var slot)
+            ? slot.GetCurrentVisualNodes()
+            : [];
     }
 
     #region IVisualSpriteProvider Implementation
