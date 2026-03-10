@@ -20,6 +20,7 @@ public partial class RandomAttributeModifierGroup : Resource
 
     #region Test Helpers
 #if TOOLS
+    internal void SetPossibleAttributes(Godot.Collections.Array<Attribute> value) => PossibleAttributes = value;
     internal void SetModifierToApply(FloatAttributeModifier value) => ModifierToApply = value;
 #endif
     #endregion
