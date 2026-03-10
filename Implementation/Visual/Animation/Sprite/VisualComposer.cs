@@ -80,9 +80,17 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             }
         }
 
-        if (_useFlipHDebug && _debugOrchestrator != null)
+        if (_useFlipHDebug && _debugOrchestrator != null && _flipHDirSet != null)
         {
             _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        if (_debugOrchestrator != null)
+        {
+            _debugOrchestrator.AnimStarted -= OnOrchAnimStarted;
         }
     }
 

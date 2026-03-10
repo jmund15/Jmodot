@@ -53,7 +53,12 @@ public partial class PlayerIntentSource : IntentSourceNode
         base._Ready();
         if (Engine.IsEditorHint()) { return; }
         _owner = GetOwner<Node3D>();
-        this.ValidateRequiredExports();
+
+        // Auto-apply inspector profile if set (otherwise caller must use ApplyMappingProfile)
+        if (_inputProfile != null)
+        {
+            ApplyMappingProfile(_inputProfile);
+        }
 
         // Pre-size dictionaries to avoid rehash allocations during first frames
         int capacity = _actionBindings.Count + _vectorBindings.Count;
