@@ -274,6 +274,7 @@ public abstract partial class DebugAIPanel : Control
     /// </summary>
     protected void KillManagedTween(Node target)
     {
+        if (!target.IsValid()) { return; }
         ulong id = target.GetInstanceId();
         if (_managedTweens.TryGetValue(id, out var existing) && existing.IsValid())
         {
