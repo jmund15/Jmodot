@@ -64,6 +64,21 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         _targetAnimator.AnimFinished += OnTargetAnimFinished;
     }
 
+    public override void _EnterTree()
+    {
+        base._EnterTree();
+        if (Engine.IsEditorHint()) { return; }
+
+        // Re-subscribe after reparent (e.g., DetachFromParent in spell destroy flow).
+        // _Ready resolves _targetAnimator once; _ExitTree unsubscribes.
+        // On first entry _targetAnimator is null (not yet resolved), so this is a no-op.
+        if (_targetAnimator != null)
+        {
+            _targetAnimator.AnimStarted += OnTargetAnimStarted;
+            _targetAnimator.AnimFinished += OnTargetAnimFinished;
+        }
+    }
+
     public override void _ExitTree()
     {
         base._ExitTree();

@@ -86,6 +86,20 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
     public event Action VisibleNodesChanged = delegate { };
     public event Action VisualNodesChanged = delegate { };
 
+    public override void _EnterTree()
+    {
+        base._EnterTree();
+        if (Engine.IsEditorHint()) { return; }
+
+        // Re-subscribe after reparent (e.g., DetachFromParent in spell destroy flow).
+        // _Ready resolves _targetAnimComponent once; _ExitTree unsubscribes.
+        // On first entry _targetAnimComponent is null (not yet resolved), so this is a no-op.
+        if (_targetAnimComponent != null)
+        {
+            _targetAnimComponent.AnimStarted += OnAnimStarted;
+        }
+    }
+
     public override void _Ready()
     {
         // Don't run runtime logic in the editor
