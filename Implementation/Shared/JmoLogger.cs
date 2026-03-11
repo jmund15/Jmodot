@@ -281,5 +281,18 @@ public static class JmoLogger
         GD.PushWarning(BuildLogMessage("HANDLED EXCEPTION", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
     }
 
+    /// <summary>
+    /// Logs an unhandled exception caught by the global FirstChanceException handler.
+    /// Uses GD.PushError to ensure the exception is written to godot.log,
+    /// since Godot's CSharpInstanceBridge only routes to the debugger panel
+    /// when the editor is active.
+    /// </summary>
+    /// <param name="ex">The unhandled exception.</param>
+    public static void LogUnhandledException(Exception ex)
+    {
+        var message = $"[UNHANDLED EXCEPTION] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}";
+        GD.PushError(message);
+    }
+
     #endregion
 }
