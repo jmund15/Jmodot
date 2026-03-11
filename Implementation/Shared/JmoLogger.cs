@@ -283,15 +283,25 @@ public static class JmoLogger
 
     /// <summary>
     /// Logs an unhandled exception caught by the global FirstChanceException handler.
-    /// Uses GD.PushError to ensure the exception is written to godot.log,
-    /// since Godot's CSharpInstanceBridge only routes to the debugger panel
-    /// when the editor is active.
+    /// Writes directly to godot.log via System.IO because GD.PushError is unreliable
+    /// inside FirstChanceException handlers (Godot's bridge may be mid-exception-handling
+    /// and silently drops re-entrant error calls).
     /// </summary>
     /// <param name="ex">The unhandled exception.</param>
     public static void LogUnhandledException(Exception ex)
     {
-        var message = $"[UNHANDLED EXCEPTION] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}";
-        GD.PushError(message);
+        var message = $"ERROR: [UNHANDLED EXCEPTION] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}";
+        try
+        {
+            var logPath = System.IO.Path.Combine(
+                OS.GetUserDataDir(), "logs", "godot.log");
+            System.IO.File.AppendAllText(logPath, message + "\n");
+        }
+        catch
+        {
+            // Last resort: write to stderr which Godot may capture
+            System.Console.Error.WriteLine(message);
+        }
     }
 
     #endregion
