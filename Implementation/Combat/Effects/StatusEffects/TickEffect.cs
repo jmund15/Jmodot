@@ -17,7 +17,7 @@ public class TickEffect : ICombatEffect
 {
     public PackedScene Prefab { get; private init; }
 
-    public float Duration { get; private init; }
+    public float Duration { get; set; }
     public float Interval { get; init; }
     public ICombatEffect PerTickEffect { get; private init; } = null!;
     public PackedScene? PersistentVisuals { get; private init; }
