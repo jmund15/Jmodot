@@ -24,17 +24,31 @@ public partial class TintEffect : VisualEffect
     [Export(PropertyHint.Range, "0.0,0.5,0.05")]
     public float FadeRatio { get; set; } = 0.2f;
 
+    /// <summary>
+    /// Absolute fade-in time in seconds. When > 0, overrides FadeRatio for fade-in.
+    /// </summary>
+    [Export] public float FadeInTime { get; set; } = 0f;
+
+    /// <summary>
+    /// Absolute fade-out time in seconds. When > 0, overrides FadeRatio for fade-out.
+    /// </summary>
+    [Export] public float FadeOutTime { get; set; } = 0f;
+
+    /// <summary>
+    /// Resolves the fade-in duration: FadeInTime if set, otherwise Duration * FadeRatio.
+    /// </summary>
+    public float GetFadeInDuration() => FadeInTime > 0 ? FadeInTime : Duration * FadeRatio;
+
+    /// <summary>
+    /// Resolves the fade-out duration: FadeOutTime if set, otherwise Duration * FadeRatio.
+    /// </summary>
+    public float GetFadeOutDuration() => FadeOutTime > 0 ? FadeOutTime : Duration * FadeRatio;
+
     public override void ConfigureTween(Tween tween, VisualEffectHandle handle)
     {
-        float fadeInDuration = Duration * FadeRatio;
-        float holdDuration = Duration * (1.0f - 2.0f * FadeRatio);
-        float fadeOutDuration = Duration * FadeRatio;
-
-        // Clamp hold duration to avoid negative values if FadeRatio > 0.5
-        if (holdDuration < 0)
-        {
-            holdDuration = 0;
-        }
+        float fadeInDuration = GetFadeInDuration();
+        float fadeOutDuration = GetFadeOutDuration();
+        float holdDuration = System.Math.Max(0, Duration - fadeInDuration - fadeOutDuration);
 
         // Fade in to tint color
         tween.TweenProperty(handle, "Modulate", TintColor, fadeInDuration)

@@ -67,12 +67,8 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     {
         base.Start(target, context);
 
-        if (Duration <= 0 && Interval > 0)
-        {
-            Shared.JmoLogger.Warning(this, "TickStatusRunner: Duration <= 0 with Interval > 0 would cause infinite ticks. Stopping immediately.");
-            Stop();
-            return;
-        }
+        // Duration <= 0 means "infinite" — tick timer runs until manually stopped
+        // (by cleanse, death, etc). The duration timer simply doesn't start.
 
         // Setup Duration Timer
         if (Duration > 0)
