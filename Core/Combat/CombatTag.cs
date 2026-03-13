@@ -1,4 +1,3 @@
-using Godot;
 using Jmodot.Core.Identification;
 using Jmodot.Core.Shared.Attributes;
 
@@ -7,9 +6,11 @@ namespace Jmodot.Core.Combat;
 /// <summary>
 /// A unique identifier for gameplay concepts (e.g., "Stun", "Poison", "Fire").
 /// Used to tag Status Effects and drive State Machine transitions.
+/// Inherits from <see cref="Category"/> to participate in the category hierarchy,
+/// enabling hierarchical matching (e.g., a "Burn" tag descends from "Fire" → "Elemental").
 /// </summary>
 [GlobalClass]
-public partial class CombatTag : Resource
+public partial class CombatTag : Category
 {
     /// <summary>
     /// String Identifier of the GameTag. Used for matching in combat effects
@@ -21,17 +22,6 @@ public partial class CombatTag : Resource
     /// Lower value = Higher priority.
     /// </summary>
     [Export] public int Priority { get; set; }
-
-    /// <summary>
-    /// Optional elemental/type identity for label-based interactions.
-    /// Links this tag to an Identity (e.g., Fire, Water, Ice Labels) so that
-    /// interaction rules can apply to all effects sharing the same element.
-    /// </summary>
-    /// <remarks>
-    /// Example: Both "Burn" and "Smolder" CombatTags can link to the same
-    /// "Fire" identity, so a "Water cancels Fire" interaction affects both.
-    /// </remarks>
-    [Export] public Identity? ElementalCategory { get; set; }
 
     /// <summary>
     /// Optional stacking policy for effects with this tag.

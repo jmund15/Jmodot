@@ -68,6 +68,13 @@ using AI.BB;
         #region Public State
         public bool IsActive { get; private set; }
         public IAttackPayload CurrentPayload { get; private set; }
+
+        /// <summary>
+        /// Optional pre-hit hook that filters/modifies the payload before ProcessHit.
+        /// Set by game-layer components (e.g., ReactionComponent) to intercept combat payloads.
+        /// Cleared on pool reset for clean reuse.
+        /// </summary>
+        public IPayloadInterceptor? PayloadInterceptor { get; set; }
         #endregion
 
         #region Private State
@@ -232,6 +239,10 @@ using AI.BB;
             OnAttackStarted = delegate { };
             OnAttackFinished = delegate { };
 
+            // Clear interceptor for clean pool state.
+            // ReactionComponent re-wires during OnPostInitialize each pool cycle.
+            PayloadInterceptor = null;
+
             // Reset continuous mode to export defaults for clean pool state.
             // WavePullEffectInstance re-sets these during OnInitialize each cast.
             IsContinuous = false;
@@ -391,13 +402,20 @@ using AI.BB;
                 return;
             }
 
-            // 3. The Handshake (Direct Method Call)
-            //Shared.JmoLogger.Debug(this, $"TryHitHurtbox PROCESSING HIT on {hurtbox.Owner?.Name}");
-            bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
+            // 3. Pre-hit Interception: filter payload via reaction system (if wired)
+            // The interceptor returns a filtered payload (possibly empty) for ProcessHit,
+            // while OnHitRegistered always receives the ORIGINAL payload for BaseDamage extraction.
+            var payloadForProcessHit = PayloadInterceptor != null
+                ? PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload)
+                : CurrentPayload;
+
+            // 4. The Handshake (Direct Method Call)
+            bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
 
             if (wasAccepted)
             {
                 Shared.JmoLogger.Debug(this, $"TryHitHurtbox HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                // Always notify with ORIGINAL payload — reactions extract BaseDamage from it
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
             }
             else

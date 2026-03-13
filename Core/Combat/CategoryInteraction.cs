@@ -4,22 +4,23 @@ using Godot;
 using Jmodot.Core.Identification;
 
 /// <summary>
-/// Defines an interaction rule between two Identities (typically Labels).
+/// Defines an interaction rule between two Categories.
 /// When an effect with IncomingCategory is applied to an entity
 /// that has an active effect with ExistingCategory, this interaction triggers.
+/// Uses hierarchical matching via <see cref="Category.IsOrDescendsFrom"/>.
 /// </summary>
 [GlobalClass]
 public partial class CategoryInteraction : Resource
 {
     /// <summary>
-    /// The Identity (Label) of the effect being applied.
+    /// The Category of the effect being applied.
     /// </summary>
-    [Export] public Identity? IncomingCategory { get; private set; }
+    [Export] public Category? IncomingCategory { get; private set; }
 
     /// <summary>
-    /// The Identity (Label) of the already-active effect.
+    /// The Category of the already-active effect.
     /// </summary>
-    [Export] public Identity? ExistingCategory { get; private set; }
+    [Export] public Category? ExistingCategory { get; private set; }
 
     /// <summary>
     /// What happens when these categories interact.
@@ -38,12 +39,11 @@ public partial class CategoryInteraction : Resource
     [Export] public bool IsBidirectional { get; private set; } = false;
 
     /// <summary>
-    /// Checks if this interaction matches the given incoming and existing identities.
+    /// Checks if this interaction matches the given incoming and existing categories.
+    /// Uses hierarchical matching — a "Burn" tag will match a rule targeting "Fire"
+    /// if Burn descends from Fire in the category hierarchy.
     /// </summary>
-    /// <param name="incoming">The identity of the effect being applied.</param>
-    /// <param name="existing">The identity of the active effect.</param>
-    /// <returns>True if this interaction applies.</returns>
-    public bool Matches(Identity? incoming, Identity? existing)
+    public bool Matches(Category? incoming, Category? existing)
     {
         if (incoming == null || existing == null)
         {
@@ -55,14 +55,14 @@ public partial class CategoryInteraction : Resource
             return false;
         }
 
-        // Direct match
-        if (IncomingCategory == incoming && ExistingCategory == existing)
+        // Hierarchical match
+        if (incoming.IsOrDescendsFrom(IncomingCategory) && existing.IsOrDescendsFrom(ExistingCategory))
         {
             return true;
         }
 
         // Bidirectional reverse match
-        if (IsBidirectional && IncomingCategory == existing && ExistingCategory == incoming)
+        if (IsBidirectional && incoming.IsOrDescendsFrom(ExistingCategory) && existing.IsOrDescendsFrom(IncomingCategory))
         {
             return true;
         }
@@ -73,10 +73,10 @@ public partial class CategoryInteraction : Resource
     #region Test Helpers
 
     /// <summary>Sets IncomingCategory for testing purposes.</summary>
-    internal void SetIncomingCategory(Identity? value) => IncomingCategory = value;
+    internal void SetIncomingCategory(Category? value) => IncomingCategory = value;
 
     /// <summary>Sets ExistingCategory for testing purposes.</summary>
-    internal void SetExistingCategory(Identity? value) => ExistingCategory = value;
+    internal void SetExistingCategory(Category? value) => ExistingCategory = value;
 
     /// <summary>Sets Effect for testing purposes.</summary>
     internal void SetEffect(CategoryInteractionEffect value) => Effect = value;
