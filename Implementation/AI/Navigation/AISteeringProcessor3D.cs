@@ -230,9 +230,11 @@ public partial class AISteeringProcessor3D : Node
             {
                 arrowColor = Colors.Green;
             }
+            arrowColor.A = 0.5f;
+            var arrowPosition = new Vector3(_ownerAgent.GlobalPosition.X, _ownerAgent.GlobalPosition.Y + 1f, _ownerAgent.GlobalPosition.Z);
 
             var dirArrow = dirWeight.Key * weight * arrowSize;
-            DebugDraw3D.DrawArrow(_ownerAgent.GlobalPosition, _ownerAgent.GlobalPosition + dirArrow,
+            DebugDraw3D.DrawArrow(arrowPosition, arrowPosition + dirArrow,
                 arrowColor,
                 arrowheadSize,
                 true);
