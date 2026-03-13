@@ -49,12 +49,12 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     public AnimationDirectionSuffixes DirectionSuffixes { get; set; }
 
     [Export] public Vector2I FrameSize { get; set; } = new(850, 850);
-    private readonly Vector2I AllColumns = new(-1, -1);
+    private readonly Vector2I AllRange = new(-1, -1);
     [Export] public Vector2I ColumnsToUse { get; set; } = new(-1, -1);
+    [Export] public Vector2I RowsToUse { get; set; } = new(-1, -1);
     [Export] public string BaseAnimationName { get; set; } = "";
 
-    [Export]
-    public string SeparationSuffix { get; set; } = "_";
+    [Export] public string SeparationSuffix { get; set; } = "_";
 
     [Export(PropertyHint.Range, "1, 60, 1")]
     public int FramesPerSecond { get; set; } = 12;
@@ -102,10 +102,18 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
 
         int colStart = 0;
         int colEnd = cols;
-        if (ColumnsToUse != AllColumns)
+        if (ColumnsToUse != AllRange)
         {
-            colStart = ColumnsToUse.X;
+            colStart = Mathf.Max(0, ColumnsToUse.X);
             colEnd = ColumnsToUse.Y + 1; // inclusive
+        }
+
+        int rowStart = 0;
+        int rowEnd = rows;
+        if (RowsToUse != AllRange)
+        {
+            rowStart = Mathf.Max(0, RowsToUse.X);
+            rowEnd = RowsToUse.Y + 1; // inclusive
         }
 
         Node animationRoot = TargetPlayer.GetNode(TargetPlayer.RootNode);
@@ -118,11 +126,12 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
         string fullTrackPath = $"{spritePath}:frame_coords";
 
         // 4. Generate Animations per row
-        for (int row = 0; row < rows; row++)
+        int suffixIndex = 0;
+        for (int row = rowStart; row < rowEnd; row++)
         {
-            string directionName = DirectionSuffixes.DirectionSuffixes.Count > row
-                ? DirectionSuffixes.DirectionSuffixes[row]
-                : $"dir{row}";
+            string directionName = DirectionSuffixes.DirectionSuffixes.Count > suffixIndex
+                ? DirectionSuffixes.DirectionSuffixes[suffixIndex]
+                : $"dir{suffixIndex}";
 
             string finalAnimName = $"{BaseAnimationName}{SeparationSuffix}{directionName}";
             bool animExists = library.HasAnimation(finalAnimName);
@@ -174,6 +183,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
                 library.AddAnimation(finalAnimName, anim);
                 GD.Print($"[Sprite3DComponent] Generated Animation: {finalAnimName} ({colEnd - colStart} frames)");
             }
+            suffixIndex++;
         }
 
         // Notify Editor that things changed (so Ctrl+S works)
@@ -237,9 +247,13 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
         cols = texW / FrameSize.X;
         rows = texH / FrameSize.Y;
 
-        if (rows != DirectionSuffixes.DirectionSuffixes.Count)
+        int effectiveRows = RowsToUse != AllRange
+            ? (RowsToUse.Y - Mathf.Max(0, RowsToUse.X) + 1)
+            : rows;
+
+        if (effectiveRows != DirectionSuffixes.DirectionSuffixes.Count)
         {
-            GD.PrintErr($"[Sprite3DComponent] Mismatch: Texture has {rows} rows, but Template has {DirectionSuffixes.DirectionSuffixes.Count} directions defined.");
+            GD.PrintErr($"[Sprite3DComponent] Mismatch: {effectiveRows} rows to generate, but Template has {DirectionSuffixes.DirectionSuffixes.Count} directions defined.");
             return false;
         }
 
