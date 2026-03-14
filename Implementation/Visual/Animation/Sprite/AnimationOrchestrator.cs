@@ -114,14 +114,14 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
             //GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
             CurrentDirectionLabel = newLabel;
 
-            // HACK: if not playing just update the anim and position, then pause.
-            //  this is a bit jank but possibly ok.
-            bool pauseAfter = !IsPlaying();
+            bool wasNotPlaying = !IsPlaying();
             UpdateAnim(BaseAnimName, AnimUpdateMode.MaintainTime);
-            if (pauseAfter)
+            if (wasNotPlaying)
             {
-                //SeekPos(GetCurrAnimationPosition(), true);
-                //PauseAnim();
+                // Animation had completed (e.g., charge form fully formed).
+                // UpdateAnim restarted it for the new direction — seek to end
+                // to preserve the "completed" visual state.
+                SeekPos(GetCurrAnimationLength(), true);
             }
         }
     }
