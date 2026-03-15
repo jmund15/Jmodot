@@ -90,6 +90,123 @@ public static class ShapeProximityCalculator
         }
     }
 
+    #region Angular Extent
+
+    /// <summary>
+    /// Computes the angular half-extent (radians) that a shape subtends from a query point,
+    /// projected onto the XZ plane. Used for size-proportional obstacle avoidance scoring.
+    /// Returns 0 for unknown/unhandled shape types.
+    /// </summary>
+    /// <param name="queryPoint">The external point to measure from (e.g., agent position).</param>
+    /// <param name="shapeWorldCenter">World-space center of the shape.</param>
+    /// <param name="shapeWorldBasis">World-space orientation of the shape.</param>
+    /// <param name="shape">The Shape3D resource defining the shape geometry.</param>
+    /// <returns>Angular half-extent in radians [0, π].</returns>
+    public static float GetAngularHalfExtent(
+        Vector3 queryPoint, Vector3 shapeWorldCenter, Basis shapeWorldBasis, Shape3D shape)
+    {
+        return shape switch
+        {
+            BoxShape3D box => AngularHalfExtentBox(queryPoint, shapeWorldCenter, shapeWorldBasis, box),
+            SphereShape3D sphere => AngularHalfExtentRadial(queryPoint, shapeWorldCenter, sphere.Radius),
+            CylinderShape3D cylinder => AngularHalfExtentRadial(queryPoint, shapeWorldCenter, cylinder.Radius),
+            CapsuleShape3D capsule => AngularHalfExtentRadial(queryPoint, shapeWorldCenter, capsule.Radius),
+            _ => 0f
+        };
+    }
+
+    /// <summary>
+    /// Convenience: iterates CollisionShape3D children of a body, returns the max angular
+    /// half-extent across all shapes. Falls back to 0f if no collision shapes are found.
+    /// </summary>
+    public static float GetAngularHalfExtentOnBody(Vector3 queryPoint, Node3D body)
+    {
+        float maxExtent = 0f;
+
+        var children = body.GetChildren();
+
+        foreach (var child in children)
+        {
+            if (child is not CollisionShape3D { Shape: not null } cs) { continue; }
+            var center = body.GlobalTransform * cs.Position;
+            float extent = GetAngularHalfExtent(queryPoint, center, body.GlobalTransform.Basis, cs.Shape);
+            maxExtent = Mathf.Max(maxExtent, extent);
+        }
+
+        if (maxExtent > 0f) { return maxExtent; }
+
+        // Fallback: check grandchildren (mirrors GetClosestSurfacePointOnBody pattern)
+        foreach (var child in children)
+        {
+            if (child is not Node3D childNode) { continue; }
+            foreach (var grandchild in childNode.GetChildren())
+            {
+                if (grandchild is not CollisionShape3D { Shape: not null } cs) { continue; }
+                var center = body.GlobalTransform * (childNode.Transform * cs.Position);
+                float extent = GetAngularHalfExtent(queryPoint, center, body.GlobalTransform.Basis, cs.Shape);
+                maxExtent = Mathf.Max(maxExtent, extent);
+            }
+        }
+
+        return maxExtent;
+    }
+
+    private static float AngularHalfExtentBox(
+        Vector3 queryPoint, Vector3 center, Basis basis, BoxShape3D box)
+    {
+        var halfSize = box.Size / 2f;
+
+        // XZ direction from query to center
+        var toCenterXZ = new Vector3(center.X - queryPoint.X, 0, center.Z - queryPoint.Z);
+        if (toCenterXZ.LengthSquared() < 0.0001f)
+        {
+            // Agent at obstacle center — obstacle surrounds agent
+            return Mathf.Pi;
+        }
+        Vector3 centerDir = toCenterXZ.Normalized();
+
+        // Project all 8 local-space corners to world space, find max angle from center direction
+        float maxAngle = 0f;
+
+        for (int sx = -1; sx <= 1; sx += 2)
+        {
+            for (int sy = -1; sy <= 1; sy += 2)
+            {
+                for (int sz = -1; sz <= 1; sz += 2)
+                {
+                    var localCorner = new Vector3(sx * halfSize.X, sy * halfSize.Y, sz * halfSize.Z);
+                    Vector3 worldCorner = center + basis * localCorner;
+
+                    var toCornerXZ = new Vector3(
+                        worldCorner.X - queryPoint.X, 0,
+                        worldCorner.Z - queryPoint.Z);
+
+                    if (toCornerXZ.LengthSquared() < 0.0001f) { continue; }
+
+                    Vector3 cornerDir = toCornerXZ.Normalized();
+                    float dot = Mathf.Clamp(centerDir.Dot(cornerDir), -1f, 1f);
+                    float angle = Mathf.Acos(dot);
+                    maxAngle = Mathf.Max(maxAngle, angle);
+                }
+            }
+        }
+
+        return Mathf.Min(maxAngle, Mathf.Pi);
+    }
+
+    /// <summary>
+    /// Angular half-extent for radially symmetric shapes (sphere, cylinder, capsule).
+    /// Uses atan(radius / xzDistance) projected onto the XZ plane.
+    /// </summary>
+    private static float AngularHalfExtentRadial(
+        Vector3 queryPoint, Vector3 center, float radius)
+    {
+        float xzDist = new Vector2(center.X - queryPoint.X, center.Z - queryPoint.Z).Length();
+        return Mathf.Atan(radius / Mathf.Max(xzDist, 0.001f));
+    }
+
+    #endregion
+
     #region Shape-Specific Implementations
 
     private static Vector3 ClosestPointOnBox(

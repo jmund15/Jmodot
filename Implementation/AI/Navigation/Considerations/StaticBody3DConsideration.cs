@@ -59,7 +59,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
                     $"StaticBody3DConsideration requires an AIPerceptionManager3D " +
                     "but the steering context has Memory=null. The entity must pass a non-null " +
                     "AIPerceptionManager3D when constructing SteeringDecisionContext3D " +
-                    "(see CritterEntity._PhysicsProcess or equivalent). " +
+                    "(see NpcEntity._PhysicsProcess or equivalent). " +
                     "This consideration will have NO EFFECT until Memory is provided.");
                 _missingMemoryLogged = true;
             }
@@ -71,30 +71,66 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
 
         foreach (var percept in relevantPercepts)
         {
-            // Use closest surface point for accurate distance/direction on wide objects.
-            // Falls back to percept origin if Target is unavailable.
-            Vector3 closestPoint = percept.Target != null && GodotObject.IsInstanceValid(percept.Target)
+            bool hasValidTarget = percept.Target != null && GodotObject.IsInstanceValid(percept.Target);
+
+            // Use closest surface point for accurate distance weighting on wide objects.
+            Vector3 closestPoint = hasValidTarget
                 ? ShapeProximityCalculator.GetClosestSurfacePointOnBody(context3D.AgentPosition, percept.Target)
                 : percept.LastKnownPosition;
 
-            // Project to XZ plane for ground-based steering (matches PerceptionFleeConsideration3D)
+            // Project to XZ plane for ground-based steering
             var toSurface = new Vector3(
                 closestPoint.X - context3D.AgentPosition.X,
                 0,
                 closestPoint.Z - context3D.AgentPosition.Z);
             if (toSurface.LengthSquared() < 0.0001f) { continue; }
 
-            Vector3 toTargetDir = toSurface.Normalized();
             float distance = toSurface.Length();
-
             float distanceWeight = GetDistanceConsideration(distance);
             if (distanceWeight <= 0f) { continue; }
 
             float scoreAmount = _considerationWeight * distanceWeight;
 
-            // Find the direction in our set that best matches the direction to the surface.
-            Vector3 closestDir = directions.GetClosestDirection(toTargetDir);
-            scores[closestDir] += scoreAmount;
+            // Size-aware scoring: score all directions within the obstacle's angular footprint.
+            // Falls back to single-direction scoring when shape data is unavailable.
+            if (hasValidTarget)
+            {
+                float angularHalfExtent = ShapeProximityCalculator.GetAngularHalfExtentOnBody(
+                    context3D.AgentPosition, percept.Target);
+
+                if (angularHalfExtent > 0f)
+                {
+                    var toCenterXZ = new Vector3(
+                        percept.Target.GlobalPosition.X - context3D.AgentPosition.X, 0,
+                        percept.Target.GlobalPosition.Z - context3D.AgentPosition.Z);
+
+                    if (toCenterXZ.LengthSquared() >= 0.0001f)
+                    {
+                        Vector3 centerDir = toCenterXZ.Normalized();
+                        float cosThreshold = Mathf.Cos(angularHalfExtent);
+                        bool scored = false;
+
+                        foreach (var dir in directions.Directions)
+                        {
+                            if (dir.Dot(centerDir) >= cosThreshold)
+                            {
+                                scores[dir] += scoreAmount;
+                                scored = true;
+                            }
+                        }
+
+                        if (!scored)
+                        {
+                            scores[directions.GetClosestDirection(centerDir)] += scoreAmount;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: single-direction scoring (no shape data or zero angular extent)
+            Vector3 toTargetDir = toSurface.Normalized();
+            scores[directions.GetClosestDirection(toTargetDir)] += scoreAmount;
         }
 
         return scores;
