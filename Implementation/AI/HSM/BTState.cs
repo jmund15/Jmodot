@@ -2,9 +2,12 @@ namespace Jmodot.Implementation.AI.HSM;
 
 using System.Collections.Generic;
 using System.Linq;
+using BB;
 using BehaviorTree;
 using Core.AI;
 using Core.AI.BB;
+using Jmodot.Core.Movement.Strategies;
+using Jmodot.Implementation.Movement.Strategies;
 using Shared;
 using Shared.GodotExceptions;
 
@@ -28,6 +31,20 @@ using Shared.GodotExceptions;
         [Export(PropertyHint.NodeType, "State")]
         protected State _onTreeFailureState;
 
+        /// <summary>
+        /// When true, CanExit() returns false while the BT is actively running (Enabled=true).
+        /// Prevents declarative transitions from interrupting the BT before its timer/logic completes.
+        /// The BT's own terminal status (Success/Failure) remains the authoritative exit mechanism.
+        /// </summary>
+        [Export] protected bool LockUntilTreeComplete;
+
+        /// <summary>
+        /// Optional movement strategy applied while this BTState is active.
+        /// Written to BB[ActiveMovementStrategy] on enter, cleared on exit.
+        /// Entity-level ProcessMovement reads this to determine movement feel per state.
+        /// </summary>
+        [Export] protected BaseMovementStrategy3D? MovementStrategyOverride;
+
         private BehaviorTree _tree = null!; // Set in OnInit, exception thrown if missing
 
         protected override void OnInit()
@@ -45,12 +62,24 @@ using Shared.GodotExceptions;
         protected override void OnEnter()
         {
             base.OnEnter();
+
+            if (MovementStrategyOverride != null)
+            {
+                BB.Set(BBDataSig.ActiveMovementStrategy, (IMovementStrategy3D)MovementStrategyOverride);
+            }
+
             _tree.Enter();
         }
 
         protected override void OnExit()
         {
             base.OnExit();
+
+            if (MovementStrategyOverride != null)
+            {
+                BB.Set<IMovementStrategy3D?>(BBDataSig.ActiveMovementStrategy, null);
+            }
+
             _tree.Exit();
         }
 
@@ -79,6 +108,15 @@ using Shared.GodotExceptions;
                     JmoLogger.Error(this, "TreeFinishedLoop signal was emitted with a non-terminal status. This indicates a logic error in the BehaviorTree.");
                     break;
             }
+        }
+
+        public override bool CanExit(State newState)
+        {
+            if (LockUntilTreeComplete && _tree.Enabled)
+            {
+                return false;
+            }
+            return base.CanExit(newState);
         }
 
         public override string[] _GetConfigurationWarnings()
@@ -113,4 +151,11 @@ using Shared.GodotExceptions;
             // Concatenate warnings from the base State class.
             return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
         }
+
+        #region Test Helpers
+#if TOOLS
+        internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => MovementStrategyOverride = strategy;
+        internal void SetLockUntilTreeComplete(bool value) => LockUntilTreeComplete = value;
+#endif
+        #endregion
     }

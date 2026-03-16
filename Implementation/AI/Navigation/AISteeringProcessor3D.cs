@@ -6,6 +6,7 @@ using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
 using Core.Movement;
 using Implementation.AI.Navigation;
+using Implementation.AI.Navigation.Considerations;
 using Implementation.Shared;
 using GColl = Godot.Collections;
 
@@ -32,6 +33,22 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
 
+    [ExportGroup("Navigation Path")]
+    /// <summary>
+    /// The processor-owned navigation path consideration. Evaluated separately from the
+    /// regular considerations array to guarantee exactly one nav path consideration is active.
+    /// When a nav path exists, this provides the primary "desire" to move toward the goal.
+    /// BT actions can temporarily override this via <see cref="OverrideNavPathConsideration"/>.
+    /// </summary>
+    [Export] private NavigationPath3DConsideration? _navPathConsideration;
+
+    /// <summary>
+    /// A temporary override for the nav path consideration, set by BT actions that need
+    /// custom path-following behavior (different weight, modifiers, or scoring algorithm).
+    /// When non-null, this takes precedence over <see cref="_navPathConsideration"/>.
+    /// </summary>
+    private NavigationPath3DConsideration? _navPathOverride;
+
     [ExportGroup("Behavior")]
     /// <summary>
     /// If true, the final, blended direction vector will be snapped to the closest vector
@@ -43,7 +60,7 @@ public partial class AISteeringProcessor3D : Node
     /// Considerations are sorted by priority to ensure a deterministic evaluation order, though
     /// in practice the order of addition does not change the final sum.
     /// </summary>
-    public IOrderedEnumerable<BaseAIConsideration3D> SortedConsiderations { get; private set; }
+    public IReadOnlyList<BaseAIConsideration3D> SortedConsiderations { get; private set; }
 
     /// <summary>
     /// Runtime considerations registered dynamically by BT actions.
@@ -62,13 +79,41 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     public Vector3 DesiredDirection { get; private set; }
 
-    [ExportGroup("Debug")] private bool _showNavigationDebugArrows;
+    /// <summary>
+    /// Layer 1 override: When true, skips all consideration scoring (flee, wander, obstacle
+    /// avoidance) but keeps nav path evaluation. The critter follows the nav agent's path
+    /// to its target position. Navmesh geometry naturally handles obstacle avoidance.
+    /// Use case: CorneredAction shuttle between close navmesh-valid waypoints.
+    /// Single-owner: Only one BT action should set this at a time. Last writer wins —
+    /// if multiple consumers are needed, replace with a push/pop counter.
+    /// </summary>
+    public bool NavigationOnlyMode { get; set; }
+
+    /// <summary>
+    /// Layer 2 override: When set, bypasses ALL steering computation (considerations, nav path,
+    /// synthesis). Returns this raw direction as DesiredDirection. Strongest override.
+    /// Priority: DirectionOverride > NavigationOnlyMode > Normal.
+    /// Use case: Forced/scripted movement, cutscene movement, knockback effects.
+    /// </summary>
+    public Vector3? DirectionOverride { get; set; }
+
+    /// <summary>
+    /// Clears any active direction override, reverting to normal steering or NavigationOnlyMode.
+    /// </summary>
+    public void ClearDirectionOverride() => DirectionOverride = null;
+
+    [ExportGroup("Debug")]
+    [Export] private bool _showNavigationDebugArrows;
 
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
         if (_considerations.Count == 0) { warnings.Add("No considerations are assigned. The AI will have no environmental awareness."); }
         if (MovementDirections == null || !MovementDirections.Directions.Any()) { warnings.Add("No movement directions are defined. The AI will not know how to score potential moves."); }
+        if (_navPathConsideration == null && GetParent()?.FindChild("AINavigator3D") != null)
+        {
+            warnings.Add("Parent has an AINavigator3D but no NavigationPath3DConsideration is set. Nav targets will be set but the agent will have no steering interest toward them.");
+        }
         return warnings.ToArray();
     }
 
@@ -91,6 +136,9 @@ public partial class AISteeringProcessor3D : Node
         {
             consideration?.Initialize(MovementDirections);
         }
+
+        // Initialize the dedicated nav path consideration if configured.
+        _navPathConsideration?.Initialize(MovementDirections);
 
         RebuildSortedConsiderations();
     }
@@ -121,12 +169,35 @@ public partial class AISteeringProcessor3D : Node
     {
         SortedConsiderations = _considerations
             .Concat(_runtimeConsiderations)
-            .OrderBy(c => c.Priority);
+            .OrderBy(c => c.Priority)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Temporarily overrides the processor's nav path consideration. Used by BT actions
+    /// that need custom path-following behavior. Last writer wins — nested overrides
+    /// are not stacked.
+    /// </summary>
+    public void OverrideNavPathConsideration(NavigationPath3DConsideration consideration)
+    {
+        _navPathOverride = consideration;
+        consideration.Initialize(MovementDirections);
+    }
+
+    /// <summary>
+    /// Clears any active nav path override, reverting to the processor's default
+    /// <see cref="_navPathConsideration"/>.
+    /// </summary>
+    public void ClearNavPathOverride()
+    {
+        _navPathOverride = null;
     }
 
     #region Test Helpers
 #if TOOLS
     internal void SetMovementDirections(DirectionSet3D directions) => MovementDirections = directions;
+    internal void SetNavPathConsideration(NavigationPath3DConsideration? consideration) => _navPathConsideration = consideration;
+    internal NavigationPath3DConsideration? GetActiveNavPathConsideration() => _navPathOverride ?? _navPathConsideration;
 #endif
     #endregion
 
@@ -159,9 +230,11 @@ public partial class AISteeringProcessor3D : Node
             {
                 arrowColor = Colors.Green;
             }
+            arrowColor.A = 0.5f;
+            var arrowPosition = new Vector3(_ownerAgent.GlobalPosition.X, _ownerAgent.GlobalPosition.Y + 1f, _ownerAgent.GlobalPosition.Z);
 
             var dirArrow = dirWeight.Key * weight * arrowSize;
-            DebugDraw3D.DrawArrow(_ownerAgent.GlobalPosition, _ownerAgent.GlobalPosition + dirArrow,
+            DebugDraw3D.DrawArrow(arrowPosition, arrowPosition + dirArrow,
                 arrowColor,
                 arrowheadSize,
                 true);
@@ -187,16 +260,31 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     public Vector3 CalculateSteering(SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
+        // --- Layer 2: DirectionOverride — complete bypass ---
+        if (DirectionOverride.HasValue)
+        {
+            DesiredDirection = DirectionOverride.Value;
+            return DesiredDirection;
+        }
+
         // --- 1. Reset scores for this frame's calculation ---
         var keys = _scores.Keys.ToList();
         foreach (var key in keys) { _scores[key] = 0f; }
 
         // --- 2. Evaluate all environmental considerations ---
-        // Each consideration adds its own scores to the master dictionary.
-        foreach (var consideration in SortedConsiderations)
+        // Layer 1: NavigationOnlyMode skips consideration scoring entirely.
+        if (!NavigationOnlyMode)
         {
-            consideration.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
+            foreach (var consideration in SortedConsiderations)
+            {
+                consideration.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
+            }
         }
+
+        // --- 2b. Evaluate the dedicated nav path consideration ---
+        // Evaluated in both normal and NavigationOnlyMode — nav path always active.
+        var activeNavPath = _navPathOverride ?? _navPathConsideration;
+        activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
 
         // --- 3. Synthesize the final direction ---
         // Combine all scored directions into a single resultant vector.
@@ -221,5 +309,83 @@ public partial class AISteeringProcessor3D : Node
         }
 
         return DesiredDirection;
+    }
+
+    /// <summary>
+    /// Limits the rotation from previous to desired direction by a maximum angular speed.
+    /// Operates on the XZ plane — Y components are flattened to zero.
+    /// Returns the desired direction directly when: rate is 0 (unlimited), previous is zero
+    /// (first frame), desired is zero (idle), or the angle is within the allowed rotation.
+    /// Exposed as static for testability.
+    /// </summary>
+    public static Vector3 ApplyTurnRateLimit(
+        Vector3 previous, Vector3 desired, float maxTurnRateDegrees, float delta)
+    {
+        // No smoothing
+        if (maxTurnRateDegrees <= 0f || delta <= 0f)
+        {
+            return desired;
+        }
+
+        // Idle → return zero
+        if (desired.IsZeroApprox())
+        {
+            return Vector3.Zero;
+        }
+
+        // First frame / coming from idle → snap to desired
+        if (previous.IsZeroApprox())
+        {
+            return desired;
+        }
+
+        // Flatten to XZ plane for ground-based rotation
+        Vector3 flatPrev = new Vector3(previous.X, 0, previous.Z);
+        Vector3 flatDesired = new Vector3(desired.X, 0, desired.Z);
+
+        if (flatPrev.LengthSquared() < 0.001f || flatDesired.LengthSquared() < 0.001f)
+        {
+            return desired;
+        }
+
+        flatPrev = flatPrev.Normalized();
+        flatDesired = flatDesired.Normalized();
+
+        float angleRad = flatPrev.AngleTo(flatDesired);
+
+        // Already aligned
+        if (angleRad < 0.001f)
+        {
+            return flatDesired;
+        }
+
+        float maxRadians = Mathf.DegToRad(maxTurnRateDegrees) * delta;
+
+        // Can reach desired this frame
+        if (angleRad <= maxRadians)
+        {
+            return flatDesired;
+        }
+
+        // Near-antiparallel: Slerp is degenerate when vectors are ~180° apart.
+        // Manually rotate around the Y axis by the clamped angle.
+        if (angleRad > Mathf.Pi - 0.01f)
+        {
+            // Choose perpendicular direction on XZ plane (rotate 90° around Y)
+            Vector3 perp = new Vector3(-flatPrev.Z, 0, flatPrev.X).Normalized();
+            // Use cross product to pick the side closer to desired
+            float cross = flatPrev.X * flatDesired.Z - flatPrev.Z * flatDesired.X;
+            if (cross < 0) { perp = -perp; }
+            // Rotate from previous toward perp by maxRadians
+            float t = maxRadians / (Mathf.Pi / 2f); // fraction of 90° toward perp
+            if (t >= 1f) { return perp; }
+            return flatPrev.Slerp(perp, t).Normalized();
+        }
+
+        // Slerp by the clamped fraction
+        float sT = maxRadians / angleRad;
+        Vector3 result = flatPrev.Slerp(flatDesired, sT);
+
+        return result.Normalized();
     }
 }

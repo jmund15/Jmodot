@@ -48,38 +48,9 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
     [Export(PropertyHint.Range, "5.0, 50.0, 1.0")]
     private float _maxInfluenceDistance = 20.0f;
 
-    [ExportGroup("Score Propagation")]
-
-    /// <summary>
-    /// If enabled, scores propagate to neighboring directions for smoother steering.
-    /// </summary>
-    [Export]
-    private bool _propagateScores = true;
-
-    /// <summary>
-    /// Number of neighboring directions on each side to propagate scores to.
-    /// </summary>
-    [Export(PropertyHint.Range, "1, 4, 1")]
-    private int _dirsToPropagate = 2;
-
-    /// <summary>
-    /// Multiplier applied to score for each propagation step.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")]
-    private float _propDiminishWeight = 0.5f;
-
     #endregion
 
-    private List<Vector3> _orderedDirections = null!;
     private const float Epsilon = 0.001f;
-
-    /// <summary>
-    /// Caches the ordered direction list for propagation.
-    /// </summary>
-    public override void Initialize(DirectionSet3D directions)
-    {
-        _orderedDirections = directions.Directions.ToList();
-    }
 
     /// <summary>
     /// Calculates scores for each direction based on the agent's assigned formation slot.
@@ -167,12 +138,6 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
             {
                 scores[availableDir] = scoreBase * alignment;
             }
-        }
-
-        // 11. Apply score propagation if enabled
-        if (_propagateScores)
-        {
-            SteeringPropagation.PropagateScores(scores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
         }
 
         return scores;

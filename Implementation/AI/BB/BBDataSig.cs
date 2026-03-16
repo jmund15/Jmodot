@@ -71,6 +71,18 @@ public static partial class BBDataSig
     #region AI
 
     public static readonly StringName PerceptionComp = new("PerceptionComponent");
+    /// <summary>
+    /// AISteeringProcessor3D reference. Pre-registered on BB during entity init
+    /// (before Phase 4) so IComponent consumers can resolve it during Initialize().
+    /// </summary>
+    public static readonly StringName SteeringComp = new("SteeringComponent");
+
+    /// <summary>
+    /// The movement strategy override set by the current BTState.
+    /// Read by entity-level ProcessMovement to determine movement feel.
+    /// Type: BaseMovementStrategy3D (nullable — null means use entity default).
+    /// </summary>
+    public static readonly StringName ActiveMovementStrategy = new("ActiveMovementStrategy");
 
     #region AI_PROPERTIES
 

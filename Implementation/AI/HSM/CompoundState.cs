@@ -69,29 +69,22 @@ using Shared.GodotExceptions;
             }
         }
 
-        public IDebugPanelProvider? ActiveNestedProvider
-        {
-            get
-            {
-                if (!PrimarySubState.IsValid()) { return null; }
-                return PrimarySubState.TryGetFirstChildOfInterface<IDebugPanelProvider>(out var provider, false)
-                    ? provider
-                    : null;
-            }
-        }
+        public IDebugPanelProvider? ActiveNestedProvider => null;
 
         public event Action<IDebugPanelProvider?> ActiveNestedProviderChanged = delegate { };
 
+        private DebugHSMOverviewPanel? _overviewPanel;
+
         public Control CreateDebugContent()
         {
-            var debugSM = new DebugSMComponent { EmbeddedMode = true };
-            debugSM.Init(Name, Agent as Node3D);
-            return debugSM;
+            _overviewPanel = new DebugHSMOverviewPanel();
+            _overviewPanel.Init(this);
+            return _overviewPanel;
         }
 
         public void UpdateDebugContent(double delta)
         {
-            // Timer updates handled by DebugSMComponent's own _Process
+            _overviewPanel?.Refresh(delta);
         }
 
         public void OnDebugContentHidden()
@@ -153,7 +146,7 @@ using Shared.GodotExceptions;
             }
 
             EmitSignal(SignalName.EnteredCompoundState);
-            _debugComponent?.OnEnteredCompoundState(PrimarySubState);
+            if (_debugComponent.IsValid()) { _debugComponent.OnEnteredCompoundState(PrimarySubState); }
         }
 
         protected override void OnExit()
@@ -167,7 +160,7 @@ using Shared.GodotExceptions;
             // Note: We don't set PrimarySubState to null here to support History States.
 
             EmitSignal(SignalName.ExitedCompoundState);
-            _debugComponent?.OnExitedCompoundState();
+            if (_debugComponent.IsValid()) { _debugComponent.OnExitedCompoundState(); }
         }
 
         protected override void OnProcessFrame(float delta)
@@ -195,8 +188,7 @@ using Shared.GodotExceptions;
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
-            //JmoLogger.Info(this, $"[HSM Debug] CompoundState '{Name}' received transition signal: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, canPropagateUp={canPropagateUp})");
-            //GD.Print($"Attempting to transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
+            JmoLogger.Info(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, propagate={canPropagateUp})");
             if (!newSubState.IsValid())
             {
                 JmoLogger.Error(this, $"Attempted to transition from '{oldSubState.Name}' to a null or invalid state.");
@@ -266,8 +258,7 @@ using Shared.GodotExceptions;
             }
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
-            _debugComponent?.OnTransitionedState(oldSubState, newSubState);
-            ActiveNestedProviderChanged.Invoke(ActiveNestedProvider);
+            if (_debugComponent.IsValid()) { _debugComponent.OnTransitionedState(oldSubState, newSubState); }
 
             //JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }

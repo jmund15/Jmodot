@@ -8,11 +8,16 @@ using Core.AI.Navigation.Considerations;
 using Core.Identification;
 using Core.Movement;
 using Jmodot.Core.Shared.Attributes;
+using Physics;
+using Shared;
 
 /// <summary>
 /// A consideration that scores directions based on proximity to static bodies of a specific Category.
 /// It is used to create avoidance or attraction behaviors towards environmental objects like walls,
 /// cover points, or hazards.
+///
+/// Note: This consideration requires PropagateNegative=true on its SteeringPropagationConfig
+/// so that negative avoidance scores bleed to neighboring directions for smoother steering.
 /// </summary>
 [GlobalClass]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
@@ -30,6 +35,8 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     [Export, RequiredExport] private Category _targetCategory = null!;
 
+    private bool _missingMemoryLogged;
+
     [ExportGroup("Distance Weighting")]
     /// <summary>
     /// Defines the range over which the consideration's weight is applied.
@@ -38,73 +45,115 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
     /// </summary>
     [Export] private Vector2 _distanceDiminishRange = new Vector2(1.0f, 5.0f);
 
-    [ExportGroup("Score Propagation")]
-    /// <summary>
-    /// If enabled, the calculated score for the closest direction will be "bled" to its
-    /// neighboring directions, creating a smoother, less jerky avoidance response.
-    /// </summary>
-    [Export] private bool _propagateScores = true;
-
-    /// <summary>
-    /// The number of neighboring directions on each side to propagate the score to.
-    /// </summary>
-    [Export(PropertyHint.Range, "1, 8, 1")] private int _dirsToPropagate = 2;
-
-    /// <summary>
-    /// The multiplier applied to the score for each step of propagation. A value of 0.5
-    /// means the first neighbor gets 50% of the original score, the second gets 25%, etc.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")] private float _propDiminishWeight = 0.5f;
-
-    private List<Vector3> _orderedDirections = null!;
-
-    public override void Initialize(DirectionSet3D directions)
-    {
-        _orderedDirections = directions.Directions.ToList();
-    }
-
     protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 
         if (_targetCategory == null) { return scores; }
 
+        if (context3D.Memory == null)
+        {
+            if (!_missingMemoryLogged)
+            {
+                JmoLogger.Error(this,
+                    $"StaticBody3DConsideration requires an AIPerceptionManager3D " +
+                    "but the steering context has Memory=null. The entity must pass a non-null " +
+                    "AIPerceptionManager3D when constructing SteeringDecisionContext3D " +
+                    "(see NpcEntity._PhysicsProcess or equivalent). " +
+                    "This consideration will have NO EFFECT until Memory is provided.");
+                _missingMemoryLogged = true;
+            }
+            return scores;
+        }
+
         // Get all perceived objects that match our target category.
         var relevantPercepts = context3D.Memory.GetSensedByCategory(_targetCategory);
 
         foreach (var percept in relevantPercepts)
         {
-            Vector3 toTargetDir = (percept.LastKnownPosition - context3D.AgentPosition).Normalized();
-            float distance = context3D.AgentPosition.DistanceTo(percept.LastKnownPosition);
+            bool hasValidTarget = percept.Target != null && GodotObject.IsInstanceValid(percept.Target);
 
-            // Calculate the weight based on distance.
+            // Use closest surface point for accurate distance weighting on wide objects.
+            Vector3 closestPoint = hasValidTarget
+                ? ShapeProximityCalculator.GetClosestSurfacePointOnBody(context3D.AgentPosition, percept.Target)
+                : percept.LastKnownPosition;
+
+            // Project to XZ plane for ground-based steering
+            var toSurface = new Vector3(
+                closestPoint.X - context3D.AgentPosition.X,
+                0,
+                closestPoint.Z - context3D.AgentPosition.Z);
+            if (toSurface.LengthSquared() < 0.0001f) { continue; }
+
+            float distance = toSurface.Length();
             float distanceWeight = GetDistanceConsideration(distance);
             if (distanceWeight <= 0f) { continue; }
 
             float scoreAmount = _considerationWeight * distanceWeight;
 
-            // Find the direction in our set that best matches the direction to the object.
-            Vector3 closestDir = directions.GetClosestDirection(toTargetDir);
-            scores[closestDir] += scoreAmount;
-        }
+            // Size-aware scoring: score all directions within the obstacle's angular footprint.
+            // Falls back to single-direction scoring when shape data is unavailable.
+            if (hasValidTarget)
+            {
+                float angularHalfExtent = ShapeProximityCalculator.GetAngularHalfExtentOnBody(
+                    context3D.AgentPosition, percept.Target);
 
-        if (_propagateScores)
-        {
-            SteeringPropagation.PropagateScores(scores, _orderedDirections, _dirsToPropagate,
-                _propDiminishWeight, propagateNegative: true);
+                if (angularHalfExtent > 0f)
+                {
+                    var toCenterXZ = new Vector3(
+                        percept.Target.GlobalPosition.X - context3D.AgentPosition.X, 0,
+                        percept.Target.GlobalPosition.Z - context3D.AgentPosition.Z);
+
+                    if (toCenterXZ.LengthSquared() >= 0.0001f)
+                    {
+                        Vector3 centerDir = toCenterXZ.Normalized();
+                        float cosThreshold = Mathf.Cos(angularHalfExtent);
+                        bool scored = false;
+
+                        foreach (var dir in directions.Directions)
+                        {
+                            if (dir.Dot(centerDir) >= cosThreshold)
+                            {
+                                scores[dir] += scoreAmount;
+                                scored = true;
+                            }
+                        }
+
+                        if (!scored)
+                        {
+                            scores[directions.GetClosestDirection(centerDir)] += scoreAmount;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: single-direction scoring (no shape data or zero angular extent)
+            Vector3 toTargetDir = toSurface.Normalized();
+            scores[directions.GetClosestDirection(toTargetDir)] += scoreAmount;
         }
 
         return scores;
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetTargetCategory(Category category) => _targetCategory = category;
+    internal void SetDistanceDiminishRange(Vector2 range) => _distanceDiminishRange = range;
+    internal void SetConsiderationWeight(float weight) => _considerationWeight = weight;
+#endif
+    #endregion
 
     /// <summary>
     /// Calculates a weight multiplier (0.0 to 1.0) based on distance to a target.
     /// </summary>
     private float GetDistanceConsideration(float distance)
     {
+        float range = _distanceDiminishRange.Y - _distanceDiminishRange.X;
+        if (range <= 0f) { return 1.0f; }
         if (distance <= _distanceDiminishRange.X) { return 1.0f; }
         if (distance >= _distanceDiminishRange.Y) { return 0.0f; }
 
-        return 1.0f - (distance - _distanceDiminishRange.X) / (_distanceDiminishRange.Y - _distanceDiminishRange.X);
+        return 1.0f - (distance - _distanceDiminishRange.X) / range;
     }
 }

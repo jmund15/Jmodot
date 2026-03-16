@@ -45,8 +45,7 @@ public partial class State : Node, IState
 
     /// <summary>
     /// Optional stat context applied while this state is active.
-    /// When set, modifiers associated with this context (via StatContextProfiles)
-    /// are applied on enter and removed on exit.
+    /// Modifiers defined on the context are applied on enter and removed on exit.
     /// </summary>
     [Export] protected StatContext? ActiveStatContext;
 

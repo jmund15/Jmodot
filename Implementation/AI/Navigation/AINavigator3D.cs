@@ -73,6 +73,13 @@ public partial class AINavigator3D : NavigationAgent3D
     }
 
     /// <summary>
+    /// Returns true if the navigation map has completed at least two synchronization cycles.
+    /// The first sync (iteration 1) processes uploaded region data but MapGetClosestPoint
+    /// returns incorrect results. The second sync makes the data fully queryable.
+    /// </summary>
+    public bool IsMapReady() => NavigationServer3D.MapGetIterationId(GetNavigationMap()) >= 2;
+
+    /// <summary>
     /// Sets the target position for the navigation agent. This is the primary method
     /// for commanding the agent to move to a new location.
     /// </summary>
@@ -89,16 +96,27 @@ public partial class AINavigator3D : NavigationAgent3D
         // Check if the target point is on a valid navigation mesh.
         // Using GetNavigationMap() is more direct than iterating all maps.
         Rid map = GetNavigationMap();
+
+        if (NavigationServer3D.MapGetIterationId(map) < 2)
+        {
+            return NavReqPathResponse.MapNotReady;
+        }
+
         Vector3 closestPointOnNavmesh = NavigationServer3D.MapGetClosestPoint(map, globalPosition);
+        float distanceToMesh = closestPointOnNavmesh.DistanceTo(globalPosition);
 
         // Allow for a small tolerance in case the target is slightly off the mesh.
-        if (closestPointOnNavmesh.DistanceTo(globalPosition) <= 1.0f)
+        if (distanceToMesh <= 1.0f)
         {
-            TargetPosition = globalPosition;
-            _lastCalculatedTargetPath = globalPosition; // Store this position for future checks.
+            // Snap to the nav mesh surface for accurate path calculation and target-reached detection.
+            TargetPosition = closestPointOnNavmesh;
+            _lastCalculatedTargetPath = closestPointOnNavmesh;
             return NavReqPathResponse.Success;
         }
 
+        JmoLogger.Warning(this,
+            $"Nav target unreachable: candidate={globalPosition}, " +
+            $"closestNavPoint={closestPointOnNavmesh}, distance={distanceToMesh:F2} (tolerance=1.0)");
         return NavReqPathResponse.Unreachable;
     }
 
@@ -142,6 +160,32 @@ public partial class AINavigator3D : NavigationAgent3D
         // being there, we should adjust the last calced position for accuracy.
         _lastCalculatedTargetPath = _ownerAgent.GlobalPosition;
         JmoLogger.Info(this, "Target reached.");
+    }
+
+    /// <summary>
+    /// Projects a world-space position onto the nearest point on the navigation mesh.
+    /// Bridges agent-space coordinates (GlobalPosition) to nav-mesh-space for operations
+    /// that require nav-mesh-aligned Y values (e.g., zone center for waypoint sampling).
+    /// </summary>
+    public Vector3 SnapToNavMesh(Vector3 worldPosition)
+    {
+        Rid map = GetNavigationMap();
+        if (NavigationServer3D.MapGetIterationId(map) < 2)
+        {
+            return worldPosition;
+        }
+        return NavigationServer3D.MapGetClosestPoint(map, worldPosition);
+    }
+
+    /// <summary>
+    /// Returns a random point on the navigation mesh. Used as a zoneless fallback
+    /// by waypoint selection strategies that don't have a zone configured.
+    /// </summary>
+    public Vector3 SampleRandomNavPoint()
+    {
+        Rid map = GetNavigationMap();
+        uint layers = _activeProfile?.NavigationLayers ?? 1;
+        return NavigationServer3D.MapGetRandomPoint(map, layers, false);
     }
 
     #region HELPER_FUNCTIONS

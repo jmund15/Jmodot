@@ -5,7 +5,6 @@ using System.Linq;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
 using Core.Movement;
-using Shared;
 
 /// <summary>
 /// A steering consideration that computes combined repulsion from multiple threat
@@ -44,25 +43,7 @@ public partial class MultiFleeConsideration3D : BaseAIConsideration3D
     [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
     private float _fleeWeight = 1.5f;
 
-    [ExportGroup("Score Propagation")]
-
-    [Export]
-    private bool _propagateScores = true;
-
-    [Export(PropertyHint.Range, "1, 4, 1")]
-    private int _dirsToPropagate = 2;
-
-    [Export(PropertyHint.Range, "0.1, 0.9, 0.05")]
-    private float _propDiminishWeight = 0.5f;
-
     #endregion
-
-    private List<Vector3>? _orderedDirections;
-
-    public override void Initialize(DirectionSet3D directions)
-    {
-        _orderedDirections = directions.Directions.ToList();
-    }
 
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions,
@@ -110,12 +91,6 @@ public partial class MultiFleeConsideration3D : BaseAIConsideration3D
             }
         }
 
-        if (_propagateScores && _orderedDirections != null)
-        {
-            SteeringPropagation.PropagateScores(
-                scores, _orderedDirections, _dirsToPropagate, _propDiminishWeight);
-        }
-
         return scores;
     }
 
@@ -150,7 +125,6 @@ public partial class MultiFleeConsideration3D : BaseAIConsideration3D
 #if TOOLS
     internal void SetThreatPositionsKey(StringName key) => _threatPositionsKey = key;
     internal void SetFleeWeight(float value) => _fleeWeight = value;
-    internal void SetPropagateScores(bool value) => _propagateScores = value;
 #endif
     #endregion
 }

@@ -116,9 +116,8 @@ public abstract partial class DebugAIPanel : Control
         {
             _canvasLayer = new CanvasLayer { Name = $"{Name}Canvas" };
             AddChild(_canvasLayer);
+            Hide();
         }
-
-        Hide();
     }
 
     public override void _Process(double delta)
@@ -268,6 +267,20 @@ public abstract partial class DebugAIPanel : Control
         var tween = CreateTween();
         _managedTweens[id] = tween;
         return tween;
+    }
+
+    /// <summary>
+    /// Kills a pending managed tween for the given target without allocating a new one.
+    /// </summary>
+    protected void KillManagedTween(Node target)
+    {
+        if (!target.IsValid()) { return; }
+        ulong id = target.GetInstanceId();
+        if (_managedTweens.TryGetValue(id, out var existing) && existing.IsValid())
+        {
+            existing.Kill();
+        }
+        _managedTweens.Remove(id);
     }
 
     #endregion

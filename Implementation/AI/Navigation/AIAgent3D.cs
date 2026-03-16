@@ -95,7 +95,8 @@ public partial class AIAgent3D : Node3D
             -_navigator.GetOwner<Node3D>().GlobalBasis.Z,
             _navigator.GetOwner<CharacterBody3D>().Velocity, // Get current velocity from the body
             targetDirection,
-            _navigator.TargetPosition
+            _navigator.TargetPosition,
+            physicsDelta: (float)delta
         );
 
         // --- 2. DECIDE: The steering processor calculates the best direction. ---

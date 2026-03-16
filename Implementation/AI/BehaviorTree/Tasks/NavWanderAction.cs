@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
 using System;
+using System.Collections.Generic;
 using BB;
 using Core.AI;
 using Core.AI.Navigation.Zones;
@@ -32,16 +33,23 @@ public partial class NavWanderAction : SteeringBehaviorAction
     [Export(PropertyHint.Range, "1, 20, 1")]
     private int _maxTargetAttempts = 5;
 
+    /// <summary>
+    /// When true, the action succeeds (TaskStatus.Success) upon reaching its target
+    /// instead of picking a new one. Useful for wander-then-idle sequences.
+    /// </summary>
+    [Export] private bool _succeedOnReach = false;
+
+    /// <summary>
+    /// Optional composable waypoint selection strategy. When set, delegates target
+    /// selection to the strategy instead of using default random sampling.
+    /// </summary>
+    [Export] private WaypointSelectionStrategy? _waypointStrategy;
+
     private AINavigator3D? _navAgent;
     private Vector3 _zoneCenter;
     private bool _navActive;
     private bool _pendingFirstTarget;
-
-    /// <summary>Protected accessors for subclass target selection overrides.</summary>
-    protected AINavigator3D? NavAgent => _navAgent;
-    protected ZoneShape3D? TargetZone => _targetZone;
-    protected Vector3 ZoneCenter => _zoneCenter;
-    protected int MaxTargetAttempts => _maxTargetAttempts;
+    private readonly Queue<Vector3> _waypointHistory = new();
 
     protected override void OnEnter()
     {
@@ -53,7 +61,6 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         if (_navAgent != null && _targetZone != null)
         {
-            _zoneCenter = ((Node3D)Agent).GlobalPosition;
             _navActive = true;
             _pendingFirstTarget = true;
         }
@@ -69,13 +76,20 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         if (_pendingFirstTarget)
         {
+            if (!_navAgent.IsMapReady()) { return; }
             _pendingFirstTarget = false;
+            _zoneCenter = _navAgent.SnapToNavMesh(((Node3D)Agent).GlobalPosition);
             PickNewTarget();
             return;
         }
 
         if (_navAgent.IsNavigationFinished() || IsTargetReached())
         {
+            if (_succeedOnReach)
+            {
+                Status = TaskStatus.Success;
+                return;
+            }
             PickNewTarget();
         }
     }
@@ -94,12 +108,22 @@ public partial class NavWanderAction : SteeringBehaviorAction
     }
 
     /// <summary>
-    /// Picks a new navigation target within the configured zone. Override in subclasses
-    /// to customize target selection (e.g., history-aware search patterns).
+    /// Picks a new navigation target within the configured zone. Delegates to
+    /// the waypoint strategy when set, otherwise uses default random sampling.
     /// </summary>
-    protected virtual void PickNewTarget()
+    private void PickNewTarget()
     {
         if (_navAgent == null || _targetZone == null) { return; }
+
+        if (_waypointStrategy != null)
+        {
+            var context = new WaypointContext(_zoneCenter, ((Node3D)Agent).GlobalPosition, BB);
+            if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
+            {
+                JmoLogger.Warning(this, "WaypointStrategy failed to find target.");
+            }
+            return;
+        }
 
         for (int i = 0; i < _maxTargetAttempts; i++)
         {
@@ -122,21 +146,8 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
     private void ResolveNavAgent()
     {
-        // BB-first: production entities register on BB during init
-        if (BB.TryGet<AINavigator3D>(BBDataSig.AINavComp, out var fromBB) && fromBB != null)
-        {
-            _navAgent = fromBB;
-            return;
-        }
-
-        // Fallback: direct child lookup
-        if (Agent.TryGetFirstChildOfType(out AINavigator3D? fromChild) && fromChild != null)
-        {
-            _navAgent = fromChild;
-            return;
-        }
-
-        _navAgent = null;
+        BB.TryGet<AINavigator3D>(BBDataSig.AINavComp, out var nav);
+        _navAgent = nav;
     }
 
     private void TryClearNavPath()
@@ -158,6 +169,10 @@ public partial class NavWanderAction : SteeringBehaviorAction
     internal void SetTargetReachDistance(float distance) => _targetReachDistance = distance;
     internal void SetMaxTargetAttempts(int attempts) => _maxTargetAttempts = attempts;
     internal bool IsNavPendingFirstTarget() => _pendingFirstTarget;
+    internal bool IsSucceedOnReach() => _succeedOnReach;
+    internal void SetSucceedOnReach(bool value) => _succeedOnReach = value;
+    internal WaypointSelectionStrategy? GetWaypointStrategy() => _waypointStrategy;
+    internal Queue<Vector3> GetWaypointHistory() => _waypointHistory;
 #endif
     #endregion
 }
