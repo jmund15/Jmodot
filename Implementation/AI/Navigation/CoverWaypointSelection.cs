@@ -2,6 +2,9 @@ namespace Jmodot.Implementation.AI.Navigation;
 
 using System.Collections.Generic;
 using System.Linq;
+using Core.Identification;
+using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.AI.Perception;
 using Physics;
 using Shared;
 
@@ -18,6 +21,13 @@ using Shared;
 [GlobalClass, Tool]
 public partial class CoverWaypointSelection : WaypointSelectionStrategy
 {
+    /// <summary>
+    /// Category to query from AIPerceptionManager3D for threat position.
+    /// When set, queries perception directly. When null, falls back to BB key.
+    /// </summary>
+    [Export] private Category? _threatCategory;
+
+    /// <summary>Legacy BB key fallback. Only used when _threatCategory is null.</summary>
     [Export] private StringName _threatPositionKey = new("Critter_ThreatPosition");
 
     [Export(PropertyHint.Range, "5.0, 25.0, 0.5")]
@@ -44,8 +54,20 @@ public partial class CoverWaypointSelection : WaypointSelectionStrategy
         AINavigator3D nav, WaypointContext context, Queue<Vector3> waypointHistory)
     {
         if (context.Blackboard == null) { return false; }
-        if (!context.Blackboard.TryGet<Vector3>(_threatPositionKey, out var threatPos))
-        { return false; }
+
+        Vector3 threatPos;
+        if (_threatCategory != null
+            && context.Blackboard.TryGet<AIPerceptionManager3D>(BBDataSig.PerceptionComp, out var perception)
+            && perception != null)
+        {
+            var best = perception.GetBestMemoryForCategory(_threatCategory);
+            if (best == null) { return false; }
+            threatPos = best.LastKnownPosition;
+        }
+        else if (!context.Blackboard.TryGet<Vector3>(_threatPositionKey, out threatPos))
+        {
+            return false;
+        }
 
         Vector3 agentPos = context.CurrentPosition;
         Vector3 toThreat = agentPos - threatPos;
@@ -244,6 +266,7 @@ public partial class CoverWaypointSelection : WaypointSelectionStrategy
     internal void SetFallbackFleeDistance(float value) => _fallbackFleeDistance = value;
     internal StringName GetThreatPositionKey() => _threatPositionKey;
     internal void SetThreatPositionKey(StringName key) => _threatPositionKey = key;
+    internal void SetThreatCategory(Category? category) => _threatCategory = category;
 #endif
     #endregion
 }
