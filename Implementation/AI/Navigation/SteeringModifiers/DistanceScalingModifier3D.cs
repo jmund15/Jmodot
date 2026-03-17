@@ -23,9 +23,9 @@ using Jmodot.Core.Shared.Attributes;
 ///     <see cref="SteeringDecisionContext3D.TargetPosition"/>. When TargetPosition is zero
 ///     (no nav target set), the modifier early-returns without modifying scores.</para>
 ///
-///     <para><b>Compatible Considerations:</b> NavigationPath3DConsideration, FleeConsideration3D,
-///     MultiFleeConsideration3D, FormationConsideration3D, StatDrivenConsideration3D — any
-///     consideration where the agent has an active navigation target.</para>
+///     <para><b>Compatible Considerations:</b> NavigationPath3DConsideration, DynamicTargetConsideration3D,
+///     FormationConsideration3D, StatDrivenConsideration3D — any consideration where the agent
+///     has an active navigation target.</para>
 ///
 ///     <para><b>No-op Combinations:</b> WanderConsideration3D (no target → early return, zero
 ///     effect). ZoneBoundaryConsideration3D (already distance-based internally — applying
