@@ -13,7 +13,7 @@ using Implementation.AI.Perception.Strategies;
 ///     It acts as a "character sheet" for what an object *is*, defined by the collection
 ///     of Category resources it belongs to.
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class Identity : Resource
 {
     /// <summary>
