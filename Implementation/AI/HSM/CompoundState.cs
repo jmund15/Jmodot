@@ -188,7 +188,7 @@ using Shared.GodotExceptions;
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
-            JmoLogger.Info(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, propagate={canPropagateUp})");
+            JmoLogger.Debug(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, propagate={canPropagateUp})");
             if (!newSubState.IsValid())
             {
                 JmoLogger.Error(this, $"Attempted to transition from '{oldSubState.Name}' to a null or invalid state.");
