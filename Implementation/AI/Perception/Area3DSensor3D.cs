@@ -114,7 +114,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     /// <summary>
     /// Polls for overlapping bodies using DirectSpaceState.IntersectShape.
     /// This bypasses Godot's broken Area3D overlap tracking for StaticBody3D.
-    /// Tracks entries/exits by comparing against the previous poll's results.
+    /// Builds the current body set via physics query then delegates to ApplyPollResults.
     /// </summary>
     private void PollStaticBodies()
     {
@@ -132,36 +132,40 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 
         var results = spaceState.IntersectShape(query, 32);
 
-        // Build set of currently detected bodies
         var currentBodies = new HashSet<Node3D>();
         foreach (var result in results)
         {
             if (result.TryGetValue("collider", out var collider) && collider.Obj is Node3D body)
             {
-                // Skip the parent body (the critter itself)
                 if (body == GetParent()) { continue; }
                 currentBodies.Add(body);
             }
         }
 
-        // Detect new entries (in current but not in previous)
+        ApplyPollResults(currentBodies);
+    }
+
+    /// <summary>
+    /// Applies a poll result set: fires percepts for all detected bodies and exits for removed ones.
+    /// All currently-detected bodies are refreshed every cycle so static obstacle memories
+    /// never expire from ForgetTime-based decay while walls remain within sensor range.
+    /// </summary>
+    private void ApplyPollResults(HashSet<Node3D> currentBodies)
+    {
+        // Refresh ALL detected bodies — not just new ones.
+        // Static walls are always within range, so "new entries only" means the percept fires
+        // once and then the memory decays after ForgetTime with no refresh.
         foreach (var body in currentBodies)
         {
-            if (!_polledBodies.Contains(body))
-            {
-                ProcessDetection(body, 1.0f);
-            }
+            ProcessDetection(body, 1.0f);
         }
 
-        // Detect exits (in previous but not in current)
+        // Exits: in previous poll but absent from current
         foreach (var body in _polledBodies)
         {
-            if (!currentBodies.Contains(body))
+            if (!currentBodies.Contains(body) && body.IsValid())
             {
-                if (body.IsValid())
-                {
-                    ProcessDetection(body, 0.0f);
-                }
+                ProcessDetection(body, 0.0f);
             }
         }
 
@@ -182,6 +186,12 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
     internal void SimulatePhysicsTick(double delta) => _PhysicsProcess(delta);
+    /// <summary>
+    /// Directly exercises ApplyPollResults without a physics query.
+    /// Use to test static body polling refresh behavior in unit tests.
+    /// </summary>
+    internal void SimulatePolledBodies(IEnumerable<Node3D> bodies)
+        => ApplyPollResults(new HashSet<Node3D>(bodies));
 #endif
     #endregion
 
