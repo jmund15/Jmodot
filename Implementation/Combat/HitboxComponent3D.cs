@@ -392,17 +392,16 @@ using AI.BB;
             }
 
             // 3. The Handshake (Direct Method Call)
-            //Shared.JmoLogger.Debug(this, $"TryHitHurtbox PROCESSING HIT on {hurtbox.Owner?.Name}");
             bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
 
             if (wasAccepted)
             {
-                Shared.JmoLogger.Debug(this, $"TryHitHurtbox HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
             }
             else
             {
-                Shared.JmoLogger.Debug(this, $"TryHitHurtbox HIT REJECTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Info(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
             }
         }
 
