@@ -21,6 +21,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     private readonly ExternalForceReceiver3D _forceReceiver3D;
     private readonly Node3D _owner;
     private readonly IStatProvider _stats;
+    private readonly Attribute? _stabilityAttr;
 
     private Vector3 _frameImpulses = Vector3.Zero;
     private Vector3 _previousDirection;
@@ -30,13 +31,14 @@ public class MovementProcessor3D : IMovementProcessor3D
         ICharacterController3D controller,
         IStatProvider statsProvider,
         ExternalForceReceiver3D forceReceiver3D,
-        Node3D owner)
+        Node3D owner,
+        Attribute? stabilityAttr = null)
     {
         this._controller = controller;
         this._stats = statsProvider;
         this._forceReceiver3D = forceReceiver3D;
         this._owner = owner;
-
+        this._stabilityAttr = stabilityAttr;
     }
 
     /// <summary>
@@ -77,7 +79,9 @@ public class MovementProcessor3D : IMovementProcessor3D
         ApplyExternalForces(delta);
 
         // --- 4. Get Velocity Offset (NOT stored - fresh each frame, friction-independent) ---
-        var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
+        // Apply stability scaling BEFORE the collision-delta isolation logic below,
+        // so the already-scaled offset participates in both the Move() and the delta extraction.
+        var velocityOffset = ScaleByStability(_forceReceiver3D.GetTotalVelocityOffset(_owner));
 
         // --- 5. Execute the Final Move with offset ---
         // Store base velocity before adding offset, so we can isolate collision effects
@@ -110,7 +114,8 @@ public class MovementProcessor3D : IMovementProcessor3D
         this.ApplyExternalForces(delta);
 
         // 3. Get velocity offset (friction-independent)
-        var velocityOffset = _forceReceiver3D.GetTotalVelocityOffset(_owner);
+        // Apply stability scaling BEFORE collision-delta isolation (see ProcessMovement for rationale).
+        var velocityOffset = ScaleByStability(_forceReceiver3D.GetTotalVelocityOffset(_owner));
 
         // 4. Execute the move with offset, isolating collision effects
         var baseVelocity = _controller.Velocity;
@@ -142,6 +147,22 @@ public class MovementProcessor3D : IMovementProcessor3D
     private void ApplyExternalForces(float delta)
     {
         var externalForce = this._forceReceiver3D.GetTotalForce(this._owner);
-        this._controller.AddVelocity(externalForce * delta);
+        this._controller.AddVelocity(ScaleByStability(externalForce) * delta);
+    }
+
+    /// <summary>
+    /// Scales an incoming force/offset vector by the actor's stability resistance factor.
+    /// Returns the input unchanged when no stability attribute is wired. This is the single
+    /// consumer site; route all external force/offset reads through here to avoid double-dipping.
+    /// </summary>
+    private Vector3 ScaleByStability(Vector3 force)
+    {
+        if (_stabilityAttr == null)
+        {
+            return force;
+        }
+
+        var stability = _stats.GetStatValue<float>(_stabilityAttr, 0f);
+        return StabilityScaling.ScaleForce(force, stability);
     }
 }
