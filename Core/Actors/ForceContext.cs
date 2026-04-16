@@ -4,7 +4,7 @@ namespace Jmodot.Core.Actors;
 /// Context data written to the blackboard alongside the ControlLost flag.
 /// Describes the dominant force that caused control loss.
 /// </summary>
-public struct ForceContext
+public class ForceContext
 {
     /// <summary>Direction of the strongest force affecting the entity.</summary>
     public Godot.Vector3 DominantForceDirection;

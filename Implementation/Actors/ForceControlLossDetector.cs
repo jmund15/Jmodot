@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Actors;
 
 using Core.Actors;
 using Core.Movement;
+using Core.Pooling;
 using AI.BB;
 using Core.AI.BB;
 using Shared;
@@ -15,7 +16,7 @@ using Shared;
 /// handles force reduction). No resistance math here — avoids double-dipping.
 /// </summary>
 [GlobalClass]
-public partial class ForceControlLossDetector : Node
+public partial class ForceControlLossDetector : Node, IPoolResetable
 {
     /// <summary>Velocity magnitude at which control is lost.</summary>
     [Export] public float ControlLossThreshold { get; set; } = 15.0f;
@@ -46,6 +47,13 @@ public partial class ForceControlLossDetector : Node
         _owner = owner;
         _isControlLost = false;
         _timeSinceLastEval = 0f;
+    }
+
+    public void OnPoolReset()
+    {
+        _isControlLost = false;
+        _timeSinceLastEval = 0f;
+        _bb?.Set(BBDataSig.ControlLost, false);
     }
 
     public override void _PhysicsProcess(double delta)
