@@ -23,6 +23,14 @@ public partial class CentralPullForceArea : Area3D, IForceProvider3D
     }
 
     /// <summary>
+    /// Update pull strength at runtime (e.g., tier-based scaling).
+    /// </summary>
+    public void SetStrength(float pullStrength)
+    {
+        _pullStrength = pullStrength;
+    }
+
+    /// <summary>
     /// Returns the pull force toward the area's center.
     /// </summary>
     public Vector3 GetForceFor(Node3D target)
