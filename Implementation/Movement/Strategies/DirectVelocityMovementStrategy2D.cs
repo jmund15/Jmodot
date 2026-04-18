@@ -14,14 +14,26 @@ using JmodotAttribute = Jmodot.Core.Stats.Attribute;
 [GlobalClass]
 public partial class DirectVelocityMovementStrategy2D : Resource, IMovementStrategy2D
 {
+    [Export] public MovementStrategyStatOverride2D? StatOverride { get; set; }
+
     public JmodotAttribute? MaxSpeedAttribute { get; set; }
 
     public Vector2 CalculateVelocity(Vector2 currentVelocity, Vector2 desiredDirection, IStatProvider stats,
         MovementMode activeMode, float delta)
     {
-        var maxSpeedAttr = ResolveAttribute(MaxSpeedAttribute);
-        var maxSpeed = stats.GetStatValue<float>(maxSpeedAttr, activeMode);
+        var maxSpeed = ResolveMaxSpeed(stats, activeMode);
         return desiredDirection * maxSpeed;
+    }
+
+    private float ResolveMaxSpeed(IStatProvider stats, MovementMode activeMode)
+    {
+        if (StatOverride != null)
+        {
+            return StatOverride.MaxSpeed;
+        }
+
+        var maxSpeedAttr = ResolveAttribute(MaxSpeedAttribute);
+        return stats.GetStatValue<float>(maxSpeedAttr, activeMode);
     }
 
     private JmodotAttribute ResolveAttribute(JmodotAttribute? configuredAttribute)

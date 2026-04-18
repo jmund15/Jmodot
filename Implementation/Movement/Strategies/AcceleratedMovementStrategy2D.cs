@@ -14,6 +14,8 @@ using JmodotAttribute = Jmodot.Core.Stats.Attribute;
 [GlobalClass]
 public partial class AcceleratedMovementStrategy2D : Resource, IMovementStrategy2D
 {
+    [Export] public MovementStrategyStatOverride2D? StatOverride { get; set; }
+
     public JmodotAttribute? MaxSpeedAttribute { get; set; }
     public JmodotAttribute? AccelerationAttribute { get; set; }
     public JmodotAttribute? FrictionAttribute { get; set; }
@@ -21,14 +23,9 @@ public partial class AcceleratedMovementStrategy2D : Resource, IMovementStrategy
     public Vector2 CalculateVelocity(Vector2 currentVelocity, Vector2 desiredDirection, IStatProvider stats,
         MovementMode activeMode, float delta)
     {
-        var maxSpeedAttr = ResolveAttribute(MaxSpeedAttribute, db => db.MaxSpeedAttr, nameof(MaxSpeedAttribute));
-        var accelerationAttr = ResolveAttribute(AccelerationAttribute, db => db.AccelerationAttr,
-            nameof(AccelerationAttribute));
-        var frictionAttr = ResolveAttribute(FrictionAttribute, db => db.FrictionAttr, nameof(FrictionAttribute));
-
-        var maxSpeed = stats.GetStatValue<float>(maxSpeedAttr, activeMode);
-        var acceleration = stats.GetStatValue<float>(accelerationAttr, activeMode);
-        var friction = stats.GetStatValue<float>(frictionAttr, activeMode);
+        var maxSpeed = ResolveMaxSpeed(stats, activeMode);
+        var acceleration = ResolveAcceleration(stats, activeMode);
+        var friction = ResolveFriction(stats, activeMode);
 
         var newVelocity = currentVelocity;
 
@@ -52,8 +49,42 @@ public partial class AcceleratedMovementStrategy2D : Resource, IMovementStrategy
         return newVelocity;
     }
 
-    private JmodotAttribute ResolveAttribute(JmodotAttribute? configuredAttribute, System.Func<GameRegistry, JmodotAttribute> registrySelector,
-        string attributeName)
+    private float ResolveMaxSpeed(IStatProvider stats, MovementMode activeMode)
+    {
+        if (StatOverride != null)
+        {
+            return StatOverride.MaxSpeed;
+        }
+
+        var maxSpeedAttr = ResolveAttribute(MaxSpeedAttribute, db => db.MaxSpeedAttr, nameof(MaxSpeedAttribute));
+        return stats.GetStatValue<float>(maxSpeedAttr, activeMode);
+    }
+
+    private float ResolveAcceleration(IStatProvider stats, MovementMode activeMode)
+    {
+        if (StatOverride != null)
+        {
+            return StatOverride.Acceleration;
+        }
+
+        var accelerationAttr = ResolveAttribute(AccelerationAttribute, db => db.AccelerationAttr,
+            nameof(AccelerationAttribute));
+        return stats.GetStatValue<float>(accelerationAttr, activeMode);
+    }
+
+    private float ResolveFriction(IStatProvider stats, MovementMode activeMode)
+    {
+        if (StatOverride != null)
+        {
+            return StatOverride.Friction;
+        }
+
+        var frictionAttr = ResolveAttribute(FrictionAttribute, db => db.FrictionAttr, nameof(FrictionAttribute));
+        return stats.GetStatValue<float>(frictionAttr, activeMode);
+    }
+
+    private JmodotAttribute ResolveAttribute(JmodotAttribute? configuredAttribute,
+        System.Func<GameRegistry, JmodotAttribute> registrySelector, string attributeName)
     {
         if (configuredAttribute != null)
         {
