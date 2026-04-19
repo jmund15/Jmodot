@@ -75,6 +75,71 @@ public partial class ExternalForceReceiver2D : Area2D, IPoolResetable
     }
 
     /// <summary>
+    /// Finds the force provider contributing the strongest force to the target.
+    /// Returns the provider as a Node2D for BB storage, or null if no providers are active.
+    /// </summary>
+    public (Node2D? source, Vector2 force) GetDominantForceSource(Node2D target)
+    {
+        Node2D? dominantSource = null;
+        var dominantForce = Vector2.Zero;
+        var maxMagnitudeSq = 0f;
+
+        foreach (var provider in _activeAreaProviders)
+        {
+            if (!GodotObject.IsInstanceValid((GodotObject)provider))
+            {
+                continue;
+            }
+
+            var force = provider.GetForceFor(target);
+            var magSq = force.LengthSquared();
+            if (magSq > maxMagnitudeSq)
+            {
+                maxMagnitudeSq = magSq;
+                dominantForce = force;
+                dominantSource = provider as Node2D;
+            }
+        }
+
+        foreach (var provider in _internalProviders)
+        {
+            if (!GodotObject.IsInstanceValid((GodotObject)provider))
+            {
+                continue;
+            }
+
+            var force = provider.GetForceFor(target);
+            var magSq = force.LengthSquared();
+            if (magSq > maxMagnitudeSq)
+            {
+                maxMagnitudeSq = magSq;
+                dominantForce = force;
+                dominantSource = provider as Node2D;
+            }
+        }
+
+        // Also check velocity offset providers (drag/currents are offset-based)
+        foreach (var provider in _activeOffsetProviders)
+        {
+            if (!GodotObject.IsInstanceValid((GodotObject)provider))
+            {
+                continue;
+            }
+
+            var offset = provider.GetVelocityOffsetFor(target);
+            var magSq = offset.LengthSquared();
+            if (magSq > maxMagnitudeSq)
+            {
+                maxMagnitudeSq = magSq;
+                dominantForce = offset;
+                dominantSource = provider as Node2D;
+            }
+        }
+
+        return (dominantSource, dominantForce);
+    }
+
+    /// <summary>
     ///     Calculates the total aggregated force from all currently active environmental zones.
     /// </summary>
     /// <param name="target">The actor being affected, passed to the force provider for context.</param>
