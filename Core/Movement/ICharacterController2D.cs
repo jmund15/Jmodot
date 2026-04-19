@@ -22,6 +22,27 @@ public interface ICharacterController2D : IGodotNodeInterface
     /// <summary>Gets whether the physics body is currently considered to be on the floor.</summary>
     bool IsOnFloor { get; }
 
+    /// <summary>Gets whether the physics body is currently considered to be on a wall.</summary>
+    bool IsOnWall { get; }
+
+    /// <summary>
+    /// Gets the normal vector of the wall the body is currently colliding with.
+    /// Only valid if IsOnWall is true.
+    /// </summary>
+    Vector2 GetWallNormal();
+
+    /// <summary>
+    /// Gets the velocity of the body as it was *before* the last call to Move().
+    /// Critical for calculating bounce reflections after collisions have resolved velocity.
+    /// </summary>
+    Vector2 PreMoveVelocity { get; }
+
+    /// <summary>
+    /// Gets the last velocity of the character that was NOT zero. Useful for calculations
+    /// needing a non-zero value (movement, aiming, etc.)
+    /// </summary>
+    Vector2 LastNonZeroVelocity { get; }
+
     // --- Core Commands ---
 
     /// <summary>

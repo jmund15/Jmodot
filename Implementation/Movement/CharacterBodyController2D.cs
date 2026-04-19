@@ -25,6 +25,12 @@ public class CharacterBodyController2D : ICharacterController2D
     public Vector2 GlobalPosition => _body.GlobalPosition;
     public Vector2 Velocity => _body.Velocity;
     public bool IsOnFloor => _body.IsOnFloor();
+    public bool IsOnWall => _body.IsOnWall();
+
+    public Vector2 GetWallNormal() => _body.GetWallNormal();
+
+    public Vector2 PreMoveVelocity { get; private set; }
+    public Vector2 LastNonZeroVelocity { get; private set; }
 
     public void SetVelocity(Vector2 newVelocity)
     {
@@ -38,7 +44,12 @@ public class CharacterBodyController2D : ICharacterController2D
 
     public void Move()
     {
+        PreMoveVelocity = _body.Velocity;
         _body.MoveAndSlide();
+        if (_body.Velocity.LengthSquared() > 1e-6f)
+        {
+            LastNonZeroVelocity = _body.Velocity;
+        }
     }
 
     public void Teleport(Vector2 newGlobalPosition)

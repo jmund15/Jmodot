@@ -20,6 +20,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     private readonly IStatProvider _stats;
 
     private Vector2 _frameImpulses = Vector2.Zero;
+    private Vector2 _previousDirection;
 
     public MovementProcessor2D(
         ICharacterController2D controller,
@@ -41,7 +42,12 @@ public class MovementProcessor2D : IMovementProcessor2D
     {
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         var characterVelocity =
-            strategy2D.CalculateVelocity(this._controller.Velocity, desiredDirection, _stats, delta);
+            strategy2D.CalculateVelocity(
+                this._controller.Velocity, desiredDirection, _previousDirection, _stats, delta);
+
+        // Update previous direction from strategy output (reflects any turn rate clamping)
+        if (!characterVelocity.IsZeroApprox()) { _previousDirection = characterVelocity.Normalized(); }
+
         _controller.SetVelocity(characterVelocity);
 
         // --- 2. Apply Impulses (stored in velocity) ---
