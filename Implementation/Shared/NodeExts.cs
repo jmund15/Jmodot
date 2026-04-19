@@ -7,6 +7,8 @@ using Godot.Collections;
 
 #endregion
 
+namespace Jmodot.Implementation.Shared;
+
 public static class NodeExts
 {
     #region VALIDATION_EXTENSIONS
