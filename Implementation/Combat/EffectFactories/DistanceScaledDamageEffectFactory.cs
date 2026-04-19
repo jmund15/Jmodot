@@ -8,7 +8,6 @@ namespace Jmodot.Implementation.Combat.EffectFactories;
 
 using Core.Combat.EffectDefinitions;
 using Core.Stats;
-using PushinPotions.Global;
 using GCol = Godot.Collections;
 
 /// <summary>
@@ -73,7 +72,9 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
 
             if (isCritical)
             {
-                var multiplier = stats.GetStatValue(CritMultiplierAttrOverride ?? GlobalRegistry.DB.CriticalMultiplierAttr, DefaultCritMultiplier);
+                float multiplier = CritMultiplierAttrOverride != null
+                    ? stats.GetStatValue(CritMultiplierAttrOverride, DefaultCritMultiplier)
+                    : DefaultCritMultiplier;
                 finalDamage = baseDamage * multiplier;
             }
         }

@@ -1,7 +1,6 @@
 namespace Jmodot.Core.Combat.EffectDefinitions;
 
 using Godot.Collections;
-using PushinPotions.Global;
 using Stats;
 
 /// <summary>

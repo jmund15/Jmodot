@@ -8,7 +8,6 @@ namespace Jmodot.Implementation.Combat.EffectFactories;
 
 using Core.Combat.EffectDefinitions;
 using Core.Stats;
-using PushinPotions.Global;
 using GCol = Godot.Collections;
 
 
@@ -55,16 +54,17 @@ public partial class DamageEffectFactory : CombatEffectFactory
         bool isCritical = false;
         float finalDamage = baseDamage;
 
-        // Roll for crit if stats are available (CritChanceAttrOverride is just an optional config)
-        if (stats != null)
+        // Roll for crit only when the override attribute is Inspector-assigned (matches docstring intent).
+        if (CritChanceAttrOverride != null && stats != null)
         {
-            float critChance = stats.GetStatValue<float>(CritChanceAttrOverride ?? GlobalRegistry.DB.CriticalChanceAttr);
-            //GD.Print($"Crit chance: {critChance}");
+            float critChance = stats.GetStatValue<float>(CritChanceAttrOverride);
             isCritical = JmoRng.GetRndFloat() < critChance;
 
             if (isCritical)
             {
-                var multiplier = stats.GetStatValue(CritMultiplierAttrOverride ?? GlobalRegistry.DB.CriticalMultiplierAttr, DefaultCritMultiplier);
+                float multiplier = CritMultiplierAttrOverride != null
+                    ? stats.GetStatValue(CritMultiplierAttrOverride, DefaultCritMultiplier)
+                    : DefaultCritMultiplier;
                 finalDamage = baseDamage * multiplier;
             }
         }
