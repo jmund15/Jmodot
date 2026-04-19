@@ -32,4 +32,12 @@ public static class StabilityScaling
     {
         return force * CalculateResistanceFactor(stability);
     }
+
+    /// <summary>
+    /// Scales a 2D force vector by the resistance factor derived from stability.
+    /// </summary>
+    public static Godot.Vector2 ScaleForce(Godot.Vector2 force, float stability)
+    {
+        return force * CalculateResistanceFactor(stability);
+    }
 }
