@@ -9,7 +9,7 @@ using Shared;
 ///     gameplay logic or complex state buffering, acting as a standardized adapter for any
 ///     2D physics node.
 /// </summary>
-public interface ICharacterController2D : IGodotNodeInterface
+public interface ICharacterController2D : IGodotNodeInterface, IVelocityProvider2D
 {
     // --- Core State (Read-Only) ---
 
@@ -18,6 +18,12 @@ public interface ICharacterController2D : IGodotNodeInterface
 
     /// <summary>Gets the current linear velocity of the physics body.</summary>
     Vector2 Velocity { get; }
+
+    /// <summary>
+    /// Explicit implementation to satisfy IVelocityProvider2D.
+    /// Redirects to the standard 'Velocity' property.
+    /// </summary>
+    Vector2 IVelocityProvider2D.LinearVelocity => Velocity;
 
     /// <summary>Gets whether the physics body is currently considered to be on the floor.</summary>
     bool IsOnFloor { get; }
