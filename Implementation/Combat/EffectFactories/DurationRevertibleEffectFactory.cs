@@ -14,7 +14,7 @@ using Shared;
 [GlobalClass]
 public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 {
-    [Export] public PackedScene? RunnerOverride { get; set; }
+    [Export, RequiredExport] public PackedScene Runner { get; set; } = null!;
     [Export, RequiredExport] public BaseFloatValueDefinition Duration { get; set; } = null!;
     [Export, RequiredExport] public CombatEffectFactory RevertibleEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
@@ -22,8 +22,6 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultDurationRevertibleStatusRunner;
-
         // RevertibleEffect is required (= null!), fail-fast if not configured
         var effect = RevertibleEffect.Create(stats);
         if (effect is not IRevertibleCombatEffect revertibleEffect)
@@ -32,7 +30,7 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
             throw new System.InvalidOperationException($"DurationRevertibleEffectFactory: RevertibleEffect does not produce an IRevertibleCombatEffect");
         }
         return new DurationRevertEffect(
-            runner,
+            Runner,
             Duration.ResolveFloatValue(stats),
             revertibleEffect, // Use the already-cast variable instead of creating again
             PersistentVisuals,

@@ -16,7 +16,7 @@ using Shared;
 [GlobalClass]
 public partial class TickEffectFactory : CombatEffectFactory
 {
-    [Export] public PackedScene? RunnerOverride { get; set; }
+    [Export, RequiredExport] public PackedScene Runner { get; set; } = null!;
     [Export] public BaseFloatValueDefinition Duration { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export] public BaseFloatValueDefinition Interval { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export, RequiredExport] public CombatEffectFactory PerTickEffect { get; set; } = null!;
@@ -34,11 +34,9 @@ public partial class TickEffectFactory : CombatEffectFactory
             throw new System.InvalidOperationException("TickEffectFactory: PerTickEffect is not assigned!");
         }
 
-        var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultTickStatusRunner;
-
         // 2. Return the immutable Instruction
         return new TickEffect(
-            runner,
+            Runner,
             Duration.ResolveFloatValue(stats),
             Interval.ResolveFloatValue(stats),
             PerTickEffect.Create(stats),

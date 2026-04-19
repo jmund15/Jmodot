@@ -13,7 +13,7 @@ using Effects.StatusEffects;
 [GlobalClass]
 public partial class DurationEffectFactory : CombatEffectFactory
 {
-    [Export] public PackedScene? RunnerOverride { get; set; }
+    [Export, RequiredExport] public PackedScene Runner { get; set; } = null!;
     [Export] public BaseFloatValueDefinition Duration { get; set; } = new ConstantFloatDefinition(1.0f);
     [Export] public CombatEffectFactory? OnStartEffect { get; set; }
     [Export] public CombatEffectFactory? OnEndEffect { get; set; }
@@ -22,10 +22,8 @@ public partial class DurationEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        var runner = RunnerOverride ?? PushinPotions.Global.GlobalRegistry.DB.DefaultDurationStatusRunner;
-
         return new DurationEffect(
-            runner,
+            Runner,
             Duration.ResolveFloatValue(stats),
             OnStartEffect?.Create(stats),
             OnEndEffect?.Create(stats),
