@@ -18,6 +18,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     private readonly ExternalForceReceiver2D _forceReceiver2D;
     private readonly Node2D _owner;
     private readonly IStatProvider _stats;
+    private readonly Attribute? _stabilityAttr;
 
     private Vector2 _frameImpulses = Vector2.Zero;
     private Vector2 _previousDirection;
@@ -26,12 +27,14 @@ public class MovementProcessor2D : IMovementProcessor2D
         ICharacterController2D controller,
         IStatProvider statsProvider,
         ExternalForceReceiver2D forceReceiver2D,
-        Node2D owner)
+        Node2D owner,
+        Attribute? stabilityAttr = null)
     {
         this._controller = controller;
         this._stats = statsProvider;
         this._forceReceiver2D = forceReceiver2D;
         this._owner = owner;
+        this._stabilityAttr = stabilityAttr;
     }
 
     /// <summary>
@@ -58,7 +61,9 @@ public class MovementProcessor2D : IMovementProcessor2D
         ApplyExternalForces(delta);
 
         // --- 4. Get Velocity Offset (NOT stored - fresh each frame, friction-independent) ---
-        var velocityOffset = _forceReceiver2D.GetTotalVelocityOffset(_owner);
+        // Apply stability scaling BEFORE the collision-delta isolation logic below,
+        // so the already-scaled offset participates in both the Move() and the delta extraction.
+        var velocityOffset = ScaleByStability(_forceReceiver2D.GetTotalVelocityOffset(_owner));
 
         // --- 5. Execute the Final Move with offset ---
         var baseVelocity = _controller.Velocity;
@@ -87,7 +92,8 @@ public class MovementProcessor2D : IMovementProcessor2D
         this.ApplyExternalForces(delta);
 
         // 3. Get velocity offset (friction-independent)
-        var velocityOffset = _forceReceiver2D.GetTotalVelocityOffset(_owner);
+        // Apply stability scaling BEFORE collision-delta isolation (see ProcessMovement for rationale).
+        var velocityOffset = ScaleByStability(_forceReceiver2D.GetTotalVelocityOffset(_owner));
 
         // 4. Execute the move with offset, isolating collision effects
         var baseVelocity = _controller.Velocity;
@@ -124,6 +130,22 @@ public class MovementProcessor2D : IMovementProcessor2D
     {
         // TODO: this force receiver should also handle gravity, instead of being hardcoded above.
         var externalForce = this._forceReceiver2D.GetTotalForce(this._owner);
-        this._controller.AddVelocity(externalForce * delta);
+        this._controller.AddVelocity(ScaleByStability(externalForce) * delta);
+    }
+
+    /// <summary>
+    /// Scales an incoming force/offset vector by the actor's stability resistance factor.
+    /// Returns the input unchanged when no stability attribute is wired. This is the single
+    /// consumer site; route all external force/offset reads through here to avoid double-dipping.
+    /// </summary>
+    private Vector2 ScaleByStability(Vector2 force)
+    {
+        if (_stabilityAttr == null)
+        {
+            return force;
+        }
+
+        var stability = _stats.GetStatValue<float>(_stabilityAttr, 0f);
+        return StabilityScaling.ScaleForce(force, stability);
     }
 }
