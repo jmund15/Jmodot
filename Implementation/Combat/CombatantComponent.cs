@@ -59,7 +59,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
 
     #region ICombatant Implementation
     public Node OwnerNode => GetOwner();
-    public IBlackboard Blackboard { get; private set; } = null!;
+    public Jmodot.Core.AI.BB.IBlackboard Blackboard { get; private set; } = null!;
 
     public void ProcessPayload(IAttackPayload payload, HitContext context)
     {
