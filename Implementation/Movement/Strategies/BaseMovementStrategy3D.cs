@@ -13,7 +13,7 @@ public abstract partial class BaseMovementStrategy3D : Resource, IMovementStrate
     /// CalculateVelocity. null = no turn rate limiting (instant turning).
     /// </summary>
     [ExportGroup("Turn Rate")]
-    [Export] public TurnRateProfile? TurnProfile { get; set; }
+    [Export] public TurnRateProfile3D? TurnProfile { get; set; }
 
     /// <summary>
     /// Override to return true if this strategy has internal turn logic that would

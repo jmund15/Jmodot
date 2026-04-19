@@ -1,9 +1,12 @@
 namespace Jmodot.Implementation.Actors;
 
+using System.Collections.Generic;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
 using Core.Stats;
+using Movement.Strategies;
+using Shared;
 
 /// <summary>
 ///     The definitive high-level orchestrator for character movement. Its sole responsibility
@@ -22,6 +25,7 @@ public class MovementProcessor2D : IMovementProcessor2D
 
     private Vector2 _frameImpulses = Vector2.Zero;
     private Vector2 _previousDirection;
+    private readonly HashSet<int> _warnedTurnLogicConflicts = new();
 
     public MovementProcessor2D(
         ICharacterController2D controller,
@@ -43,10 +47,24 @@ public class MovementProcessor2D : IMovementProcessor2D
     /// </summary>
     public void ProcessMovement(IMovementStrategy2D strategy2D, Vector2 desiredDirection, float delta)
     {
+        // --- 0. Pre-process Turn Rate (if strategy has a composable TurnProfile) ---
+        var inputVelocity = this._controller.Velocity;
+
+        if (strategy2D is BaseMovementStrategy2D { TurnProfile: { } profile } baseStrategy)
+        {
+            if (baseStrategy.HasInternalTurnLogic && _warnedTurnLogicConflicts.Add(baseStrategy.GetHashCode()))
+            {
+                JmoLogger.Warning(baseStrategy,
+                    "TurnProfile is set on a strategy with internal turn logic. Both will apply.");
+            }
+
+            desiredDirection = profile.Apply(_previousDirection, desiredDirection, inputVelocity, _stats, delta);
+        }
+
         // --- 1. Calculate Character-Driven Velocity via the Strategy ---
         var characterVelocity =
             strategy2D.CalculateVelocity(
-                this._controller.Velocity, desiredDirection, _previousDirection, _stats, delta);
+                inputVelocity, desiredDirection, _previousDirection, _stats, delta);
 
         // Update previous direction from strategy output (reflects any turn rate clamping)
         if (!characterVelocity.IsZeroApprox()) { _previousDirection = characterVelocity.Normalized(); }

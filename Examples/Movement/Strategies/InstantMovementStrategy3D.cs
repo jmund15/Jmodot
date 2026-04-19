@@ -8,7 +8,7 @@ using Jmodot.Implementation.Movement.Strategies;
 /// Truly instant movement: the character moves at exactly desiredDirection * maxSpeed
 /// every frame. No friction, no acceleration ramp-up, no momentum.
 /// Stopping is instant. Direction changes are instant.
-/// Turn rate is NOT handled here — attach a TurnRateProfile on BaseMovementStrategy3D instead.
+/// Turn rate is NOT handled here — attach a TurnRateProfile3D on BaseMovementStrategy3D instead.
 /// </summary>
 [GlobalClass, Tool]
 public partial class InstantMovementStrategy3D : BaseMovementStrategy3D

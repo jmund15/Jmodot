@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Movement.Strategies;
 
+using Core.Movement;
 using Core.Stats;
 using Core.Movement.Strategies;
 
@@ -7,14 +8,17 @@ using Core.Movement.Strategies;
 public abstract partial class BaseMovementStrategy2D : Resource, IMovementStrategy2D
 {
     /// <summary>
-    /// Override to return true if this strategy has internal turn logic that would
-    /// conflict with an externally composed turn rate profile. Used for misconfiguration warnings
-    /// once a TurnRateProfile2D abstraction is authored.
+    /// Optional composable turn rate profile. When set, the MovementProcessor2D
+    /// preprocesses the desired direction through this profile BEFORE calling
+    /// CalculateVelocity. null = no turn rate limiting (instant turning).
     /// </summary>
-    // TODO(2d-parity): Expose `[Export] TurnRateProfile2D? TurnProfile` once the Vector2
-    // turn-rate abstraction lands (brief §5 assumed it was shared with 3D; the 3D version
-    // is Vector3-hardcoded). Strategies can still consume `previousDirection` directly for
-    // internal turn logic in the meantime.
+    [ExportGroup("Turn Rate")]
+    [Export] public TurnRateProfile2D? TurnProfile { get; set; }
+
+    /// <summary>
+    /// Override to return true if this strategy has internal turn logic that would
+    /// conflict with an external TurnProfile. Used for misconfiguration warnings.
+    /// </summary>
     public virtual bool HasInternalTurnLogic => false;
 
     public BaseMovementStrategy2D() { }

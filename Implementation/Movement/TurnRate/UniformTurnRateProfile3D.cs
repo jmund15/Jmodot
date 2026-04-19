@@ -10,7 +10,7 @@ using Jmodot.Core.Stats;
 /// Equivalent to the old baked-in InstantMovementStrategy3D turn rate.
 /// </summary>
 [GlobalClass, Tool]
-public partial class UniformTurnRateProfile : TurnRateProfile
+public partial class UniformTurnRateProfile3D : TurnRateProfile3D
 {
     [Export(PropertyHint.Range, "0, 720, 1")]
     private float _maxTurnRateDegrees = 180f;
