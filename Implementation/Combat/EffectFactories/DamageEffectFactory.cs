@@ -36,8 +36,10 @@ public partial class DamageEffectFactory : CombatEffectFactory
 
     /// <summary>
     /// Default crit multiplier if CritMultiplierAttribute is not set.
+    /// Clamped to [1.0, 10.0] in the Inspector — values below 1.0 would
+    /// reduce damage on crit (almost certainly unintended).
     /// </summary>
-    [Export] public float DefaultCritMultiplier { get; set; } = 1.5f;
+    [Export(PropertyHint.Range, "1.0,10.0,0.01")] public float DefaultCritMultiplier { get; set; } = 1.5f;
 
     [ExportGroup("Knockback")]
     /// <summary>
@@ -54,16 +56,19 @@ public partial class DamageEffectFactory : CombatEffectFactory
         bool isCritical = false;
         float finalDamage = baseDamage;
 
-        // Roll for crit only when the override attribute is Inspector-assigned (matches docstring intent).
-        if (CritChanceAttrOverride != null && stats != null)
+        // Resolve crit chance attribute: per-factory override wins, else the project-wide
+        // CombatFactoryDefaults seam, else crit disabled. Both null = no crit roll (graceful).
+        var critChanceAttr = CritChanceAttrOverride ?? CombatFactoryDefaults.DefaultCritChanceAttr;
+        if (critChanceAttr != null && stats != null)
         {
-            float critChance = stats.GetStatValue<float>(CritChanceAttrOverride);
+            float critChance = stats.GetStatValue<float>(critChanceAttr);
             isCritical = JmoRng.GetRndFloat() < critChance;
 
             if (isCritical)
             {
-                float multiplier = CritMultiplierAttrOverride != null
-                    ? stats.GetStatValue(CritMultiplierAttrOverride, DefaultCritMultiplier)
+                var critMultAttr = CritMultiplierAttrOverride ?? CombatFactoryDefaults.DefaultCritMultiplierAttr;
+                float multiplier = critMultAttr != null
+                    ? stats.GetStatValue(critMultAttr, DefaultCritMultiplier)
                     : DefaultCritMultiplier;
                 finalDamage = baseDamage * multiplier;
             }
