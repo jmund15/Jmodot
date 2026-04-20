@@ -125,7 +125,7 @@ public static partial class BBDataSig
 
     /// <summary>
     /// VelocityGatedPayloadManager for passive spell mode.
-    /// Set when collision module transitions to PassiveCollisionResponse.
+    /// Set by PassiveModeRunner when entering passive mode.
     /// </summary>
     public static readonly StringName VelocityGatedPayload = new("VelocityGatedPayload");
 
