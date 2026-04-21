@@ -31,10 +31,17 @@ public partial class Identity : Resource
     /// Checks whether this identity belongs to the specified category.
     /// Matches by CategoryName for consistency with string-safe comparisons across loaded resources.
     /// </summary>
+    /// <remarks>
+    /// Both sides of the comparison must be non-null. The previous `c?.X == category.X`
+    /// pattern returned true on null==null, silently treating a null entry in Categories
+    /// as matching a Category whose name was also null — a false positive that masked
+    /// designer misconfiguration of partially-filled .tres resources. Fix consumed by
+    /// PushinPotions PR #55 (trail subsystem review, ASK#8).
+    /// </remarks>
     public bool HasCategory(Category category)
     {
         if (category == null || Categories == null) { return false; }
-        return Categories.Any(c => c?.CategoryName == category.CategoryName);
+        return Categories.Any(c => c != null && c.CategoryName == category.CategoryName);
     }
 
     /// <summary>
