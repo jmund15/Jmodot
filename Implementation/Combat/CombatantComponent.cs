@@ -48,6 +48,15 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     // Listeners use pattern matching: if (result is DamageResult dr) ...
     public event Action<CombatResult> CombatResultEvent = delegate { };
 
+    /// <summary>
+    /// Cached VisualEffectController resolved on first access. Avoids a LINQ child-tree scan +
+    /// FirstOrDefault allocation per ApplyEffect call — relevant for tick/DoT effects that fire on
+    /// a cadence. Assumes the controller is parented as a child of this component at scene load and
+    /// doesn't migrate at runtime; if that assumption changes, invalidate the cache on
+    /// ChildEnteredTree / ChildExitingTree.
+    /// </summary>
+    private VisualEffectController? _cachedVisualController;
+
     #region Node Overrides
     public override void _Ready()
     {
@@ -91,11 +100,12 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         CombatResult? result = effect.Apply(this, context);
 
         // 2. VISUALS
-        // Trigger any associated visual effect on the target.
+        // Trigger any associated visual effect on the target. Controller is cached on first access
+        // (see _cachedVisualController XML doc for assumptions).
         if (effect.Visual != null)
         {
-             var controller = GetUnderlyingNode().GetChildrenOfType<VisualEffectController>().FirstOrDefault();
-             controller?.PlayEffect(effect.Visual);
+             _cachedVisualController ??= GetUnderlyingNode().GetChildrenOfType<VisualEffectController>().FirstOrDefault();
+             _cachedVisualController?.PlayEffect(effect.Visual);
         }
 
         // 3. REPORT
