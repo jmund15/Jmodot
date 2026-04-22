@@ -15,4 +15,6 @@ public partial class VectorActionBinding : VectorBindingBase
     {
         return Input.GetVector(Left, Right, Up, Down);
     }
+
+    public override VectorInputSemantic Semantic => VectorInputSemantic.Directional;
 }
