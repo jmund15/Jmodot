@@ -198,8 +198,11 @@ public partial class PlayerIntentSource : IntentSourceNode
 
             var moveVector = binding.GetVectorInput(_owner);
             // Vectors are continuous states, so update both dictionaries/buffers.
-            _processIntents[binding.Action] = new IntentData(moveVector);
-            _physicsBuffer[binding.Action] = new IntentData(moveVector);
+            // The binding's Semantic is stamped onto IntentData so downstream
+            // consumers can distinguish directional (stick) from positional (mouse)
+            // without magnitude-based heuristics.
+            _processIntents[binding.Action] = new IntentData(moveVector, binding.Semantic);
+            _physicsBuffer[binding.Action] = new IntentData(moveVector, binding.Semantic);
         }
     }
 
@@ -220,6 +223,7 @@ public partial class PlayerIntentSource : IntentSourceNode
         _actionsToClear.Clear();
         foreach (var binding in _actionBindings)
         {
+            if (binding?.Action == null) { continue; }
             if (binding.PollType == InputActionPollType.JustPressed || binding.PollType == InputActionPollType.JustReleased)
             {
                 if (_physicsBuffer.ContainsKey(binding.Action))
