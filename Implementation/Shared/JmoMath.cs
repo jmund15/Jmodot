@@ -100,4 +100,21 @@ public static class JmoMath
         float t = 1f - Mathf.Exp(-speed * delta);
         return current.Lerp(target, t);
     }
+
+    /// <summary>
+    /// Closest distance from point <paramref name="p"/> to the line segment [<paramref name="a"/>, <paramref name="b"/>].
+    /// Projects <paramref name="p"/> onto the segment and clamps the parameter to [0,1] so points
+    /// beyond the endpoints measure to the nearest endpoint. Degenerate segments (a == b) collapse
+    /// to point-to-point distance.
+    /// </summary>
+    public static float ClosestDistanceToSegment(Vector3 p, Vector3 a, Vector3 b)
+    {
+        var ab = b - a;
+        float lenSq = ab.LengthSquared();
+        if (lenSq < 1e-6f) { return p.DistanceTo(a); }
+        float t = (p - a).Dot(ab) / lenSq;
+        t = Mathf.Clamp(t, 0f, 1f);
+        var closest = a + ab * t;
+        return p.DistanceTo(closest);
+    }
 }
