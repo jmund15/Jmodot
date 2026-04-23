@@ -349,10 +349,9 @@ public partial class VisualEffectController : Node, IComponent
             }
             else
             {
-                if (source is SpriteBase3D) { nodes.Add(source); }
-                nodes.AddRange(source.GetChildrenOfType<SpriteBase3D>());
-                // Add 2D support?
-                if (source is Node2D) { nodes.AddRange(source.GetChildrenOfType<Node2D>().Where(n => n.GetType().Name.Contains("Sprite"))); }
+                // Fallback: recursive sprite scan. Delegates to the shared aggregator
+                // so there is exactly one implementation of this recursion in the codebase.
+                VisualNodeAggregator.CollectSprites(source, nodes);
             }
         }
         return nodes;

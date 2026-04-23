@@ -145,76 +145,61 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
 
     private void ApplyOverrides(Node instance, VisualItemData item)
     {
-        // Robustly find the sprite (2D or 3D)
-        // Check 2D first
-        var sprite2D = instance as Sprite2D;
-        if (sprite2D != null || instance.TryGetFirstChildOfType<Sprite2D>(out sprite2D))
+        // Find the first sprite target. 2D takes priority over 3D (root or descendant)
+        // to preserve historical behavior; mixed 2D+3D prefabs are an edge case.
+        Node? sprite = null;
+        if (instance is Sprite2D s2dRoot) { sprite = s2dRoot; }
+        else if (instance.TryGetFirstChildOfType<Sprite2D>(out var s2dChild)) { sprite = s2dChild; }
+        else if (instance is Sprite3D s3dRoot) { sprite = s3dRoot; }
+        else if (instance.TryGetFirstChildOfType<Sprite3D>(out var s3dChild)) { sprite = s3dChild; }
+
+        if (sprite == null) { return; }
+
+        // Texture swap
+        if (item.TextureOverride != null)
         {
-            ApplyOverrides2D(sprite2D!, item);
-            return;
+            SetSpriteTexture(sprite, item.TextureOverride);
         }
 
-        // Check 3D (SpriteBase3D covers both Sprite3D and AnimatedSprite3D)
-        var sprite3D = instance as Sprite3D;
-
-        if (sprite3D != null || instance.TryGetFirstChildOfType<Sprite3D>(out sprite3D))
+        // Sprite sheet row selection — preserve X so animations don't reset, set Y
+        if (item.SpriteSheetRowOverride >= 0)
         {
-            ApplyOverrides3D(sprite3D!, item);
+            SetSpriteRow(sprite, item.SpriteSheetRowOverride);
+        }
+
+        // Tint — apply Modulate if non-white, always register as base color
+        // (white is still registered so the tracker knows this sprite exists).
+        if (item.ModulateOverride != Colors.White)
+        {
+            SetSpriteModulate(sprite, item.ModulateOverride);
+        }
+        _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
+    }
+
+    private static void SetSpriteTexture(Node sprite, Texture2D texture)
+    {
+        switch (sprite)
+        {
+            case Sprite2D s2d: s2d.Texture = texture; break;
+            case Sprite3D s3d: s3d.Texture = texture; break;
         }
     }
 
-    private void ApplyOverrides2D(Sprite2D sprite, VisualItemData item)
+    private static void SetSpriteRow(Node sprite, int row)
     {
-        // Texture Swap
-        if (item.TextureOverride != null)
+        switch (sprite)
         {
-            sprite.Texture = item.TextureOverride;
-        }
-
-        // Sprite Sheet Row Selection
-        // We only set the Y coordinate. We preserve X so animations don't reset.
-        if (item.SpriteSheetRowOverride >= 0)
-        {
-            sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
-        }
-
-        // Tint - register with tracker for proper effect blending
-        if (item.ModulateOverride != Colors.White)
-        {
-            sprite.Modulate = item.ModulateOverride;
-            _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
-        }
-        else
-        {
-            // No override - still register white as the base color
-            _baseColorTracker?.RegisterBaseColor(sprite, Colors.White);
+            case Sprite2D s2d: s2d.FrameCoords = new Vector2I(s2d.FrameCoords.X, row); break;
+            case Sprite3D s3d: s3d.FrameCoords = new Vector2I(s3d.FrameCoords.X, row); break;
         }
     }
 
-    private void ApplyOverrides3D(Sprite3D sprite, VisualItemData item)
+    private static void SetSpriteModulate(Node sprite, Color color)
     {
-        // Texture Swap
-        if (item.TextureOverride != null)
+        switch (sprite)
         {
-            sprite.Texture = item.TextureOverride;
-        }
-
-        // Sprite Sheet Row Selection
-        if (item.SpriteSheetRowOverride >= 0)
-        {
-            sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
-        }
-
-        // Tint - register with tracker for proper effect blending
-        if (item.ModulateOverride != Colors.White)
-        {
-            sprite.Modulate = item.ModulateOverride;
-            _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
-        }
-        else
-        {
-            // No override - still register white as the base color
-            _baseColorTracker?.RegisterBaseColor(sprite, Colors.White);
+            case Sprite2D s2d: s2d.Modulate = color; break;
+            case Sprite3D s3d: s3d.Modulate = color; break;
         }
     }
 
@@ -262,10 +247,12 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
         }
         else
         {
-            // 2. Fallback: Recursively find all static sprites
-            // Currently here visible and visual are treated the same. (TODO: track visiblity of individual sprites here?)
-            FindSpritesRecursive(prefabRoot, _currentVisualNodes);
-            FindSpritesRecursive(prefabRoot, _currentVisibleNodes);
+            // 2. Fallback: Recursively find all static sprites.
+            // Visible and visual are conflated in this branch — static prefabs have no
+            // per-animation visibility model. AnimationVisibilityCoordinator is the only
+            // provider that distinguishes them today.
+            VisualNodeAggregator.CollectSprites(prefabRoot, _currentVisualNodes);
+            VisualNodeAggregator.CollectSprites(prefabRoot, _currentVisibleNodes);
         }
 
         //GD.Print($"Just finished equipping Visual Slot! visual config: {CurrentItem.Id}");
@@ -295,19 +282,6 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             _currentVisibleNodes.AddRange(_prefabProvider.GetVisibleNodes());
 
             VisibleNodesChanged?.Invoke();
-        }
-    }
-
-    private static void FindSpritesRecursive(Node parent, List<Node> results)
-    {
-        if (parent is SpriteBase3D or Sprite2D)
-        {
-            results.Add(parent);
-        }
-
-        foreach (var child in parent.GetChildren())
-        {
-            FindSpritesRecursive(child, results);
         }
     }
 
