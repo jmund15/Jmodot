@@ -116,11 +116,14 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
 
             bool wasNotPlaying = !IsPlaying();
             UpdateAnim(BaseAnimName, AnimUpdateMode.MaintainTime);
-            if (wasNotPlaying)
+            if (wasNotPlaying && IsPlaying())
             {
                 // Animation had completed (e.g., charge form fully formed).
                 // UpdateAnim restarted it for the new direction — seek to end
                 // to preserve the "completed" visual state.
+                // IsPlaying() recheck: UpdateAnim no-ops if neither finalName nor
+                // BaseAnimName resolves on the target animator, leaving no current
+                // clip — GetCurrAnimationLength() would then error.
                 SeekPos(GetCurrAnimationLength(), true);
             }
         }
