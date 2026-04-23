@@ -31,15 +31,35 @@ public partial class InputGlyphRegistry : Resource
     /// <summary>Maps gamepad buttons (JoyButton.A, JoyButton.Y, etc.) to glyph textures.</summary>
     [Export] public GCol.Dictionary<JoyButton, Texture2D> GamepadGlyphs { get; set; } = new();
 
+    /// <summary>
+    /// Maps gamepad axes (<see cref="JoyAxis"/>) to glyph textures — covers
+    /// <see cref="InputEventJoypadMotion"/> events which are <b>not</b>
+    /// <see cref="InputEventJoypadButton"/>. Primary use: triggers (axis 4
+    /// = LT, axis 5 = RT) which are analog motion events but semantically
+    /// "press" actions. Also usable for whole-stick activation prompts
+    /// (axis 0/1 = Left Stick, axis 2/3 = Right Stick); for per-direction
+    /// stick glyphs, the <c>VectorGlyphHint</c> text system handles
+    /// movement/aim clusters instead.
+    ///
+    /// <para><b>Direction is not encoded</b> — the dict key is axis only.
+    /// For triggers this is correct (unidirectional 0→1). For sticks this
+    /// collapses "stick left" and "stick right" (axis 0 with value -1 vs
+    /// +1) into a single "axis 0" entry, which is acceptable for a
+    /// "generic stick" prompt but insufficient if future actions need
+    /// direction-aware stick glyphs (composite key would be required).</para>
+    /// </summary>
+    [Export] public GCol.Dictionary<JoyAxis, Texture2D> GamepadAxisGlyphs { get; set; } = new();
+
     /// <summary>Maps mouse buttons (MouseButton.Left, etc.) to glyph textures.</summary>
     [Export] public GCol.Dictionary<MouseButton, Texture2D> MouseGlyphs { get; set; } = new();
 
     /// <summary>
     /// Resolves a Godot InputEvent to its glyph texture, or <c>null</c> if
-    /// the event's concrete type isn't handled or its key/button isn't mapped
-    /// in the registry. Supports <see cref="InputEventKey"/>,
-    /// <see cref="InputEventJoypadButton"/>, and <see cref="InputEventMouseButton"/>.
-    /// Other event types (motion, gesture) return null by design.
+    /// the event's concrete type isn't handled or its key/button/axis isn't
+    /// mapped in the registry. Supports <see cref="InputEventKey"/>,
+    /// <see cref="InputEventJoypadButton"/>, <see cref="InputEventJoypadMotion"/>,
+    /// and <see cref="InputEventMouseButton"/>. Other event types (gestures,
+    /// magnify, etc.) return null by design.
     /// </summary>
     public Texture2D? GetTexture(InputEvent ev)
     {
@@ -50,6 +70,9 @@ public partial class InputGlyphRegistry : Resource
                 return null;
             case InputEventJoypadButton jb:
                 if (GamepadGlyphs.TryGetValue((JoyButton)jb.ButtonIndex, out var jbTex)) { return jbTex; }
+                return null;
+            case InputEventJoypadMotion jm:
+                if (GamepadAxisGlyphs.TryGetValue(jm.Axis, out var jmTex)) { return jmTex; }
                 return null;
             case InputEventMouseButton mb:
                 if (MouseGlyphs.TryGetValue(mb.ButtonIndex, out var mbTex)) { return mbTex; }
