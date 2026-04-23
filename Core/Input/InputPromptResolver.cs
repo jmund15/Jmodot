@@ -1,5 +1,7 @@
 namespace Jmodot.Core.Input;
 
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -59,6 +61,46 @@ public static class InputPromptResolver
 
         var icon = registry.GetTexture(events[0]);
         return (icon, action.ActionName);
+    }
+
+    /// <summary>
+    /// Like <see cref="Resolve"/>, but returns every glyph texture that
+    /// resolves for the action — enabling multi-icon displays for actions
+    /// with multiple events bound (e.g., WASD craft_select = Space + LMB).
+    /// Events that don't match any texture in the registry are skipped
+    /// silently. Icon order mirrors Godot's InputMap insertion order.
+    /// </summary>
+    /// <returns>
+    /// <c>(icons, label)</c> — <c>icons</c> is empty when unbound OR when
+    /// no event has a registered glyph (consumer falls back to label-only).
+    /// <c>label</c> is <see cref="UnboundFallback"/> when unbound, else
+    /// <see cref="InputAction.ActionName"/>.
+    /// </returns>
+    public static (IReadOnlyList<Texture2D> icons, string label) ResolveAll(
+        InputAction action,
+        InputMappingProfile profile,
+        InputGlyphRegistry registry)
+    {
+        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
+        if (binding == null)
+        {
+            return (Array.Empty<Texture2D>(), UnboundFallback);
+        }
+
+        var events = InputMap.ActionGetEvents(binding.GodotActionName);
+        if (events.Count == 0)
+        {
+            return (Array.Empty<Texture2D>(), UnboundFallback);
+        }
+
+        var icons = new List<Texture2D>(events.Count);
+        foreach (var ev in events)
+        {
+            var tex = registry.GetTexture(ev);
+            if (tex != null) { icons.Add(tex); }
+        }
+
+        return (icons, action.ActionName);
     }
 
     /// <summary>
