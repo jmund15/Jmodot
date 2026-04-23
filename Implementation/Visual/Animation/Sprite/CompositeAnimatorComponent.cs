@@ -29,6 +29,15 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     private readonly List<IAnimComponent> _activeAnimators = new();
     private IAnimComponent? _masterAnimator; // The time source (e.g. Body)
 
+    // Per-child AnimStarted/AnimFinished handler tracking. Every registered animator
+    // (master and slaves) is hooked so slave-only animations (e.g., "potionAdd" on an
+    // independent slot) propagate their Started/Finished signals up to the composite.
+    // The per-handler closure captures the source animator so the forwarder can apply
+    // master-authority suppression: if the master has the animation, non-master
+    // signals are dropped to prevent double-fire on partial-match animations.
+    private readonly Dictionary<IAnimComponent, Action<StringName>> _childStartHandlers = new();
+    private readonly Dictionary<IAnimComponent, Action<StringName>> _childFinishHandlers = new();
+
     private StringName _lastRequestedAnim = "";
     private float _currentSpeedScale = 1.0f;
 
@@ -89,33 +98,33 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
         if (_activeAnimators.Contains(animator))
         {
-            // If re-registering as master, update status
+            // Already hooked — if re-registering as master, just swap the pointer.
+            // Per-child hooks are independent of master status.
             if (isMaster)
             {
-                SetMaster(animator);
+                _masterAnimator = animator;
             }
             return;
         }
 
         _activeAnimators.Add(animator);
+        HookChildEvents(animator);
 
         if (isMaster)
         {
-            // Warn when a second animator claims master. Current behavior: the new
-            // animator replaces the existing master (SetMaster unhooks the old one).
-            // This is legal but surprising — usually a config bug (two slots with
-            // IsTimeSource=true).
+            // Warn when a second animator claims master. New master replaces the old;
+            // per-child event hooks are independent of master status, so no unhooking.
+            // Usually a config bug (two slots with IsTimeSource=true).
             if (_masterAnimator != null && !ReferenceEquals(_masterAnimator, animator))
             {
                 JmoLogger.Warning(this, $"RegisterAnimator: second master claimed by '{((Node)animator).Name}'; replacing existing master '{((Node)_masterAnimator).Name}'. Check for two slots with IsTimeSource=true.");
             }
-            SetMaster(animator);
+            _masterAnimator = animator;
         }
         else if (_masterAnimator == null)
         {
-            // No master yet — adopt this one as the default. Does not emit a warning
-            // because this is the expected first-registration path.
-            SetMaster(animator);
+            // No master yet — adopt this one as the default.
+            _masterAnimator = animator;
         }
 
         // Apply current state to new child
@@ -129,46 +138,77 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         }
     }
 
-    public void UnregisterAnimator(IAnimComponent animator)
+    /// <summary>
+    /// Removes an animator from the composite.
+    /// </summary>
+    /// <param name="animator">The component to remove.</param>
+    /// <param name="stopFirst">
+    /// When true (default), <see cref="IAnimComponent.StopAnim"/> is called on the
+    /// animator before removal. When false, the caller is responsible for the
+    /// animator's playback state — used by <c>VisualSlot.ClearInstance</c> because
+    /// the animator's underlying node is about to be <c>QueueFree</c>'d and
+    /// touching it with <c>StopAnim</c> is wasteful (and fragile if <c>StopAnim</c>
+    /// emits signals synchronously during teardown).
+    /// </param>
+    public void UnregisterAnimator(IAnimComponent animator, bool stopFirst = true)
     {
-        if (_activeAnimators.Remove(animator))
-        {
-            animator.StopAnim();
+        if (!_activeAnimators.Remove(animator)) { return; }
 
-            // If we lost the master, elect a new one
-            if (_masterAnimator == animator)
-            {
-                UnhookMaster(animator);
-                _masterAnimator = _activeAnimators.FirstOrDefault();
-                if (_masterAnimator != null) { HookMaster(_masterAnimator); }
-            }
+        UnhookChildEvents(animator);
+
+        if (stopFirst) { animator.StopAnim(); }
+
+        // If we lost the master, elect a new one. FirstOrDefault is arbitrary —
+        // A2 warned on duplicate masters but didn't add priority. Acceptable since
+        // a well-configured scene has exactly one IsTimeSource slot.
+        if (ReferenceEquals(_masterAnimator, animator))
+        {
+            _masterAnimator = _activeAnimators.FirstOrDefault();
         }
     }
 
-    private void SetMaster(IAnimComponent newMaster)
+    private void HookChildEvents(IAnimComponent animator)
     {
-        if (_masterAnimator != null)
+        Action<StringName> onStart = name => OnChildAnimStarted(animator, name);
+        Action<StringName> onFinish = name => OnChildAnimFinished(animator, name);
+        animator.AnimStarted += onStart;
+        animator.AnimFinished += onFinish;
+        _childStartHandlers[animator] = onStart;
+        _childFinishHandlers[animator] = onFinish;
+    }
+
+    private void UnhookChildEvents(IAnimComponent animator)
+    {
+        if (_childStartHandlers.TryGetValue(animator, out var onStart))
         {
-            UnhookMaster(_masterAnimator);
+            animator.AnimStarted -= onStart;
+            _childStartHandlers.Remove(animator);
         }
-        _masterAnimator = newMaster;
-        HookMaster(_masterAnimator);
+        if (_childFinishHandlers.TryGetValue(animator, out var onFinish))
+        {
+            animator.AnimFinished -= onFinish;
+            _childFinishHandlers.Remove(animator);
+        }
     }
 
-    private void HookMaster(IAnimComponent anim)
+    // Master-authority suppression: if the master has the animation, only the
+    // master's signal forwards (prevents double-fire on partial-match where both
+    // master and slaves play the same animation). Slave-only animations (master
+    // doesn't have them) always forward — the A4 fix for slot-specific animations
+    // like "potionAdd" that live on an independent slot's animator.
+    private void OnChildAnimStarted(IAnimComponent child, StringName name)
     {
-        anim.AnimStarted += OnMasterAnimStarted;
-        anim.AnimFinished += OnMasterAnimFinished;
+        bool masterHasIt = _masterAnimator?.HasAnimation(name) ?? false;
+        if (masterHasIt && !ReferenceEquals(child, _masterAnimator)) { return; }
+        AnimStarted?.Invoke(name);
     }
 
-    private void UnhookMaster(IAnimComponent anim)
+    private void OnChildAnimFinished(IAnimComponent child, StringName name)
     {
-        anim.AnimStarted -= OnMasterAnimStarted;
-        anim.AnimFinished -= OnMasterAnimFinished;
+        bool masterHasIt = _masterAnimator?.HasAnimation(name) ?? false;
+        if (masterHasIt && !ReferenceEquals(child, _masterAnimator)) { return; }
+        AnimFinished?.Invoke(name);
     }
-
-    private void OnMasterAnimStarted(StringName name) => AnimStarted?.Invoke(name);
-    private void OnMasterAnimFinished(StringName name) => AnimFinished?.Invoke(name);
 
     // --- IAnimComponent Implementation ---
 

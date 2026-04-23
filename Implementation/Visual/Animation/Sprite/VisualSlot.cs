@@ -177,7 +177,10 @@ public class VisualSlot : IVisualSpriteProvider
 
         if (Animator != null && !Config.IsAnimationIndependent)
         {
-            _composite?.UnregisterAnimator(Animator);
+            // stopFirst:false — the animator's underlying node is about to be
+            // QueueFree'd on the next line. Calling StopAnim first is wasteful
+            // and fragile (some animator impls emit signals synchronously on stop).
+            _composite?.UnregisterAnimator(Animator, stopFirst: false);
         }
         Animator = null;
 
