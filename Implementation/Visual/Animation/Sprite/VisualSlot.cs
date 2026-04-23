@@ -9,13 +9,20 @@ using Core.Visual.Effects;
 using Effects;
 
 /// <summary>
-/// Helper class representing a runtime slot.
-/// Handles instantiation, overrides, and registration.
+/// Runtime slot — a first-class <see cref="IVisualSpriteProvider"/> that wraps one equipped item.
+/// Handles instantiation, overrides, animator registration, and exposes the slot's visual/animation surface.
 /// </summary>
-public class VisualSlot // TODO: make IVisualSpriteProvider?
+public class VisualSlot : IVisualSpriteProvider
 {
     public VisualSlotConfig Config { get; private set; }
     public VisualItemData? CurrentItem { get; private set; }
+
+    /// <summary>
+    /// The <see cref="IAnimComponent"/> on the currently equipped prefab, or null when empty.
+    /// Exposed regardless of whether the slot is animation-independent — independent slots'
+    /// animators are otherwise unreachable without string-searching the scene tree.
+    /// </summary>
+    public IAnimComponent? Animator { get; private set; }
 
     private CompositeAnimatorComponent _composite;
     private Node _slotRoot;
@@ -49,44 +56,38 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             return;
         }
 
-        // 1. Cleanup existing
-        // If we are providing a new item (item != null), we force the unequip.
-        // This prevents Unequip() from triggering its "Mandatory Slot" logic
-        // which recursively calls Equip() again.
-        bool isReplacing = (item != null);
-        Unequip(force: isReplacing);
+        // Tear down any existing instance — mechanism only, no mandatory-slot policy.
+        // Equip owns the transition; Unequip is for policy-driven clears by outside callers.
+        ClearInstance();
 
         if (item == null)
         {
-            return; // Unequip complete
+            return;
         }
 
         CurrentItem = item;
 
         if (item.Prefab != null)
         {
-            // 2. Instantiate
             _currentInstance = item.Prefab.Instantiate();
 
-            // We use AddChild immediately so that the node is available in the tree THIS frame.
-            // This is critical for systems that want to play an animation immediately after equipping (e.g. VisualSlotCompoundState).
-            // WARNING: If Equip() is called during a Physics Callback (e.g. Area3D.BodyEntered) OR during Initialization (Parent _Ready),
-            // this will throw a "Tree Locked" or "Parent Busy" error.
-            // The caller must ensure they are deferring the Equip call if they are in a dangerous context.
+            // AddChild synchronously so the node is tree-resident this frame for
+            // systems that play animations immediately after equipping.
+            // WARNING: Callers must defer Equip when called during _Ready or a
+            // physics callback, or Godot throws "Tree Locked" / "Parent Busy".
             _slotRoot.AddChild(_currentInstance);
 
-            // 3. Apply Overrides (Texture, Row, Tint)
             ApplyOverrides(_currentInstance, item);
 
-            // 4. Register with Composite (unless slot is animation-independent)
-            // We look for an IAnimComponent on the root or children
-            var anim = GetAnimComponent(_currentInstance);
-            if (anim != null && !Config.IsAnimationIndependent)
+            // Resolve the animator. Expose it via `Animator` regardless of whether
+            // we register it with the composite — independent slots still need
+            // reachable animators for HSM consumers.
+            Animator = GetAnimComponent(_currentInstance);
+            if (Animator != null && !Config.IsAnimationIndependent)
             {
-                _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
+                _composite?.RegisterAnimator(Animator, isMaster: Config.IsTimeSource);
             }
 
-            // 5. Track Visual Nodes for Effects
             DetectVisualNodes(_currentInstance);
         }
         else
@@ -95,51 +96,66 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
         }
     }
 
-    public void Unequip(bool force = false)
+    /// <summary>
+    /// Policy-aware unequip for outside callers.
+    /// - Optional slots: clear the instance.
+    /// - Mandatory slots: revert to the configured default if one exists; otherwise no-op.
+    /// Internal callers replacing an item should use Equip directly — it handles teardown.
+    /// </summary>
+    public void Unequip()
     {
-        // Prevent unequipping mandatory slots unless forced (e.g. during a swap)
-        if (!Config.IsOptional && !force)
+        if (!Config.IsOptional)
         {
-            // If we have a default, revert to it
             if (Config.DefaultItem != null && CurrentItem != Config.DefaultItem)
             {
                 Equip(Config.DefaultItem);
                 return;
             }
-            return; // Cannot be empty
+            return; // Mandatory slot, already at default (or no default) — refuse to clear.
         }
 
-        if (_currentInstance != null)
+        ClearInstance();
+        CurrentItem = null;
+    }
+
+    /// <summary>
+    /// Tears down the current instance unconditionally — no mandatory/default policy.
+    /// Used internally by Equip to ensure a clean slate before instantiating a new item.
+    /// </summary>
+    internal void ClearInstance()
+    {
+        if (_currentInstance == null)
         {
-            // Cleanup visual tracking - unregister from base color tracker
-            if (_baseColorTracker != null)
-            {
-                foreach (var visualNode in _currentVisualNodes)
-                {
-                    _baseColorTracker.UnregisterSprite(visualNode);
-                }
-            }
-
-            if (_prefabProvider != null)
-            {
-                _prefabProvider.VisibleNodesChanged -= OnPrefabVisibleNodesChanged;
-                _prefabProvider = null;
-            }
-            _currentVisualNodes.Clear();
-            _currentVisibleNodes.Clear();
-            VisualNodesChanged?.Invoke();
-            VisibleNodesChanged?.Invoke();
-
-            var anim = GetAnimComponent(_currentInstance);
-            if (anim != null && !Config.IsAnimationIndependent)
-            {
-                _composite?.UnregisterAnimator(anim);
-            }
-
-            _currentInstance.QueueFree();
-            _currentInstance = null;
+            return;
         }
 
+        if (_baseColorTracker != null)
+        {
+            foreach (var visualNode in _currentVisualNodes)
+            {
+                _baseColorTracker.UnregisterSprite(visualNode);
+            }
+        }
+
+        if (_prefabProvider != null)
+        {
+            _prefabProvider.VisibleNodesChanged -= OnPrefabVisibleNodesChanged;
+            _prefabProvider.VisualNodesChanged -= OnPrefabVisualNodesChanged;
+            _prefabProvider = null;
+        }
+        _currentVisualNodes.Clear();
+        _currentVisibleNodes.Clear();
+        VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
+
+        if (Animator != null && !Config.IsAnimationIndependent)
+        {
+            _composite?.UnregisterAnimator(Animator);
+        }
+        Animator = null;
+
+        _currentInstance.QueueFree();
+        _currentInstance = null;
         CurrentItem = null;
     }
 
@@ -219,8 +235,9 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
 
     #region Visual Effect Support
 
-    public IReadOnlyList<Node> GetCurrentVisualNodes() => _currentVisualNodes;
-    public IReadOnlyList<Node> GetCurrentVisibleNodes() => _currentVisibleNodes;
+    // IVisualSpriteProvider implementation. Invariant: GetVisibleNodes ⊆ GetAllVisualNodes.
+    public IReadOnlyList<Node> GetAllVisualNodes() => _currentVisualNodes;
+    public IReadOnlyList<Node> GetVisibleNodes() => _currentVisibleNodes;
 
     private void DetectVisualNodes(Node prefabRoot)
     {

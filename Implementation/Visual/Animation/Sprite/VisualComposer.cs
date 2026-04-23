@@ -193,8 +193,19 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     public IReadOnlyList<Node> GetVisualNodesForSlot(string slotName)
     {
         return _slots.TryGetValue(slotName, out var slot)
-            ? slot.GetCurrentVisualNodes()
+            ? slot.GetAllVisualNodes()
             : [];
+    }
+
+    /// <summary>
+    /// Looks up a slot by name and returns it as a <see cref="VisualSlot"/> handle.
+    /// Callers get the slot's <see cref="IVisualSpriteProvider"/> surface, its animator,
+    /// and the current item — enabling per-slot subscription and animator access without
+    /// string-searching the scene tree.
+    /// </summary>
+    public bool TryGetSlot(string slotName, out VisualSlot? slot)
+    {
+        return _slots.TryGetValue(slotName, out slot);
     }
 
     #region IVisualSpriteProvider Implementation
@@ -217,13 +228,13 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
         _visualNodes = new List<Node>();
         foreach (var slot in _slots.Values)
         {
-            _visualNodes.AddRange(slot.GetCurrentVisualNodes());
+            _visualNodes.AddRange(slot.GetAllVisualNodes());
         }
 
         _visibleNodes = new List<Node>();
         foreach (var slot in _slots.Values)
         {
-            _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
+            _visibleNodes.AddRange(slot.GetVisibleNodes());
         }
 
         VisibleNodesChanged.Invoke();
@@ -235,7 +246,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
         _visibleNodes = new List<Node>();
         foreach (var slot in _slots.Values)
         {
-            _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
+            _visibleNodes.AddRange(slot.GetVisibleNodes());
         }
 
         VisibleNodesChanged.Invoke();
