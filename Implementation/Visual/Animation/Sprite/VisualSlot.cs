@@ -56,12 +56,22 @@ public class VisualSlot : IVisualSpriteProvider
             return;
         }
 
-        // Tear down any existing instance — mechanism only, no mandatory-slot policy.
-        // Equip owns the transition; Unequip is for policy-driven clears by outside callers.
+        // Tear down any existing instance — mechanism only, no mandatory-slot policy,
+        // no event firing. Equip owns the atomic transition and fires events once below.
         ClearInstance();
 
         if (item == null)
         {
+            // Equip(null) on an optional slot is equivalent to Unequip. Fire once —
+            // but only if we actually cleared something (otherwise same-state no-op).
+            // ClearInstance already short-circuited on _currentInstance == null, so
+            // the check here is: did we previously have an instance?
+            if (_currentVisualNodes.Count == 0 && _currentVisibleNodes.Count == 0)
+            {
+                // Still-clean slate after ClearInstance — nothing to broadcast.
+                // This path runs when Equip(null) is called on an empty slot.
+                // Exit without events.
+            }
             return;
         }
 
@@ -94,12 +104,20 @@ public class VisualSlot : IVisualSpriteProvider
         {
             JmoLogger.Error(this, $"VisualSlot: Item '{item.Id}' has no Prefab assigned.");
         }
+
+        // Atomic: one pair of events per Equip transition, regardless of whether
+        // this was a fresh equip or a replace. Subscribers see the final state,
+        // never intermediate empty states. Fixes the pre-Phase-3 multi-fire that
+        // forced Wizard.OnVisualNodesChanged to use CallDeferred for coalescing.
+        VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
     }
 
     /// <summary>
     /// Policy-aware unequip for outside callers.
-    /// - Optional slots: clear the instance.
-    /// - Mandatory slots: revert to the configured default if one exists; otherwise no-op.
+    /// - Optional slots: clear the instance and fire one pair of events.
+    /// - Mandatory slots: revert to the configured default (delegating to Equip, which
+    ///   fires one pair of events); or no-op with no events if already at default.
     /// Internal callers replacing an item should use Equip directly — it handles teardown.
     /// </summary>
     public void Unequip()
@@ -114,13 +132,24 @@ public class VisualSlot : IVisualSpriteProvider
             return; // Mandatory slot, already at default (or no default) — refuse to clear.
         }
 
+        // Optional slot. If already empty, nothing to do — no events.
+        if (_currentInstance == null)
+        {
+            return;
+        }
+
         ClearInstance();
         CurrentItem = null;
+
+        // Atomic: one pair of events for the transition from "something" to "nothing".
+        VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
     }
 
     /// <summary>
-    /// Tears down the current instance unconditionally — no mandatory/default policy.
-    /// Used internally by Equip to ensure a clean slate before instantiating a new item.
+    /// Tears down the current instance unconditionally — pure mechanism. No mandatory
+    /// policy, no event firing. Events are the orchestrators' responsibility (Equip /
+    /// Unequip), which compose ClearInstance with a populate step when swapping.
     /// </summary>
     internal void ClearInstance()
     {
@@ -145,8 +174,6 @@ public class VisualSlot : IVisualSpriteProvider
         }
         _currentVisualNodes.Clear();
         _currentVisibleNodes.Clear();
-        VisualNodesChanged?.Invoke();
-        VisibleNodesChanged?.Invoke();
 
         if (Animator != null && !Config.IsAnimationIndependent)
         {
@@ -272,10 +299,7 @@ public class VisualSlot : IVisualSpriteProvider
             VisualNodeAggregator.CollectSprites(prefabRoot, _currentVisibleNodes);
         }
 
-        //GD.Print($"Just finished equipping Visual Slot! visual config: {CurrentItem.Id}");
-
-        VisualNodesChanged?.Invoke();
-        VisibleNodesChanged?.Invoke();
+        // No event firing here — populate is mechanism-only. Equip owns the atomic fire.
     }
 
     private void OnPrefabVisualNodesChanged()
