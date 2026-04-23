@@ -99,10 +99,23 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
         _activeAnimators.Add(animator);
 
-        if (isMaster || _masterAnimator == null)
+        if (isMaster)
         {
+            // Warn when a second animator claims master. Current behavior: the new
+            // animator replaces the existing master (SetMaster unhooks the old one).
+            // This is legal but surprising — usually a config bug (two slots with
+            // IsTimeSource=true).
+            if (_masterAnimator != null && !ReferenceEquals(_masterAnimator, animator))
+            {
+                JmoLogger.Warning(this, $"RegisterAnimator: second master claimed by '{((Node)animator).Name}'; replacing existing master '{((Node)_masterAnimator).Name}'. Check for two slots with IsTimeSource=true.");
+            }
             SetMaster(animator);
-            //GD.Print($"Set new anim {((Node)animator).Name} as master");
+        }
+        else if (_masterAnimator == null)
+        {
+            // No master yet — adopt this one as the default. Does not emit a warning
+            // because this is the expected first-registration path.
+            SetMaster(animator);
         }
 
         // Apply current state to new child
@@ -223,9 +236,32 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         _activeAnimators.ForEach(a => a.SetSpeedScale(scale));
     }
 
+    /// <summary>
+    /// True iff the MASTER animator has this animation. Strict by design — the master
+    /// defines the composite's canonical animation set, so an animation "exists" on
+    /// the composite only when the master can drive it.
+    /// </summary>
+    /// <remarks>
+    /// Slave-only animations (e.g., an overlay hat flip) return false here. Use
+    /// <see cref="HasAnimationAnywhere"/> if you need "any registered animator has it".
+    /// </remarks>
     public bool HasAnimation(StringName animName) =>
-        _masterAnimator?.HasAnimation(animName) ?? false; // master is REQUIRED to say yes, others not needed but should play if available
-        //_activeAnimators.Any(a => a.HasAnimation(animName));
+        _masterAnimator?.HasAnimation(animName) ?? false;
+
+    /// <summary>
+    /// True iff ANY registered animator (master or slave) has this animation.
+    /// Use this when you want to know if <see cref="StartAnim"/> would produce
+    /// any visible play — since StartAnim uses partial-match semantics.
+    /// </summary>
+    public bool HasAnimationAnywhere(StringName animName)
+    {
+        foreach (var anim in _activeAnimators)
+        {
+            if (anim.HasAnimation(animName)) { return true; }
+        }
+        return false;
+    }
+
     public bool IsPlaying() => _masterAnimator?.IsPlaying() ?? false;
     public StringName GetCurrAnimation() => _lastRequestedAnim;
     public float GetSpeedScale() => _currentSpeedScale;
@@ -235,7 +271,32 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     public float GetCurrAnimationLength() => _masterAnimator?.GetCurrAnimationLength() ?? 0f;
     public float GetAnimationLength(StringName animName) => _masterAnimator?.GetAnimationLength(animName) ?? 0f;
     public float GetCurrAnimationPosition() => _masterAnimator?.GetCurrAnimationPosition() ?? 0f;
-    public void SeekPos(float time, bool update = true) => _activeAnimators.ForEach(a => a.SeekPos(time, update));
+
+    /// <summary>
+    /// Seeks the master to <paramref name="time"/> and syncs every slave proportionally.
+    /// Interprets <paramref name="time"/> as a position in the MASTER's animation.
+    /// A slave whose animation length differs is seeked to the equivalent normalized
+    /// position in its own animation — preserving the master/slave time-sync invariant
+    /// across hotswap (e.g., sword → lance with different animation durations).
+    /// </summary>
+    public void SeekPos(float time, bool update = true)
+    {
+        if (_masterAnimator == null) { return; }
+
+        _masterAnimator.SeekPos(time, update);
+
+        float masterLen = _masterAnimator.GetCurrAnimationLength();
+        if (masterLen <= 0f) { return; }
+        float norm = time / masterLen;
+
+        foreach (var anim in _activeAnimators)
+        {
+            if (ReferenceEquals(anim, _masterAnimator)) { continue; }
+            float childLen = anim.GetCurrAnimationLength();
+            if (childLen > 0f) { anim.SeekPos(norm * childLen, update); }
+        }
+    }
+
     public string[] GetAnimationList() => _masterAnimator?.GetAnimationList() ?? [];
 
     public bool IsAnimationLooping(StringName animName)
