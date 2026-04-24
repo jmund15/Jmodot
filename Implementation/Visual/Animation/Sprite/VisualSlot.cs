@@ -29,10 +29,15 @@ public class VisualSlot : IVisualSpriteProvider
     private Node? _currentInstance;
 
     /// <summary>
-    /// Optional tracker for base modulation colors.
-    /// When set, base colors are registered here for VisualEffectController to query.
+    /// Optional effect service used for base-color bookkeeping.
+    /// When set, base colors are registered here for <c>VisualEffectController</c> to query.
     /// </summary>
-    private BaseModulationTracker? _baseColorTracker;
+    /// <remarks>
+    /// Phase 4.6 — replaced the prior <c>BaseModulationTracker</c> reference. The service
+    /// owns the same per-node dictionary the tracker used to, and also exposes scope-aware
+    /// tint operations that the rest of the codebase consumes.
+    /// </remarks>
+    private IVisualEffectService? _effectService;
 
     // Visual Effect Tracking
     private readonly List<Node> _currentVisualNodes = new();
@@ -41,12 +46,12 @@ public class VisualSlot : IVisualSpriteProvider
     public event Action VisualNodesChanged = delegate { };
     public event Action VisibleNodesChanged = delegate { };
 
-    public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot, BaseModulationTracker? baseColorTracker = null)
+    public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot, IVisualEffectService? effectService = null)
     {
         Config = config;
         _composite = composite;
         _slotRoot = slotRoot;
-        _baseColorTracker = baseColorTracker;
+        _effectService = effectService;
     }
 
     public void Equip(VisualItemData? item)
@@ -158,11 +163,11 @@ public class VisualSlot : IVisualSpriteProvider
             return;
         }
 
-        if (_baseColorTracker != null)
+        if (_effectService != null)
         {
             foreach (var visualNode in _currentVisualNodes)
             {
-                _baseColorTracker.UnregisterSprite(visualNode);
+                _effectService.UnregisterSprite(visualNode);
             }
         }
 
@@ -219,7 +224,7 @@ public class VisualSlot : IVisualSpriteProvider
         {
             SetSpriteModulate(sprite, item.ModulateOverride);
         }
-        _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
+        _effectService?.RegisterBaseColor(sprite, item.ModulateOverride);
     }
 
     private static void SetSpriteTexture(Node sprite, Texture2D texture)

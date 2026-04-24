@@ -54,6 +54,33 @@ public interface IVisualEffectService
     void ClearBaseTint(EffectScope scope);
 
     /// <summary>
+    /// Low-level per-node registration. Called by <c>VisualSlot</c> on Equip so
+    /// every equipped sprite has a known base color immediately (typically White
+    /// or the item's ModulateOverride). Unlike <see cref="SetBaseTint"/>, does NOT
+    /// iterate scopes or fire <see cref="TintChanged"/>.
+    /// </summary>
+    void RegisterBaseColor(Node node, Color color);
+
+    /// <summary>
+    /// Remove a node's base-color registration. Called by <c>VisualSlot</c> when
+    /// the node is about to be torn down. Silent (no event).
+    /// </summary>
+    void UnregisterSprite(Node node);
+
+    /// <summary>
+    /// Returns the registered base color for a node, or <see cref="Colors.White"/>
+    /// if no registration exists. Queried by <c>VisualEffectController</c> during
+    /// its per-frame blend pass.
+    /// </summary>
+    Color GetBaseColor(Node node);
+
+    /// <summary>
+    /// Try-get variant of <see cref="GetBaseColor"/>; distinguishes "registered as
+    /// white" from "not registered."
+    /// </summary>
+    bool TryGetBaseColor(Node node, out Color baseColor);
+
+    /// <summary>
     /// Fires after any successful <see cref="SetBaseTint"/> / <see cref="ClearBaseTint"/>.
     /// <c>VisualEffectController</c> subscribes to this to rebuild its base-color cache
     /// without the service needing a direct controller reference.

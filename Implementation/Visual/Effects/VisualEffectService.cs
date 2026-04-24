@@ -1,40 +1,41 @@
 namespace Jmodot.Implementation.Visual.Effects;
 
 using System;
+using System.Collections.Generic;
 using Godot;
 using Jmodot.Implementation.Visual.Animation.Sprite;
 
 /// <summary>
-/// Default <see cref="IVisualEffectService"/> implementation. Wraps a
-/// <see cref="BaseModulationTracker"/> and a <see cref="VisualComposer"/> so
-/// <see cref="SetBaseTint"/> can resolve scopes against the composer's slots
-/// while tracker registration + Modulate writes happen in one call.
+/// Default <see cref="IVisualEffectService"/> implementation. Owns the per-node
+/// base-color dictionary that was previously in <c>BaseModulationTracker</c> —
+/// folding those responsibilities into the service is what makes the facade
+/// non-leaky: consumers never need to see two cooperating classes.
 /// </summary>
 /// <remarks>
-/// Composition-over-inheritance: this class holds the composer and tracker rather
-/// than living inside either one. That keeps the service a thin aggregation unit
-/// that can be swapped or mocked in tests, and keeps <c>VisualComposer</c> focused
-/// on slot orchestration rather than tint ownership.
+/// The service is created eagerly by <see cref="VisualComposer.ConfigureSlots"/>
+/// so that <see cref="VisualSlot"/>s can call <see cref="RegisterBaseColor"/> as
+/// part of their Equip flow without lazy-init race conditions.
 /// </remarks>
 public sealed class VisualEffectService : IVisualEffectService
 {
     private readonly VisualComposer _composer;
-    private readonly BaseModulationTracker _tracker;
+    private readonly Dictionary<Node, Color> _baseColors = new();
 
     public event Action TintChanged = delegate { };
 
-    public VisualEffectService(VisualComposer composer, BaseModulationTracker tracker)
+    public VisualEffectService(VisualComposer composer)
     {
         this._composer = composer;
-        this._tracker = tracker;
     }
+
+    #region Scoped (fires TintChanged)
 
     public void SetBaseTint(Color color, EffectScope scope)
     {
         var touched = false;
         foreach (var node in scope.Resolve(this._composer))
         {
-            this._tracker.RegisterBaseColor(node, color);
+            this._baseColors[node] = color;
             ApplyModulate(node, color);
             touched = true;
         }
@@ -47,13 +48,35 @@ public sealed class VisualEffectService : IVisualEffectService
         var touched = false;
         foreach (var node in scope.Resolve(this._composer))
         {
-            this._tracker.UnregisterSprite(node);
+            this._baseColors.Remove(node);
             ApplyModulate(node, Colors.White);
             touched = true;
         }
 
         if (touched) { this.TintChanged.Invoke(); }
     }
+
+    #endregion
+
+    #region Low-level (silent — no TintChanged)
+
+    public void RegisterBaseColor(Node node, Color color)
+    {
+        this._baseColors[node] = color;
+    }
+
+    public void UnregisterSprite(Node node)
+    {
+        this._baseColors.Remove(node);
+    }
+
+    public Color GetBaseColor(Node node) =>
+        this._baseColors.TryGetValue(node, out var c) ? c : Colors.White;
+
+    public bool TryGetBaseColor(Node node, out Color baseColor) =>
+        this._baseColors.TryGetValue(node, out baseColor);
+
+    #endregion
 
     private static void ApplyModulate(Node node, Color color)
     {

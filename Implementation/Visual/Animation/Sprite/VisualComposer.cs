@@ -25,37 +25,23 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
 
     private Dictionary<string, VisualSlot> _slots = new();
 
-    /// <summary>
-    /// Tracker for managing base modulation colors across equipment changes.
-    /// Created automatically and shared with all slots.
-    /// </summary>
-    private BaseModulationTracker _baseColorTracker = new();
+    private VisualEffectService? _effects;
 
     /// <summary>
-    /// Get the base color tracker for this composer.
-    /// Use this to wire up with VisualEffectController.
-    /// </summary>
-    /// <remarks>
-    /// Retained for VisualEffectController's tracker-lookup path. External consumers
-    /// should prefer <see cref="Effects"/> (IVisualEffectService) instead of touching
-    /// the tracker directly — Wizard-style "register color + write Modulate + refresh"
-    /// patterns collapse to a single <c>SetBaseTint(color, scope)</c> call.
-    /// </remarks>
-    public BaseModulationTracker BaseColorTracker => _baseColorTracker;
-
-    private IVisualEffectService? _effects;
-
-    /// <summary>
-    /// Facade for scoped base-tint and future transient-effect application. Created lazily
-    /// on first access so tests and editor tools that don't need it pay no cost.
+    /// Facade for scoped base-tint and future transient-effect application. Owns the
+    /// per-node base-color dictionary (formerly <c>BaseModulationTracker</c>, now
+    /// folded in). Created lazily so tests and editor tools that don't exercise
+    /// equipment pay no cost, but guaranteed ready by <see cref="ConfigureSlots"/>
+    /// so slots can register sprites on Equip.
     /// </summary>
     /// <remarks>
     /// Phase 4.5 — replaces the manual "touch BaseColorTracker then call
     /// VisualEffectController.RefreshVisualNodes" dance previously required of every
     /// consumer that wanted to tint equipment.
+    /// Phase 4.6 — absorbed <c>BaseModulationTracker</c>; there is no longer a
+    /// separate tracker class.
     /// </remarks>
-    public IVisualEffectService Effects =>
-        _effects ??= new VisualEffectService(this, _baseColorTracker);
+    public IVisualEffectService Effects => _effects ??= new VisualEffectService(this);
 
     [ExportGroup("Debug")]
     [Export] private bool _useFlipHDebug = true;
@@ -101,6 +87,11 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     /// </remarks>
     internal void ConfigureSlots()
     {
+        // Eager-create the service so slots register sprites on Equip synchronously —
+        // avoids a lazy-init race where a slot's ApplyOverrides fires before any
+        // consumer has touched `Effects`.
+        _effects ??= new VisualEffectService(this);
+
         foreach (var config in SlotConfigs)
         {
             Node slotRoot = GetNodeOrNull(config.PathToSlotRoot);
@@ -110,7 +101,7 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
                 continue;
             }
 
-            var slot = new VisualSlot(config, CompositeAnimator, slotRoot, _baseColorTracker);
+            var slot = new VisualSlot(config, CompositeAnimator, slotRoot, _effects);
             _slots[config.SlotName] = slot;
 
             slot.VisualNodesChanged += OnSlotVisualNodesChanged;
