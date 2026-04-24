@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Visual.Effects;
 
 using System.Collections.Generic;
+using Appliers;
 using Core.Visual.Effects;
 using Godot;
 
@@ -43,6 +44,8 @@ public partial class TintEffect : VisualEffect
     /// Resolves the fade-out duration: FadeOutTime if set, otherwise Duration * FadeRatio.
     /// </summary>
     public float GetFadeOutDuration() => FadeOutTime > 0 ? FadeOutTime : Duration * FadeRatio;
+
+    public override IEffectApplier CreateApplier() => new ModulateTweenApplier(this);
 
     public override void ConfigureTween(Tween tween, VisualEffectHandle handle)
     {

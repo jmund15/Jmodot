@@ -50,6 +50,12 @@ public partial class VisualEffectController : Node, IComponent
     /// </summary>
     private BaseModulationTracker? _baseColorTracker;
 
+    /// <summary>
+    /// Optional subscription to a composer's effect-service TintChanged event. Stored
+    /// so we can unsubscribe cleanly on _ExitTree.
+    /// </summary>
+    private IVisualEffectService? _subscribedService;
+
     public bool IsInitialized { get; private set; }
     public event Action Initialized = delegate { };
 
@@ -81,10 +87,18 @@ public partial class VisualEffectController : Node, IComponent
 
     public bool Initialize(IBlackboard bb)
     {
-        // Auto-wire with VisualComposer's BaseColorTracker if available in Blackboard
-        if (_baseColorTracker == null && bb.TryGet(BBDataSig.VisualComposer, out VisualComposer composer))
+        // Auto-wire with VisualComposer's BaseColorTracker if available in Blackboard.
+        // Also subscribe to the composer's effect-service TintChanged event so
+        // IVisualEffectService.SetBaseTint writes trigger a controller refresh.
+        if (bb.TryGet(BBDataSig.VisualComposer, out VisualComposer composer))
         {
-            SetBaseColorTracker(composer.BaseColorTracker);
+            if (_baseColorTracker == null)
+            {
+                SetBaseColorTracker(composer.BaseColorTracker);
+            }
+
+            _subscribedService = composer.Effects;
+            _subscribedService.TintChanged += RefreshVisualNodes;
         }
 
         InitializeProviders();
@@ -103,6 +117,12 @@ public partial class VisualEffectController : Node, IComponent
         base._ExitTree();
         StopAllEffects();
         UnsubscribeFromProviders();
+
+        if (_subscribedService != null)
+        {
+            _subscribedService.TintChanged -= RefreshVisualNodes;
+            _subscribedService = null;
+        }
     }
 
     public override void _Process(double delta)
@@ -115,6 +135,13 @@ public partial class VisualEffectController : Node, IComponent
     /// <summary>
     /// Start playing a visual effect.
     /// </summary>
+    /// <remarks>
+    /// Phase 4.4 — delegates tween setup to <see cref="VisualEffect.CreateApplier"/>.
+    /// The applier owns its tween + handle; the controller just reads the handle's
+    /// modulate for blending. Behavior is identical to the pre-4.4 inline setup
+    /// since all existing effects produce a <c>ModulateTweenApplier</c> that
+    /// replays the same <see cref="VisualEffect.ConfigureTween"/> call.
+    /// </remarks>
     public void PlayEffect(VisualEffect effect)
     {
         if (effect == null)
@@ -129,37 +156,19 @@ public partial class VisualEffectController : Node, IComponent
             StopEffect(effect);
         }
 
-        // Create the state handle (the object that gets tweened)
-        var stateHandle = new VisualEffectHandle();
+        var applier = effect.CreateApplier();
+        var stateHandle = applier.Begin(GetTree(), () => OnEffectFinished(effect));
 
-        // Create the tween
-        var tween = GetTree().CreateTween();
-
-        // Configure the tween targeting the state handle
-        effect.ConfigureTween(tween, stateHandle);
-
-        tween.Play();
-        tween.Finished += () => OnEffectFinished(effect);
-
-        // Store handle
-        var handle = new ActiveEffectHandle
+        _activeEffects[effect] = new ActiveEffectHandle
         {
             Effect = effect,
-            Tween = tween,
+            Applier = applier,
             State = stateHandle,
             StartTime = Time.GetTicksMsec()
         };
 
-        _activeEffects[effect] = handle;
-
-        // Enable processing
         SetProcess(true);
-
-        // Immediate update to prevent 1-frame lag
-        ApplyEffects();
-
-        string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
-        //JmoLogger.Info(this, $"Started effect '{effectName}'");
+        ApplyEffects(); // Immediate update to prevent 1-frame lag
     }
 
     /// <summary>
@@ -172,8 +181,7 @@ public partial class VisualEffectController : Node, IComponent
             return;
         }
 
-        handle.Tween?.Kill();
-        handle.State.Free(); // Clean up the Godot Object
+        handle.Applier.End();
         _activeEffects.Remove(effect);
 
         if (_activeEffects.Count == 0)
@@ -187,9 +195,6 @@ public partial class VisualEffectController : Node, IComponent
             // Re-evaluate remaining effects
             ApplyEffects();
         }
-
-        string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
-        //JmoLogger.Info(this, $"Stopped effect '{effectName}'");
     }
 
     /// <summary>
@@ -397,7 +402,7 @@ public partial class VisualEffectController : Node, IComponent
     private class ActiveEffectHandle
     {
         public VisualEffect Effect { get; set; } = null!;
-        public Tween? Tween { get; set; }
+        public IEffectApplier Applier { get; set; } = null!;
         public VisualEffectHandle State { get; set; } = null!;
         public ulong StartTime { get; set; }
     }

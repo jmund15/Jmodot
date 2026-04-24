@@ -34,6 +34,20 @@ public abstract partial class VisualEffect : Resource
     /// <param name="handle">The data handle to tween properties on (e.g. handle.Modulate)</param>
     public abstract void ConfigureTween(Tween tween, VisualEffectHandle handle);
 
+    /// <summary>
+    /// Produces a runtime <see cref="IEffectApplier"/> for this effect. Modulate-tween
+    /// based subclasses return a <c>ModulateTweenApplier</c> wrapping
+    /// <see cref="ConfigureTween"/>; future non-Modulate effects (shader glow,
+    /// particle burst) return their own applier type.
+    /// </summary>
+    /// <remarks>
+    /// Phase 4.4 — this indirection lets <c>VisualEffectController</c> treat effects
+    /// as opaque "start / stop" units instead of assuming every effect is Modulate-tween
+    /// based. <b>No default implementation</b> because the default applier (<c>ModulateTweenApplier</c>)
+    /// lives in Implementation — Core has no business referencing it.
+    /// </remarks>
+    public abstract IEffectApplier CreateApplier();
+
     #region Helper Methods for Subclasses
 
     /// <summary>

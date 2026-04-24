@@ -35,7 +35,27 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     /// Get the base color tracker for this composer.
     /// Use this to wire up with VisualEffectController.
     /// </summary>
+    /// <remarks>
+    /// Retained for VisualEffectController's tracker-lookup path. External consumers
+    /// should prefer <see cref="Effects"/> (IVisualEffectService) instead of touching
+    /// the tracker directly — Wizard-style "register color + write Modulate + refresh"
+    /// patterns collapse to a single <c>SetBaseTint(color, scope)</c> call.
+    /// </remarks>
     public BaseModulationTracker BaseColorTracker => _baseColorTracker;
+
+    private IVisualEffectService? _effects;
+
+    /// <summary>
+    /// Facade for scoped base-tint and future transient-effect application. Created lazily
+    /// on first access so tests and editor tools that don't need it pay no cost.
+    /// </summary>
+    /// <remarks>
+    /// Phase 4.5 — replaces the manual "touch BaseColorTracker then call
+    /// VisualEffectController.RefreshVisualNodes" dance previously required of every
+    /// consumer that wanted to tint equipment.
+    /// </remarks>
+    public IVisualEffectService Effects =>
+        _effects ??= new VisualEffectService(this, _baseColorTracker);
 
     [ExportGroup("Debug")]
     [Export] private bool _useFlipHDebug = true;
