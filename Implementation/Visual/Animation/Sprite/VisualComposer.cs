@@ -37,9 +37,6 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     /// </summary>
     public BaseModulationTracker BaseColorTracker => _baseColorTracker;
 
-    private List<Node>? _visibleNodes;
-    private List<Node>? _visualNodes;
-
     [ExportGroup("Debug")]
     [Export] private bool _useFlipHDebug = true;
     [Export] private AnimationOrchestrator? _debugOrchestrator;
@@ -53,7 +50,37 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             return;
         }
         this.ValidateRequiredExports();
-        // Initialize Slots based on Configs
+        ConfigureSlots();
+
+        // Equip Default (deferred — scene tree is locked during _Ready)
+        foreach (var config in SlotConfigs)
+        {
+            if (config.DefaultItem != null)
+            {
+                CallDeferred(MethodName.EquipDefault, config.SlotName, config.DefaultItem);
+            }
+        }
+
+        if (_useFlipHDebug && _debugOrchestrator != null && _flipHDirSet != null)
+        {
+            _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
+        }
+    }
+
+    /// <summary>
+    /// Instantiates <see cref="VisualSlot"/>s from <see cref="SlotConfigs"/> and wires
+    /// their change events through to this composer's own events. Separated from
+    /// <see cref="_Ready"/> so tests (and future non-lifecycle callers) can spin up
+    /// a composer without entering the scene tree.
+    /// </summary>
+    /// <remarks>
+    /// Does NOT equip default items — that's deferred by <see cref="_Ready"/> because
+    /// Godot's tree is locked during _Ready and the item's prefab instantiation would
+    /// throw. Tests that need defaults equipped can call <see cref="Equip"/> directly
+    /// after this.
+    /// </remarks>
+    internal void ConfigureSlots()
+    {
         foreach (var config in SlotConfigs)
         {
             Node slotRoot = GetNodeOrNull(config.PathToSlotRoot);
@@ -66,23 +93,8 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
             var slot = new VisualSlot(config, CompositeAnimator, slotRoot, _baseColorTracker);
             _slots[config.SlotName] = slot;
 
-            // Subscribe to effects changes for bubbling
             slot.VisualNodesChanged += OnSlotVisualNodesChanged;
             slot.VisibleNodesChanged += OnSlotVisibleNodesChanged;
-
-            // Equip Default
-            if (config.DefaultItem != null)
-            {
-                // Defer the initial equip to avoid "Parent is busy setting up children" errors
-                // since we are currently inside _Ready and the scene tree is locked.
-                CallDeferred(MethodName.EquipDefault, config.SlotName, config.DefaultItem);
-                //GD.Print($"VisualComposer: Scheduled default item '{config.DefaultItem.Id}' for slot '{config.SlotName}' (Deferred).");
-            }
-        }
-
-        if (_useFlipHDebug && _debugOrchestrator != null && _flipHDirSet != null)
-        {
-            _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
         }
     }
 
@@ -213,44 +225,41 @@ public partial class VisualComposer : Node, IVisualSpriteProvider
     public event Action VisibleNodesChanged = delegate { };
     public event Action VisualNodesChanged = delegate { };
 
+    /// <summary>
+    /// Pull-on-read aggregate of every slot's visible nodes. Not cached — the slots
+    /// already own the cheap in-memory lists, so repeated aggregation per event is
+    /// trivial compared to the invalidation/ordering bugs a composer-level cache
+    /// previously caused.
+    /// </summary>
     public IReadOnlyList<Node> GetVisibleNodes()
     {
-        return _visibleNodes ?? [];
+        var result = new List<Node>();
+        foreach (var slot in _slots.Values)
+        {
+            result.AddRange(slot.GetVisibleNodes());
+        }
+        return result;
     }
 
+    /// <summary>
+    /// Pull-on-read aggregate of every slot's visual nodes. See <see cref="GetVisibleNodes"/>
+    /// for the no-cache rationale.
+    /// </summary>
     public IReadOnlyList<Node> GetAllVisualNodes()
     {
-        return _visualNodes ?? [];
-    }
-
-    private void OnSlotVisualNodesChanged()
-    {
-        _visualNodes = new List<Node>();
+        var result = new List<Node>();
         foreach (var slot in _slots.Values)
         {
-            _visualNodes.AddRange(slot.GetAllVisualNodes());
+            result.AddRange(slot.GetAllVisualNodes());
         }
-
-        _visibleNodes = new List<Node>();
-        foreach (var slot in _slots.Values)
-        {
-            _visibleNodes.AddRange(slot.GetVisibleNodes());
-        }
-
-        VisibleNodesChanged.Invoke();
-        VisualNodesChanged.Invoke();
+        return result;
     }
 
-    private void OnSlotVisibleNodesChanged()
-    {
-        _visibleNodes = new List<Node>();
-        foreach (var slot in _slots.Values)
-        {
-            _visibleNodes.AddRange(slot.GetVisibleNodes());
-        }
-
-        VisibleNodesChanged.Invoke();
-    }
+    // 1:1 event forwarding. A slot's Visual fire bubbles ONLY the composer's Visual
+    // event; a Visible fire bubbles ONLY Visible. Prior cross-firing (Visual fire
+    // also firing Visible) caused 2× Visible events per Equip — see D1 pin tests.
+    private void OnSlotVisualNodesChanged() => VisualNodesChanged.Invoke();
+    private void OnSlotVisibleNodesChanged() => VisibleNodesChanged.Invoke();
 
     #endregion
 }
