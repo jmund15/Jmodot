@@ -220,11 +220,25 @@ public class ModifiableProperty<T> : IModifiableProperty
     // This region acts as a type-safe bridge between the generic class and the non-generic interface.
     Guid IModifiableProperty.AddModifier(Resource modifierResource, object owner)
     {
+        // Null modifier is a data-driven failure (Godot editor can strip inline
+        // sub_resources from Dictionary<Attribute, Resource> exports on resave, leaving
+        // null values in ingredient .tres files). Report it and return Guid.Empty so
+        // StatController.TryAddModifier returns false — never throw on null, because
+        // the resulting uncaught exception propagates through crafting event handlers
+        // and locks the player out of the crafting UI.
+        if (modifierResource == null)
+        {
+            JmoLogger.Warning(this,
+                $"Cannot add modifier to {GetType().Name}: incoming resource is null. " +
+                $"Check for stripped sub_resources in any .tres that exports this attribute.");
+            return Guid.Empty;
+        }
         if (modifierResource is IModifier<T> typedModifier)
         {
             return AddModifier(typedModifier, owner);
         }
-        throw JmoLogger.LogAndRethrow(new InvalidCastException($"Resource of type {GetType().Name} is not of type {nameof(IModifier<T>)}, cannot cast to modifier for this property!"),
+        throw JmoLogger.LogAndRethrow(new InvalidCastException(
+                $"Resource of type {modifierResource.GetType().Name} is not of type {nameof(IModifier<T>)}, cannot cast to modifier for this property!"),
             this);
     }
 

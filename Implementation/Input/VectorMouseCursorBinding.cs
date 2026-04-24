@@ -20,7 +20,13 @@ public partial class VectorMouseCursorBinding : VectorBindingBase
             return Vector2.Zero;
         }
 
+        // Return the un-normalized local-XZ offset so the vector's length carries
+        // cursor distance (in world units). Direction-only consumers must call
+        // .Normalized() themselves; lob-aim-style consumers query IntentData's
+        // VectorSemantic and interpret magnitude as a positional offset.
         var localMousePos = entity.ToLocal(mousePos);
-        return new Vector2(localMousePos.X, localMousePos.Z).Normalized();
+        return new Vector2(localMousePos.X, localMousePos.Z);
     }
+
+    public override VectorInputSemantic Semantic => VectorInputSemantic.PositionalOffset;
 }

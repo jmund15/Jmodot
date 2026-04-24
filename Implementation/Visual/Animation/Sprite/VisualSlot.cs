@@ -9,23 +9,35 @@ using Core.Visual.Effects;
 using Effects;
 
 /// <summary>
-/// Helper class representing a runtime slot.
-/// Handles instantiation, overrides, and registration.
+/// Runtime slot — a first-class <see cref="IVisualSpriteProvider"/> that wraps one equipped item.
+/// Handles instantiation, overrides, animator registration, and exposes the slot's visual/animation surface.
 /// </summary>
-public class VisualSlot // TODO: make IVisualSpriteProvider?
+public class VisualSlot : IVisualSpriteProvider
 {
     public VisualSlotConfig Config { get; private set; }
     public VisualItemData? CurrentItem { get; private set; }
+
+    /// <summary>
+    /// The <see cref="IAnimComponent"/> on the currently equipped prefab, or null when empty.
+    /// Exposed regardless of whether the slot is animation-independent — independent slots'
+    /// animators are otherwise unreachable without string-searching the scene tree.
+    /// </summary>
+    public IAnimComponent? Animator { get; private set; }
 
     private CompositeAnimatorComponent _composite;
     private Node _slotRoot;
     private Node? _currentInstance;
 
     /// <summary>
-    /// Optional tracker for base modulation colors.
-    /// When set, base colors are registered here for VisualEffectController to query.
+    /// Optional effect service used for base-color bookkeeping.
+    /// When set, base colors are registered here for <c>VisualEffectController</c> to query.
     /// </summary>
-    private BaseModulationTracker? _baseColorTracker;
+    /// <remarks>
+    /// Phase 4.6 — replaced the prior <c>BaseModulationTracker</c> reference. The service
+    /// owns the same per-node dictionary the tracker used to, and also exposes scope-aware
+    /// tint operations that the rest of the codebase consumes.
+    /// </remarks>
+    private IVisualEffectService? _effectService;
 
     // Visual Effect Tracking
     private readonly List<Node> _currentVisualNodes = new();
@@ -34,12 +46,12 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
     public event Action VisualNodesChanged = delegate { };
     public event Action VisibleNodesChanged = delegate { };
 
-    public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot, BaseModulationTracker? baseColorTracker = null)
+    public VisualSlot(VisualSlotConfig config, CompositeAnimatorComponent composite, Node slotRoot, IVisualEffectService? effectService = null)
     {
         Config = config;
         _composite = composite;
         _slotRoot = slotRoot;
-        _baseColorTracker = baseColorTracker;
+        _effectService = effectService;
     }
 
     public void Equip(VisualItemData? item)
@@ -49,172 +61,196 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             return;
         }
 
-        // 1. Cleanup existing
-        // If we are providing a new item (item != null), we force the unequip.
-        // This prevents Unequip() from triggering its "Mandatory Slot" logic
-        // which recursively calls Equip() again.
-        bool isReplacing = (item != null);
-        Unequip(force: isReplacing);
+        // Tear down any existing instance — mechanism only, no mandatory-slot policy,
+        // no event firing. Equip owns the atomic transition and fires events once below.
+        ClearInstance();
 
         if (item == null)
         {
-            return; // Unequip complete
+            // Equip(null) on an optional slot is equivalent to Unequip. Fire once —
+            // but only if we actually cleared something (otherwise same-state no-op).
+            // ClearInstance already short-circuited on _currentInstance == null, so
+            // the check here is: did we previously have an instance?
+            if (_currentVisualNodes.Count == 0 && _currentVisibleNodes.Count == 0)
+            {
+                // Still-clean slate after ClearInstance — nothing to broadcast.
+                // This path runs when Equip(null) is called on an empty slot.
+                // Exit without events.
+            }
+            return;
         }
 
         CurrentItem = item;
 
         if (item.Prefab != null)
         {
-            // 2. Instantiate
             _currentInstance = item.Prefab.Instantiate();
 
-            // We use AddChild immediately so that the node is available in the tree THIS frame.
-            // This is critical for systems that want to play an animation immediately after equipping (e.g. VisualSlotCompoundState).
-            // WARNING: If Equip() is called during a Physics Callback (e.g. Area3D.BodyEntered) OR during Initialization (Parent _Ready),
-            // this will throw a "Tree Locked" or "Parent Busy" error.
-            // The caller must ensure they are deferring the Equip call if they are in a dangerous context.
+            // AddChild synchronously so the node is tree-resident this frame for
+            // systems that play animations immediately after equipping.
+            // WARNING: Callers must defer Equip when called during _Ready or a
+            // physics callback, or Godot throws "Tree Locked" / "Parent Busy".
             _slotRoot.AddChild(_currentInstance);
 
-            // 3. Apply Overrides (Texture, Row, Tint)
             ApplyOverrides(_currentInstance, item);
 
-            // 4. Register with Composite (unless slot is animation-independent)
-            // We look for an IAnimComponent on the root or children
-            var anim = GetAnimComponent(_currentInstance);
-            if (anim != null && !Config.IsAnimationIndependent)
+            // Resolve the animator. Expose it via `Animator` regardless of whether
+            // we register it with the composite — independent slots still need
+            // reachable animators for HSM consumers.
+            Animator = GetAnimComponent(_currentInstance);
+            if (Animator != null && !Config.IsAnimationIndependent)
             {
-                _composite?.RegisterAnimator(anim, isMaster: Config.IsTimeSource);
+                _composite?.RegisterAnimator(Animator, isMaster: Config.IsTimeSource);
             }
 
-            // 5. Track Visual Nodes for Effects
             DetectVisualNodes(_currentInstance);
         }
         else
         {
             JmoLogger.Error(this, $"VisualSlot: Item '{item.Id}' has no Prefab assigned.");
         }
+
+        // Atomic: one pair of events per Equip transition, regardless of whether
+        // this was a fresh equip or a replace. Subscribers see the final state,
+        // never intermediate empty states. Fixes the pre-Phase-3 multi-fire that
+        // forced Wizard.OnVisualNodesChanged to use CallDeferred for coalescing.
+        VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
     }
 
-    public void Unequip(bool force = false)
+    /// <summary>
+    /// Policy-aware unequip for outside callers.
+    /// - Optional slots: clear the instance and fire one pair of events.
+    /// - Mandatory slots: revert to the configured default (delegating to Equip, which
+    ///   fires one pair of events); or no-op with no events if already at default.
+    /// Internal callers replacing an item should use Equip directly — it handles teardown.
+    /// </summary>
+    public void Unequip()
     {
-        // Prevent unequipping mandatory slots unless forced (e.g. during a swap)
-        if (!Config.IsOptional && !force)
+        if (!Config.IsOptional)
         {
-            // If we have a default, revert to it
             if (Config.DefaultItem != null && CurrentItem != Config.DefaultItem)
             {
                 Equip(Config.DefaultItem);
                 return;
             }
-            return; // Cannot be empty
+            return; // Mandatory slot, already at default (or no default) — refuse to clear.
         }
 
-        if (_currentInstance != null)
+        // Optional slot. If already empty, nothing to do — no events.
+        if (_currentInstance == null)
         {
-            // Cleanup visual tracking - unregister from base color tracker
-            if (_baseColorTracker != null)
-            {
-                foreach (var visualNode in _currentVisualNodes)
-                {
-                    _baseColorTracker.UnregisterSprite(visualNode);
-                }
-            }
-
-            if (_prefabProvider != null)
-            {
-                _prefabProvider.VisibleNodesChanged -= OnPrefabVisibleNodesChanged;
-                _prefabProvider = null;
-            }
-            _currentVisualNodes.Clear();
-            _currentVisibleNodes.Clear();
-            VisualNodesChanged?.Invoke();
-            VisibleNodesChanged?.Invoke();
-
-            var anim = GetAnimComponent(_currentInstance);
-            if (anim != null && !Config.IsAnimationIndependent)
-            {
-                _composite?.UnregisterAnimator(anim);
-            }
-
-            _currentInstance.QueueFree();
-            _currentInstance = null;
+            return;
         }
 
+        ClearInstance();
+        CurrentItem = null;
+
+        // Atomic: one pair of events for the transition from "something" to "nothing".
+        VisualNodesChanged?.Invoke();
+        VisibleNodesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Tears down the current instance unconditionally — pure mechanism. No mandatory
+    /// policy, no event firing. Events are the orchestrators' responsibility (Equip /
+    /// Unequip), which compose ClearInstance with a populate step when swapping.
+    /// </summary>
+    internal void ClearInstance()
+    {
+        if (_currentInstance == null)
+        {
+            return;
+        }
+
+        if (_effectService != null)
+        {
+            foreach (var visualNode in _currentVisualNodes)
+            {
+                _effectService.UnregisterSprite(visualNode);
+            }
+        }
+
+        if (_prefabProvider != null)
+        {
+            _prefabProvider.VisibleNodesChanged -= OnPrefabVisibleNodesChanged;
+            _prefabProvider.VisualNodesChanged -= OnPrefabVisualNodesChanged;
+            _prefabProvider = null;
+        }
+        _currentVisualNodes.Clear();
+        _currentVisibleNodes.Clear();
+
+        if (Animator != null && !Config.IsAnimationIndependent)
+        {
+            // stopFirst:false — the animator's underlying node is about to be
+            // QueueFree'd on the next line. Calling StopAnim first is wasteful
+            // and fragile (some animator impls emit signals synchronously on stop).
+            _composite?.UnregisterAnimator(Animator, stopFirst: false);
+        }
+        Animator = null;
+
+        _currentInstance.QueueFree();
+        _currentInstance = null;
         CurrentItem = null;
     }
 
     private void ApplyOverrides(Node instance, VisualItemData item)
     {
-        // Robustly find the sprite (2D or 3D)
-        // Check 2D first
-        var sprite2D = instance as Sprite2D;
-        if (sprite2D != null || instance.TryGetFirstChildOfType<Sprite2D>(out sprite2D))
+        // Find the first sprite target. 2D takes priority over 3D (root or descendant)
+        // to preserve historical behavior; mixed 2D+3D prefabs are an edge case.
+        Node? sprite = null;
+        if (instance is Sprite2D s2dRoot) { sprite = s2dRoot; }
+        else if (instance.TryGetFirstChildOfType<Sprite2D>(out var s2dChild)) { sprite = s2dChild; }
+        else if (instance is Sprite3D s3dRoot) { sprite = s3dRoot; }
+        else if (instance.TryGetFirstChildOfType<Sprite3D>(out var s3dChild)) { sprite = s3dChild; }
+
+        if (sprite == null) { return; }
+
+        // Texture swap
+        if (item.TextureOverride != null)
         {
-            ApplyOverrides2D(sprite2D!, item);
-            return;
+            SetSpriteTexture(sprite, item.TextureOverride);
         }
 
-        // Check 3D (SpriteBase3D covers both Sprite3D and AnimatedSprite3D)
-        var sprite3D = instance as Sprite3D;
-
-        if (sprite3D != null || instance.TryGetFirstChildOfType<Sprite3D>(out sprite3D))
+        // Sprite sheet row selection — preserve X so animations don't reset, set Y
+        if (item.SpriteSheetRowOverride >= 0)
         {
-            ApplyOverrides3D(sprite3D!, item);
+            SetSpriteRow(sprite, item.SpriteSheetRowOverride);
+        }
+
+        // Tint — apply Modulate if non-white, always register as base color
+        // (white is still registered so the tracker knows this sprite exists).
+        if (item.ModulateOverride != Colors.White)
+        {
+            SetSpriteModulate(sprite, item.ModulateOverride);
+        }
+        _effectService?.RegisterBaseColor(sprite, item.ModulateOverride);
+    }
+
+    private static void SetSpriteTexture(Node sprite, Texture2D texture)
+    {
+        switch (sprite)
+        {
+            case Sprite2D s2d: s2d.Texture = texture; break;
+            case Sprite3D s3d: s3d.Texture = texture; break;
         }
     }
 
-    private void ApplyOverrides2D(Sprite2D sprite, VisualItemData item)
+    private static void SetSpriteRow(Node sprite, int row)
     {
-        // Texture Swap
-        if (item.TextureOverride != null)
+        switch (sprite)
         {
-            sprite.Texture = item.TextureOverride;
-        }
-
-        // Sprite Sheet Row Selection
-        // We only set the Y coordinate. We preserve X so animations don't reset.
-        if (item.SpriteSheetRowOverride >= 0)
-        {
-            sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
-        }
-
-        // Tint - register with tracker for proper effect blending
-        if (item.ModulateOverride != Colors.White)
-        {
-            sprite.Modulate = item.ModulateOverride;
-            _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
-        }
-        else
-        {
-            // No override - still register white as the base color
-            _baseColorTracker?.RegisterBaseColor(sprite, Colors.White);
+            case Sprite2D s2d: s2d.FrameCoords = new Vector2I(s2d.FrameCoords.X, row); break;
+            case Sprite3D s3d: s3d.FrameCoords = new Vector2I(s3d.FrameCoords.X, row); break;
         }
     }
 
-    private void ApplyOverrides3D(Sprite3D sprite, VisualItemData item)
+    private static void SetSpriteModulate(Node sprite, Color color)
     {
-        // Texture Swap
-        if (item.TextureOverride != null)
+        switch (sprite)
         {
-            sprite.Texture = item.TextureOverride;
-        }
-
-        // Sprite Sheet Row Selection
-        if (item.SpriteSheetRowOverride >= 0)
-        {
-            sprite.FrameCoords = new Vector2I(sprite.FrameCoords.X, item.SpriteSheetRowOverride);
-        }
-
-        // Tint - register with tracker for proper effect blending
-        if (item.ModulateOverride != Colors.White)
-        {
-            sprite.Modulate = item.ModulateOverride;
-            _baseColorTracker?.RegisterBaseColor(sprite, item.ModulateOverride);
-        }
-        else
-        {
-            // No override - still register white as the base color
-            _baseColorTracker?.RegisterBaseColor(sprite, Colors.White);
+            case Sprite2D s2d: s2d.Modulate = color; break;
+            case Sprite3D s3d: s3d.Modulate = color; break;
         }
     }
 
@@ -234,8 +270,9 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
 
     #region Visual Effect Support
 
-    public IReadOnlyList<Node> GetCurrentVisualNodes() => _currentVisualNodes;
-    public IReadOnlyList<Node> GetCurrentVisibleNodes() => _currentVisibleNodes;
+    // IVisualSpriteProvider implementation. Invariant: GetVisibleNodes ⊆ GetAllVisualNodes.
+    public IReadOnlyList<Node> GetAllVisualNodes() => _currentVisualNodes;
+    public IReadOnlyList<Node> GetVisibleNodes() => _currentVisibleNodes;
 
     private void DetectVisualNodes(Node prefabRoot)
     {
@@ -262,16 +299,15 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
         }
         else
         {
-            // 2. Fallback: Recursively find all static sprites
-            // Currently here visible and visual are treated the same. (TODO: track visiblity of individual sprites here?)
-            FindSpritesRecursive(prefabRoot, _currentVisualNodes);
-            FindSpritesRecursive(prefabRoot, _currentVisibleNodes);
+            // 2. Fallback: Recursively find all static sprites.
+            // Visible and visual are conflated in this branch — static prefabs have no
+            // per-animation visibility model. AnimationVisibilityCoordinator is the only
+            // provider that distinguishes them today.
+            VisualNodeAggregator.CollectSprites(prefabRoot, _currentVisualNodes);
+            VisualNodeAggregator.CollectSprites(prefabRoot, _currentVisibleNodes);
         }
 
-        //GD.Print($"Just finished equipping Visual Slot! visual config: {CurrentItem.Id}");
-
-        VisualNodesChanged?.Invoke();
-        VisibleNodesChanged?.Invoke();
+        // No event firing here — populate is mechanism-only. Equip owns the atomic fire.
     }
 
     private void OnPrefabVisualNodesChanged()
@@ -295,19 +331,6 @@ public class VisualSlot // TODO: make IVisualSpriteProvider?
             _currentVisibleNodes.AddRange(_prefabProvider.GetVisibleNodes());
 
             VisibleNodesChanged?.Invoke();
-        }
-    }
-
-    private static void FindSpritesRecursive(Node parent, List<Node> results)
-    {
-        if (parent is SpriteBase3D or Sprite2D)
-        {
-            results.Add(parent);
-        }
-
-        foreach (var child in parent.GetChildren())
-        {
-            FindSpritesRecursive(child, results);
         }
     }
 

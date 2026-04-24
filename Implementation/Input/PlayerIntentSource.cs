@@ -34,6 +34,18 @@ public partial class PlayerIntentSource : IntentSourceNode
 
     private Node3D? _owner;
 
+    // C3: last applied profile reference, exposed for UI/HUD systems that need
+    // to resolve bindings to on-screen prompts (InputPromptResolver consumers).
+    private InputMappingProfile? _currentProfile;
+
+    /// <summary>
+    /// The <see cref="InputMappingProfile"/> most recently passed to
+    /// <see cref="ApplyMappingProfile"/>. Read by UI systems that render on-screen
+    /// prompts (C3) — the profile is the canonical source of which Godot InputMap
+    /// action corresponds to which abstract InputAction for this player.
+    /// </summary>
+    public override InputMappingProfile? CurrentProfile => _currentProfile;
+
     /// <summary>
     /// This is the public method for configuring the input source on-the-fly.
     /// </summary>
@@ -44,6 +56,7 @@ public partial class PlayerIntentSource : IntentSourceNode
             JmoLogger.Error(this, "Attempted to apply a null InputMappingProfile.");
             return;
         }
+        _currentProfile = profile;
         _actionBindings = profile.ActionBindings;
         _vectorBindings = profile.VectorBindings;
     }
@@ -198,8 +211,11 @@ public partial class PlayerIntentSource : IntentSourceNode
 
             var moveVector = binding.GetVectorInput(_owner);
             // Vectors are continuous states, so update both dictionaries/buffers.
-            _processIntents[binding.Action] = new IntentData(moveVector);
-            _physicsBuffer[binding.Action] = new IntentData(moveVector);
+            // The binding's Semantic is stamped onto IntentData so downstream
+            // consumers can distinguish directional (stick) from positional (mouse)
+            // without magnitude-based heuristics.
+            _processIntents[binding.Action] = new IntentData(moveVector, binding.Semantic);
+            _physicsBuffer[binding.Action] = new IntentData(moveVector, binding.Semantic);
         }
     }
 
@@ -220,6 +236,7 @@ public partial class PlayerIntentSource : IntentSourceNode
         _actionsToClear.Clear();
         foreach (var binding in _actionBindings)
         {
+            if (binding?.Action == null) { continue; }
             if (binding.PollType == InputActionPollType.JustPressed || binding.PollType == InputActionPollType.JustReleased)
             {
                 if (_physicsBuffer.ContainsKey(binding.Action))

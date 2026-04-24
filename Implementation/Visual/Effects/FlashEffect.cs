@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Visual.Effects;
 
 using System.Collections.Generic;
+using Appliers;
 using Core.Visual.Effects;
 using Godot;
 
@@ -26,6 +27,8 @@ public partial class FlashEffect : VisualEffect
         // and replacing the color entirely (invincibility/hit frames)
         BlendMode = VisualEffectBlendMode.Override;
     }
+
+    public override IEffectApplier CreateApplier() => new ModulateTweenApplier(this);
 
     public override void ConfigureTween(Tween tween, VisualEffectHandle handle)
     {
