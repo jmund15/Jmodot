@@ -16,6 +16,14 @@ public readonly struct IntentData
     private readonly bool _boolValue;
     private readonly float _floatValue;
     private readonly Vector2 _vec2Value;
+    private readonly VectorInputSemantic _vecSemantic;
+
+    /// <summary>
+    /// Semantic tag for Vector2 payloads. Default <see cref="VectorInputSemantic.Directional"/>
+    /// for non-vector payloads or legacy construction paths; set by
+    /// <see cref="VectorBindingBase.Semantic"/> via <c>PlayerIntentSource</c>.
+    /// </summary>
+    public VectorInputSemantic VectorSemantic => _vecSemantic;
 
     // --- Constructors ---
     public IntentData(bool value)
@@ -30,10 +38,11 @@ public readonly struct IntentData
         _floatValue = value;
     }
 
-    public IntentData(Vector2 value)
+    public IntentData(Vector2 value, VectorInputSemantic semantic = VectorInputSemantic.Directional)
     {
         _type = ValueType.Vector2;
         _vec2Value = value;
+        _vecSemantic = semantic;
     }
 
     // --- Safe "TryGet" Accessors ---

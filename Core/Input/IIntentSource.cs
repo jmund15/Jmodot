@@ -19,6 +19,14 @@ public interface IIntentSource
     IReadOnlyDictionary<InputAction, IntentData> GetPhysicsIntents();
 
     T GetIntent<T>(InputAction inputAction);
+
+    /// <summary>
+    /// The <see cref="InputMappingProfile"/> currently driving this source, if any.
+    /// Player sources return their applied profile for UI systems that resolve
+    /// on-screen prompts (C3). AI / mock sources return null by default — no
+    /// profile means no rebindable device, so prompts can't be rendered for them.
+    /// </summary>
+    InputMappingProfile? CurrentProfile => null;
 }
 
 public static class IntentSourceExtensions

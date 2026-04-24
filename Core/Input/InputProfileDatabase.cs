@@ -16,6 +16,33 @@ using GCol = Godot.Collections;
 [GlobalClass]
 public partial class InputProfileDatabase : Node
 {
+    /// <summary>
+    /// Autoload singleton accessor. Set in <see cref="_EnterTree"/>, cleared in
+    /// <see cref="_ExitTree"/>. Consumers should prefer this over
+    /// <c>GetNodeOrNull&lt;InputProfileDatabase&gt;("/root/...")</c> magic-path lookups.
+    /// May be null during early bootstrap (before any autoload enters the tree) or
+    /// after teardown — always null-check before use.
+    /// </summary>
+    public static InputProfileDatabase? Instance { get; private set; }
+
+    public override void _EnterTree()
+    {
+        base._EnterTree();
+        if (Instance != null)
+        {
+            JmoLogger.Warning(this, "Duplicate InputProfileDatabase autoload detected; freeing the duplicate.");
+            QueueFree();
+            return;
+        }
+        Instance = this;
+    }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (Instance == this) { Instance = null; }
+    }
+
     [ExportGroup("Keyboard Profiles")]
     [Export, RequiredExport] private InputMappingProfile _keyboardWasdProfile = null!;
     [Export, RequiredExport] private InputMappingProfile _keyboardArrowsProfile = null!;
