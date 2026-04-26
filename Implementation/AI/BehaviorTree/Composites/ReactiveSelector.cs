@@ -1,7 +1,5 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
-using Core.AI;
-
 /// <summary>
 /// A priority-fallback composite ("Priority Selector with conditional abort"). Identical to
 /// <see cref="Selector"/> for terminal-status propagation (succeeds when any child succeeds,
@@ -31,64 +29,17 @@ using Core.AI;
 /// </para>
 /// </summary>
 [GlobalClass, Tool]
-public partial class ReactiveSelector : CompositeTask
+public partial class ReactiveSelector : PrioritySelectorBase
 {
-    private int _runningChildIdx = -1;
-
-    protected override void OnEnter()
-    {
-        base.OnEnter();
-        _runningChildIdx = 0;
-        if (ChildTasks.Count > 0)
-        {
-            var child = ChildTasks[_runningChildIdx];
-            child.TaskStatusChanged += OnChildStatusChanged;
-            child.Enter();
-        }
-        else
-        {
-            // A selector with no children fails immediately.
-            Status = TaskStatus.Failure;
-        }
-    }
-
-    protected override void OnExit()
-    {
-        base.OnExit();
-        if (_runningChildIdx != -1 && _runningChildIdx < ChildTasks.Count)
-        {
-            var child = ChildTasks[_runningChildIdx];
-            child.TaskStatusChanged -= OnChildStatusChanged;
-            child.Exit();
-        }
-        _runningChildIdx = -1;
-    }
-
-    protected override void OnProcessPhysics(float delta)
-    {
-        TryReactivePreempt();
-        if (_runningChildIdx >= 0 && _runningChildIdx < ChildTasks.Count)
-        {
-            ChildTasks[_runningChildIdx].ProcessPhysics(delta);
-        }
-    }
-
-    protected override void OnProcessFrame(float delta)
-    {
-        TryReactivePreempt();
-        if (_runningChildIdx >= 0 && _runningChildIdx < ChildTasks.Count)
-        {
-            ChildTasks[_runningChildIdx].ProcessFrame(delta);
-        }
-    }
+    protected override void OnTickStart() => TryReactivePreempt();
 
     /// <summary>
     /// Scans children with index &lt; _runningChildIdx (higher priority than the current).
     /// On the first such child whose conditions are met, preempts the current child and
     /// transfers execution to the higher-priority candidate. If the candidate's Enter fails
     /// (e.g., condition flipped between poll and enter, or other guard fires), the standard
-    /// child-status cascade in <see cref="OnChildStatusChanged"/> advances to the next child
-    /// — same fallback semantics as a normal Selector.
+    /// child-status cascade in <see cref="PrioritySelectorBase.OnChildStatusChanged"/> advances
+    /// to the next child — same fallback semantics as a normal Selector.
     /// </summary>
     private void TryReactivePreempt()
     {
@@ -110,35 +61,6 @@ public partial class ReactiveSelector : CompositeTask
             candidate.TaskStatusChanged += OnChildStatusChanged;
             candidate.Enter();
             return;
-        }
-    }
-
-    private void OnChildStatusChanged(TaskStatus newStatus)
-    {
-        if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
-
-        var currentChild = ChildTasks[_runningChildIdx];
-        currentChild.TaskStatusChanged -= OnChildStatusChanged;
-
-        switch (newStatus)
-        {
-            case TaskStatus.Success:
-                Status = TaskStatus.Success;
-                break;
-
-            case TaskStatus.Failure:
-                _runningChildIdx++;
-                if (_runningChildIdx >= ChildTasks.Count)
-                {
-                    Status = TaskStatus.Failure;
-                }
-                else
-                {
-                    var nextChild = ChildTasks[_runningChildIdx];
-                    nextChild.TaskStatusChanged += OnChildStatusChanged;
-                    nextChild.Enter();
-                }
-                break;
         }
     }
 }
