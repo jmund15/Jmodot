@@ -1,6 +1,10 @@
 namespace Jmodot.Core.Identification;
 
+using System.Collections.Generic;
+using System.Linq;
+using Godot.Collections;
 using Implementation.AI.Perception.Strategies;
+using Implementation.Shared;
 
 /// <summary>
 ///     A data-driven Resource representing a high-level, abstract category or "tag".
@@ -11,6 +15,8 @@ using Implementation.AI.Perception.Strategies;
 /// <remarks>
 ///     Crucially, because it is a Resource, it can contain its own data, such as default relationships
 ///     to other categories, which a simple string tag (like a Godot Group) cannot do.
+///     Categories support hierarchical classification via <see cref="ParentCategories"/>, enabling
+///     leaf nodes (e.g., "Burn") to descend from broader categories (e.g., "Fire" → "Elemental").
 /// </remarks>
 [GlobalClass, Tool]
 public partial class Category : Resource
@@ -50,6 +56,35 @@ public partial class Category : Resource
     [Export]
     public MemoryDecayStrategy? PerceptionDecay { get; private set; }
 
+    /// <summary>
+    ///     Optional parent categories forming a hierarchy. A category descends from all its parents
+    ///     and their ancestors transitively (e.g., Burn → Fire → Elemental).
+    /// </summary>
+    [Export]
+    public Array<Category> ParentCategories { get; private set; } = new();
+
+    /// <summary>
+    ///     Returns true if this category matches <paramref name="target"/> by name,
+    ///     or if any ancestor in the <see cref="ParentCategories"/> chain matches.
+    ///     Uses a visited set (CategoryName-keyed via Equals/GetHashCode override) to guard against cycles.
+    ///     Cycles are designer errors and emit a JmoLogger.Warning when detected.
+    /// </summary>
+    public bool IsOrDescendsFrom(Category? target, HashSet<Category>? visited = null)
+    {
+        if (target == null) { return false; }
+        if (CategoryName == target.CategoryName) { return true; }
+
+        visited ??= new HashSet<Category>();
+        if (!visited.Add(this))
+        {
+            JmoLogger.Warning(this, $"Category cycle detected at '{CategoryName}' while resolving '{target.CategoryName}'. Check ParentCategories chains for self-reference.");
+            return false;
+        }
+
+        if (ParentCategories == null) { return false; }
+        return ParentCategories.Any(p => p?.IsOrDescendsFrom(target, visited) == true);
+    }
+
     #region Test Helpers
 
     /// <summary>Sets CategoryName for testing purposes.</summary>
@@ -57,6 +92,9 @@ public partial class Category : Resource
 
     /// <summary>Sets PerceptionDecay for testing purposes.</summary>
     internal void SetPerceptionDecay(MemoryDecayStrategy? value) => PerceptionDecay = value;
+
+    /// <summary>Sets ParentCategories for testing purposes.</summary>
+    internal void SetParentCategories(Array<Category> value) => ParentCategories = value;
 
     #endregion
 }
