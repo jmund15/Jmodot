@@ -68,6 +68,14 @@ using AI.BB;
         #region Public State
         public bool IsActive { get; private set; }
         public IAttackPayload CurrentPayload { get; private set; }
+
+        /// <summary>
+        /// Optional pre-hit hook that filters/modifies the payload before ProcessHit.
+        /// Set by game-layer components (e.g., reaction systems) to intercept combat payloads.
+        /// Cleared on pool reset for clean reuse. The original payload is always preserved
+        /// for OnHitRegistered subscribers regardless of what the interceptor returns.
+        /// </summary>
+        public IPayloadInterceptor3D? PayloadInterceptor { get; set; }
         #endregion
 
         #region Private State
@@ -232,6 +240,10 @@ using AI.BB;
             OnAttackStarted = delegate { };
             OnAttackFinished = delegate { };
 
+            // Clear interceptor for clean pool state.
+            // Game-layer components (e.g., ReactionComponent) re-wire on each pool cycle.
+            PayloadInterceptor = null;
+
             // Reset continuous mode to export defaults for clean pool state.
             // WavePullEffectInstance re-sets these during OnInitialize each cast.
             IsContinuous = false;
@@ -391,12 +403,22 @@ using AI.BB;
                 return;
             }
 
-            // 3. The Handshake (Direct Method Call)
-            bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
+            // 3. Pre-hit Interception: filter payload via game-layer interceptor (if wired).
+            // The interceptor returns a (possibly empty) payload for ProcessHit, while
+            // OnHitRegistered always receives the ORIGINAL CurrentPayload — this lets
+            // post-hit observers (e.g., reaction systems) extract base damage even when
+            // the interceptor filtered every effect from the ProcessHit-bound payload.
+            var payloadForProcessHit = PayloadInterceptor != null
+                ? PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload)
+                : CurrentPayload;
+
+            // 4. The Handshake (Direct Method Call)
+            bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
 
             if (wasAccepted)
             {
                 Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                // Always notify with the ORIGINAL payload — interceptor must not affect observers.
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
             }
             else
