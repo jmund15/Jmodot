@@ -237,6 +237,17 @@ using Shared;
             return true;
         }
 
+        /// <summary>
+        /// Returns true when all runtime conditions pass <see cref="BTCondition.Check"/>.
+        /// Side-effect-free: does NOT invoke <see cref="BTCondition.OnParentTaskEnter"/> or
+        /// alter task status. A task with no conditions returns true unconditionally.
+        /// <para>
+        /// Used by <see cref="Composites.ReactiveSelector"/> to poll whether a non-running
+        /// sibling is eligible for preemption without triggering its lifecycle.
+        /// </para>
+        /// </summary>
+        public bool ConditionsMet() => CheckAllConditions(out _);
+
         public override string[] _GetConfigurationWarnings()
         {
             var warnings = new List<string>();

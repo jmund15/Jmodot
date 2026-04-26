@@ -39,6 +39,45 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
     /// </summary>
     [Export] public bool SelfSufficient { get; private set; }
 
+    /// <summary>
+    /// Governs the tree's behavior when its root task reaches a terminal status (Success or Failure).
+    /// </summary>
+    public enum RestartPolicy
+    {
+        /// <summary>
+        /// Default. Re-Enter the root immediately on terminal status. Fires <see cref="TreeReset"/>.
+        /// Suited to ambient/looping behavior trees (idle wander, perception scans).
+        /// </summary>
+        AlwaysRestart,
+
+        /// <summary>
+        /// Hold the root at its terminal status. The tree stays Enabled, but no further processing
+        /// happens until an external system calls <see cref="Exit"/> + <see cref="Enter"/> to re-arm.
+        /// Suited to BTs whose lifecycle is owned by an HSM state — completion is a meaningful signal,
+        /// not a trigger to loop. Removes the indefinite-action workaround codified in
+        /// Memory:Critter_AI_Architecture.
+        /// </summary>
+        HoldTerminal,
+
+        /// <summary>
+        /// Disable the tree on terminal status (fires <see cref="TreeDisabled"/>) after exiting the
+        /// root task to allow OnExit cleanup. The tree is dormant until <see cref="Enter"/> is called
+        /// manually. Suited to one-shot composable sequences (a craft combo, a one-time scripted move).
+        /// <para>
+        /// Callers that need the terminal status MUST read it from the <see cref="TreeFinishedLoop"/>
+        /// signal payload — <c>RootTask.Status</c> is reset to <see cref="TaskStatus.Fresh"/> by the
+        /// Exit() call so the root task's resources (subscriptions, BB keys, timers) are cleaned up.
+        /// </para>
+        /// </summary>
+        OneShot,
+    }
+
+    /// <summary>
+    /// Determines what happens when the root task reaches a terminal (Success/Failure) status.
+    /// Default <see cref="RestartPolicy.AlwaysRestart"/> preserves pre-existing behavior.
+    /// </summary>
+    [Export] public RestartPolicy Policy { get; private set; } = RestartPolicy.AlwaysRestart;
+
     [ExportGroup("Debugging")]
     /// <summary>
     /// If true, a debug overlay will be instantiated to visualize the tree's activity at runtime.
@@ -249,14 +288,35 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
         JmoLogger.Info(this, $"Tree root task '{RootTask.Name}' finished with status {newStatus}.");
         EmitSignal(SignalName.TreeFinishedLoop, (long)newStatus);
 
-        // If the tree is still enabled after the loop finished (i.e., not being shut down by a BTState),
-        // automatically reset and restart it for continuous execution.
-        if (Enabled)
+        // Tree was already disabled (e.g., external Exit() raced with terminal status) — nothing to do.
+        if (!Enabled) { return; }
+
+        switch (Policy)
         {
-            JmoLogger.Info(this, "Resetting and restarting tree...");
-            EmitSignal(SignalName.TreeReset);
-            RootTask.Exit();  // Ensure a clean exit before re-entering.
-            RootTask.Enter();
+            case RestartPolicy.AlwaysRestart:
+                JmoLogger.Info(this, "Resetting and restarting tree...");
+                EmitSignal(SignalName.TreeReset);
+                RootTask.Exit();  // Ensure a clean exit before re-entering.
+                RootTask.Enter();
+                break;
+
+            case RestartPolicy.HoldTerminal:
+                // Tree stays Enabled but root holds its terminal status. External system
+                // (typically an HSM transition or owning state) calls Exit+Enter to re-arm.
+                // Subscription stays armed — nothing else can change the root's status spontaneously.
+                break;
+
+            case RestartPolicy.OneShot:
+                // Unsubscribe BEFORE Exit so the implicit Status = Fresh in BehaviorTask.Exit
+                // does not re-enter this handler. Then Exit the root so OnExit cleanup fires
+                // (signal unsubscribes, BB key clears, timer cancels — anything the root or its
+                // descendants registered in their OnEnter cascade). Finally disable the tree
+                // (fires TreeDisabled via the Enabled setter). Terminal status was already
+                // emitted via TreeFinishedLoop above — callers read it from there.
+                RootTask.TaskStatusChanged -= OnRootTaskStatusChanged;
+                RootTask.Exit();
+                Enabled = false;
+                break;
         }
     }
 
@@ -284,5 +344,16 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
         return warnings.ToArray();
     }
 
+    #endregion
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Sets <see cref="Policy"/> directly for unit tests, bypassing the Inspector-only
+    /// private setter. Logic-Domain tests cover each policy's terminal behavior; this
+    /// helper avoids reflection in those tests.
+    /// </summary>
+    internal void SetPolicyForTesting(RestartPolicy policy) => Policy = policy;
+#endif
     #endregion
 }
