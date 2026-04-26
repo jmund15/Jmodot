@@ -408,9 +408,31 @@ using AI.BB;
             // OnHitRegistered always receives the ORIGINAL CurrentPayload — this lets
             // post-hit observers (e.g., reaction systems) extract base damage even when
             // the interceptor filtered every effect from the ProcessHit-bound payload.
-            var payloadForProcessHit = PayloadInterceptor != null
-                ? PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload)
-                : CurrentPayload;
+            // Defensive guards: contract says interceptor must NEVER return null, but a
+            // null return or thrown exception would silently drop the hit AND debounce
+            // the target (already in _hitHurtboxes) — both are diagnosis-hostile. Log
+            // contract violations via JmoLogger.Error (which fails tests) and fall back
+            // to the original payload so combat keeps making forward progress.
+            IAttackPayload payloadForProcessHit = CurrentPayload;
+            if (PayloadInterceptor != null)
+            {
+                try
+                {
+                    var interceptResult = PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload);
+                    if (interceptResult == null)
+                    {
+                        Shared.JmoLogger.Error(this, $"PayloadInterceptor returned null (contract violation) — falling back to original payload");
+                    }
+                    else
+                    {
+                        payloadForProcessHit = interceptResult;
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Shared.JmoLogger.Error(this, $"PayloadInterceptor threw {ex.GetType().Name}: {ex.Message} — falling back to original payload");
+                }
+            }
 
             // 4. The Handshake (Direct Method Call)
             bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);

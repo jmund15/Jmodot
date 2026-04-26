@@ -304,10 +304,28 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         // Pre-hit Interception: filter payload via game-layer interceptor (if wired).
         // Original CurrentPayload is preserved for OnHitRegistered observers — the interceptor
-        // only affects what ProcessHit sees.
-        var payloadForProcessHit = PayloadInterceptor != null
-            ? PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload)
-            : CurrentPayload;
+        // only affects what ProcessHit sees. See HitboxComponent3D for the defensive-guard
+        // rationale (null return / thrown exception both silently drop the hit otherwise).
+        IAttackPayload payloadForProcessHit = CurrentPayload;
+        if (PayloadInterceptor != null)
+        {
+            try
+            {
+                var interceptResult = PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload);
+                if (interceptResult == null)
+                {
+                    Shared.JmoLogger.Error(this, $"PayloadInterceptor returned null (contract violation) — falling back to original payload");
+                }
+                else
+                {
+                    payloadForProcessHit = interceptResult;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Shared.JmoLogger.Error(this, $"PayloadInterceptor threw {ex.GetType().Name}: {ex.Message} — falling back to original payload");
+            }
+        }
 
         bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
 

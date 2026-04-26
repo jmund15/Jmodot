@@ -25,6 +25,7 @@ public partial class Category : Resource
     ///     The user-friendly name of the category for debugging and editor purposes (e.g., "Enemy", "Item", "Consumable").
     ///     Also serves as the equality key — two Category instances with the same CategoryName are considered equal.
     /// </summary>
+    [ExportGroup("Identity")]
     [Export]
     public string CategoryName { get; private set; } = "Unnamed Category";
 
@@ -53,6 +54,7 @@ public partial class Category : Resource
     ///     Optional decay strategy override for perception. When set, sensors will use this
     ///     strategy instead of their default for entities belonging to this category.
     /// </summary>
+    [ExportGroup("AI / Perception")]
     [Export]
     public MemoryDecayStrategy? PerceptionDecay { get; private set; }
 
@@ -86,6 +88,7 @@ public partial class Category : Resource
     }
 
     #region Test Helpers
+#if TOOLS
 
     /// <summary>Sets CategoryName for testing purposes.</summary>
     internal void SetCategoryName(string value) => CategoryName = value;
@@ -96,5 +99,6 @@ public partial class Category : Resource
     /// <summary>Sets ParentCategories for testing purposes.</summary>
     internal void SetParentCategories(Array<Category> value) => ParentCategories = value;
 
+#endif
     #endregion
 }
