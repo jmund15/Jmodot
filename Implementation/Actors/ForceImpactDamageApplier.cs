@@ -1,8 +1,6 @@
 namespace Jmodot.Implementation.Actors;
 
-using System.Collections.Generic;
 using Core.Combat;
-using Core.Identification;
 using Core.Pooling;
 using Implementation.Health;
 using Shared;
@@ -14,6 +12,10 @@ using Shared;
 /// <see cref="HealthComponent"/>. HSM and BT consumers inherit damage handling for free —
 /// they only need to manage state transitions, never damage logic.
 /// </summary>
+/// <remarks>
+/// Re-entrant: <see cref="Initialize"/> tears down prior subscriptions before re-binding,
+/// so it is safe to call repeatedly (pool reuse, scene reload).
+/// </remarks>
 [GlobalClass]
 public partial class ForceImpactDamageApplier : Node, IPoolResetable
 {
@@ -23,13 +25,6 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
     private ForceControlLossDetector? _controlDetector;
     private HealthComponent? _health;
     private Node3D? _self;
-
-    /// <summary>
-    /// Per-collider identity cache. Bounded by ControlLost windows: cleared on
-    /// <see cref="ForceControlLossDetector.ControlRegained"/> so a recycled
-    /// <c>GetInstanceId()</c> across capture windows can never serve a stale identity.
-    /// </summary>
-    private readonly Dictionary<ulong, IIdentifiable?> _identityCache = new();
 
     public void Initialize(
         ImpactDetector detector,
@@ -43,15 +38,14 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         _controlDetector = controlDetector;
         _health = health;
         _self = self;
-        _identityCache.Clear();
 
         _detector.Impacted += OnImpacted;
-        _controlDetector.ControlRegained += OnControlRegained;
     }
 
     public void OnPoolReset()
     {
-        _identityCache.Clear();
+        // Stateless on the applier side; the detector + control detector own their own
+        // pool-reset hooks via IPoolResetable.
     }
 
     public override void _ExitTree()
@@ -66,16 +60,6 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         {
             _detector.Impacted -= OnImpacted;
         }
-
-        if (_controlDetector != null)
-        {
-            _controlDetector.ControlRegained -= OnControlRegained;
-        }
-    }
-
-    private void OnControlRegained()
-    {
-        _identityCache.Clear();
     }
 
     private void OnImpacted(ImpactInfo info)
@@ -93,14 +77,6 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         if (_self != null && info.Collider == _self)
         {
             return;
-        }
-
-        // Identity cache (cleared on ControlRegained — bounded per capture window).
-        var id = info.Collider.GetInstanceId();
-        if (!_identityCache.TryGetValue(id, out var _))
-        {
-            info.Collider.TryGetFirstChildOfInterface<IIdentifiable>(out IIdentifiable? identifiable);
-            _identityCache[id] = identifiable;
         }
 
         var damage = DamageProfile.CalculateDamage(info.Speed);

@@ -19,7 +19,9 @@ public partial class ForceControlLossDetector2D : Node, IPoolResetable
 {
     [Export] public float ControlLossThreshold { get; set; } = 15.0f;
     [Export] public float ControlRegainThreshold { get; set; } = 5.0f;
-    [Export] public float EvaluationInterval { get; set; } = 0.1f;
+
+    [Export(PropertyHint.Range, "0.016,0.5,0.001")]
+    public float EvaluationInterval { get; set; } = 0.1f;
 
     public bool IsControlLost { get; private set; }
     public ForceContext2D? CurrentContext { get; private set; }

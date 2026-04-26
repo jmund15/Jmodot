@@ -20,7 +20,9 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
 {
     [Export] public float ControlLossThreshold { get; set; } = 15.0f;
     [Export] public float ControlRegainThreshold { get; set; } = 5.0f;
-    [Export] public float EvaluationInterval { get; set; } = 0.1f;
+
+    [Export(PropertyHint.Range, "0.016,0.5,0.001")]
+    public float EvaluationInterval { get; set; } = 0.1f;
 
     public bool IsControlLost { get; private set; }
     public ForceContext? CurrentContext { get; private set; }
@@ -109,4 +111,39 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
             ControlRegained?.Invoke();
         }
     }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only setter that drives <see cref="IsControlLost"/> + <see cref="CurrentContext"/>
+    /// directly and raises the appropriate edge event. Bypasses the velocity-based hysteresis
+    /// evaluator so consumer-side tests can exercise rising/falling-edge paths without setting
+    /// up a full physics scene.
+    /// </summary>
+    /// <remarks>
+    /// Used by ControlLossConditionTests + WizardCapturedByWaveTests behavioral suite. Wrapped
+    /// in <c>#if TOOLS</c> per the project's test-helper convention so it does NOT ship in
+    /// release builds.
+    /// </remarks>
+    internal void SetIsControlLostForTesting(bool isLost, ForceContext? context = null)
+    {
+        if (isLost == IsControlLost)
+        {
+            return;
+        }
+
+        IsControlLost = isLost;
+        if (isLost)
+        {
+            CurrentContext = context ?? new ForceContext();
+            ControlLost?.Invoke(CurrentContext);
+        }
+        else
+        {
+            CurrentContext = null;
+            ControlRegained?.Invoke();
+        }
+    }
+#endif
+    #endregion
 }

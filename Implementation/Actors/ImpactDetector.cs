@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using Core.Movement;
 using Core.Pooling;
-using Shared;
 
 /// <summary>
 /// Raw collision-event detector for character-body actors. Emits one
@@ -17,7 +16,8 @@ using Shared;
 public partial class ImpactDetector : Node, IPoolResetable
 {
     /// <summary>Pre-move velocity magnitude required for a contact to count as an impact.</summary>
-    [Export] public float MinImpactSpeed { get; set; } = 6f;
+    [Export(PropertyHint.Range, "0.1,100,0.1")]
+    public float MinImpactSpeed { get; set; } = 6f;
 
     public event Action<ImpactInfo>? Impacted;
 
@@ -44,9 +44,10 @@ public partial class ImpactDetector : Node, IPoolResetable
     public override void _PhysicsProcess(double delta)
     {
         // TODO(perf): swarm scenarios with N>30 actors will multiply slide-collision iteration cost.
-        // If profiling shows this hot, gate the loop on ForceControlLossDetector.IsControlLost
-        // (no impacts matter outside capture windows for the current consumer set).
-        // Re-evaluate if non-capture consumers (e.g., fall damage) are added.
+        // If profiling shows this hot, add a generic [Export] bool Enabled toggle so consumers
+        // can suspend detection — do NOT couple to ForceControlLossDetector or any other specific
+        // consumer (defeats the modular impact contract). MinImpactSpeed already filters most
+        // trivial contacts pre-allocation.
         if (_controller == null || _body == null)
         {
             return;
@@ -57,9 +58,10 @@ public partial class ImpactDetector : Node, IPoolResetable
 
         if (preMoveSpeed < MinImpactSpeed)
         {
-            // Below threshold — no impacts qualify. Reset edge tracking so a future
-            // high-speed re-contact with the same collider fires correctly.
+            // Below threshold — no impacts qualify. Reset BOTH buffers so a future high-speed
+            // re-contact with the same collider fires as a rising edge.
             _inContactLastFrame.Clear();
+            _newContactsThisFrame.Clear();
             return;
         }
 
@@ -82,8 +84,6 @@ public partial class ImpactDetector : Node, IPoolResetable
 
             _newContactsThisFrame.Add(id);
             var info = new ImpactInfo(preMoveSpeed, col.GetNormal(), collider);
-            JmoLogger.Info(this,
-                $"Impact: speed={preMoveSpeed:F1}, normal={info.Normal}, collider={collider.Name}");
             Impacted?.Invoke(info);
         }
 
