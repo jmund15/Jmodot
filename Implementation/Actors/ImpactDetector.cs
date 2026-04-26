@@ -89,6 +89,26 @@ public partial class ImpactDetector : Node, IPoolResetable
 
         (_inContactLastFrame, _newContactsThisFrame) = (_newContactsThisFrame, _inContactLastFrame);
     }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only emit of <see cref="Impacted"/> with a synthetic <see cref="ImpactInfo"/>.
+    /// Bypasses the velocity/slide-collision machinery so consumer-side tests can drive
+    /// CapturedState's wall-impact transition (and similar) without setting up a full
+    /// physics scene.
+    /// </summary>
+    /// <remarks>
+    /// Wrapped in <c>#if TOOLS</c> per the project's test-helper convention so it does
+    /// NOT ship in release builds. C# events can only be invoked from within their
+    /// declaring class — this is the formal escape hatch.
+    /// </remarks>
+    internal void EmitImpactedForTesting(ImpactInfo info)
+    {
+        Impacted?.Invoke(info);
+    }
+#endif
+    #endregion
 }
 
 /// <summary>
