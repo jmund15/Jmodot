@@ -37,4 +37,13 @@ public partial class VisualItemData : Resource
     /// Optional: Tints the sprite (e.g. Dye system).
     /// </summary>
     [Export] public Color ModulateOverride { get; set; } = Colors.White;
+
+    /// <summary>
+    /// Optional: Explicit rig declaring which prefab nodes are visual parts, with
+    /// per-part PartId/Tags and per-binding override gates. When set, VisualSlotNode
+    /// uses these bindings to produce typed handles and route overrides. When null,
+    /// the slot falls back to a recursive sprite walk (tagless, partless handles)
+    /// and applies overrides to the first sprite found.
+    /// </summary>
+    [Export] public VisualRig? Rig { get; set; }
 }

@@ -1,244 +1,231 @@
 namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
+using System;
 using System.Collections.Generic;
 using Godot;
-using GCol = Godot.Collections;
-using System.Linq;
-using Core.Visual.Animation.Sprite;
-
-using System;
-using Core.Movement;
-using Core.Visual.Effects;
-using Shared;
 using Jmodot.Core.Shared.Attributes;
-using Effects;
+using Jmodot.Core.Visual;
+using Jmodot.Core.Visual.Animation.Sprite;
+using Jmodot.Core.Visual.Effects;
+using Jmodot.Implementation.Visual.Effects;
+using Shared;
 
 /// <summary>
-/// Manages the visual composition of the character.
-/// Handles equipping items into Slots and configuring the CompositeAnimator.
+/// Coordinator over a set of <see cref="VisualSlotNode"/> scene-graph children.
+/// Replaces the legacy config-array model.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The composer is a thin aggregator: it discovers all child <see cref="VisualSlotNode"/>s
+/// at <c>_Ready</c>, validates uniqueness of <c>SlotKey.Id</c>, wires each slot's
+/// dependencies (composite animator + effect service), and forwards each slot's
+/// <see cref="IVisualNodeProvider"/> events 1:1 to its own observers (D1/D2 forwarding —
+/// no aggregate cache, queries hit slots on demand).
+/// </para>
+/// <para>
+/// Slot-level events fire AFTER the slot has updated its internal state, so subscribers
+/// querying <see cref="GetVisualNodes"/> from inside an event handler always see
+/// consistent state. This eliminates the <c>CallDeferred</c> coherency workaround
+/// that the legacy composer required.
+/// </para>
+/// </remarks>
 [GlobalClass, Tool]
-public partial class VisualComposer : Node, IVisualSpriteProvider
+public partial class VisualComposer : Node, IVisualNodeProvider
 {
     [Export, RequiredExport] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
-    [Export] public GCol.Array<VisualSlotConfig> SlotConfigs { get; set; } = new();
-
-    private Dictionary<string, VisualSlot> _slots = new();
 
     /// <summary>
-    /// Tracker for managing base modulation colors across equipment changes.
-    /// Created automatically and shared with all slots.
+    /// The effect service that owns base-color and persistent-tint state. Wired
+    /// by the designer; the composer subscribes the service to its own provider
+    /// events on <c>_Ready</c>.
     /// </summary>
-    private BaseModulationTracker _baseColorTracker = new();
+    [Export, RequiredExport] public VisualEffectService Effects { get; set; } = null!;
 
-    /// <summary>
-    /// Get the base color tracker for this composer.
-    /// Use this to wire up with VisualEffectController.
-    /// </summary>
-    public BaseModulationTracker BaseColorTracker => _baseColorTracker;
+    private readonly Dictionary<StringName, VisualSlotNode> _slotsByKey = new();
+    private readonly List<VisualSlotNode> _slots = new();
 
-    private List<Node>? _visibleNodes;
-    private List<Node>? _visualNodes;
+    public IReadOnlyList<VisualSlotNode> Slots => _slots;
 
-    [ExportGroup("Debug")]
-    [Export] private bool _useFlipHDebug = true;
-    [Export] private AnimationOrchestrator? _debugOrchestrator;
-    [Export] private DirectionSet2D? _flipHDirSet;
-    private bool _noDirActive = false;
+    public event Action<VisualNodeHandle> NodeAdded = delegate { };
+    public event Action<VisualNodeHandle> NodeRemoved = delegate { };
+    public event Action<VisualNodeHandle> NodeVisibilityChanged = delegate { };
 
     public override void _Ready()
     {
-        if (Engine.IsEditorHint())
-        {
-            return;
-        }
+        if (Engine.IsEditorHint()) { return; }
         this.ValidateRequiredExports();
-        // Initialize Slots based on Configs
-        foreach (var config in SlotConfigs)
+
+        DiscoverSlots();
+
+        // Wire effect service to receive our provider events BEFORE we equip defaults
+        // so persistent tints registered during default-equip apply correctly.
+        Effects.AttachToProvider(this);
+
+        // Default-item equip is deferred — _Ready is called while the parent's
+        // tree is locked, so AddChild from inside Equip would throw.
+        CallDeferred(MethodName.EquipAllDefaults);
+    }
+
+    private void DiscoverSlots()
+    {
+        foreach (var child in GetChildren())
         {
-            Node slotRoot = GetNodeOrNull(config.PathToSlotRoot);
-            if (slotRoot == null)
+            if (child is VisualSlotNode slot)
             {
-                JmoLogger.Error(this, $"VisualComposer: Invalid path '{config.PathToSlotRoot}' for slot '{config.SlotName}'.");
-                continue;
+                if (slot.Key == null)
+                {
+                    JmoLogger.Error(this, $"VisualComposer: child slot '{slot.Name}' has no Key. Slot ignored.");
+                    continue;
+                }
+                if (_slotsByKey.ContainsKey(slot.Key.Id))
+                {
+                    JmoLogger.Error(this, $"VisualComposer: duplicate SlotKey.Id '{slot.Key.Id}' (slot '{slot.Name}'). Slot ignored.");
+                    continue;
+                }
+                _slotsByKey[slot.Key.Id] = slot;
+                _slots.Add(slot);
+                slot.Initialize(CompositeAnimator, Effects);
+                slot.NodeAdded += OnSlotNodeAdded;
+                slot.NodeRemoved += OnSlotNodeRemoved;
+                slot.NodeVisibilityChanged += OnSlotNodeVisibilityChanged;
             }
-
-            var slot = new VisualSlot(config, CompositeAnimator, slotRoot, _baseColorTracker);
-            _slots[config.SlotName] = slot;
-
-            // Subscribe to effects changes for bubbling
-            slot.VisualNodesChanged += OnSlotVisualNodesChanged;
-            slot.VisibleNodesChanged += OnSlotVisibleNodesChanged;
-
-            // Equip Default
-            if (config.DefaultItem != null)
-            {
-                // Defer the initial equip to avoid "Parent is busy setting up children" errors
-                // since we are currently inside _Ready and the scene tree is locked.
-                CallDeferred(MethodName.EquipDefault, config.SlotName, config.DefaultItem);
-                //GD.Print($"VisualComposer: Scheduled default item '{config.DefaultItem.Id}' for slot '{config.SlotName}' (Deferred).");
-            }
-        }
-
-        if (_useFlipHDebug && _debugOrchestrator != null && _flipHDirSet != null)
-        {
-            _debugOrchestrator.AnimStarted += OnOrchAnimStarted;
         }
     }
 
     public override void _ExitTree()
     {
-        if (_debugOrchestrator != null)
+        foreach (var slot in _slots)
         {
-            _debugOrchestrator.AnimStarted -= OnOrchAnimStarted;
+            slot.NodeAdded -= OnSlotNodeAdded;
+            slot.NodeRemoved -= OnSlotNodeRemoved;
+            slot.NodeVisibilityChanged -= OnSlotNodeVisibilityChanged;
         }
     }
 
-    public override void _Process(double delta)
+    private void EquipAllDefaults()
     {
-        base._Process(delta);
-        if (Engine.IsEditorHint()) { return; }
-        if (!_useFlipHDebug || _debugOrchestrator == null || _flipHDirSet == null)
+        foreach (var slot in _slots)
         {
-            return;
-        }
-        var flipHDir = _flipHDirSet.GetClosestDirection(
-            _debugOrchestrator.CurrentAnimationDirection.GetFlattenedVector2());
-        if (flipHDir == Vector2.Right)
-        {
-            DebugSetFlipH(false);
-        }
-        else
-        {
-            DebugSetFlipH(true);
-        }
-    }
-
-    private void OnOrchAnimStarted(StringName obj)
-    {
-        // Guaranteed non-null: this callback only subscribed when _debugOrchestrator != null
-        var flipHDir = _flipHDirSet!.GetClosestDirection(
-                _debugOrchestrator!.CurrentAnimationDirection.GetFlattenedVector2());
-        if (flipHDir == Vector2.Right)
-        {
-            DebugSetFlipH(false);
-        }
-        else
-        {
-            DebugSetFlipH(true);
-        }
-    }
-
-    private void DebugSetFlipH(bool flip)
-    {
-        foreach (var visualNode in GetAllVisualNodes())
-        {
-            if (visualNode is SpriteBase3D sprite3D)
+            if (slot.CurrentItem == null && slot.DefaultItem != null)
             {
-                sprite3D.FlipH = flip;
+                slot.Equip(slot.DefaultItem);
             }
         }
     }
 
-    /// <summary>
-    /// Helper used by _Ready to safely equip default items.
-    /// Only equips if the slot is still empty (null), respecting any setup done by other components (e.g. HSM) during initialization.
-    /// </summary>
-    private void EquipDefault(string slotName, VisualItemData item)
+    private void OnSlotNodeAdded(VisualNodeHandle h) => NodeAdded?.Invoke(h);
+    private void OnSlotNodeRemoved(VisualNodeHandle h) => NodeRemoved?.Invoke(h);
+    private void OnSlotNodeVisibilityChanged(VisualNodeHandle h) => NodeVisibilityChanged?.Invoke(h);
+
+    public override string[] _GetConfigurationWarnings()
     {
-        if (_slots.TryGetValue(slotName, out var slot))
+        var warnings = new List<string>();
+
+        if (CompositeAnimator == null) { warnings.Add("CompositeAnimator export is required."); }
+        if (Effects == null) { warnings.Add("Effects (VisualEffectService) export is required."); }
+
+        var seenKeys = new HashSet<StringName>();
+        bool hasMaster = false;
+        foreach (var child in GetChildren())
         {
-            // Only equip default if nothing else has claimed the slot yet
-            if (slot.CurrentItem == null)
+            if (child is VisualSlotNode slot)
             {
-                slot.Equip(item);
-                //JmoLogger.Info(this, $"VisualComposer: Executing deferred default equip for '{slotName}' -> '{item.Id}'");
+                if (slot.Key == null) { continue; }
+                if (!seenKeys.Add(slot.Key.Id))
+                {
+                    warnings.Add($"Duplicate SlotKey.Id '{slot.Key.Id}' on slot '{slot.Name}'.");
+                }
+                if (slot.SyncMode == AnimationSyncMode.Master) { hasMaster = true; }
             }
-            else
-            {
-                //JmoLogger.Info(this, $"VisualComposer: Skipping deferred default equip for '{slotName}'. Slot already has '{slot.CurrentItem.Id}'.");
-            }
         }
-    }
-
-    public void Equip(string slotName, VisualItemData item)
-    {
-        if (_slots.TryGetValue(slotName, out var slot))
+        if (seenKeys.Count > 0 && !hasMaster)
         {
-            slot.Equip(item);
+            warnings.Add("No slot has SyncMode=Master. CompositeAnimator will adopt the first registered animator as master, which may be non-deterministic.");
         }
-        else
+        return warnings.ToArray();
+    }
+
+    #region Typed slot facade
+
+    public VisualSlotNode? GetSlot(SlotKey key)
+        => key != null && _slotsByKey.TryGetValue(key.Id, out var slot) ? slot : null;
+
+    public bool TryGetSlot(SlotKey key, out VisualSlotNode slot)
+    {
+        if (key != null && _slotsByKey.TryGetValue(key.Id, out var found))
         {
-           JmoLogger.Error(this, $"VisualComposer: Slot '{slotName}' not found.");
+            slot = found;
+            return true;
         }
+        slot = null!;
+        return false;
     }
 
-    public void Unequip(string slotName)
+    public VisualEquipResult Equip(SlotKey key, VisualItemData item)
     {
-        if (_slots.TryGetValue(slotName, out var slot))
+        if (TryGetSlot(key, out var slot)) { return slot.Equip(item); }
+        var msg = $"VisualComposer: no slot for key '{key?.Id}' on Equip.";
+#if TOOLS
+        if (!Engine.IsEditorHint()) { throw new InvalidOperationException(msg); }
+#endif
+        JmoLogger.Error(this, msg);
+        return VisualEquipResult.Failed(key);
+    }
+
+    public void Unequip(SlotKey key)
+    {
+        if (TryGetSlot(key, out var slot)) { slot.Unequip(); return; }
+#if TOOLS
+        if (!Engine.IsEditorHint()) { throw new InvalidOperationException($"VisualComposer: no slot for key '{key?.Id}' on Unequip."); }
+#endif
+        JmoLogger.Error(this, $"VisualComposer: no slot for key '{key?.Id}' on Unequip.");
+    }
+
+    public VisualItemData? GetEquippedItem(SlotKey key)
+        => TryGetSlot(key, out var slot) ? slot.CurrentItem : null;
+
+    public VisualEquipResult Push(SlotKey key, VisualItemData item, PushOptions options = PushOptions.None)
+    {
+        if (TryGetSlot(key, out var slot)) { return slot.Push(item, options); }
+        var msg = $"VisualComposer: no slot for key '{key?.Id}' on Push.";
+#if TOOLS
+        if (!Engine.IsEditorHint()) { throw new InvalidOperationException(msg); }
+#endif
+        JmoLogger.Error(this, msg);
+        return VisualEquipResult.Failed(key);
+    }
+
+    public void Pop(SlotKey key)
+    {
+        if (TryGetSlot(key, out var slot)) { slot.Pop(); return; }
+#if TOOLS
+        if (!Engine.IsEditorHint()) { throw new InvalidOperationException($"VisualComposer: no slot for key '{key?.Id}' on Pop."); }
+#endif
+        JmoLogger.Error(this, $"VisualComposer: no slot for key '{key?.Id}' on Pop.");
+    }
+
+    #endregion
+
+    #region IVisualNodeProvider — D1/D2 forwarding (no aggregate cache)
+
+    public IReadOnlyList<VisualNodeHandle> GetVisualNodes(VisualQuery query)
+    {
+        var results = new List<VisualNodeHandle>();
+        foreach (var slot in _slots)
         {
-            slot.Unequip();
+            results.AddRange(slot.GetVisualNodes(query));
         }
+        return results;
     }
 
-    public VisualItemData? GetEquippedItem(string slotName)
+    public IReadOnlyList<VisualNodeHandle> GetVisibleNodes(VisualQuery query)
     {
-        return _slots.TryGetValue(slotName, out var slot) ? slot.CurrentItem : null;
-    }
-
-    /// <summary>
-    /// Returns visual nodes belonging to a specific named slot.
-    /// Returns empty list if slot doesn't exist or has no visual nodes.
-    /// </summary>
-    public IReadOnlyList<Node> GetVisualNodesForSlot(string slotName)
-    {
-        return _slots.TryGetValue(slotName, out var slot)
-            ? slot.GetCurrentVisualNodes()
-            : [];
-    }
-
-    #region IVisualSpriteProvider Implementation
-
-    public event Action VisibleNodesChanged = delegate { };
-    public event Action VisualNodesChanged = delegate { };
-
-    public IReadOnlyList<Node> GetVisibleNodes()
-    {
-        return _visibleNodes ?? [];
-    }
-
-    public IReadOnlyList<Node> GetAllVisualNodes()
-    {
-        return _visualNodes ?? [];
-    }
-
-    private void OnSlotVisualNodesChanged()
-    {
-        _visualNodes = new List<Node>();
-        foreach (var slot in _slots.Values)
+        var results = new List<VisualNodeHandle>();
+        foreach (var slot in _slots)
         {
-            _visualNodes.AddRange(slot.GetCurrentVisualNodes());
+            results.AddRange(slot.GetVisibleNodes(query));
         }
-
-        _visibleNodes = new List<Node>();
-        foreach (var slot in _slots.Values)
-        {
-            _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
-        }
-
-        VisibleNodesChanged.Invoke();
-        VisualNodesChanged.Invoke();
-    }
-
-    private void OnSlotVisibleNodesChanged()
-    {
-        _visibleNodes = new List<Node>();
-        foreach (var slot in _slots.Values)
-        {
-            _visibleNodes.AddRange(slot.GetCurrentVisibleNodes());
-        }
-
-        VisibleNodesChanged.Invoke();
+        return results;
     }
 
     #endregion

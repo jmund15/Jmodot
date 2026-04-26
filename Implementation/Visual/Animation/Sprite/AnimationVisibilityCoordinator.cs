@@ -11,7 +11,7 @@ using Core.Visual.Effects;
 
 [Tool]
 [GlobalClass]
-public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvider
+public partial class AnimationVisibilityCoordinator : Node
 {
     private NodePath _targetAnimatorPath;
     [Export] public NodePath TargetAnimatorPath
@@ -278,7 +278,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         //GD.Print($"[AnimVis] Animation started: {animName}, showing nodes: {nodesToShow.Count}");
     }
 
-    #region IVisualSpriteProvider Implementation
+    #region Public Node Access
 
     /// <summary>
     /// Returns all currently VISIBLE managed nodes.
