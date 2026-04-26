@@ -51,6 +51,14 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     #region Public State
     public bool IsActive { get; private set; }
     public IAttackPayload CurrentPayload { get; private set; }
+
+    /// <summary>
+    /// Optional pre-hit hook that filters/modifies the payload before ProcessHit.
+    /// Set by game-layer components (e.g., reaction systems) to intercept combat payloads.
+    /// Cleared on pool reset for clean reuse. The original payload is always preserved
+    /// for OnHitRegistered subscribers regardless of what the interceptor returns.
+    /// </summary>
+    public IPayloadInterceptor2D? PayloadInterceptor { get; set; }
     #endregion
 
     #region Private State
@@ -174,6 +182,10 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         OnAttackStarted = delegate { };
         OnAttackFinished = delegate { };
 
+        // Clear interceptor for clean pool state.
+        // Game-layer components (e.g., ReactionComponent) re-wire on each pool cycle.
+        PayloadInterceptor = null;
+
         IsContinuous = false;
         ContinuousTickInterval = 0.1f;
 
@@ -290,11 +302,19 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
             return;
         }
 
-        bool wasAccepted = hurtbox.ProcessHit(CurrentPayload);
+        // Pre-hit Interception: filter payload via game-layer interceptor (if wired).
+        // Original CurrentPayload is preserved for OnHitRegistered observers — the interceptor
+        // only affects what ProcessHit sees.
+        var payloadForProcessHit = PayloadInterceptor != null
+            ? PayloadInterceptor.InterceptPayload(hurtbox, CurrentPayload)
+            : CurrentPayload;
+
+        bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
 
         if (wasAccepted)
         {
             Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+            // Always notify with the ORIGINAL payload — interceptor must not affect observers.
             OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
         }
         else
