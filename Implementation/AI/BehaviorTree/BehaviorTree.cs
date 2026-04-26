@@ -60,9 +60,14 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
         HoldTerminal,
 
         /// <summary>
-        /// Disable the tree on terminal status (fires <see cref="TreeDisabled"/>); leaves the root
-        /// task's terminal status readable. The tree is dormant until <see cref="Enter"/> is called
+        /// Disable the tree on terminal status (fires <see cref="TreeDisabled"/>) after exiting the
+        /// root task to allow OnExit cleanup. The tree is dormant until <see cref="Enter"/> is called
         /// manually. Suited to one-shot composable sequences (a craft combo, a one-time scripted move).
+        /// <para>
+        /// Callers that need the terminal status MUST read it from the <see cref="TreeFinishedLoop"/>
+        /// signal payload — <c>RootTask.Status</c> is reset to <see cref="TaskStatus.Fresh"/> by the
+        /// Exit() call so the root task's resources (subscriptions, BB keys, timers) are cleaned up.
+        /// </para>
         /// </summary>
         OneShot,
     }
@@ -302,10 +307,14 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
                 break;
 
             case RestartPolicy.OneShot:
-                // Disable the tree (fires TreeDisabled via the Enabled property setter) and
-                // unsubscribe so a manual re-Enter() does not double-subscribe. Leave RootTask
-                // at its terminal status so callers can still read it.
+                // Unsubscribe BEFORE Exit so the implicit Status = Fresh in BehaviorTask.Exit
+                // does not re-enter this handler. Then Exit the root so OnExit cleanup fires
+                // (signal unsubscribes, BB key clears, timer cancels — anything the root or its
+                // descendants registered in their OnEnter cascade). Finally disable the tree
+                // (fires TreeDisabled via the Enabled setter). Terminal status was already
+                // emitted via TreeFinishedLoop above — callers read it from there.
                 RootTask.TaskStatusChanged -= OnRootTaskStatusChanged;
+                RootTask.Exit();
                 Enabled = false;
                 break;
         }
