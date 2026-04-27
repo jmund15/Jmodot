@@ -21,6 +21,8 @@ public partial class DelayedEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
+        this.ValidateRequiredExports();
+
         return new DelayEffect(
             Runner,
             Delay.ResolveFloatValue(stats),

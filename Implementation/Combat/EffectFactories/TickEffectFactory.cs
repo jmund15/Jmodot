@@ -28,13 +28,8 @@ public partial class TickEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
-        if (PerTickEffect == null)
-        {
-            JmoLogger.Error(this, "TickEffectFactory: PerTickEffect is not assigned!");
-            throw new System.InvalidOperationException("TickEffectFactory: PerTickEffect is not assigned!");
-        }
+        this.ValidateRequiredExports();
 
-        // 2. Return the immutable Instruction
         return new TickEffect(
             Runner,
             Duration.ResolveFloatValue(stats),

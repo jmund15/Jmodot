@@ -22,7 +22,8 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
-        // RevertibleEffect is required (= null!), fail-fast if not configured
+        this.ValidateRequiredExports();
+
         var effect = RevertibleEffect.Create(stats);
         if (effect is not IRevertibleCombatEffect revertibleEffect)
         {

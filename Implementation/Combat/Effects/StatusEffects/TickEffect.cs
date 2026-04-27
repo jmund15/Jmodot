@@ -56,15 +56,23 @@ public class TickEffect : ICombatEffect
     /// </summary>
     public CombatResult? Apply(ICombatant target, HitContext context)
     {
-        // 1. Validation
-        if (target == null || Prefab == null)
+        // 1. Validation — explicit, logged guards. Silent returns hide configuration bugs
+        // (e.g. health_tier_1.tres shipped with a missing Runner field undetected for weeks).
+        if (target == null)
         {
+            JmoLogger.Error(this, "TickEffect.Apply: target is null");
+            return null;
+        }
+        if (Prefab == null)
+        {
+            JmoLogger.Error(this, "TickEffect.Apply: Prefab (Runner) is null — factory misconfigured. Use [Export, RequiredExport] PackedScene Runner on the originating CombatEffectFactory and ensure the .tres file assigns it.");
             return null;
         }
 
         // 2. Access Component
         if (!target.Blackboard.TryGet(BBDataSig.StatusEffects, out StatusEffectComponent statusComp) || statusComp == null)
         {
+            JmoLogger.Warning(this, $"TickEffect.Apply: target '{target.GetUnderlyingNode()?.Name}' has no StatusEffectComponent on its Blackboard.");
             return null; // Target cannot accept status effects
         }
 
