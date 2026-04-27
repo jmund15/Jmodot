@@ -28,13 +28,16 @@ public partial class Identity : Resource
     [Export] public Array<Category> Categories { get; private set; } = new();
 
     /// <summary>
-    /// Checks whether this identity belongs to the specified category.
-    /// Matches by CategoryName for consistency with string-safe comparisons across loaded resources.
+    /// Checks whether this identity belongs to the specified category, hierarchically.
+    /// Returns true if any of this identity's <see cref="Categories"/> matches the target by name
+    /// OR descends from the target via <see cref="Category.ParentCategories"/>. Example: an identity
+    /// in category "DirtGround" returns true for a query against "Ground" if DirtGround.ParentCategories
+    /// includes Ground (or any ancestor chain that reaches Ground).
     /// </summary>
     public bool HasCategory(Category category)
     {
         if (category == null || Categories == null) { return false; }
-        return Categories.Any(c => c?.CategoryName == category.CategoryName);
+        return Categories.Any(c => c?.IsOrDescendsFrom(category) == true);
     }
 
     /// <summary>

@@ -74,13 +74,25 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
     #region Public API
 
     /// <summary>
-    /// Called DIRECTLY by HitboxComponent2D. Receiving end of the handshake.
+    /// Checks whether this hurtbox can currently accept a hit.
+    /// Extracted from <see cref="ProcessHit"/> so callers (notably <see cref="HitboxComponent2D"/>'s
+    /// payload-interception path) can pre-validate before invoking expensive interceptor logic.
     /// </summary>
-    public bool ProcessHit(IAttackPayload payload)
+    /// <returns>True if the hurtbox is active, initialized, has a combatant, and is not invulnerable.</returns>
+    public bool CanReceiveHit()
     {
         if (!IsActive) { return false; }
         if (!IsInitialized || _combatant == null) { return false; }
         if (IsInvulnerable) { return false; }
+        return true;
+    }
+
+    /// <summary>
+    /// Called DIRECTLY by HitboxComponent2D. Receiving end of the handshake.
+    /// </summary>
+    public bool ProcessHit(IAttackPayload payload)
+    {
+        if (!CanReceiveHit()) { return false; }
 
         Vector2 epicenter = GetEpicenterPosition(payload.Source);
         HitContext2D context = new HitContext2D
