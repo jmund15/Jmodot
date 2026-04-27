@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Actors;
 
 using Core.Combat;
 using Core.Pooling;
+using Core.Shared.Attributes;
 using Implementation.Health;
 using Shared;
 
@@ -19,12 +20,18 @@ using Shared;
 [GlobalClass]
 public partial class ForceImpactDamageApplier : Node, IPoolResetable
 {
-    [Export] public ImpactDamageProfile? DamageProfile { get; set; }
+    [Export, RequiredExport] public ImpactDamageProfile DamageProfile { get; set; } = null!;
 
     private ImpactDetector? _detector;
     private ForceControlLossDetector? _controlDetector;
     private HealthComponent? _health;
     private Node3D? _self;
+
+    public override void _Ready()
+    {
+        this.ValidateRequiredExports();
+        base._Ready();
+    }
 
     public void Initialize(
         ImpactDetector detector,
@@ -69,7 +76,9 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
             return;
         }
 
-        if (_health == null || DamageProfile == null)
+        // _health is null only in test scenarios that bypass Initialize.
+        // DamageProfile is [RequiredExport] + validated in _Ready, so it cannot be null here.
+        if (_health == null)
         {
             return;
         }
