@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://cthba0r305o3d" path="res://Jmodot/Implementation/Combat/Status/MovementOverrideStatusRunner.cs" id="1_runner"]
+
+[node name="MovementOverrideStatusRunner" type="Node"]
+script = ExtResource("1_runner")
+
+[node name="DurationTimer" type="Timer" parent="."]
