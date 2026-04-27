@@ -8,9 +8,17 @@ using System.Collections.Generic;
 /// <c>IVisualSpriteProvider</c> with a query-based, typed-handle API.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Implementers MUST update internal state BEFORE firing change events — subscribers
 /// calling <see cref="GetVisualNodes"/> from inside an event handler are guaranteed
 /// to see consistent state.
+/// </para>
+/// <para>
+/// <b>Event init contract:</b> C# interface events cannot have field initializers,
+/// but the project's no-null-event rule still applies — implementers MUST initialize
+/// each event with <c>= delegate { };</c> at the field declaration so subscribers can
+/// fire via <c>Event?.Invoke(...)</c> without per-call null guards.
+/// </para>
 /// </remarks>
 public interface IVisualNodeProvider
 {
