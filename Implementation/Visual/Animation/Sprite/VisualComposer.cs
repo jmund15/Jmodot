@@ -28,6 +28,14 @@ using Shared;
 /// consistent state. This eliminates the <c>CallDeferred</c> coherency workaround
 /// that the legacy composer required.
 /// </para>
+/// <para>
+/// <b>Static composition only:</b> slot membership is fixed at <c>_Ready</c>. Reparenting
+/// a <see cref="VisualSlotNode"/> away from the composer at runtime is unsupported —
+/// the composer keeps event subscriptions to its discovered slots until <c>_ExitTree</c>
+/// and will keep forwarding events from a removed slot. If runtime slot composition
+/// becomes a need, hook <c>ChildExitingTree</c> on the composer and unsubscribe + remove
+/// from <see cref="_slotsByKey"/> / <see cref="_slots"/>.
+/// </para>
 /// </remarks>
 [GlobalClass, Tool]
 public partial class VisualComposer : Node, IVisualNodeProvider
@@ -140,7 +148,7 @@ public partial class VisualComposer : Node, IVisualNodeProvider
         }
         if (seenKeys.Count > 0 && !hasMaster)
         {
-            warnings.Add("No slot has SyncMode=Master. CompositeAnimator will adopt the first registered animator as master, which may be non-deterministic.");
+            warnings.Add("No slot has SyncMode=Master. CompositeAnimator will run masterless — IsPlaying/HasAnimation/etc. return defaults until a Master slot is added. Mark exactly one slot as Master.");
         }
         return warnings.ToArray();
     }

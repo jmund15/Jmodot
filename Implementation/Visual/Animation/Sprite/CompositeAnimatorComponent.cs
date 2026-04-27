@@ -160,14 +160,22 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         if (stopFirst) { animator.StopAnim(); }
 
         // If we lost the master, elect a new one. FirstOrDefault is arbitrary —
-        // A2 warned on duplicate masters but didn't add priority. Acceptable since
-        // a well-configured scene has exactly one IsTimeSource slot.
+        // a well-configured scene has exactly one Master slot, and Master slots
+        // are unregistered only via composer teardown. If the new master has the
+        // last-requested animation, re-issue StartAnim so subsequent SyncChildToMaster
+        // calls compute against a master that's actually playing — otherwise
+        // GetCurrAnimationLength returns the new master's length (different from
+        // the prior master's), and any in-flight slave sync would compute wrong.
         if (ReferenceEquals(_masterAnimator, animator))
         {
             _masterAnimator = _activeAnimators.FirstOrDefault();
             if (_masterAnimator == null)
             {
                 JmoLogger.Warning(this, "All animators unregistered; composite has no master. IsPlaying/HasAnimation/etc will return defaults until a new animator registers.");
+            }
+            else if (!string.IsNullOrEmpty(_lastRequestedAnim) && _masterAnimator.HasAnimation(_lastRequestedAnim))
+            {
+                _masterAnimator.StartAnim(_lastRequestedAnim);
             }
         }
     }

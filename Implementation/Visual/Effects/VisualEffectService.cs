@@ -82,7 +82,7 @@ public partial class VisualEffectService : Node, IVisualEffectService
         {
             foreach (var handle in _provider.GetVisualNodes(query))
             {
-                ApplyTint(handle.Node, color);
+                ApplyEffectiveColor(handle);
             }
         }
         return id;
@@ -93,27 +93,51 @@ public partial class VisualEffectService : Node, IVisualEffectService
         if (!_persistentTints.TryGetValue(id, out var entry)) { return; }
         _persistentTints.Remove(id);
 
+        // Recompute the effective color for every node the removed tint matched —
+        // any OTHER persistent tints that also matched these nodes must remain applied.
+        // The previous implementation reverted to GetBaseColor() unconditionally, which
+        // silently clobbered overlapping tints (e.g., a transient sabotage tint
+        // erasing the player color on shared nodes).
         if (_provider != null)
         {
             foreach (var handle in _provider.GetVisualNodes(entry.query))
             {
-                // Revert to whatever base color is still registered (or White).
-                var baseColor = GetBaseColor(handle.Node);
-                ApplyTint(handle.Node, baseColor);
+                ApplyEffectiveColor(handle);
             }
         }
     }
 
     private void OnNodeAdded(VisualNodeHandle handle)
     {
-        // Re-apply any persistent tint whose query matches this new handle.
+        // Compute the layered effective color for the new handle in one deterministic
+        // pass instead of foreach-applying each matching tint (which previously left
+        // the result dependent on dictionary iteration order when N>1 tints matched).
+        ApplyEffectiveColor(handle);
+    }
+
+    /// <summary>
+    /// Effective color = base color × product-of-matching-persistent-tints.
+    /// Multiplication is commutative, so registration order does not affect the result
+    /// (insertion order of <see cref="_persistentTints"/> is preserved by the runtime
+    /// but isn't relied on for correctness — only for traceability when debugging).
+    /// </summary>
+    private Color ComputeEffectiveColor(VisualNodeHandle handle)
+    {
+        var color = GetBaseColor(handle.Node);
         foreach (var (_, entry) in _persistentTints)
         {
             if (entry.query.Matches(handle))
             {
-                ApplyTint(handle.Node, entry.color);
+                color *= entry.color;
             }
         }
+        return color;
+    }
+
+    private void ApplyEffectiveColor(VisualNodeHandle handle)
+    {
+        if (!GodotObject.IsInstanceValid(handle.Node)) { return; }
+        ApplyTint(handle.Node, ComputeEffectiveColor(handle));
     }
 
     private void OnNodeRemoved(VisualNodeHandle handle)
