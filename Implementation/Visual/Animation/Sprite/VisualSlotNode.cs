@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using Godot;
 using GCol = Godot.Collections;
 using Jmodot.Core.Shared.Attributes;
-using Core.Visual.Effects;
 using Jmodot.Core.Visual;
 using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Core.Visual.Effects;
@@ -36,11 +35,13 @@ using Shared;
 [GlobalClass, Tool]
 public partial class VisualSlotNode : Node3D, IVisualNodeProvider
 {
+    [ExportGroup("Slot Identity")]
     [Export, RequiredExport] public SlotKey Key { get; set; } = null!;
 
     /// <summary>How this slot's animator participates in composite timing.</summary>
     [Export] public AnimationSyncMode SyncMode { get; set; } = AnimationSyncMode.Slave;
 
+    [ExportGroup("Slot Behavior")]
     /// <summary>If false, <see cref="Unequip"/> reverts to <see cref="DefaultItem"/> (or no-ops).</summary>
     [Export] public bool IsOptional { get; set; } = true;
 
@@ -100,11 +101,21 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
             return VisualEquipResult.Failed(Key);
         }
 
-        if (CurrentItem == item) { return CurrentResult(success: true); }
+        // Defensive: re-instantiate if CurrentItem matches but the prior instance was
+        // externally Freed (e.g., test teardown, manual scene-tree manipulation).
+        if (CurrentItem == item && CurrentInstance != null && GodotObject.IsInstanceValid(CurrentInstance))
+        {
+            return CurrentResult(success: true);
+        }
 
         ClearInstance();
 
-        if (item == null) { return VisualEquipResult.Failed(Key); }
+        // Equip(null) is a successful unequip, not a failure. Return success with no
+        // instance/animator/handles so callers checking Success branch correctly.
+        if (item == null)
+        {
+            return new VisualEquipResult(true, Key, null, null, this, System.Array.Empty<VisualNodeHandle>());
+        }
 
         CurrentItem = item;
         return InstallInstance(item);
@@ -200,13 +211,17 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
 
         ApplyOverrides(CurrentInstance, item);
 
+        // Build handles BEFORE registering the animator with the composite. If
+        // BuildHandles ever throws (e.g., a future hardening promotes a missing rig
+        // binding from Warning to exception), the slot stays cleanly torn-down rather
+        // than half-installed with the composite holding a dangling animator reference.
+        BuildHandles(CurrentInstance, item);
+
         Animator = GetAnimComponent(CurrentInstance);
         if (Animator != null && ShouldRegisterWithComposite())
         {
             _composite?.RegisterAnimator(Animator, isMaster: SyncMode == AnimationSyncMode.Master);
         }
-
-        BuildHandles(CurrentInstance, item);
 
         // Fire NodeAdded after handles are populated so subscribers see the full set.
         foreach (var h in _handles)

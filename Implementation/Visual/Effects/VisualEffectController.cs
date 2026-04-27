@@ -137,17 +137,17 @@ public partial class VisualEffectController : Node, IComponent
 
         if (_activeEffects.ContainsKey(effect)) { StopEffect(effect); }
 
-        var stateHandle = new VisualEffectHandle();
-        var tween = GetTree().CreateTween();
-        effect.ConfigureTween(tween, stateHandle);
-
-        tween.Play();
-        tween.Finished += () => OnEffectFinished(effect);
+        // Delegate Godot Tween + VisualEffectHandle lifecycle to the IEffectApplier
+        // abstraction. The controller keeps composition (blend modes, ordering) and
+        // sprite tracking; the applier owns the per-effect runtime mechanics. Future
+        // effect kinds (glow shaders, particles) ship their own appliers.
+        var applier = new Appliers.ModulateTweenApplier(effect);
+        var stateHandle = applier.Begin(GetTree(), () => OnEffectFinished(effect));
 
         var handle = new ActiveEffectHandle
         {
             Effect = effect,
-            Tween = tween,
+            Applier = applier,
             State = stateHandle,
             StartTime = Time.GetTicksMsec(),
         };
@@ -161,8 +161,7 @@ public partial class VisualEffectController : Node, IComponent
     {
         if (effect == null || !_activeEffects.TryGetValue(effect, out var handle)) { return; }
 
-        handle.Tween?.Kill();
-        if (GodotObject.IsInstanceValid(handle.State)) { handle.State.Free(); }
+        handle.Applier.End();
         _activeEffects.Remove(effect);
 
         if (_activeEffects.Count == 0)
@@ -216,7 +215,16 @@ public partial class VisualEffectController : Node, IComponent
 
     #region Internal
 
-    private void OnNodeAdded(VisualNodeHandle h) => RefreshVisualNodes();
+    private void OnNodeAdded(VisualNodeHandle h)
+    {
+        // Incremental update: the event already carries the affected handle, so we
+        // don't need the full RefreshVisualNodes scan (which previously ran once per
+        // handle of every multi-binding rig — O(n²) per equip).
+        if (!GodotObject.IsInstanceValid(h.Node)) { return; }
+        var service = Composer?.Effects;
+        _nodeBaseModulates[h.Node] = service != null ? service.GetBaseColor(h.Node) : GetModulate(h.Node);
+    }
+
     private void OnNodeRemoved(VisualNodeHandle h)
     {
         _nodeBaseModulates.Remove(h.Node);
@@ -252,28 +260,29 @@ public partial class VisualEffectController : Node, IComponent
     {
         if (_nodeBaseModulates.Count == 0) { return; }
 
-        Color finalEffectColor = Colors.White;
-
-        var overrideHandle = _activeEffects.Values
-            .Where(h => h.Effect.BlendMode == VisualEffectBlendMode.Override)
-            .OrderByDescending(h => h.Effect.Priority)
-            .ThenByDescending(h => h.StartTime)
-            .FirstOrDefault();
-
-        if (overrideHandle != null)
+        // Single foreach pass — track the best Override candidate (highest Priority,
+        // tiebreak on StartTime) AND accumulate Mix product in one walk. Avoids the
+        // per-frame allocation of LINQ's IOrderedEnumerable + lambda closures.
+        Color mixProduct = Colors.White;
+        ActiveEffectHandle? bestOverride = null;
+        foreach (var h in _activeEffects.Values)
         {
-            finalEffectColor = overrideHandle.State.Modulate;
-        }
-        else
-        {
-            foreach (var handle in _activeEffects.Values)
+            if (h.Effect.BlendMode == VisualEffectBlendMode.Override)
             {
-                if (handle.Effect.BlendMode == VisualEffectBlendMode.Mix)
+                if (bestOverride == null
+                    || h.Effect.Priority > bestOverride.Effect.Priority
+                    || (h.Effect.Priority == bestOverride.Effect.Priority && h.StartTime > bestOverride.StartTime))
                 {
-                    finalEffectColor *= handle.State.Modulate;
+                    bestOverride = h;
                 }
             }
+            else if (h.Effect.BlendMode == VisualEffectBlendMode.Mix)
+            {
+                mixProduct *= h.State.Modulate;
+            }
         }
+
+        Color finalEffectColor = bestOverride != null ? bestOverride.State.Modulate : mixProduct;
 
         foreach (var (node, baseColor) in _nodeBaseModulates)
         {
@@ -316,7 +325,7 @@ public partial class VisualEffectController : Node, IComponent
     private class ActiveEffectHandle
     {
         public VisualEffect Effect { get; set; } = null!;
-        public Tween? Tween { get; set; }
+        public IEffectApplier Applier { get; set; } = null!;
         public VisualEffectHandle State { get; set; } = null!;
         public ulong StartTime { get; set; }
     }

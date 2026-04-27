@@ -25,31 +25,31 @@ public sealed class ModulateTweenApplier : IEffectApplier
 
     public ModulateTweenApplier(VisualEffect effect)
     {
-        this._effect = effect;
+        _effect = effect;
     }
 
     public VisualEffectHandle Begin(SceneTree tree, Action onFinished)
     {
-        this._handle = new VisualEffectHandle();
-        this._tween = tree.CreateTween();
-        this._effect.ConfigureTween(this._tween, this._handle);
-        this._tween.Finished += onFinished;
-        this._tween.Play();
-        return this._handle;
+        _handle = new VisualEffectHandle();
+        _tween = tree.CreateTween();
+        _effect.ConfigureTween(_tween, _handle);
+        _tween.Finished += onFinished;
+        _tween.Play();
+        return _handle;
     }
 
     public void End()
     {
-        if (this._tween != null && GodotObject.IsInstanceValid(this._tween))
+        if (_tween != null && GodotObject.IsInstanceValid(_tween))
         {
-            this._tween.Kill();
+            _tween.Kill();
         }
-        this._tween = null;
+        _tween = null;
 
-        if (this._handle != null && GodotObject.IsInstanceValid(this._handle))
+        if (_handle != null && GodotObject.IsInstanceValid(_handle))
         {
-            this._handle.Free();
+            _handle.Free();
         }
-        this._handle = null;
+        _handle = null;
     }
 }
