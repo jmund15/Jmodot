@@ -89,7 +89,6 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// <param name="isMaster">If true, this animator dictates timing (duration/seek).</param>
     public void RegisterAnimator(IAnimComponent animator, bool isMaster = false)
     {
-        //GD.Print($"Registering {((Node)animator).Name} to {this.Name}.\tIsMaster = {isMaster}");
         // Prevent self-registration which causes infinite recursion loops
         if (ReferenceEquals(animator, this))
         {
@@ -112,20 +111,22 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
         if (isMaster)
         {
-            // Warn when a second animator claims master. New master replaces the old;
-            // per-child event hooks are independent of master status, so no unhooking.
-            // Usually a config bug (two slots with IsTimeSource=true).
+            // Warn when a second animator claims master via a genuine SyncMode=Master
+            // claim (not via the legacy default-adoption path, which has been removed).
+            // Two real master claims is a config bug — surface it.
             if (_masterAnimator != null && !ReferenceEquals(_masterAnimator, animator))
             {
-                JmoLogger.Warning(this, $"RegisterAnimator: second master claimed by '{((Node)animator).Name}'; replacing existing master '{((Node)_masterAnimator).Name}'. Check for two slots with IsTimeSource=true.");
+                JmoLogger.Warning(this, $"RegisterAnimator: second master claimed by '{((Node)animator).Name}'; replacing existing master '{((Node)_masterAnimator).Name}'. Check for two slots with SyncMode=Master.");
             }
             _masterAnimator = animator;
         }
-        else if (_masterAnimator == null)
-        {
-            // No master yet — adopt this one as the default.
-            _masterAnimator = animator;
-        }
+        // Non-master registrations no longer adopt a placeholder master. The previous
+        // `else if (_masterAnimator == null) _masterAnimator = animator;` triggered a
+        // false-positive "second master claimed" warning whenever a real Master slot
+        // (e.g. Body, equipped via the deferred default-equip pass) registered after
+        // an early Slave registration (e.g. Left Hand, equipped synchronously by
+        // HandMovementComponent._Ready). _masterAnimator staying null is safe — every
+        // read is null-guarded (?.HasAnimation, SyncChildToMaster early-return).
 
         // Apply current state to new child
         animator.SetSpeedScale(_currentSpeedScale);
