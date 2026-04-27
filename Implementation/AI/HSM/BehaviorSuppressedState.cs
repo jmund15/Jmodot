@@ -8,6 +8,7 @@ using Implementation.Visual.Effects;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Movement.Strategies;
+using Jmodot.Core.Visual.Animation.Sprite;
 using Shared;
 using GColl = Godot.Collections;
 
@@ -36,6 +37,14 @@ using GColl = Godot.Collections;
 /// <see cref="Examples.AI.HSM.TransitionConditions.StatusActiveAnyTagCondition"/>
 /// (entry: any trigger tag active; exit: same condition with Inverted=true).
 /// </para>
+/// <para>
+/// <b>MUTUAL EXCLUSIVITY with <c>MovementOverrideStatusRunner</c>:</b> both write
+/// to <see cref="BBDataSig.ActiveMovementStrategy"/> and cache the prior on apply.
+/// If a movement-feel-only status (slow/haste, runner-driven) overlaps with an
+/// AI-suppressing status (freeze/stun, profile-driven via this state), the BB
+/// ownership stack can break depending on exit order. Author tag categories so
+/// the two cannot be simultaneously active on the same entity.
+/// </para>
 /// </remarks>
 [GlobalClass, Tool]
 public partial class BehaviorSuppressedState : State
@@ -45,6 +54,13 @@ public partial class BehaviorSuppressedState : State
     /// active on the StatusEffectComponent and uses its mapped profile. If no key
     /// matches but a tag IS active (legitimate gap), falls back to <see cref="DefaultProfile"/>.
     /// </summary>
+    /// <remarks>
+    /// Iteration order is dictionary-insertion order — for entities where multiple trigger
+    /// tags can be simultaneously active (rare; e.g., freeze+stun stacked), first-inserted
+    /// wins. Author profile maps with non-overlapping tag sets, or accept first-insertion-wins.
+    /// Godot Inspector cannot edit Dictionary&lt;Resource, Resource&gt; exports — author entries
+    /// directly in .tscn text (see Wizard/wizard.tscn for reference).
+    /// </remarks>
     [Export] public GColl.Dictionary<CombatTag, BehaviorAlterationProfile> ProfileMap { get; set; } = new();
 
     /// <summary>
@@ -59,6 +75,8 @@ public partial class BehaviorSuppressedState : State
     private bool _movementOverridePushed;
     private VisualEffectController? _visualController;
     private bool _visualPlayed;
+    private IAnimationOrchestrator? _animationOrchestrator;
+    private bool _animationStarted;
 
     protected override void OnEnter()
     {
@@ -80,9 +98,17 @@ public partial class BehaviorSuppressedState : State
     {
         if (_activeProfile != null)
         {
-            _activeProfile.OnSuppressionExit(this);
-            RestoreDefaults(_activeProfile);
+            var profile = _activeProfile;
             _activeProfile = null;
+            try
+            {
+                profile.OnSuppressionExit(this);
+            }
+            catch (System.Exception ex)
+            {
+                JmoLogger.Error(this, $"Profile OnSuppressionExit threw: {ex.Message}");
+            }
+            RestoreDefaults(profile);
         }
         base.OnExit();
     }
@@ -128,10 +154,15 @@ public partial class BehaviorSuppressedState : State
             }
         }
 
-        // AnimationOverride is intentionally not applied here yet — animation
-        // pipeline integration varies per project (the wiring lives on the
-        // entity, not the framework). Profiles needing animation can override
-        // OnSuppressionEnter and resolve their own AnimationOrchestrator from BB.
+        if (profile.AnimationOverride != null && !profile.AnimationOverride.IsEmpty)
+        {
+            if (BB.TryGet<IAnimationOrchestrator>(BBDataSig.AnimationOrchestrator, out _animationOrchestrator)
+                && _animationOrchestrator != null)
+            {
+                _animationOrchestrator.StartAnim(profile.AnimationOverride);
+                _animationStarted = true;
+            }
+        }
     }
 
     private void RestoreDefaults(BehaviorAlterationProfile profile)
@@ -151,6 +182,14 @@ public partial class BehaviorSuppressedState : State
 
         _visualPlayed = false;
         _visualController = null;
+
+        if (_animationStarted && _animationOrchestrator != null)
+        {
+            _animationOrchestrator.StopAnim();
+        }
+
+        _animationStarted = false;
+        _animationOrchestrator = null;
     }
 
     private VisualEffectController? ResolveVisualController()

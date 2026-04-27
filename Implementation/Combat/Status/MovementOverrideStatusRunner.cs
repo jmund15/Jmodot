@@ -21,6 +21,17 @@ using Implementation.Movement.Strategies;
 /// owns ActiveMovementStrategy?").
 /// </para>
 /// <para>
+/// <b>MUTUAL EXCLUSIVITY (designer responsibility):</b> a status using this runner
+/// must NOT overlap with a status using <c>BehaviorSuppressedState</c> on the same
+/// entity. Both write to <see cref="BBDataSig.ActiveMovementStrategy"/> and cache
+/// the prior strategy on Start; if interleaved (slow active → freeze enters →
+/// slow expires → freeze exits), the entity's BB ends pointing at a freed runner's
+/// strategy. The framework does not enforce this — author profile/runner pairs
+/// such that "movement-feel-only" and "AI-suppressing" statuses cannot both be
+/// active simultaneously (different elemental categories, mutex stack policies,
+/// etc.).
+/// </para>
+/// <para>
 /// Mirrors the cache+push+restore pattern from
 /// <see cref="Jmodot.Implementation.AI.HSM.BTState"/> and PushinPotions'
 /// <c>ThrustAttackAction</c>: any entity whose movement pipeline already respects
@@ -42,7 +53,7 @@ public partial class MovementOverrideStatusRunner : DurationStatusRunner
 
     public override void Start(ICombatant target, HitContext context)
     {
-        if (MovementStrategyOverride != null)
+        if (MovementStrategyOverride != null && !_pushed)
         {
             target.Blackboard.TryGet<IMovementStrategy3D>(BBDataSig.ActiveMovementStrategy, out _priorStrategy);
             target.Blackboard.Set(BBDataSig.ActiveMovementStrategy, (IMovementStrategy3D)MovementStrategyOverride);

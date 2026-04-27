@@ -31,6 +31,8 @@ public partial class StatusActiveAnyTagCondition : TransitionCondition
 
     /// <summary>
     /// If true, returns true when NONE of the tags are active. Useful for exit transitions.
+    /// Note: when the target has no <see cref="StatusEffectComponent"/> on its blackboard,
+    /// Check returns false regardless of Inverted (missing prerequisites do not flip a transition).
     /// </summary>
     [Export] public bool Inverted { get; set; }
 
