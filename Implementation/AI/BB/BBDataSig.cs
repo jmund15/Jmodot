@@ -160,25 +160,21 @@ public static partial class BBDataSig
 
     #endregion
 
-    #region FORCE_DETECTION_PROPERTIES
+    #region FORCE_DETECTION_COMPONENTS
 
     /// <summary>
-    /// True when external force has overwhelmed the entity's control.
-    /// Written by ForceControlLossDetector, consumed by ControlLostCondition.
+    /// Typed component reference for the actor's <c>ForceControlLossDetector</c>. Conditions
+    /// and BT actions read <c>IsControlLost</c> / subscribe to events directly through this
+    /// reference rather than polling stringly-typed flags.
     /// </summary>
-    public static readonly StringName ControlLost = new("ControlLost");
+    public static readonly StringName ForceControlLossDetector = new("ForceControlLossDetector");
 
     /// <summary>
-    /// Context data about the dominant force causing control loss.
-    /// Written alongside ControlLost for CapturedState to read.
+    /// Typed component reference for the actor's <c>ImpactDetector</c>. Consumers subscribe
+    /// to <c>Impacted</c> events directly; classification (wall/floor/entity) is the
+    /// consumer's job via <c>ImpactInfo</c> helpers or the Category system.
     /// </summary>
-    public static readonly StringName ForceContext = new("ForceContext");
-
-    /// <summary>
-    /// True when a wall collision occurs during the captured state.
-    /// Written by CapturedState, consumed by WallCollisionCondition.
-    /// </summary>
-    public static readonly StringName WallCollision = new("WallCollision");
+    public static readonly StringName ImpactDetector = new("ImpactDetector");
 
     #endregion
 }

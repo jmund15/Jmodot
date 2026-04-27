@@ -1,64 +1,64 @@
 namespace Jmodot.Implementation.Actors;
 
+using System;
 using Core.Actors;
 using Core.Movement;
 using Core.Pooling;
-using AI.BB;
-using Core.AI.BB;
 using Shared;
 
 /// <summary>
 /// Monitors the entity's velocity to detect when external forces have overwhelmed
-/// the entity's ability to maintain control. Writes ControlLost flag and ForceContext
-/// to the blackboard for HSM state transitions.
+/// the entity's ability to maintain control. Exposes typed state via properties +
+/// events so consumers (HSM states, BT actions, scripted overrides) can subscribe
+/// without going through stringly-typed blackboard flags.
 ///
-/// Architecture note: This detector reads ALREADY-SCALED velocity (Phase 5 stability
-/// handles force reduction). No resistance math here — avoids double-dipping.
+/// Architecture note: reads ALREADY-SCALED velocity (Phase 5 stability handles force
+/// reduction). No resistance math here — avoids double-dipping.
 /// </summary>
 [GlobalClass]
 public partial class ForceControlLossDetector : Node, IPoolResetable
 {
-    /// <summary>Velocity magnitude at which control is lost.</summary>
     [Export] public float ControlLossThreshold { get; set; } = 15.0f;
-
-    /// <summary>Velocity magnitude below which control is regained (hysteresis).</summary>
     [Export] public float ControlRegainThreshold { get; set; } = 5.0f;
 
-    /// <summary>How often to evaluate (seconds). Not every frame for performance.</summary>
-    [Export] public float EvaluationInterval { get; set; } = 0.1f;
+    [Export(PropertyHint.Range, "0.016,0.5,0.001")]
+    public float EvaluationInterval { get; set; } = 0.1f;
+
+    public bool IsControlLost { get; private set; }
+    public ForceContext? CurrentContext { get; private set; }
+
+    public event Action<ForceContext> ControlLost = delegate { };
+    public event Action ControlRegained = delegate { };
 
     private ICharacterController3D? _controller;
     private ExternalForceReceiver3D? _forceReceiver;
-    private IBlackboard? _bb;
     private Node3D? _owner;
 
-    private bool _isControlLost;
     private float _timeSinceLastEval;
 
     public void Initialize(
         ICharacterController3D controller,
         ExternalForceReceiver3D forceReceiver,
-        IBlackboard bb,
         Node3D owner)
     {
         _controller = controller;
         _forceReceiver = forceReceiver;
-        _bb = bb;
         _owner = owner;
-        _isControlLost = false;
+        IsControlLost = false;
+        CurrentContext = null;
         _timeSinceLastEval = 0f;
     }
 
     public void OnPoolReset()
     {
-        _isControlLost = false;
+        IsControlLost = false;
+        CurrentContext = null;
         _timeSinceLastEval = 0f;
-        _bb?.Set(BBDataSig.ControlLost, false);
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_controller == null || _forceReceiver == null || _bb == null || _owner == null)
+        if (_controller == null || _forceReceiver == null || _owner == null)
         {
             return;
         }
@@ -71,44 +71,79 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
 
         _timeSinceLastEval = 0f;
 
-        var velocity = _controller.Velocity;
-        var velocityMagnitude = velocity.Length();
+        var velocityMagnitude = _controller.Velocity.Length();
 
         var shouldBeLost = ControlLossEvaluator.Evaluate(
             velocityMagnitude,
-            _isControlLost,
+            IsControlLost,
             ControlLossThreshold,
             ControlRegainThreshold);
 
-        if (shouldBeLost == _isControlLost)
+        if (shouldBeLost == IsControlLost)
         {
             return;
         }
 
-        _isControlLost = shouldBeLost;
+        IsControlLost = shouldBeLost;
 
-        if (_isControlLost)
+        if (IsControlLost)
         {
             var (dominantSource, dominantForce) = _forceReceiver.GetDominantForceSource(_owner);
-            var context = new ForceContext
+            CurrentContext = new ForceContext
             {
                 DominantForceDirection = dominantForce.Normalized(),
                 ForceMagnitude = dominantForce.Length(),
-                DominantSource = dominantSource
+                DominantSource = dominantSource,
             };
-
-            _bb.Set(BBDataSig.ControlLost, true);
-            _bb.Set(BBDataSig.ForceContext, context);
 
             JmoLogger.Info(this,
                 $"Control LOST — velocity={velocityMagnitude:F1}, source={dominantSource?.Name ?? "unknown"}");
+
+            ControlLost.Invoke(CurrentContext);
         }
         else
         {
-            _bb.Set(BBDataSig.ControlLost, false);
+            CurrentContext = null;
 
             JmoLogger.Info(this,
                 $"Control REGAINED — velocity={velocityMagnitude:F1}");
+
+            ControlRegained.Invoke();
         }
     }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only setter that drives <see cref="IsControlLost"/> + <see cref="CurrentContext"/>
+    /// directly and raises the appropriate edge event. Bypasses the velocity-based hysteresis
+    /// evaluator so consumer-side tests can exercise rising/falling-edge paths without setting
+    /// up a full physics scene.
+    /// </summary>
+    /// <remarks>
+    /// Used by ControlLossConditionTests + WizardCapturedByWaveTests behavioral suite. Wrapped
+    /// in <c>#if TOOLS</c> per the project's test-helper convention so it does NOT ship in
+    /// release builds.
+    /// </remarks>
+    internal void SetIsControlLostForTesting(bool isLost, ForceContext? context = null)
+    {
+        if (isLost == IsControlLost)
+        {
+            return;
+        }
+
+        IsControlLost = isLost;
+        if (isLost)
+        {
+            CurrentContext = context ?? new ForceContext();
+            ControlLost.Invoke(CurrentContext);
+        }
+        else
+        {
+            CurrentContext = null;
+            ControlRegained.Invoke();
+        }
+    }
+#endif
+    #endregion
 }

@@ -9,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using Godot.Collections;
+using Jmodot.Core.Identification;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
@@ -394,6 +395,36 @@ public static class NodeExts
     {
         var currentScene = (Engine.GetMainLoop() as SceneTree)?.CurrentScene;
         return currentScene == null ? new List<T>() : currentScene.GetChildrenOfInterface<T>(includeSubChildren);
+    }
+
+    #endregion
+
+    #region IDENTITY_EXTENSIONS
+
+    /// <summary>
+    /// True if the node carries an <see cref="IIdentifiable"/> child whose identity
+    /// includes <paramref name="category"/>. Walks the node's children to find the
+    /// identity provider; returns false if no provider or category is null.
+    /// </summary>
+    /// <remarks>
+    /// Centralizes the canonical
+    /// <c>TryGetFirstChildOfInterface&lt;IIdentifiable&gt; → GetIdentity().HasCategory()</c>
+    /// chain so AI consumers asking "is this collider an entity / spell / hazard?" share
+    /// one implementation. Cache the result if calling per-frame for the same node.
+    /// </remarks>
+    public static bool HasCategory(this Node node, Category? category)
+    {
+        if (category == null)
+        {
+            return false;
+        }
+
+        if (!node.TryGetFirstChildOfInterface<IIdentifiable>(out var identifiable))
+        {
+            return false;
+        }
+
+        return identifiable!.GetIdentity().HasCategory(category);
     }
 
     #endregion
