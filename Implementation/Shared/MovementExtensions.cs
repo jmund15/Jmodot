@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.Shared;
 
+using Jmodot.Core.Movement;
+
 public static class MovementExtensions
 {
     #region VECTOR_EXTENSIONS
@@ -46,6 +48,21 @@ public static class MovementExtensions
         }
 
         return weightedGrav;
+    }
+
+    /// <summary>
+    /// Resolves the linear velocity of a Node3D collider via the most appropriate
+    /// interface, in priority order: RigidBody3D.LinearVelocity → CharacterBody3D.Velocity
+    /// → IVelocityProvider3D.LinearVelocity → Vector3.Zero (static / unknown).
+    /// Useful for collision response code that needs the kicker's velocity without
+    /// caring about the body type.
+    /// </summary>
+    public static Vector3 ResolveLinearVelocity(this Node3D collider)
+    {
+        if (collider is RigidBody3D rb) { return rb.LinearVelocity; }
+        if (collider is CharacterBody3D cb) { return cb.Velocity; }
+        if (collider is IVelocityProvider3D vp) { return vp.LinearVelocity; }
+        return Vector3.Zero;
     }
 
     #endregion
