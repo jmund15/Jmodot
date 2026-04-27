@@ -85,7 +85,7 @@ using Shared.GodotExceptions;
 
         private void OnTreeFinishLoop(TaskStatus treeStatus)
         {
-            JmoLogger.Info(this, $"BehaviorTree finished loop with status: {treeStatus}");
+            JmoLogger.Debug(this, $"BehaviorTree finished loop with status: {treeStatus}");
             switch (treeStatus)
             {
                 case TaskStatus.Failure:

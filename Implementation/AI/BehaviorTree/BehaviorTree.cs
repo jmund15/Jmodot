@@ -285,7 +285,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             return;
         }
 
-        JmoLogger.Info(this, $"Tree root task '{RootTask.Name}' finished with status {newStatus}.");
+        JmoLogger.Debug(this, $"Tree root task '{RootTask.Name}' finished with status {newStatus}.");
         EmitSignal(SignalName.TreeFinishedLoop, (long)newStatus);
 
         // Tree was already disabled (e.g., external Exit() raced with terminal status) — nothing to do.
