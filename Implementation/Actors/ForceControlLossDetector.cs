@@ -27,8 +27,8 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
     public bool IsControlLost { get; private set; }
     public ForceContext? CurrentContext { get; private set; }
 
-    public event Action<ForceContext>? ControlLost;
-    public event Action? ControlRegained;
+    public event Action<ForceContext> ControlLost = delegate { };
+    public event Action ControlRegained = delegate { };
 
     private ICharacterController3D? _controller;
     private ExternalForceReceiver3D? _forceReceiver;
@@ -99,7 +99,7 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
             JmoLogger.Info(this,
                 $"Control LOST — velocity={velocityMagnitude:F1}, source={dominantSource?.Name ?? "unknown"}");
 
-            ControlLost?.Invoke(CurrentContext);
+            ControlLost.Invoke(CurrentContext);
         }
         else
         {
@@ -108,7 +108,7 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
             JmoLogger.Info(this,
                 $"Control REGAINED — velocity={velocityMagnitude:F1}");
 
-            ControlRegained?.Invoke();
+            ControlRegained.Invoke();
         }
     }
 
@@ -136,12 +136,12 @@ public partial class ForceControlLossDetector : Node, IPoolResetable
         if (isLost)
         {
             CurrentContext = context ?? new ForceContext();
-            ControlLost?.Invoke(CurrentContext);
+            ControlLost.Invoke(CurrentContext);
         }
         else
         {
             CurrentContext = null;
-            ControlRegained?.Invoke();
+            ControlRegained.Invoke();
         }
     }
 #endif

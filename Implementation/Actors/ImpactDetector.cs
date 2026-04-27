@@ -19,7 +19,7 @@ public partial class ImpactDetector : Node, IPoolResetable
     [Export(PropertyHint.Range, "0.1,100,0.1")]
     public float MinImpactSpeed { get; set; } = 6f;
 
-    public event Action<ImpactInfo>? Impacted;
+    public event Action<ImpactInfo> Impacted = delegate { };
 
     private ICharacterController3D? _controller;
     private CharacterBody3D? _body;
@@ -84,7 +84,7 @@ public partial class ImpactDetector : Node, IPoolResetable
 
             _newContactsThisFrame.Add(id);
             var info = new ImpactInfo(preMoveSpeed, col.GetNormal(), collider);
-            Impacted?.Invoke(info);
+            Impacted.Invoke(info);
         }
 
         (_inContactLastFrame, _newContactsThisFrame) = (_newContactsThisFrame, _inContactLastFrame);
@@ -105,7 +105,7 @@ public partial class ImpactDetector : Node, IPoolResetable
     /// </remarks>
     internal void EmitImpactedForTesting(ImpactInfo info)
     {
-        Impacted?.Invoke(info);
+        Impacted.Invoke(info);
     }
 #endif
     #endregion
