@@ -452,6 +452,10 @@ using AI.BB;
                 return false;
             }
 
+            // Defensive: see B3 reconciliation 2026-04-26 — ICombatExceptionProvider.CombatExceptionIds
+            // is checked above (line 431) and is the authoritative path. This try/catch is a
+            // belt-and-suspenders fallback for any code path that adds an exception without
+            // going through the provider. Retained intentionally, not pending refactor.
             try
             {
                 var exceptions = ownerBody.GetCollisionExceptions();
