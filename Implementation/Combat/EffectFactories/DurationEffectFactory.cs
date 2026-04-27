@@ -22,6 +22,8 @@ public partial class DurationEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
+        this.ValidateRequiredExports();
+
         return new DurationEffect(
             Runner,
             Duration.ResolveFloatValue(stats),

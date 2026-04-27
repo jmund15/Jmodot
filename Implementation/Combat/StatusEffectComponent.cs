@@ -418,4 +418,19 @@ public partial class StatusEffectComponent : Node, IComponent
         }
     }
     #endregion
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only: directly register tags as active without instantiating a full StatusRunner.
+    /// Lets transition-condition tests assert tag-presence semantics in isolation.
+    /// </summary>
+    internal void _TestRegisterTags(IEnumerable<CombatTag> tags) => RegisterTags(tags);
+
+    /// <summary>
+    /// Test-only: directly unregister tags. Pairs with _TestRegisterTags for symmetric setup/teardown.
+    /// </summary>
+    internal void _TestUnregisterTags(IEnumerable<CombatTag> tags) => UnregisterTags(tags);
+#endif
+    #endregion
 }
