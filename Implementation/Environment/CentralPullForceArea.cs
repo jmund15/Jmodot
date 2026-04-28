@@ -13,6 +13,9 @@ public partial class CentralPullForceArea : Area3D, IForceProvider3D
 {
     private float _pullStrength = 0f;
 
+    /// <inheritdoc />
+    public bool IsCaptureForce => true;
+
     /// <summary>
     /// Initialize the central pull force area.
     /// </summary>

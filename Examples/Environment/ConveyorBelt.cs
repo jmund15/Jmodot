@@ -10,6 +10,12 @@ using Core.Environment;
 [GlobalClass]
 public partial class ConveyorBelt : Area3D, IForceProvider3D
 {
+    // ConveyorBelt is intentionally NOT IsCaptureForce — conveyors carry actors along
+    // as part of normal movement, but do not constitute "capture" / control loss.
+    // A belt strong enough to overwhelm control should be authored as a
+    // VelocityDragForceArea (which DOES opt into capture), not a conveyor.
+
+
     private Vector3 _globalPushVelocity;
 
     /// <summary>Direction only — magnitude is ignored (auto-normalized). Use _pushSpeed to control belt force.</summary>

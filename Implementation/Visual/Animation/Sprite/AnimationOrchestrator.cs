@@ -40,6 +40,11 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
     public string CurrentDirectionLabel { get; private set; } = "down";
     public Vector3 CurrentAnimationDirection { get; private set; }
 
+    // Rate-limit: warn once per missing animation key per orchestrator instance.
+    // Without this, a stuck state polling for the missing clip would spam logs every physics tick.
+    // Fully qualified to avoid colliding with Godot.Collections in the [Export] Dictionary above.
+    private readonly System.Collections.Generic.HashSet<StringName> _warnedMissingAnims = new();
+
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
 
@@ -152,36 +157,44 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
             if (_targetAnimator.HasAnimation(finalName))
             {
                 _targetAnimator.StartAnim(finalName);
-                //_noDirActive = false;
             }
             else if (_targetAnimator.HasAnimation(BaseAnimName))
             {
                 _targetAnimator.StartAnim(BaseAnimName);
-                //_noDirActive = true;
-                //JmoLogger.Info(this, $"Animation '{BaseAnimName}' started due to final name not existing '{finalName}'");
             }
-            else {
-                // GD.Print($"Animation '{finalName}' not found on target animator '{_targetAnimator.GetUnderlyingNode().Name};" +
-                //          $"\nparent '{_targetAnimator.GetUnderlyingNode().GetParent().Name}'" +
-                //          $"\nowner '{_targetAnimator.GetUnderlyingNode().Owner.Name}'");
+            else
+            {
+                WarnMissingAnimationOnce(finalName, BaseAnimName);
             }
-            // Else: Silently fail or log warning? For now, silent to avoid spam if "idle" is missing.
         }
         else
         {
-            // Delegate the update logic (MaintainTime / MaintainPercent) to the child animator
-            // but only if it has the animation, otherwise fallback to the base animation if allowed or just ignore.
             if (_targetAnimator.HasAnimation(finalName))
             {
                  _targetAnimator.UpdateAnim(finalName, mode);
             }
             else if (_targetAnimator.HasAnimation(BaseAnimName))
             {
-                // If the directional version doesn't exist, we fallback to the base animation.
-                // This prevents errors when an entity has some directional animations but not all.
+                // Fallback: directional version missing but base exists (partial directional sets).
                 _targetAnimator.UpdateAnim(BaseAnimName, mode);
             }
+            else
+            {
+                WarnMissingAnimationOnce(finalName, BaseAnimName);
+            }
         }
+    }
+
+    private void WarnMissingAnimationOnce(StringName finalName, StringName baseName)
+    {
+        if (!_warnedMissingAnims.Add(baseName))
+        {
+            return;
+        }
+
+        JmoLogger.Warning(this,
+            $"Animation not found on target animator: tried '{finalName}' (directional) and '{baseName}' (base). "
+            + "State machine may stall waiting for AnimFinished. Check the animation library or the state's AnimationName export.");
     }
 
     public bool HasAnimationBase(StringName baseName)

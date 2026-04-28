@@ -15,6 +15,9 @@ public partial class VelocityDragOffsetProvider3D : Area3D, IVelocityOffsetProvi
     private IVelocityProvider3D? _velocitySource;
     private float _dragRatio = 1.0f;
 
+    /// <inheritdoc />
+    public bool IsCaptureOffset => true;
+
     public void Initialize(IVelocityProvider3D velocitySource, float dragRatio)
     {
         _velocitySource = velocitySource;

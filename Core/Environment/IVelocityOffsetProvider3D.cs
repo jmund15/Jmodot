@@ -15,4 +15,12 @@ public interface IVelocityOffsetProvider3D
     /// <param name="target">The actor being affected.</param>
     /// <returns>Velocity offset to add for this frame's Move() call only.</returns>
     Vector3 GetVelocityOffsetFor(Node3D target);
+
+    /// <summary>
+    /// Whether this provider's offset should count toward control-loss detection on
+    /// entities with a <c>ForceControlLossDetector</c>. Default false. Capture sources
+    /// (wave drag, current-style carry effects) override to true. Source-side
+    /// discrimination expressed as data on the provider's own declaration site.
+    /// </summary>
+    bool IsCaptureOffset => false;
 }

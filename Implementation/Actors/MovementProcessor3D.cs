@@ -130,6 +130,18 @@ public class MovementProcessor3D : IMovementProcessor3D
     }
 
     /// <summary>
+    /// Settle-only tick for recovery states (WallHit / GroundFall): applies pending
+    /// impulses + Move(), but skips ExternalForceReceiver aggregate. Prevents sustained
+    /// environmental forces (e.g. wave drag) from re-launching the entity mid-recovery.
+    /// </summary>
+    public void ProcessImpulsesOnly(float delta)
+    {
+        _controller.AddVelocity(_frameImpulses);
+        _frameImpulses = Vector3.Zero;
+        _controller.Move();
+    }
+
+    /// <summary>
     ///     Applies an instantaneous change in velocity to the character controller.
     ///     This is the primary method for all impulse-based mechanics.
     /// </summary>

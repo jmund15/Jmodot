@@ -116,7 +116,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
             foreach (var entry in _scalableShapes)
             {
                 var queued = entry.Shape.IsQueuedForDeletion();
-                JmoLogger.Info(this,
+                JmoLogger.Debug(this,
                     $"[POOL:DIAG] ESC.Init shape={entry.Shape.Name} baseScale=({entry.BaseScale.X:F3},{entry.BaseScale.Y:F3},{entry.BaseScale.Z:F3}) " +
                     $"queuedForDeletion={queued} frame={Engine.GetProcessFrames()}");
             }
@@ -157,7 +157,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
         _runtimeScaleMultiplier = Mathf.Clamp(multiplier, MIN_RUNTIME_MULTIPLIER, MaxSize);
         var currentSize = _stats?.GetStatValue<float>(SizeAttribute, 1.0f) ?? 1.0f;
 
-        JmoLogger.Info(this,
+        JmoLogger.Debug(this,
             $"[POOL:DIAG] ESC.SetRuntimeScaleMultiplier mult={_runtimeScaleMultiplier:F3} statSize={currentSize:F3} " +
             $"shapeCount={_scalableShapes.Count} frame={Engine.GetProcessFrames()}");
 
@@ -214,7 +214,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     /// </summary>
     public void OnPoolReset()
     {
-        JmoLogger.Info(this,
+        JmoLogger.Debug(this,
             $"[POOL:DIAG] ESC.OnPoolReset START shapeCount={_scalableShapes.Count} " +
             $"runtimeMult={_runtimeScaleMultiplier:F3} frame={Engine.GetProcessFrames()}");
 
@@ -248,7 +248,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
         // 5. Reset initialization flag
         IsInitialized = false;
 
-        JmoLogger.Info(this,
+        JmoLogger.Debug(this,
             $"[POOL:DIAG] ESC.OnPoolReset END shapeCount={_scalableShapes.Count} runtimeMult={_runtimeScaleMultiplier:F3}");
     }
 

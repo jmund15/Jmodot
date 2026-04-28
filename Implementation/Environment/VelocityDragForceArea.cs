@@ -15,6 +15,9 @@ public partial class VelocityDragForceArea : Area3D, IForceProvider3D
     private IVelocityProvider3D? _velocitySource;
     private float _dragRatio = 1.0f;
 
+    /// <inheritdoc />
+    public bool IsCaptureForce => true;
+
     /// <summary>
     /// Initialize the velocity drag force area.
     /// </summary>

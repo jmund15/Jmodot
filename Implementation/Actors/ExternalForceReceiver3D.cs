@@ -152,6 +152,107 @@ public partial class ExternalForceReceiver3D : Area3D, IPoolResetable
     }
 
     /// <summary>
+    /// Yields the union of area + internal force providers that opt-in to capture
+    /// detection via <see cref="IForceProvider3D.IsCaptureForce"/>. Single source of
+    /// truth for the capture-vs-ambient filter; consumed by GetCaptureForce and
+    /// DescribeActiveCaptureProviders so the predicate cannot drift between sites.
+    /// </summary>
+    private IEnumerable<IForceProvider3D> EnumerateActiveCaptureForceProviders()
+    {
+        foreach (var p in _activeAreaProviders)
+        {
+            if (p.IsCaptureForce && GodotObject.IsInstanceValid((GodotObject)p))
+            {
+                yield return p;
+            }
+        }
+
+        foreach (var p in _internalProviders)
+        {
+            if (p.IsCaptureForce && GodotObject.IsInstanceValid((GodotObject)p))
+            {
+                yield return p;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Yields offset providers that opt-in to capture detection via
+    /// <see cref="IVelocityOffsetProvider3D.IsCaptureOffset"/>.
+    /// </summary>
+    private IEnumerable<IVelocityOffsetProvider3D> EnumerateActiveCaptureOffsetProviders()
+    {
+        foreach (var p in _activeOffsetProviders)
+        {
+            if (p.IsCaptureOffset && GodotObject.IsInstanceValid((GodotObject)p))
+            {
+                yield return p;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds a one-line summary of currently-active capture providers and their
+    /// per-provider force/offset magnitudes for diagnostic logging. Empty string when
+    /// no capture providers are active. Cheap enough for log-on-transition use; do
+    /// not call every physics tick.
+    /// </summary>
+    public string DescribeActiveCaptureProviders(Node3D target)
+    {
+        var sb = new System.Text.StringBuilder();
+        var first = true;
+
+        foreach (var provider in EnumerateActiveCaptureForceProviders())
+        {
+            if (!first) { sb.Append(", "); }
+            first = false;
+            var node = provider as Node3D;
+            sb.Append($"{node?.Name ?? "?"}=force:{provider.GetForceFor(target).Length():F2}");
+        }
+
+        foreach (var provider in EnumerateActiveCaptureOffsetProviders())
+        {
+            if (!first) { sb.Append(", "); }
+            first = false;
+            var node = provider as Node3D;
+            sb.Append($"{node?.Name ?? "?"}=offset:{provider.GetVelocityOffsetFor(target).Length():F2}");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Aggregates only forces from providers that opt-in via
+    /// <see cref="IForceProvider3D.IsCaptureForce"/> — the subset of forces that should
+    /// count toward control-loss detection. Excludes baseline forces (gravity) so the
+    /// actor can still be subject to gravity without being classified as "captured."
+    /// </summary>
+    public Vector3 GetCaptureForce(Node3D target)
+    {
+        var totalForce = Vector3.Zero;
+        foreach (var provider in EnumerateActiveCaptureForceProviders())
+        {
+            totalForce += provider.GetForceFor(target);
+        }
+        return totalForce;
+    }
+
+    /// <summary>
+    /// Aggregates only velocity offsets from providers that opt-in via
+    /// <see cref="IVelocityOffsetProvider3D.IsCaptureOffset"/> — the subset of offsets
+    /// that should count toward control-loss detection.
+    /// </summary>
+    public Vector3 GetCaptureVelocityOffset(Node3D target)
+    {
+        var totalOffset = Vector3.Zero;
+        foreach (var provider in EnumerateActiveCaptureOffsetProviders())
+        {
+            totalOffset += provider.GetVelocityOffsetFor(target);
+        }
+        return totalOffset;
+    }
+
+    /// <summary>
     ///     Calculates the total aggregated force from all currently active environmental zones.
     ///     Forces are stored in velocity and affected by friction next frame.
     /// </summary>
