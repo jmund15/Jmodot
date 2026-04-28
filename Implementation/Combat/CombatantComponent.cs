@@ -173,4 +173,15 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
 
     public Node GetUnderlyingNode() => this;
     #endregion
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Raises CombatResultEvent directly, bypassing ProcessPayload/ApplyEffect/Hurtbox.
+    /// Lets integration tests synthesize a hit on this entity to exercise CombatLogger
+    /// → CombatLog wiring and downstream BTConditions without a full attack pipeline.
+    /// </summary>
+    internal void _TestRaiseResult(CombatResult result) => CombatResultEvent?.Invoke(result);
+#endif
+    #endregion
 }
