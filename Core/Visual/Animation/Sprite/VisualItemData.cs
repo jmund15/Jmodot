@@ -28,13 +28,23 @@ public partial class VisualItemData : Resource
     /// <summary>
     /// Optional: Forces the Sprite to use a specific vertical row (Y).
     /// Use this for Sprite Sheets where Rows = Items and Columns = Animation Frames.
-    /// Set to -1 to disable.
+    /// Set to -1 to disable. Range max is conservative (31) — bump if a sheet
+    /// genuinely exceeds it; the value is checked against actual row count by Sprite.
     /// NOTE: Your AnimationPlayer must ONLY key 'frame_coords:x', not the full vector.
     /// </summary>
-    [Export] public int SpriteSheetRowOverride { get; set; } = -1;
+    [Export(PropertyHint.Range, "-1,31,1")] public int SpriteSheetRowOverride { get; set; } = -1;
 
     /// <summary>
     /// Optional: Tints the sprite (e.g. Dye system).
     /// </summary>
     [Export] public Color ModulateOverride { get; set; } = Colors.White;
+
+    /// <summary>
+    /// Optional: Explicit rig declaring which prefab nodes are visual parts, with
+    /// per-part PartId/Tags and per-binding override gates. When set, VisualSlotNode
+    /// uses these bindings to produce typed handles and route overrides. When null,
+    /// the slot falls back to a recursive sprite walk (tagless, partless handles)
+    /// and applies overrides to the first sprite found.
+    /// </summary>
+    [Export] public VisualRig? Rig { get; set; }
 }

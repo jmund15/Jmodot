@@ -11,7 +11,7 @@ using Core.Visual.Effects;
 
 [Tool]
 [GlobalClass]
-public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvider
+public partial class AnimationVisibilityCoordinator : Node
 {
     private NodePath _targetAnimatorPath;
     [Export] public NodePath TargetAnimatorPath
@@ -119,12 +119,6 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         }
 
         SetupAnimatorConnection();
-
-        // ToDO: doesn't work????
-        if (Engine.IsEditorHint() && Engine.GetMainLoop() is SceneTree sceneTree)
-        {
-            sceneTree.TreeChanged += UpdateConfigurationWarnings;
-        }
     }
 
     public override void _ExitTree()
@@ -148,14 +142,9 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         }
     }
 
-    public override void _PhysicsProcess(double delta)
-    {
-        base._PhysicsProcess(delta);
-        if (Engine.IsEditorHint())
-        {
-            UpdateConfigurationWarnings();
-        }
-    }
+    // Editor configuration-warning refresh is driven by the property setters above
+    // (TargetAnimatorPath, AutoRegisterNodes, NodePrefix, AnimNameSuffixSeparator),
+    // not by polling _PhysicsProcess every frame.
 
     /// <summary>
     /// Called when a new child is added to the parent at runtime.
@@ -278,7 +267,7 @@ public partial class AnimationVisibilityCoordinator : Node, IVisualSpriteProvide
         //GD.Print($"[AnimVis] Animation started: {animName}, showing nodes: {nodesToShow.Count}");
     }
 
-    #region IVisualSpriteProvider Implementation
+    #region Public Node Access
 
     /// <summary>
     /// Returns all currently VISIBLE managed nodes.

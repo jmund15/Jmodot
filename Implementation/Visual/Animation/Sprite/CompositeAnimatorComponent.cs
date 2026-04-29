@@ -29,6 +29,15 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     private readonly List<IAnimComponent> _activeAnimators = new();
     private IAnimComponent? _masterAnimator; // The time source (e.g. Body)
 
+    // Per-child AnimStarted/AnimFinished handler tracking. Every registered animator
+    // (master and slaves) is hooked so slave-only animations (e.g., "potionAdd" on an
+    // independent slot) propagate their Started/Finished signals up to the composite.
+    // The per-handler closure captures the source animator so the forwarder can apply
+    // master-authority suppression: if the master has the animation, non-master
+    // signals are dropped to prevent double-fire on partial-match animations.
+    private readonly Dictionary<IAnimComponent, Action<StringName>> _childStartHandlers = new();
+    private readonly Dictionary<IAnimComponent, Action<StringName>> _childFinishHandlers = new();
+
     private StringName _lastRequestedAnim = "";
     private float _currentSpeedScale = 1.0f;
 
@@ -80,7 +89,6 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// <param name="isMaster">If true, this animator dictates timing (duration/seek).</param>
     public void RegisterAnimator(IAnimComponent animator, bool isMaster = false)
     {
-        //GD.Print($"Registering {((Node)animator).Name} to {this.Name}.\tIsMaster = {isMaster}");
         // Prevent self-registration which causes infinite recursion loops
         if (ReferenceEquals(animator, this))
         {
@@ -89,21 +97,36 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
         if (_activeAnimators.Contains(animator))
         {
-            // If re-registering as master, update status
+            // Already hooked — if re-registering as master, just swap the pointer.
+            // Per-child hooks are independent of master status.
             if (isMaster)
             {
-                SetMaster(animator);
+                _masterAnimator = animator;
             }
             return;
         }
 
         _activeAnimators.Add(animator);
+        HookChildEvents(animator);
 
-        if (isMaster || _masterAnimator == null)
+        if (isMaster)
         {
-            SetMaster(animator);
-            //GD.Print($"Set new anim {((Node)animator).Name} as master");
+            // Warn when a second animator claims master via a genuine SyncMode=Master
+            // claim (not via the legacy default-adoption path, which has been removed).
+            // Two real master claims is a config bug — surface it.
+            if (_masterAnimator != null && !ReferenceEquals(_masterAnimator, animator))
+            {
+                JmoLogger.Warning(this, $"RegisterAnimator: second master claimed by '{((Node)animator).Name}'; replacing existing master '{((Node)_masterAnimator).Name}'. Check for two slots with SyncMode=Master.");
+            }
+            _masterAnimator = animator;
         }
+        // Non-master registrations no longer adopt a placeholder master. The previous
+        // `else if (_masterAnimator == null) _masterAnimator = animator;` triggered a
+        // false-positive "second master claimed" warning whenever a real Master slot
+        // (e.g. Body, equipped via the deferred default-equip pass) registered after
+        // an early Slave registration (e.g. Left Hand, equipped synchronously by
+        // HandMovementComponent._Ready). _masterAnimator staying null is safe — every
+        // read is null-guarded (?.HasAnimation, SyncChildToMaster early-return).
 
         // Apply current state to new child
         animator.SetSpeedScale(_currentSpeedScale);
@@ -116,46 +139,89 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         }
     }
 
-    public void UnregisterAnimator(IAnimComponent animator)
+    /// <summary>
+    /// Removes an animator from the composite.
+    /// </summary>
+    /// <param name="animator">The component to remove.</param>
+    /// <param name="stopFirst">
+    /// When true (default), <see cref="IAnimComponent.StopAnim"/> is called on the
+    /// animator before removal. When false, the caller is responsible for the
+    /// animator's playback state — used by <c>VisualSlot.ClearInstance</c> because
+    /// the animator's underlying node is about to be <c>QueueFree</c>'d and
+    /// touching it with <c>StopAnim</c> is wasteful (and fragile if <c>StopAnim</c>
+    /// emits signals synchronously during teardown).
+    /// </param>
+    public void UnregisterAnimator(IAnimComponent animator, bool stopFirst = true)
     {
-        if (_activeAnimators.Remove(animator))
-        {
-            animator.StopAnim();
+        if (!_activeAnimators.Remove(animator)) { return; }
 
-            // If we lost the master, elect a new one
-            if (_masterAnimator == animator)
+        UnhookChildEvents(animator);
+
+        if (stopFirst) { animator.StopAnim(); }
+
+        // If we lost the master, elect a new one. FirstOrDefault is arbitrary —
+        // a well-configured scene has exactly one Master slot, and Master slots
+        // are unregistered only via composer teardown. If the new master has the
+        // last-requested animation, re-issue StartAnim so subsequent SyncChildToMaster
+        // calls compute against a master that's actually playing — otherwise
+        // GetCurrAnimationLength returns the new master's length (different from
+        // the prior master's), and any in-flight slave sync would compute wrong.
+        if (ReferenceEquals(_masterAnimator, animator))
+        {
+            _masterAnimator = _activeAnimators.FirstOrDefault();
+            if (_masterAnimator == null)
             {
-                UnhookMaster(animator);
-                _masterAnimator = _activeAnimators.FirstOrDefault();
-                if (_masterAnimator != null) { HookMaster(_masterAnimator); }
+                JmoLogger.Warning(this, "All animators unregistered; composite has no master. IsPlaying/HasAnimation/etc will return defaults until a new animator registers.");
+            }
+            else if (!string.IsNullOrEmpty(_lastRequestedAnim) && _masterAnimator.HasAnimation(_lastRequestedAnim))
+            {
+                _masterAnimator.StartAnim(_lastRequestedAnim);
             }
         }
     }
 
-    private void SetMaster(IAnimComponent newMaster)
+    private void HookChildEvents(IAnimComponent animator)
     {
-        if (_masterAnimator != null)
+        Action<StringName> onStart = name => OnChildAnimStarted(animator, name);
+        Action<StringName> onFinish = name => OnChildAnimFinished(animator, name);
+        animator.AnimStarted += onStart;
+        animator.AnimFinished += onFinish;
+        _childStartHandlers[animator] = onStart;
+        _childFinishHandlers[animator] = onFinish;
+    }
+
+    private void UnhookChildEvents(IAnimComponent animator)
+    {
+        if (_childStartHandlers.TryGetValue(animator, out var onStart))
         {
-            UnhookMaster(_masterAnimator);
+            animator.AnimStarted -= onStart;
+            _childStartHandlers.Remove(animator);
         }
-        _masterAnimator = newMaster;
-        HookMaster(_masterAnimator);
+        if (_childFinishHandlers.TryGetValue(animator, out var onFinish))
+        {
+            animator.AnimFinished -= onFinish;
+            _childFinishHandlers.Remove(animator);
+        }
     }
 
-    private void HookMaster(IAnimComponent anim)
+    // Master-authority suppression: if the master has the animation, only the
+    // master's signal forwards (prevents double-fire on partial-match where both
+    // master and slaves play the same animation). Slave-only animations (master
+    // doesn't have them) always forward — the A4 fix for slot-specific animations
+    // like "potionAdd" that live on an independent slot's animator.
+    private void OnChildAnimStarted(IAnimComponent child, StringName name)
     {
-        anim.AnimStarted += OnMasterAnimStarted;
-        anim.AnimFinished += OnMasterAnimFinished;
+        bool masterHasIt = _masterAnimator?.HasAnimation(name) ?? false;
+        if (masterHasIt && !ReferenceEquals(child, _masterAnimator)) { return; }
+        AnimStarted?.Invoke(name);
     }
 
-    private void UnhookMaster(IAnimComponent anim)
+    private void OnChildAnimFinished(IAnimComponent child, StringName name)
     {
-        anim.AnimStarted -= OnMasterAnimStarted;
-        anim.AnimFinished -= OnMasterAnimFinished;
+        bool masterHasIt = _masterAnimator?.HasAnimation(name) ?? false;
+        if (masterHasIt && !ReferenceEquals(child, _masterAnimator)) { return; }
+        AnimFinished?.Invoke(name);
     }
-
-    private void OnMasterAnimStarted(StringName name) => AnimStarted?.Invoke(name);
-    private void OnMasterAnimFinished(StringName name) => AnimFinished?.Invoke(name);
 
     // --- IAnimComponent Implementation ---
 
@@ -171,10 +237,6 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             {
                 anim.StartAnim(animName);
             }
-            // else
-            // {
-            //     anim.StopAnim();
-            // }
         }
     }
 
@@ -223,9 +285,32 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         _activeAnimators.ForEach(a => a.SetSpeedScale(scale));
     }
 
+    /// <summary>
+    /// True iff the MASTER animator has this animation. Strict by design — the master
+    /// defines the composite's canonical animation set, so an animation "exists" on
+    /// the composite only when the master can drive it.
+    /// </summary>
+    /// <remarks>
+    /// Slave-only animations (e.g., an overlay hat flip) return false here. Use
+    /// <see cref="HasAnimationAnywhere"/> if you need "any registered animator has it".
+    /// </remarks>
     public bool HasAnimation(StringName animName) =>
-        _masterAnimator?.HasAnimation(animName) ?? false; // master is REQUIRED to say yes, others not needed but should play if available
-        //_activeAnimators.Any(a => a.HasAnimation(animName));
+        _masterAnimator?.HasAnimation(animName) ?? false;
+
+    /// <summary>
+    /// True iff ANY registered animator (master or slave) has this animation.
+    /// Use this when you want to know if <see cref="StartAnim"/> would produce
+    /// any visible play — since StartAnim uses partial-match semantics.
+    /// </summary>
+    public bool HasAnimationAnywhere(StringName animName)
+    {
+        foreach (var anim in _activeAnimators)
+        {
+            if (anim.HasAnimation(animName)) { return true; }
+        }
+        return false;
+    }
+
     public bool IsPlaying() => _masterAnimator?.IsPlaying() ?? false;
     public StringName GetCurrAnimation() => _lastRequestedAnim;
     public float GetSpeedScale() => _currentSpeedScale;
@@ -235,7 +320,32 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     public float GetCurrAnimationLength() => _masterAnimator?.GetCurrAnimationLength() ?? 0f;
     public float GetAnimationLength(StringName animName) => _masterAnimator?.GetAnimationLength(animName) ?? 0f;
     public float GetCurrAnimationPosition() => _masterAnimator?.GetCurrAnimationPosition() ?? 0f;
-    public void SeekPos(float time, bool update = true) => _activeAnimators.ForEach(a => a.SeekPos(time, update));
+
+    /// <summary>
+    /// Seeks the master to <paramref name="time"/> and syncs every slave proportionally.
+    /// Interprets <paramref name="time"/> as a position in the MASTER's animation.
+    /// A slave whose animation length differs is seeked to the equivalent normalized
+    /// position in its own animation — preserving the master/slave time-sync invariant
+    /// across hotswap (e.g., sword → lance with different animation durations).
+    /// </summary>
+    public void SeekPos(float time, bool update = true)
+    {
+        if (_masterAnimator == null) { return; }
+
+        _masterAnimator.SeekPos(time, update);
+
+        float masterLen = _masterAnimator.GetCurrAnimationLength();
+        if (masterLen <= 0f) { return; }
+        float norm = time / masterLen;
+
+        foreach (var anim in _activeAnimators)
+        {
+            if (ReferenceEquals(anim, _masterAnimator)) { continue; }
+            float childLen = anim.GetCurrAnimationLength();
+            if (childLen > 0f) { anim.SeekPos(norm * childLen, update); }
+        }
+    }
+
     public string[] GetAnimationList() => _masterAnimator?.GetAnimationList() ?? [];
 
     public bool IsAnimationLooping(StringName animName)

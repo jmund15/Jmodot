@@ -4,92 +4,101 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
+using Core.Visual;
 using Core.Visual.Effects;
-using Jmodot.Core.Components;
 using Godot;
-using GCol = Godot.Collections;
-using Shared;
-using Implementation.AI.BB;
 using Implementation.Visual.Animation.Sprite;
+using Jmodot.Core.Components;
+using Shared;
 
 /// <summary>
-/// Central controller for applying visual effects across all active sprites in an entity.
-/// Manages Tween-based effects using a Virtual Modulate architecture to support blending and overrides.
+/// Central controller for transient visual effects (flash, tint, etc.) over the
+/// active sprite set of an entity. Composes effect colors via blend modes against
+/// per-node base colors owned by the entity's <see cref="VisualEffectService"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Wired via explicit <see cref="Composer"/> export (replaces the legacy Blackboard
+/// auto-wire of <c>BaseModulationTracker</c>; fixes the layering violation where
+/// Implementation.Visual.Effects reached into Implementation.AI.BB.BBDataSig).
+/// </para>
+/// <para>
+/// When a composer is set: subscribes to its <see cref="IVisualNodeProvider.NodeAdded"/>
+/// / <see cref="IVisualNodeProvider.NodeRemoved"/> events for node tracking, and to
+/// <see cref="IVisualEffectService.TintChanged"/> for base-color updates that follow
+/// equipment swaps.
+/// </para>
+/// <para>
+/// When only <see cref="Root"/> is set (single-sprite props with no composer):
+/// uses <see cref="VisualNodeAggregator.CollectSprites"/> to find every sprite under
+/// the root and captures their current Modulate as their base color. This path also
+/// fixes the audit-branch-identified type-NAME string-match bug — the aggregator
+/// uses pattern-based type checks, not name-substring checks.
+/// </para>
+/// </remarks>
 [GlobalClass, Tool]
 public partial class VisualEffectController : Node, IComponent
 {
     /// <summary>
-    /// Sources of visual nodes. Can be:
-    /// - IVisualSpriteProvider (VisualComposer, AnimationVisibilityCoordinator)
-    /// - SpriteBase3D / Sprite2D (single sprite)
-    /// - Any Node3D (will search for sprite children)
+    /// Primary source of visual nodes and base colors. When set, the controller
+    /// queries the composer for nodes and uses its <see cref="VisualEffectService"/>
+    /// for base-color resolution.
     /// </summary>
-    [Export] public GCol.Array<Node> VisualSources { get; set; } = new();
+    [Export] public VisualComposer? Composer { get; set; }
 
     /// <summary>
-    /// Tracks active effects and their associated data.
+    /// Fallback root for single-sprite props (no composer). All
+    /// <see cref="SpriteBase3D"/> / <see cref="Sprite2D"/> descendants of this node
+    /// are tracked, with current Modulate captured as the base color.
     /// </summary>
+    [Export] public Node? Root { get; set; }
+
     private readonly Dictionary<VisualEffect, ActiveEffectHandle> _activeEffects = new();
 
     /// <summary>
-    /// Cached providers for subscribing to changes.
-    /// </summary>
-    private readonly List<IVisualSpriteProvider> _providers = new();
-
-    /// <summary>
-    /// Maps each visual node to its base modulate color (captured when tracking starts).
-    /// When BaseModulationTracker is set, this dictionary is populated from the tracker.
+    /// Tracked nodes and their base modulate colors. Authoritative for the controller's
+    /// per-frame blend pass.
     /// </summary>
     private readonly Dictionary<Node, Color> _nodeBaseModulates = new();
 
-    /// <summary>
-    /// Optional tracker for explicit base color management.
-    /// When set, base colors are queried from the tracker instead of captured from sprite state.
-    /// This is critical for equipment systems where base colors change at runtime.
-    /// </summary>
-    private BaseModulationTracker? _baseColorTracker;
+    private IVisualEffectService? _subscribedService;
 
     public bool IsInitialized { get; private set; }
     public event Action Initialized = delegate { };
 
-    /// <summary>
-    /// Set the base color tracker for this controller.
-    /// When set, base colors are queried from the tracker instead of captured from sprite state.
-    /// </summary>
-    public void SetBaseColorTracker(BaseModulationTracker tracker)
-    {
-        _baseColorTracker = tracker;
-        // Refresh to pick up tracked colors
-        RefreshVisualNodes();
-    }
-
     public override void _Ready()
     {
         base._Ready();
+        SetProcess(false);
 
-        // In editor, we might want to initialize immediately for tool usage,
-        // but at runtime, we wait for Initialize loop.
         if (Engine.IsEditorHint())
         {
-            InitializeProviders();
             RefreshVisualNodes();
+            return;
         }
 
-        SetProcess(false); // Only run process when effects are active
+        if (Composer != null)
+        {
+            Composer.NodeAdded += OnNodeAdded;
+            Composer.NodeRemoved += OnNodeRemoved;
+            _subscribedService = Composer.Effects;
+            if (_subscribedService != null)
+            {
+                _subscribedService.TintChanged += OnTintChanged;
+            }
+        }
+
+        RefreshVisualNodes();
     }
 
+    /// <summary>
+    /// Retained for <see cref="IComponent"/> compliance. The legacy Blackboard
+    /// auto-wire is gone — use the <see cref="Composer"/> export instead.
+    /// </summary>
     public bool Initialize(IBlackboard bb)
     {
-        // Auto-wire with VisualComposer's BaseColorTracker if available in Blackboard
-        if (_baseColorTracker == null && bb.TryGet(BBDataSig.VisualComposer, out VisualComposer composer))
-        {
-            SetBaseColorTracker(composer.BaseColorTracker);
-        }
-
-        InitializeProviders();
+        // Refresh in case the composer's slots equipped after our _Ready.
         RefreshVisualNodes();
-
         IsInitialized = true;
         Initialized();
         OnPostInitialize();
@@ -102,19 +111,22 @@ public partial class VisualEffectController : Node, IComponent
     {
         base._ExitTree();
         StopAllEffects();
-        UnsubscribeFromProviders();
+        if (Composer != null)
+        {
+            Composer.NodeAdded -= OnNodeAdded;
+            Composer.NodeRemoved -= OnNodeRemoved;
+        }
+        if (_subscribedService != null)
+        {
+            _subscribedService.TintChanged -= OnTintChanged;
+            _subscribedService = null;
+        }
     }
 
-    public override void _Process(double delta)
-    {
-        ApplyEffects();
-    }
+    public override void _Process(double delta) => ApplyEffects();
 
     #region Public API
 
-    /// <summary>
-    /// Start playing a visual effect.
-    /// </summary>
     public void PlayEffect(VisualEffect effect)
     {
         if (effect == null)
@@ -123,294 +135,215 @@ public partial class VisualEffectController : Node, IComponent
             return;
         }
 
-        // Stop existing instance of this effect to restart it
-        if (_activeEffects.ContainsKey(effect))
-        {
-            StopEffect(effect);
-        }
+        if (_activeEffects.ContainsKey(effect)) { StopEffect(effect); }
 
-        // Create the state handle (the object that gets tweened)
-        var stateHandle = new VisualEffectHandle();
+        // Delegate Godot Tween + VisualEffectHandle lifecycle to the IEffectApplier
+        // abstraction. The controller keeps composition (blend modes, ordering) and
+        // sprite tracking; the applier owns the per-effect runtime mechanics. Future
+        // effect kinds (glow shaders, particles) ship their own appliers.
+        var applier = new Appliers.ModulateTweenApplier(effect);
+        var stateHandle = applier.Begin(GetTree(), () => OnEffectFinished(effect));
 
-        // Create the tween
-        var tween = GetTree().CreateTween();
-
-        // Configure the tween targeting the state handle
-        effect.ConfigureTween(tween, stateHandle);
-
-        tween.Play();
-        tween.Finished += () => OnEffectFinished(effect);
-
-        // Store handle
         var handle = new ActiveEffectHandle
         {
             Effect = effect,
-            Tween = tween,
+            Applier = applier,
             State = stateHandle,
-            StartTime = Time.GetTicksMsec()
+            StartTime = Time.GetTicksMsec(),
         };
-
         _activeEffects[effect] = handle;
 
-        // Enable processing
         SetProcess(true);
-
-        // Immediate update to prevent 1-frame lag
         ApplyEffects();
-
-        string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
-        //JmoLogger.Info(this, $"Started effect '{effectName}'");
     }
 
-    /// <summary>
-    /// Stop a specific effect.
-    /// </summary>
     public void StopEffect(VisualEffect effect)
     {
-        if (effect == null || !_activeEffects.TryGetValue(effect, out var handle))
-        {
-            return;
-        }
+        if (effect == null || !_activeEffects.TryGetValue(effect, out var handle)) { return; }
 
-        handle.Tween?.Kill();
-        handle.State.Free(); // Clean up the Godot Object
+        handle.Applier.End();
         _activeEffects.Remove(effect);
 
         if (_activeEffects.Count == 0)
         {
-            // Reset all nodes to base color
             ResetVisuals();
             SetProcess(false);
         }
         else
         {
-            // Re-evaluate remaining effects
             ApplyEffects();
         }
-
-        string effectName = string.IsNullOrEmpty(effect.ResourceName) ? effect.ResourcePath.GetFile() : effect.ResourceName;
-        //JmoLogger.Info(this, $"Stopped effect '{effectName}'");
     }
 
-    /// <summary>
-    /// Stop all active effects.
-    /// </summary>
     public void StopAllEffects()
     {
-        // Copy keys to avoid modification exception
         var effects = _activeEffects.Keys.ToList();
-        foreach (var effect in effects)
-        {
-            StopEffect(effect);
-        }
+        foreach (var effect in effects) { StopEffect(effect); }
     }
 
-    /// <summary>
-    /// Check if a specific effect is currently playing.
-    /// </summary>
     public bool IsEffectPlaying(VisualEffect effect)
+        => effect != null && _activeEffects.ContainsKey(effect);
+
+    /// <summary>
+    /// Re-scan tracked nodes and refresh base colors. Called automatically on slot
+    /// changes via composer events; can be invoked manually if external code mutates
+    /// the visual hierarchy.
+    /// </summary>
+    public void RefreshVisualNodes()
     {
-        return effect != null && _activeEffects.ContainsKey(effect);
+        var current = CollectCurrentNodes();
+
+        // Drop nodes no longer present (or freed).
+        var stale = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n) || !current.Contains(n)).ToList();
+        foreach (var n in stale) { _nodeBaseModulates.Remove(n); }
+
+        var service = Composer?.Effects;
+        foreach (var node in current)
+        {
+            if (service != null)
+            {
+                _nodeBaseModulates[node] = service.GetBaseColor(node);
+            }
+            else if (!_nodeBaseModulates.ContainsKey(node))
+            {
+                _nodeBaseModulates[node] = GetModulate(node);
+            }
+        }
     }
 
     #endregion
 
-    #region Core Logic
+    #region Internal
+
+    private void OnNodeAdded(VisualNodeHandle h)
+    {
+        // Incremental update: the event already carries the affected handle, so we
+        // don't need the full RefreshVisualNodes scan (which previously ran once per
+        // handle of every multi-binding rig — O(n²) per equip).
+        if (!GodotObject.IsInstanceValid(h.Node)) { return; }
+        var service = Composer?.Effects;
+        _nodeBaseModulates[h.Node] = service != null ? service.GetBaseColor(h.Node) : GetModulate(h.Node);
+    }
+
+    private void OnNodeRemoved(VisualNodeHandle h)
+    {
+        _nodeBaseModulates.Remove(h.Node);
+    }
+    private void OnTintChanged(Node node, Color color)
+    {
+        if (_nodeBaseModulates.ContainsKey(node))
+        {
+            _nodeBaseModulates[node] = color;
+        }
+    }
+
+    private HashSet<Node> CollectCurrentNodes()
+    {
+        var set = new HashSet<Node>();
+        if (Composer != null)
+        {
+            foreach (var h in Composer.GetVisualNodes(VisualQuery.All))
+            {
+                if (GodotObject.IsInstanceValid(h.Node)) { set.Add(h.Node); }
+            }
+        }
+        if (Root != null && GodotObject.IsInstanceValid(Root))
+        {
+            var rootSprites = new List<Node>();
+            VisualNodeAggregator.CollectSprites(Root, rootSprites);
+            foreach (var n in rootSprites) { set.Add(n); }
+        }
+        return set;
+    }
 
     private void ApplyEffects()
     {
         if (_nodeBaseModulates.Count == 0) { return; }
 
-        // 1. Calculate the composite effect color
-        Color finalEffectColor = Colors.White;
-
-        // Check for dominant override (Highest Priority, then Newest)
-        var overrideHandle = _activeEffects.Values
-            .Where(h => h.Effect.BlendMode == VisualEffectBlendMode.Override)
-            .OrderByDescending(h => h.Effect.Priority)
-            .ThenByDescending(h => h.StartTime)
-            .FirstOrDefault();
-
-        if (overrideHandle != null)
+        // Single foreach pass — track the best Override candidate (highest Priority,
+        // tiebreak on StartTime) AND accumulate Mix product in one walk. Avoids the
+        // per-frame allocation of LINQ's IOrderedEnumerable + lambda closures.
+        Color mixProduct = Colors.White;
+        ActiveEffectHandle? bestOverride = null;
+        foreach (var h in _activeEffects.Values)
         {
-            // Override takes complete control
-            finalEffectColor = overrideHandle.State.Modulate;
-        }
-        else
-        {
-            // Mix mode: Multiply all active mix effects
-            foreach (var handle in _activeEffects.Values)
+            if (h.Effect.BlendMode == VisualEffectBlendMode.Override)
             {
-                if (handle.Effect.BlendMode == VisualEffectBlendMode.Mix)
+                if (bestOverride == null
+                    || h.Effect.Priority > bestOverride.Effect.Priority
+                    || (h.Effect.Priority == bestOverride.Effect.Priority && h.StartTime > bestOverride.StartTime))
                 {
-                    finalEffectColor *= handle.State.Modulate;
+                    bestOverride = h;
                 }
             }
+            else if (h.Effect.BlendMode == VisualEffectBlendMode.Mix)
+            {
+                mixProduct *= h.State.Modulate;
+            }
         }
 
-        //GD.Print($"Managed Nodes: {_nodeBaseModulates.Count}");
-        //GD.Print($"Final Effect Color: {finalEffectColor}");
+        Color finalEffectColor = bestOverride != null ? bestOverride.State.Modulate : mixProduct;
 
-        // 2. Apply to all tracked nodes
-        // We iterate backwards to safely handle invalid nodes
         foreach (var (node, baseColor) in _nodeBaseModulates)
         {
-            if (!node.IsValid())
-            {
-                continue;
-            }
+            if (!GodotObject.IsInstanceValid(node)) { continue; }
             SetModulate(node, baseColor * finalEffectColor);
         }
     }
 
     private void ResetVisuals()
     {
+        // Restore the LAYERED color (base × persistent tints), not just the bare
+        // base color we cached at NodeAdded time. The previous bare-base reset
+        // clobbered persistent tints registered with VisualEffectService — e.g.
+        // a player color tint would vanish the moment any transient effect (hit
+        // flash, sabotage tint) finished and ResetVisuals fired.
+        var service = Composer?.Effects;
         foreach (var (node, baseColor) in _nodeBaseModulates)
         {
-            if (GodotObject.IsInstanceValid(node))
-            {
-                SetModulate(node, baseColor);
-            }
+            if (!GodotObject.IsInstanceValid(node)) { continue; }
+            var color = service != null ? service.ComputeEffectiveColorForNode(node) : baseColor;
+            SetModulate(node, color);
         }
     }
 
-    #endregion
-
-    #region Provider & Node Management
-
-    private void InitializeProviders()
-    {
-        foreach (var source in VisualSources)
-        {
-            if (source is IVisualSpriteProvider provider)
-            {
-                _providers.Add(provider);
-                provider.VisibleNodesChanged += RefreshVisualNodes; // Future proofing
-            }
-        }
-    }
-
-    private void UnsubscribeFromProviders()
-    {
-        foreach (var provider in _providers)
-        {
-            provider.VisibleNodesChanged -= RefreshVisualNodes;
-        }
-        _providers.Clear();
-    }
-
-    /// <summary>
-    /// Refreshes the list of tracked visual nodes and their base colors.
-    /// When a BaseModulationTracker is set, base colors are queried from the tracker.
-    /// Otherwise, colors are captured from the current sprite state.
-    /// </summary>
-    public void RefreshVisualNodes()
-    {
-        // Capture new list of nodes
-        var currentNodes = GetAllVisualNodes();
-
-        // Clean invalid nodes
-        var invalidNodes = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n)).ToList();
-        foreach (var n in invalidNodes) { _nodeBaseModulates.Remove(n); }
-
-        foreach (var node in currentNodes)
-        {
-            // Always update from tracker if available (tracker is source of truth)
-            if (_baseColorTracker != null)
-            {
-                // Query tracker for explicit base color
-                // If not registered, use White (no modification)
-                _nodeBaseModulates[node] = _baseColorTracker.GetBaseColor(node);
-            }
-            else if (!_nodeBaseModulates.ContainsKey(node))
-            {
-                // No tracker - legacy behavior: capture current state as base
-                // NOTE: This can capture effect colors if mid-effect. Use tracker to avoid.
-                _nodeBaseModulates[node] = GetModulate(node);
-            }
-        }
-    }
-
-    private List<Node> GetAllVisualNodes()
-    {
-        var nodes = new List<Node>();
-
-        foreach (var source in VisualSources)
-        {
-            if (source == null || !GodotObject.IsInstanceValid(source)) { continue; }
-
-            if (source is IVisualSpriteProvider provider)
-            {
-                var providerNodes = provider.GetAllVisualNodes();
-                if (providerNodes != null)
-                {
-                    nodes.AddRange(providerNodes);
-                }
-            }
-            else
-            {
-                if (source is SpriteBase3D) { nodes.Add(source); }
-                nodes.AddRange(source.GetChildrenOfType<SpriteBase3D>());
-                // Add 2D support?
-                if (source is Node2D) { nodes.AddRange(source.GetChildrenOfType<Node2D>().Where(n => n.GetType().Name.Contains("Sprite"))); }
-            }
-        }
-        return nodes;
-    }
-
-    #endregion
-
-    #region Helpers
-
-    private void OnEffectFinished(VisualEffect effect)
-    {
-        // Don't kill tween here, it's already finished. Just remove logic.
-        StopEffect(effect);
-    }
+    private void OnEffectFinished(VisualEffect effect) => StopEffect(effect);
 
     private static void SetModulate(Node node, Color color)
     {
-        if (node is SpriteBase3D s3d)
+        switch (node)
         {
-            s3d.Modulate = color;
-        }
-        else if (node is CanvasItem ci)
-        {
-            ci.Modulate = color;
-        }
-        else if (node is Node3D n3d)
-        {
-             // Fallback for some Node3D types?
+            case SpriteBase3D s3d: s3d.Modulate = color; break;
+            case CanvasItem ci: ci.Modulate = color; break;
         }
     }
 
     private static Color GetModulate(Node node)
     {
-        if (node is SpriteBase3D s3d) { return s3d.Modulate; }
-        if (node is CanvasItem ci) { return ci.Modulate; }
-        return Colors.White;
+        return node switch
+        {
+            SpriteBase3D s3d => s3d.Modulate,
+            CanvasItem ci => ci.Modulate,
+            _ => Colors.White,
+        };
     }
 
     #endregion
-
-    #region Internal Types
 
     private class ActiveEffectHandle
     {
         public VisualEffect Effect { get; set; } = null!;
-        public Tween? Tween { get; set; }
+        public IEffectApplier Applier { get; set; } = null!;
         public VisualEffectHandle State { get; set; } = null!;
         public ulong StartTime { get; set; }
     }
 
-    #endregion
-
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-        if (VisualSources == null || VisualSources.Count == 0)
+        if (Composer == null && Root == null)
         {
-            warnings.Add("No visual sources configured.");
+            warnings.Add("Set either Composer (for entities) or Root (for single-sprite props).");
         }
         return warnings.ToArray();
     }
