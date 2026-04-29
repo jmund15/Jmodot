@@ -23,6 +23,7 @@ public abstract record VisualQuery
     public static VisualQuery Tagged(StringName tag) => new TaggedQuery(tag);
     public static VisualQuery Tagged(params StringName[] tags) => new TaggedAnyQuery(tags);
     public static VisualQuery AllExceptSlot(SlotKey key) => new AllExceptSlotQuery(key);
+    public static VisualQuery AllExceptTag(StringName tag) => new AllExceptTagQuery(tag);
     public static VisualQuery Handles(params VisualNodeHandle[] handles) => new HandlesQuery(handles);
     public static VisualQuery Handles(IEnumerable<VisualNodeHandle> handles) => new HandlesQuery(System.Linq.Enumerable.ToArray(handles));
 
@@ -70,6 +71,11 @@ internal sealed record TaggedAnyQuery(StringName[] Tags) : VisualQuery
 internal sealed record AllExceptSlotQuery(SlotKey Key) : VisualQuery
 {
     public override bool Matches(VisualNodeHandle handle) => !Key.Equals(handle.SlotId);
+}
+
+internal sealed record AllExceptTagQuery(StringName Tag) : VisualQuery
+{
+    public override bool Matches(VisualNodeHandle handle) => !handle.Tags.Contains(Tag);
 }
 
 internal sealed record HandlesQuery(VisualNodeHandle[] Items) : VisualQuery

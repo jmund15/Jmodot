@@ -237,10 +237,6 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             {
                 anim.StartAnim(animName);
             }
-            // else
-            // {
-            //     anim.StopAnim();
-            // }
         }
     }
 

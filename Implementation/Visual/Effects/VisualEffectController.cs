@@ -293,9 +293,17 @@ public partial class VisualEffectController : Node, IComponent
 
     private void ResetVisuals()
     {
+        // Restore the LAYERED color (base × persistent tints), not just the bare
+        // base color we cached at NodeAdded time. The previous bare-base reset
+        // clobbered persistent tints registered with VisualEffectService — e.g.
+        // a player color tint would vanish the moment any transient effect (hit
+        // flash, sabotage tint) finished and ResetVisuals fired.
+        var service = Composer?.Effects;
         foreach (var (node, baseColor) in _nodeBaseModulates)
         {
-            if (GodotObject.IsInstanceValid(node)) { SetModulate(node, baseColor); }
+            if (!GodotObject.IsInstanceValid(node)) { continue; }
+            var color = service != null ? service.ComputeEffectiveColorForNode(node) : baseColor;
+            SetModulate(node, color);
         }
     }
 

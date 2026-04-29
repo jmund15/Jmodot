@@ -38,7 +38,7 @@ using Shared;
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
-public partial class VisualComposer : Node, IVisualNodeProvider
+public partial class VisualComposer : Node3D, IVisualNodeProvider
 {
     [Export, RequiredExport] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
 

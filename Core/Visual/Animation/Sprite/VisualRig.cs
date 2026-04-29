@@ -13,7 +13,7 @@ using GCol = Godot.Collections;
 /// Without a rig, a slot falls back to a recursive sprite walk and produces tagless,
 /// partless handles. Rigs are the way to opt into typed querying (by part, by tag).
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VisualRig : Resource
 {
     [Export] public GCol.Array<VisualPartBinding> Bindings { get; set; } = new();

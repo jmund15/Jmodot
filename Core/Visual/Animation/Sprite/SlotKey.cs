@@ -18,7 +18,7 @@ using Jmodot.Core.Shared.Attributes;
 /// a code path that doesn't have access to the asset, audit it carefully — the typed
 /// asset reference is the supported pattern.
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class SlotKey : Resource
 {
     [Export, RequiredExport] public StringName Id { get; set; } = null!;

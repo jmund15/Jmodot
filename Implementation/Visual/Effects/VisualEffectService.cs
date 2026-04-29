@@ -70,6 +70,36 @@ public partial class VisualEffectService : Node, IVisualEffectService
     public Color GetBaseColor(Node node)
         => _baseColors.TryGetValue(node, out var c) ? c : Colors.White;
 
+    /// <summary>
+    /// Computes base × ∏(matching persistent tints) for the given node, even when
+    /// the node isn't currently held as a typed handle by the provider. Falls back
+    /// to <see cref="GetBaseColor"/>'s white default if the node is untracked.
+    /// Used by transient-effect runners (e.g. <c>VisualEffectController</c>) to
+    /// restore the *layered* color on reset, not just the bare base — without
+    /// this, a transient effect's finish would clobber persistent tints.
+    /// </summary>
+    public Color ComputeEffectiveColorForNode(Node node)
+    {
+        var color = GetBaseColor(node);
+        foreach (var (_, entry) in _persistentTints)
+        {
+            // Synthesize a minimal handle to test the query; only Node identity
+            // and tags are inspectable by typical queries. Tags are unknown here
+            // (this entry point is for nodes that aren't tracked as VisualNodeHandle),
+            // so we pass an empty tag set. Queries that depend on tags will be
+            // conservative (no match) — caller-tracked tag-driven tinting should
+            // route through ApplyEffectiveColor(VisualNodeHandle) instead.
+            var probe = new VisualNodeHandle(null!, null, _emptyTagSet, node, null!, true);
+            if (entry.query.Matches(probe))
+            {
+                color *= entry.color;
+            }
+        }
+        return color;
+    }
+
+    private static readonly System.Collections.Generic.HashSet<StringName> _emptyTagSet = new();
+
     public bool TryGetBaseColor(Node node, out Color baseColor)
         => _baseColors.TryGetValue(node, out baseColor);
 

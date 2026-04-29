@@ -9,7 +9,7 @@ using Jmodot.Core.Shared.Attributes;
 /// specific child node by path, attaches a <see cref="PartId"/> and tags, and gates
 /// which <c>VisualItemData</c> overrides apply to it.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VisualPartBinding : Resource
 {
     /// <summary>
