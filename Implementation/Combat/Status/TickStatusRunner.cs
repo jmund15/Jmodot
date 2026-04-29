@@ -85,17 +85,20 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
             _tickTimer.Timeout += OnTick;
             _tickTimer.Start();
         }
+
+        // Fire the per-tick *visual* once at application time so the moment of
+        // status onset is legible to the player. Damage application stays on the
+        // Interval timer to preserve DPS — only the visual portion runs eagerly.
+        PlayTickVisuals();
     }
 
-    private void OnTick()
+    private void PlayTickVisuals()
     {
-        // Per-tick visual effect (flash/pulse via VisualEffectController)
         if (TickVisualEffect != null)
         {
             VisualController?.PlayEffect(TickVisualEffect);
         }
 
-        // Spawn Visuals (particle scenes)
         if (TickVisuals != null)
         {
             var visual = TickVisuals.Instantiate();
@@ -105,6 +108,11 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
             }
             Target.OwnerNode.AddChild(visual);
         }
+    }
+
+    private void OnTick()
+    {
+        PlayTickVisuals();
 
         if (TickEffect != null)
         {

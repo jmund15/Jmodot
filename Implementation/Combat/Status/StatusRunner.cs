@@ -67,10 +67,14 @@ public abstract partial class StatusRunner : Node
             // TODO: add config for if visuals should be parented to the target or the status effect component
             target.OwnerNode.AddChild(_visualInstance);
         }
-        
+
+        // Resolve once for the lifetime of the runner — subclasses (e.g. TickStatusRunner)
+        // also drive per-tick effects through the same controller, so the lookup must
+        // succeed even when StatusVisualEffect is null.
+        VisualController = FindVisualController(target);
+
         if (StatusVisualEffect != null)
         {
-            VisualController = FindVisualController(target);
             VisualController?.PlayEffect(StatusVisualEffect);
         }
         
