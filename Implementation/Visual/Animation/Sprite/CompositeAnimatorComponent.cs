@@ -43,6 +43,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
+    public event Action<StringName> AnimStopped = delegate { };
     public override void _PhysicsProcess(double delta)
     {
         base._PhysicsProcess(delta);
@@ -151,7 +152,13 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// touching it with <c>StopAnim</c> is wasteful (and fragile if <c>StopAnim</c>
     /// emits signals synchronously during teardown).
     /// </param>
-    public void UnregisterAnimator(IAnimComponent animator, bool stopFirst = true)
+    /// <param name="warnOnMasterLoss">
+    /// When true (default), emits a warning if removing this animator leaves the
+    /// composite empty. Pass false from contexts that expect an immediate re-register
+    /// (e.g. <c>VisualSlot.ClearInstance</c> during a <c>Push</c>) — the transient
+    /// empty state is a normal swap artifact and the warning would be noise.
+    /// </param>
+    public void UnregisterAnimator(IAnimComponent animator, bool stopFirst = true, bool warnOnMasterLoss = true)
     {
         if (!_activeAnimators.Remove(animator)) { return; }
 
@@ -171,7 +178,10 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             _masterAnimator = _activeAnimators.FirstOrDefault();
             if (_masterAnimator == null)
             {
-                JmoLogger.Warning(this, "All animators unregistered; composite has no master. IsPlaying/HasAnimation/etc will return defaults until a new animator registers.");
+                if (warnOnMasterLoss)
+                {
+                    JmoLogger.Warning(this, "All animators unregistered; composite has no master. IsPlaying/HasAnimation/etc will return defaults until a new animator registers.");
+                }
             }
             else if (!string.IsNullOrEmpty(_lastRequestedAnim) && _masterAnimator.HasAnimation(_lastRequestedAnim))
             {
@@ -276,7 +286,17 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         return 0f;
     }
 
-    public void StopAnim() => _activeAnimators.ForEach(a => a.StopAnim());
+    public void StopAnim()
+    {
+        // Forward the master's anim name (or empty if no master) so listeners
+        // mirror parity with AnimStarted's name semantics. Each child animator
+        // also fires its own AnimStopped via its concrete IAnimComponent impl —
+        // this composite-level event is the aggregate signal external listeners
+        // (e.g. an AnimationVisibilityCoordinator wired to the composite) use.
+        var stoppedAnim = _masterAnimator?.GetCurrAnimation() ?? new StringName(string.Empty);
+        _activeAnimators.ForEach(a => a.StopAnim());
+        AnimStopped.Invoke(stoppedAnim);
+    }
     public void PauseAnim() => _activeAnimators.ForEach(a => a.PauseAnim());
 
     public void SetSpeedScale(float scale)

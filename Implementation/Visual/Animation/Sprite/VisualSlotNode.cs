@@ -254,7 +254,12 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
         if (Animator != null && ShouldRegisterWithComposite())
         {
             // stopFirst: false — the underlying node is about to be QueueFree'd.
-            _composite?.UnregisterAnimator(Animator, stopFirst: false);
+            // warnOnMasterLoss: false — ClearInstance is part of Push/Pop/Unequip flows;
+            // the master may be transiently absent before InstallInstance re-registers.
+            // The legitimate teardown signal is "composite has no animators after the
+            // entity tree settled," which the next register-or-not state inherently
+            // resolves; firing the warning during a normal swap is noise.
+            _composite?.UnregisterAnimator(Animator, stopFirst: false, warnOnMasterLoss: false);
         }
         Animator = null;
 

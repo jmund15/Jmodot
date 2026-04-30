@@ -14,6 +14,20 @@ public interface IAnimComponent : IGodotNodeInterface
     event Action<StringName> AnimStarted;
     event Action<StringName> AnimFinished;
 
+    /// <summary>
+    /// Fires when <see cref="StopAnim"/> is called (i.e. the animation is
+    /// terminated externally, not via natural completion). The argument is
+    /// the animation name that was active at the moment of stopping, or an
+    /// empty <see cref="StringName"/> if nothing was playing.
+    /// </summary>
+    /// <remarks>
+    /// Godot's underlying <c>AnimationPlayer.Stop()</c> does NOT emit
+    /// <c>AnimationFinished</c>, so listeners that want to clean up state on
+    /// teardown (e.g. <c>AnimationVisibilityCoordinator</c> hiding sprites)
+    /// need a dedicated stop signal — that's this event.
+    /// </remarks>
+    event Action<StringName> AnimStopped;
+
     void StartAnim(StringName animName);
     void PauseAnim();
     void StopAnim();

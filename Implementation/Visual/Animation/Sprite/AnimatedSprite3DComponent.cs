@@ -19,6 +19,7 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
     // --- IAnimComponent Events ---
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
+    public event Action<StringName> AnimStopped = delegate { };
 
     public override void _Ready()
     {
@@ -85,7 +86,16 @@ public partial class AnimatedSprite3DComponent : AnimatedSprite3D, IAnimComponen
     }
 
     public void PauseAnim() => this.Pause();
-    public void StopAnim() => this.Stop();
+    public void StopAnim()
+    {
+        // Capture before Stop() so listeners learn what was terminated. Godot's
+        // AnimatedSprite3D.Stop() emits no AnimationFinished signal, so AnimStopped
+        // is the only teardown notification a listener gets (parity with
+        // AnimationPlayerComponent.StopAnim).
+        var stoppedAnim = this.Animation;
+        this.Stop();
+        AnimStopped.Invoke(stoppedAnim);
+    }
     bool IAnimComponent.IsPlaying() => base.IsPlaying();
     public bool HasAnimation(StringName animName) => this.SpriteFrames.HasAnimation(animName);
     public StringName GetCurrAnimation() => this.Animation;

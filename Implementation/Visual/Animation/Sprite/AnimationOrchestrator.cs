@@ -47,6 +47,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
 
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
+    public event Action<StringName> AnimStopped = delegate { };
 
 
     public override void _Ready()
@@ -67,6 +68,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         // Forward events
         _targetAnimator.AnimStarted += OnTargetAnimStarted;
         _targetAnimator.AnimFinished += OnTargetAnimFinished;
+        _targetAnimator.AnimStopped += OnTargetAnimStopped;
     }
 
     public override void _EnterTree()
@@ -81,6 +83,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         {
             _targetAnimator.AnimStarted += OnTargetAnimStarted;
             _targetAnimator.AnimFinished += OnTargetAnimFinished;
+            _targetAnimator.AnimStopped += OnTargetAnimStopped;
         }
     }
 
@@ -91,11 +94,13 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         {
             _targetAnimator.AnimStarted -= OnTargetAnimStarted;
             _targetAnimator.AnimFinished -= OnTargetAnimFinished;
+            _targetAnimator.AnimStopped -= OnTargetAnimStopped;
         }
     }
 
     private void OnTargetAnimStarted(StringName n) => AnimStarted.Invoke(n);
     private void OnTargetAnimFinished(StringName n) => AnimFinished.Invoke(n);
+    private void OnTargetAnimStopped(StringName n) => AnimStopped.Invoke(n);
 
     /// <summary>
     /// Updates the direction. Triggers a smooth update to preserve animation time.

@@ -54,6 +54,19 @@ public partial class AnimationVisibilityCoordinator : Node
         set { _animNameSuffixSeparator = value; UpdateConfigurationWarnings(); }
     }
 
+    /// <summary>
+    /// When true, all managed sprites are hidden when the target animator
+    /// emits <see cref="IAnimComponent.AnimStopped"/>. Defaults to <c>false</c>
+    /// to preserve the legacy "Stop is silent, sprite stays at last frame"
+    /// behavior — many wizard body states (RunStraight/RunChargeSpell/RunHalt/
+    /// TumbleState/etc.) call <see cref="IAnimComponent.StopAnim"/> on exit
+    /// expecting the body sprite to remain visible until the next state's
+    /// StartAnim. Set to <c>true</c> per scene where teardown SHOULD hide
+    /// (e.g. <c>free_hand_visuals.tscn</c> — the cast-hand sprite is a
+    /// transient overlay and must vanish after StopAnim).
+    /// </summary>
+    [Export] public bool HideAllOnStop { get; set; } = false;
+
 
     // Runtime Caches
     private Dictionary<StringName, List<Node>> _visibilityCache = new();
@@ -97,6 +110,7 @@ public partial class AnimationVisibilityCoordinator : Node
         if (_targetAnimComponent != null)
         {
             _targetAnimComponent.AnimStarted += OnAnimStarted;
+            _targetAnimComponent.AnimStopped += OnAnimStopped;
         }
     }
 
@@ -138,6 +152,7 @@ public partial class AnimationVisibilityCoordinator : Node
             if (_targetAnimComponent != null)
             {
                 _targetAnimComponent.AnimStarted -= OnAnimStarted;
+                _targetAnimComponent.AnimStopped -= OnAnimStopped;
             }
         }
     }
@@ -226,11 +241,29 @@ public partial class AnimationVisibilityCoordinator : Node
         {
             _targetAnimComponent = animComp;
             _targetAnimComponent.AnimStarted += OnAnimStarted;
+            _targetAnimComponent.AnimStopped += OnAnimStopped;
         }
         else
         {
             JmoLogger.Error(this, $"TargetAnimatorPath '{TargetAnimatorPath}' is not an IAnimComponent!");
         }
+    }
+
+    /// <summary>
+    /// Called when the target animator's <see cref="IAnimComponent.StopAnim"/>
+    /// is invoked. Hides every managed sprite when <see cref="HideAllOnStop"/>
+    /// is true (the default). Without this hook, sprites shown by the last
+    /// <see cref="OnAnimStarted"/> would persist forever — Godot's
+    /// AnimationPlayer.Stop() emits no AnimationFinished signal.
+    /// </summary>
+    private void OnAnimStopped(StringName _)
+    {
+        if (!HideAllOnStop) { return; }
+        foreach (var node in _allManagedNodes)
+        {
+            SetNodeVisible(node, false);
+        }
+        VisibleNodesChanged.Invoke();
     }
 
     private void OnAnimStarted(StringName animName)

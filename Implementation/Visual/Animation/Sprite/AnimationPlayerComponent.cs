@@ -11,6 +11,7 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
 {
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
+    public event Action<StringName> AnimStopped = delegate { };
 
     public override void _Ready()
     {
@@ -29,7 +30,16 @@ public partial class AnimationPlayerComponent : AnimationPlayer, IAnimComponent
             JmoLogger.Error(this, $"Animation '{animName}' not found in AnimationPlayer '{Name}'.");
         }
     }
-    public void StopAnim() => this.Stop();
+    public void StopAnim()
+    {
+        // Capture the active anim BEFORE Stop() so listeners can know what was
+        // terminated (parity with AnimStarted's name argument). Godot's Stop()
+        // emits no AnimationFinished, so AnimStopped is the only signal a
+        // dependent listener (AnimationVisibilityCoordinator, etc.) gets.
+        var stoppedAnim = CurrentAnimation;
+        this.Stop();
+        AnimStopped.Invoke(stoppedAnim);
+    }
     public void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
         if (CurrentAnimation == animName && mode != AnimUpdateMode.Reset) { return; }
