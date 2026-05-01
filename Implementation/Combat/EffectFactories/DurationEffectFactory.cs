@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Combat.Status;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
@@ -19,12 +20,13 @@ public partial class DurationEffectFactory : CombatEffectFactory
     [Export] public CombatEffectFactory? OnEndEffect { get; set; }
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
+    [Export] public StatusSpreadConfig? Spread { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
         this.ValidateRequiredExports();
 
-        return new DurationEffect(
+        var effect = new DurationEffect(
             Runner,
             Duration.ResolveFloatValue(stats),
             OnStartEffect?.Create(stats),
@@ -33,5 +35,7 @@ public partial class DurationEffectFactory : CombatEffectFactory
             Tags,
             TargetVisualEffect
         );
+        effect.SpreadConfig = Spread;
+        return effect;
     }
 }

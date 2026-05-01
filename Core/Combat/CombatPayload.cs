@@ -34,7 +34,20 @@ public class CombatPayload : IAttackPayload
     {
         _effects.Remove(effect);
     }
-    
+
+    /// <summary>
+    /// Replaces the effect at the given index with a new one. Used for live mutation
+    /// of value-type effects (e.g. DamageEffect is a readonly struct — to "scale" its
+    /// damage we rebuild and replace, rather than mutate in place).
+    /// No-op if index is out of range or newEffect is null.
+    /// </summary>
+    public void ReplaceEffectAt(int index, ICombatEffect newEffect)
+    {
+        if (index < 0 || index >= _effects.Count) { return; }
+        if (newEffect == null) { return; }
+        _effects[index] = newEffect;
+    }
+
     public void ClearEffects()
     {
         _effects.Clear();

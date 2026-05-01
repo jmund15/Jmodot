@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Combat.Status;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
@@ -25,12 +26,13 @@ public partial class TickEffectFactory : CombatEffectFactory
     // TODO: should this be a property of the 'PerTickEffect'?
     [Export] public PackedScene? TickVisuals { get; set; }
     [Export] public VisualEffect? TickVisualEffect { get; set; }
+    [Export] public StatusSpreadConfig? Spread { get; set; }
 
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
         this.ValidateRequiredExports();
 
-        return new TickEffect(
+        var effect = new TickEffect(
             Runner,
             Duration.ResolveFloatValue(stats),
             Interval.ResolveFloatValue(stats),
@@ -41,5 +43,7 @@ public partial class TickEffectFactory : CombatEffectFactory
             TargetVisualEffect,
             TickVisualEffect
             );
+        effect.SpreadConfig = Spread;
+        return effect;
     }
 }

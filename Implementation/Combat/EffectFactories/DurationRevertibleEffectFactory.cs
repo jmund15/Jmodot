@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Combat.Status;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
@@ -19,6 +20,7 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
     [Export, RequiredExport] public CombatEffectFactory RevertibleEffect { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
+    [Export] public StatusSpreadConfig? Spread { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
@@ -30,13 +32,15 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
             JmoLogger.Error(this, $"{RevertibleEffect.ResourcePath}'s effect is not revertible!");
             throw new System.InvalidOperationException($"DurationRevertibleEffectFactory: RevertibleEffect does not produce an IRevertibleCombatEffect");
         }
-        return new DurationRevertEffect(
+        var revertEffect = new DurationRevertEffect(
             Runner,
             Duration.ResolveFloatValue(stats),
-            revertibleEffect, // Use the already-cast variable instead of creating again
+            revertibleEffect,
             PersistentVisuals,
             Tags,
             TargetVisualEffect
         );
+        revertEffect.SpreadConfig = Spread;
+        return revertEffect;
     }
 }
