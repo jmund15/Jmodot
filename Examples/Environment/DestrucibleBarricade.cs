@@ -18,14 +18,14 @@ public partial class DestructibleBarricade : Node, IDamageable
         _maxDurability = _durability;
     }
 
-    public void TakeDamage(float amount, object source)
+    public void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct)
     {
         if (amount <= 0 || _durability <= 0) { return; }
 
         float previousDurability = _durability;
         _durability = Mathf.Max(0, _durability - amount);
 
-        var args = new HealthChangeEventArgs(_durability, previousDurability, _maxDurability, source);
+        var args = new HealthChangeEventArgs(_durability, previousDurability, _maxDurability, source, kind);
         OnDamaged.Invoke(args);
 
         if (_durability <= 0)

@@ -231,7 +231,8 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// </summary>
     /// <param name="amount">The positive amount of health to remove.</param>
     /// <param name="source">The object responsible for the damage (e.g., a projectile, player, or status effect).</param>
-    public virtual void TakeDamage(float amount, object source)
+    /// <param name="kind">Categorizes the damage cause; carried into HealthChangeEventArgs so feedback subscribers can filter (e.g., HitFlash skips Tick).</param>
+    public virtual void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct)
     {
         if (amount <= 0 || IsDead || !IsInitialized)
         {
@@ -257,13 +258,13 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Fire events manually so visual feedback (flash, fragments) still triggers.
         if (IsIndestructible && Mathf.IsEqualApprox(newHealth, _currentHealth))
         {
-            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source);
+            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind);
             OnHealthChanged.Invoke(args);
             OnDamaged.Invoke(args);
             return;
         }
 
-        SetHealth(newHealth, source);
+        SetHealth(newHealth, source, kind);
     }
 
     /// <summary>
@@ -361,7 +362,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// The central method for all health modifications. It calculates changes,
     /// clamps values, invokes all relevant events, and handles the death transition.
     /// </summary>
-    private void SetHealth(float newHealth, object source)
+    private void SetHealth(float newHealth, object source, DamageKind kind = DamageKind.Direct)
     {
         float previousHealth = _currentHealth;
         float maxHealth = MaxHealth; // Cache for this scope to avoid repeated lookups.
@@ -376,7 +377,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
 
         // --- Event Invocation ---
-        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source);
+        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source, kind);
         OnHealthChanged.Invoke(eventArgs);
 
         if (eventArgs.HealthDelta < 0)
