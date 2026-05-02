@@ -1,5 +1,6 @@
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Combat.Status;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.Combat.Effects;
 using Jmodot.Implementation.Combat.Status;
@@ -18,12 +19,13 @@ public partial class DelayedEffectFactory : CombatEffectFactory
     [Export, RequiredExport] public CombatEffectFactory EffectToApply { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     [Export] public PackedScene? PersistentVisuals { get; set; }
+    [Export] public StatusSpreadConfig? Spread { get; set; }
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
         this.ValidateRequiredExports();
 
-        return new DelayEffect(
+        var effect = new DelayEffect(
             Runner,
             Delay.ResolveFloatValue(stats),
             EffectToApply.Create(stats),
@@ -31,5 +33,7 @@ public partial class DelayedEffectFactory : CombatEffectFactory
             Tags,
             TargetVisualEffect
         );
+        effect.SpreadConfig = Spread;
+        return effect;
     }
 }

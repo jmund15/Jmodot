@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Combat.Effects.StatusEffects;
 using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
+using Jmodot.Core.Combat.Status;
 using AI.BB;
 using Combat;
 using Core.Visual.Effects;
@@ -13,7 +14,7 @@ using Status;
 /// The "Instruction" to apply a Tick Effect.
 /// Contains only raw data (the Snapshot). No logic, no Godot Nodes.
 /// </summary>
-public class TickEffect : ICombatEffect
+public class TickEffect : ISpreadAwareCombatEffect
 {
     public PackedScene Prefab { get; private init; }
 
@@ -30,6 +31,18 @@ public class TickEffect : ICombatEffect
     /// Optional per-tick visual effect (flash/pulse) distinct from the persistent StatusVisualEffect.
     /// </summary>
     public VisualEffect? TickVisualEffect { get; private init; }
+
+    /// <summary>
+    /// Optional spread configuration. Set by TickEffectFactory.Create after construction.
+    /// Forwarded to the runner before AddStatus so the component's spread loop can pick it up.
+    /// </summary>
+    public Core.Combat.Status.StatusSpreadConfig? SpreadConfig { get; set; }
+
+    /// <summary>
+    /// Generation to stamp on the runner when this effect spawns one. Bumped by the spread
+    /// loop when re-Applying this snapshot on a picked target.
+    /// </summary>
+    public int SpreadGeneration { get; set; } = 0;
 
     public TickEffect(
         PackedScene prefab,
@@ -86,6 +99,13 @@ public class TickEffect : ICombatEffect
 
         // 4. Inject the Snapshot Data
         runner.Setup(Duration, Interval, PerTickEffect, TickVisuals, PersistentVisuals, Tags, Visual, TickVisualEffect);
+
+        // 4a. Wire spread (if configured) — runner.SpreadConfig drives the component's spread loop;
+        // runner.SourceEffect lets the loop re-Apply this snapshot to spread to a picked target;
+        // runner.SpreadGeneration carries the per-instance generation count.
+        runner.SpreadConfig = SpreadConfig;
+        runner.SourceEffect = this;
+        runner.SpreadGeneration = SpreadGeneration;
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

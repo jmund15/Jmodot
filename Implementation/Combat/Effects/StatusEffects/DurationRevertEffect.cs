@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Combat.Effects.StatusEffects;
 using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
+using Jmodot.Core.Combat.Status;
 using AI.BB;
 using Combat;
 using Core.Visual.Effects;
@@ -13,7 +14,7 @@ using Status;
 /// The "Instruction" to apply a Duration Effect.
 /// Contains only raw data (the Snapshot). No logic, no Godot Nodes.
 /// </summary>
-public class DurationRevertEffect : ICombatEffect
+public class DurationRevertEffect : ISpreadAwareCombatEffect
 {
     public PackedScene Prefab { get; private init; }
     public float Duration { get; private init; }
@@ -21,6 +22,9 @@ public class DurationRevertEffect : ICombatEffect
     public PackedScene? PersistentVisuals { get; private init; }
     public IEnumerable<CombatTag> Tags { get; private init; }
     public VisualEffect? Visual { get; private init; }
+
+    public Core.Combat.Status.StatusSpreadConfig? SpreadConfig { get; set; }
+    public int SpreadGeneration { get; set; } = 0;
 
     public DurationRevertEffect(
         PackedScene prefab,
@@ -49,11 +53,12 @@ public class DurationRevertEffect : ICombatEffect
             return null;
         }
 
-        // 2. Access Component
-        if (!target.Blackboard.TryGet<StatusEffectComponent>
-                (BBDataSig.StatusEffects, out var statusComp))
+        // 2. Access Component (combined null check — TryGet=true with null value is the
+        // null-storage asymmetry case; collapsing both checks here keeps step 5 clean).
+        if (!target.Blackboard.TryGet<StatusEffectComponent>(BBDataSig.StatusEffects, out var statusComp)
+            || statusComp == null)
         {
-            return null; // Target cannot accept status effects
+            return null;
         }
 
         // 3. Instantiate the Runner (The Node)
@@ -67,14 +72,12 @@ public class DurationRevertEffect : ICombatEffect
         // 4. Inject the Snapshot Data
         runner.Setup(Duration, RevertEffect, PersistentVisuals, Tags, Visual);
 
-        // 5. Add to System
-        // The Component handles parenting and lifecycle management.
-        if (statusComp == null)
-        {
-            JmoLogger.Error(this, "StatusEffectComponent resolved to null from Blackboard!");
-            return null;
-        }
+        // 4a. Wire spread (if configured).
+        runner.SpreadConfig = SpreadConfig;
+        runner.SourceEffect = this;
+        runner.SpreadGeneration = SpreadGeneration;
 
+        // 5. Add to System (Component handles parenting and lifecycle management).
         bool wasAccepted = statusComp.AddStatus(runner, target, context);
 
         if (!wasAccepted)

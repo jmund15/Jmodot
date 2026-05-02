@@ -80,7 +80,7 @@ public struct DistanceScaledDamageEffect : ICombatEffect
             return null;
         }
 
-        health.TakeDamage(finalDamage, context.Attacker);
+        health.TakeDamage(finalDamage, context.Attacker, context.Kind);
 
         // 5. Return result
         return new DamageResult

@@ -3,6 +3,26 @@ using System;
 namespace Jmodot.Core.Health;
 
 /// <summary>
+/// Categorizes the cause of a health change so subscribers can filter feedback
+/// (e.g., a sprite hit-flash plays for Direct hits but not for Tick damage —
+/// which has its own per-tick visual that would otherwise stack with the flash).
+/// </summary>
+public enum DamageKind
+{
+    /// <summary>Primary impact — projectile contact, melee swing, explicit kill. Default.</summary>
+    Direct = 0,
+
+    /// <summary>Recurring damage from a status effect (burn, poison, bleed). Has its own per-tick visual.</summary>
+    Tick = 1,
+
+    /// <summary>Damage produced by a reaction or chained effect (spell-on-spell, water-on-fire).</summary>
+    Reaction = 2,
+
+    /// <summary>Hazard, fire-on-the-floor, lava, environmental DoT.</summary>
+    Environmental = 3,
+}
+
+/// <summary>
 /// A generic event argument class that provides detailed context about a health change.
 /// </summary>
 public class HealthChangeEventArgs : EventArgs
@@ -18,13 +38,22 @@ public class HealthChangeEventArgs : EventArgs
     /// </summary>
     public object Source { get; }
 
-    public HealthChangeEventArgs(float newHealth, float previousHealth, float maxHealth, object source)
+    /// <summary>
+    /// Categorizes the cause so subscribers can filter (e.g., HitFlashComponent skips
+    /// non-Direct so status ticks don't stack the generic white flash on top of their
+    /// per-tick visual). Defaults to <see cref="DamageKind.Direct"/> for legacy callers.
+    /// </summary>
+    public DamageKind Kind { get; }
+
+    public HealthChangeEventArgs(float newHealth, float previousHealth, float maxHealth, object source,
+        DamageKind kind = DamageKind.Direct)
     {
         NewHealth = newHealth;
         PreviousHealth = previousHealth;
         MaxHealth = maxHealth;
         HealthDelta = newHealth - previousHealth;
         Source = source;
+        Kind = kind;
     }
 }
 
@@ -56,7 +85,7 @@ public interface IDamageable
     /// </summary>
     /// <param name="amount">The amount of health to remove. Should be positive.</param>
     /// <param name="source">The object responsible for the damage.</param>
-    void TakeDamage(float amount, object source);
+    void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct);
 }
 
 /// <summary>

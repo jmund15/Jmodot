@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Jmodot.Core.Combat;
+using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Combat.Status;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
@@ -50,6 +51,13 @@ public partial class StatusEffectComponent : Node, IComponent
     private readonly Dictionary<CombatTag, int> _activeTags = new();
     private readonly List<StatusRunner> _activeRunners = new();
     private IBlackboard _blackboard = null!;
+
+    /// <summary>
+    /// Count of active runners carrying a non-null SpreadConfig. Used to gate
+    /// per-frame _Process spread driving so non-spreading entities pay zero per-frame
+    /// cost (most NPCs / non-burning entities). Toggled on AddStatus / HandleStatusFinished.
+    /// </summary>
+    private int _spreadableRunnerCount;
     #endregion
 
     #region IComponent Implementation
@@ -58,18 +66,28 @@ public partial class StatusEffectComponent : Node, IComponent
     public bool Initialize(IBlackboard bb)
     {
         _blackboard = bb;
-        // if (!bb.TryGet<ICombatant>(BBDataSig.CombatantComponent, out _combatant))
-        // {
-        //     JmoLogger.Error(this, $"Combatant not found in {Name}'s blackboard");
-        //     return false;
-        // }
         IsInitialized = true;
+        // Default-off: re-enabled by AddStatus when a runner with SpreadConfig joins.
+        SetProcess(false);
         Initialized();
         OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize() { }
+
+    /// <summary>
+    /// Production driver for spread cadence. Replaces the previous component-level Timer:
+    /// each runner's <see cref="StatusRunner.SpreadEvalAccumulator"/> advances by delta, and
+    /// when it crosses its config's <see cref="StatusSpreadConfig.EvaluationInterval"/> a
+    /// single evaluation fires (overshoot preserved). Skipped while uninitialized so unit
+    /// tests that construct the component bare aren't accidentally driven.
+    /// </summary>
+    public override void _Process(double delta)
+    {
+        if (!IsInitialized) { return; }
+        TickSpread(delta);
+    }
     public event Action Initialized = delegate { };
 
     public Node GetUnderlyingNode() => this;
@@ -128,6 +146,12 @@ public partial class StatusEffectComponent : Node, IComponent
 
         runner.OnStatusFinished += HandleStatusFinished;
         runner.Start(combatant, context);
+
+        if (runner.SpreadConfig != null)
+        {
+            _spreadableRunnerCount++;
+            SetProcess(true);
+        }
 
         StatusAdded?.Invoke(runner);
         return true;
@@ -372,6 +396,12 @@ public partial class StatusEffectComponent : Node, IComponent
         // Remove from active runners list
         _activeRunners.Remove(runner);
 
+        if (runner.SpreadConfig != null && _spreadableRunnerCount > 0)
+        {
+            _spreadableRunnerCount--;
+            if (_spreadableRunnerCount == 0) { SetProcess(false); }
+        }
+
         UnregisterTags(runner.Tags);
 
         // This will notify the combatant
@@ -417,6 +447,170 @@ public partial class StatusEffectComponent : Node, IComponent
             }
         }
     }
+    #endregion
+
+    #region Spread Evaluation
+
+    /// <summary>
+    /// Walks every active runner with a SpreadConfig and runs a single evaluation on each
+    /// (regardless of cadence — for one-shot orchestration tests + non-time-driven contexts).
+    /// Honors <see cref="StatusSpreadConfig.CanEvaluate"/> so the per-runner cap is enforced
+    /// uniformly with the cadence-driven path.
+    /// </summary>
+    public void EvaluateSpread()
+    {
+        if (!IsInitialized) { return; }
+
+        // ToList: SpawnSpreadRunner mutates _activeRunners (via AddStatus); iterating a snapshot
+        // avoids "collection was modified" exceptions and double-evaluation of fresh siblings
+        // within the same tick (their first evaluation happens on the next tick).
+        foreach (var runner in _activeRunners.ToList())
+        {
+            EvaluateSpreadForRunner(runner);
+        }
+    }
+
+    /// <summary>
+    /// Cadence + cap driver. Advances each runner's accumulator by <paramref name="delta"/>
+    /// and fires evaluations when the configured interval is crossed, until either the
+    /// accumulator dips back below the interval or the per-runner cap is reached. Public so
+    /// tests can drive deterministic time without a SceneTree.
+    /// </summary>
+    public void TickSpread(double delta)
+    {
+        if (!IsInitialized) { return; }
+        if (delta <= 0) { return; }
+        // Per-frame perf is gated upstream by SetProcess(false) when no runner has a
+        // SpreadConfig (toggled by AddStatus / HandleStatusFinished). This public API
+        // remains directly invokable from tests that bypass AddStatus and inject runners
+        // through other paths — the foreach below filters per-runner via cfg==null.
+
+        float dt = (float)delta;
+        foreach (var runner in _activeRunners.ToList())
+        {
+            var cfg = runner.SpreadConfig;
+            if (cfg == null) { continue; }
+            // Defensive: an interval of 0 or negative would make the drain loop never decrement
+            // and spin forever (or until MaxEvaluations clamps it). PropertyHint clamps in the
+            // editor, but SetTestValues / programmatic Resource construction can bypass that.
+            if (cfg.EvaluationInterval <= 0f) { continue; }
+
+            runner.SpreadEvalAccumulator += dt;
+
+            // Interval may be sampled multiple times per call when delta exceeds it (slow
+            // frames, manual large ticks). Loop until we either drain below interval or hit cap.
+            while (runner.SpreadEvalAccumulator >= cfg.EvaluationInterval
+                   && cfg.CanEvaluate(runner.SpreadEvaluationCount))
+            {
+                runner.SpreadEvalAccumulator -= cfg.EvaluationInterval;
+                EvaluateSpreadForRunner(runner);
+            }
+
+            // Cap exhausted with leftover accumulator: clamp to 0 so we don't keep growing it.
+            if (!cfg.CanEvaluate(runner.SpreadEvaluationCount))
+            {
+                runner.SpreadEvalAccumulator = 0f;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One evaluation pass for a single runner. Honors generation gate (via TryEvaluate),
+    /// chance, filtering, AND <see cref="StatusSpreadConfig.CanEvaluate"/>. Increments
+    /// <see cref="StatusRunner.SpreadEvaluationCount"/> when an evaluation actually runs
+    /// (regardless of whether it picks any target — the cap counts attempts, not successes).
+    /// </summary>
+    private void EvaluateSpreadForRunner(StatusRunner runner)
+    {
+        var cfg = runner.SpreadConfig;
+        if (cfg == null) { return; }
+        if (runner.Target == null) { return; }
+        if (!cfg.CanEvaluate(runner.SpreadEvaluationCount)) { return; }
+
+        runner.SpreadEvaluationCount++;
+
+        var nearby = QueryNearbyTargets(runner.Target, cfg.Range, cfg.SpreadCollisionMask);
+        if (!cfg.TryEvaluate(runner, nearby, out var picks)) { return; }
+
+        int newGen = runner.SpreadGeneration + 1;
+        foreach (var pickedTarget in picks)
+        {
+            SpawnSpreadRunner(runner, pickedTarget, newGen);
+        }
+    }
+
+    /// <summary>
+    /// Returns ICombatants in <paramref name="radius"/> world-units around the host target's
+    /// position whose nodes either ARE or HAVE-CHILD an ICombatant. Virtual so tests can
+    /// override with deterministic candidate sets without driving real physics queries.
+    /// </summary>
+    protected virtual IEnumerable<ICombatant> QueryNearbyTargets(ICombatant host, float radius, uint collisionMask = uint.MaxValue)
+    {
+        var result = new List<ICombatant>();
+        if (host.OwnerNode is not Node3D origin) { return result; }
+        if (!origin.IsInsideTree()) { return result; }
+
+        var space = origin.GetWorld3D()?.DirectSpaceState;
+        if (space == null) { return result; }
+
+        var query = new PhysicsShapeQueryParameters3D
+        {
+            Shape = new SphereShape3D { Radius = radius },
+            Transform = new Transform3D(Basis.Identity, origin.GlobalPosition),
+            CollisionMask = collisionMask
+        };
+
+        var hits = space.IntersectShape(query);
+        foreach (var hit in hits)
+        {
+            var collider = hit["collider"].As<Node3D>();
+            if (collider == null || !IsInstanceValid(collider)) { continue; }
+            if (collider == origin) { continue; }
+
+            // ICombatant may live as the collider itself, or as a sibling/child component.
+            ICombatant? combatant = null;
+            if (collider is ICombatant c1) { combatant = c1; }
+            else
+            {
+                foreach (var child in collider.GetChildren())
+                {
+                    if (child is ICombatant c2) { combatant = c2; break; }
+                }
+            }
+
+            if (combatant != null && combatant != host) { result.Add(combatant); }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Re-Apply the source runner's <see cref="StatusRunner.SourceEffect"/> on the picked
+    /// target with an incremented spread generation. SourceEffect is shared across all
+    /// descendants of the original cast — save/restore SpreadGeneration around Apply so
+    /// stale generation values don't leak to subsequent reads (telemetry, debug log,
+    /// later iterations of the foreach in EvaluateSpread).
+    /// </summary>
+    private void SpawnSpreadRunner(StatusRunner sourceRunner, ICombatant pickedTarget, int newGeneration)
+    {
+        if (sourceRunner.SourceEffect is not ISpreadAwareCombatEffect spreadAware)
+        {
+            // Runner was created outside the spread-aware factory path — can't reproduce.
+            return;
+        }
+
+        int previousGeneration = spreadAware.SpreadGeneration;
+        spreadAware.SpreadGeneration = newGeneration;
+        try
+        {
+            spreadAware.Apply(pickedTarget, sourceRunner.Context);
+        }
+        finally
+        {
+            spreadAware.SpreadGeneration = previousGeneration;
+        }
+    }
+
     #endregion
 
     #region Test Helpers

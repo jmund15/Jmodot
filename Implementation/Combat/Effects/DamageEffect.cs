@@ -52,7 +52,7 @@ public struct DamageEffect : ICombatEffect
 
         // TODO: add damage modifier modules (armor, weakness, true damage, etc.)
 
-        health.TakeDamage(DamageAmount, context.Attacker);
+        health.TakeDamage(DamageAmount, context.Attacker, context.Kind);
 
         return new DamageResult
         {
