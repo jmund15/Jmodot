@@ -51,6 +51,13 @@ public partial class StatusEffectComponent : Node, IComponent
     private readonly Dictionary<CombatTag, int> _activeTags = new();
     private readonly List<StatusRunner> _activeRunners = new();
     private IBlackboard _blackboard = null!;
+
+    /// <summary>
+    /// Count of active runners carrying a non-null SpreadConfig. Used to gate
+    /// per-frame _Process spread driving so non-spreading entities pay zero per-frame
+    /// cost (most NPCs / non-burning entities). Toggled on AddStatus / HandleStatusFinished.
+    /// </summary>
+    private int _spreadableRunnerCount;
     #endregion
 
     #region IComponent Implementation
@@ -59,12 +66,9 @@ public partial class StatusEffectComponent : Node, IComponent
     public bool Initialize(IBlackboard bb)
     {
         _blackboard = bb;
-        // if (!bb.TryGet<ICombatant>(BBDataSig.CombatantComponent, out _combatant))
-        // {
-        //     JmoLogger.Error(this, $"Combatant not found in {Name}'s blackboard");
-        //     return false;
-        // }
         IsInitialized = true;
+        // Default-off: re-enabled by AddStatus when a runner with SpreadConfig joins.
+        SetProcess(false);
         Initialized();
         OnPostInitialize();
         return true;
@@ -142,6 +146,12 @@ public partial class StatusEffectComponent : Node, IComponent
 
         runner.OnStatusFinished += HandleStatusFinished;
         runner.Start(combatant, context);
+
+        if (runner.SpreadConfig != null)
+        {
+            _spreadableRunnerCount++;
+            SetProcess(true);
+        }
 
         StatusAdded?.Invoke(runner);
         return true;
@@ -386,6 +396,12 @@ public partial class StatusEffectComponent : Node, IComponent
         // Remove from active runners list
         _activeRunners.Remove(runner);
 
+        if (runner.SpreadConfig != null && _spreadableRunnerCount > 0)
+        {
+            _spreadableRunnerCount--;
+            if (_spreadableRunnerCount == 0) { SetProcess(false); }
+        }
+
         UnregisterTags(runner.Tags);
 
         // This will notify the combatant
@@ -464,6 +480,10 @@ public partial class StatusEffectComponent : Node, IComponent
     {
         if (!IsInitialized) { return; }
         if (delta <= 0) { return; }
+        // Per-frame perf is gated upstream by SetProcess(false) when no runner has a
+        // SpreadConfig (toggled by AddStatus / HandleStatusFinished). This public API
+        // remains directly invokable from tests that bypass AddStatus and inject runners
+        // through other paths — the foreach below filters per-runner via cfg==null.
 
         float dt = (float)delta;
         foreach (var runner in _activeRunners.ToList())
@@ -509,7 +529,7 @@ public partial class StatusEffectComponent : Node, IComponent
 
         runner.SpreadEvaluationCount++;
 
-        var nearby = QueryNearbyTargets(runner.Target, cfg.Range);
+        var nearby = QueryNearbyTargets(runner.Target, cfg.Range, cfg.SpreadCollisionMask);
         if (!cfg.TryEvaluate(runner, nearby, out var picks)) { return; }
 
         int newGen = runner.SpreadGeneration + 1;
@@ -524,7 +544,7 @@ public partial class StatusEffectComponent : Node, IComponent
     /// position whose nodes either ARE or HAVE-CHILD an ICombatant. Virtual so tests can
     /// override with deterministic candidate sets without driving real physics queries.
     /// </summary>
-    protected virtual IEnumerable<ICombatant> QueryNearbyTargets(ICombatant host, float radius)
+    protected virtual IEnumerable<ICombatant> QueryNearbyTargets(ICombatant host, float radius, uint collisionMask = uint.MaxValue)
     {
         var result = new List<ICombatant>();
         if (host.OwnerNode is not Node3D origin) { return result; }
@@ -537,7 +557,7 @@ public partial class StatusEffectComponent : Node, IComponent
         {
             Shape = new SphereShape3D { Radius = radius },
             Transform = new Transform3D(Basis.Identity, origin.GlobalPosition),
-            CollisionMask = uint.MaxValue
+            CollisionMask = collisionMask
         };
 
         var hits = space.IntersectShape(query);
@@ -566,9 +586,10 @@ public partial class StatusEffectComponent : Node, IComponent
 
     /// <summary>
     /// Re-Apply the source runner's <see cref="StatusRunner.SourceEffect"/> on the picked
-    /// target with an incremented spread generation. Single-threaded — sets the effect's
-    /// SpreadGeneration immediately before Apply, so concurrent picks within a single tick
-    /// see the right value.
+    /// target with an incremented spread generation. SourceEffect is shared across all
+    /// descendants of the original cast — save/restore SpreadGeneration around Apply so
+    /// stale generation values don't leak to subsequent reads (telemetry, debug log,
+    /// later iterations of the foreach in EvaluateSpread).
     /// </summary>
     private void SpawnSpreadRunner(StatusRunner sourceRunner, ICombatant pickedTarget, int newGeneration)
     {
@@ -578,8 +599,16 @@ public partial class StatusEffectComponent : Node, IComponent
             return;
         }
 
+        int previousGeneration = spreadAware.SpreadGeneration;
         spreadAware.SpreadGeneration = newGeneration;
-        spreadAware.Apply(pickedTarget, sourceRunner.Context);
+        try
+        {
+            spreadAware.Apply(pickedTarget, sourceRunner.Context);
+        }
+        finally
+        {
+            spreadAware.SpreadGeneration = previousGeneration;
+        }
     }
 
     #endregion

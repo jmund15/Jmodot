@@ -62,7 +62,7 @@ public abstract partial class StatusRunner : Node
     /// SourceEffect.Apply(pickedTarget, ...) reuses the resolved values (Duration, Interval, …)
     /// without needing the original spell's StatProvider.
     /// </summary>
-    public ICombatEffect? SourceEffect { get; set; }
+    public ICombatEffect? SourceEffect { get; internal set; }
 
     /// <summary>
     /// Per-runner accumulator (seconds) advanced each frame by the StatusEffectComponent's

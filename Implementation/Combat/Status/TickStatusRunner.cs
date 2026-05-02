@@ -127,10 +127,18 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
 
     public override void Stop(bool wasDispelled = false)
     {
-        _tickTimer.Timeout -= OnTick;
-        _durationTimer.Timeout -= OnDurationExpired;
-        _tickTimer.Stop();
-        _durationTimer.Stop();
+        // Timers are nullable until _Ready fires. Defensive guards against pre-Ready Stop
+        // (factory rejection cleanup, externally-driven dispel before AddChild completes).
+        if (_tickTimer != null)
+        {
+            _tickTimer.Timeout -= OnTick;
+            _tickTimer.Stop();
+        }
+        if (_durationTimer != null)
+        {
+            _durationTimer.Timeout -= OnDurationExpired;
+            _durationTimer.Stop();
+        }
         base.Stop(wasDispelled);
     }
 

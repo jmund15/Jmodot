@@ -21,9 +21,10 @@ using GCol = Godot.Collections;
 /// per-instance state, component only drives the loop. Future SpreadConfig variants encapsulate
 /// their rules without modifying StatusRunner or StatusEffectComponent.
 /// </summary>
-[GlobalClass, Tool]
+[GlobalClass]
 public partial class StatusSpreadConfig : Resource
 {
+    [ExportGroup("Chance & Timing")]
     /// <summary>
     /// Per-evaluation chance to attempt a spread (rolled once per evaluation tick).
     /// Combined with <see cref="ChanceFalloffByGeneration"/> if set.
@@ -32,29 +33,63 @@ public partial class StatusSpreadConfig : Resource
     public float ChancePerEvaluation { get; private set; } = 0.20f;
 
     /// <summary>
+    /// Seconds between consecutive spread evaluations for a single runner. The component's
+    /// per-frame driver advances each runner's accumulator and triggers an evaluation when
+    /// the accumulator crosses this threshold (overshoot is preserved so cadence doesn't drift
+    /// on slow frames). Per-config, not global — a fast-spreading panic and a slow burn can
+    /// coexist on the same entity with different cadences.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.05,30,0.05")]
+    public float EvaluationInterval { get; private set; } = 1.0f;
+
+    [ExportGroup("Range & Targets")]
+    /// <summary>
     /// World-units radius the component queries for candidates around the host's target.
     /// </summary>
-    [Export] public float Range { get; private set; } = 2.5f;
+    [Export(PropertyHint.Range, "0.5,50,0.1,suffix:m")]
+    public float Range { get; private set; } = 2.5f;
+
+    /// <summary>
+    /// Physics layer mask the spatial query intersects. Default 0xFFFFFFFF queries all
+    /// layers — designers should tighten to combat-only layers per project to avoid
+    /// querying world geometry, props, projectiles, and UI shapes.
+    /// </summary>
+    [Export(PropertyHint.Layers3DPhysics)]
+    public uint SpreadCollisionMask { get; private set; } = uint.MaxValue;
 
     /// <summary>
     /// Maximum number of new targets infected in a single evaluation. With many candidates
     /// in range, only this many will be chosen at random.
     /// </summary>
-    [Export] public int MaxTargetsPerEvaluation { get; private set; } = 1;
+    [Export(PropertyHint.Range, "1,32,1")]
+    public int MaxTargetsPerEvaluation { get; private set; } = 1;
 
-    /// <summary>
-    /// Optional curve that scales <see cref="ChancePerEvaluation"/> by the generation ratio
-    /// (host.SpreadGeneration / MaxGenerations, normalized to [0,1]). Use to reduce probability
-    /// at later generations so the contagion fizzles. Null = no falloff.
-    /// </summary>
-    [Export] public Curve? ChanceFalloffByGeneration { get; private set; }
-
+    [ExportGroup("Generation Control")]
     /// <summary>
     /// Maximum spread generation. Generation 0 = primary; 1..MaxGenerations-1 = spread.
     /// At gen >= MaxGenerations, evaluation always returns false (hard fizzle gate).
     /// </summary>
-    [Export] public int MaxGenerations { get; private set; } = 3;
+    [Export(PropertyHint.Range, "1,32,1")]
+    public int MaxGenerations { get; private set; } = 3;
 
+    /// <summary>
+    /// Optional curve that scales <see cref="ChancePerEvaluation"/> by the generation ratio
+    /// (host.SpreadGeneration / MaxGenerations, normalized to [0,1]). Use to reduce probability
+    /// at later generations so the contagion fizzles. The curve is also bypassed when
+    /// <see cref="MaxGenerations"/> &lt;= 0 (degenerate case — no normalization possible).
+    /// Null = no falloff.
+    /// </summary>
+    [Export] public Curve? ChanceFalloffByGeneration { get; private set; }
+
+    /// <summary>
+    /// Total cap on evaluation attempts per runner over its lifetime. -1 = unlimited.
+    /// Use to bound contagion budget independent of duration (e.g., a 5s burn that should
+    /// only attempt to spread 4 times regardless of tick rate).
+    /// </summary>
+    [Export(PropertyHint.Range, "-1,1000,1")]
+    public int MaxEvaluations { get; private set; } = -1;
+
+    [ExportGroup("Candidate Filters")]
     /// <summary>
     /// Optional category filter on candidates — only candidates whose identity descends from
     /// (or equals) this category qualify. Null = no category filter.
@@ -67,23 +102,6 @@ public partial class StatusSpreadConfig : Resource
     /// already burning shouldn't be a spread candidate).
     /// </summary>
     [Export] public GCol.Array<CombatTag> ExcludeIfPresent { get; private set; } = new();
-
-    /// <summary>
-    /// Seconds between consecutive spread evaluations for a single runner. The component's
-    /// per-frame driver advances each runner's accumulator and triggers an evaluation when
-    /// the accumulator crosses this threshold (overshoot is preserved so cadence doesn't drift
-    /// on slow frames). Per-config, not global — a fast-spreading panic and a slow burn can
-    /// coexist on the same entity with different cadences.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.05,30,0.05")]
-    public float EvaluationInterval { get; private set; } = 1.0f;
-
-    /// <summary>
-    /// Total cap on evaluation attempts per runner over its lifetime. -1 = unlimited.
-    /// Use to bound contagion budget independent of duration (e.g., a 5s burn that should
-    /// only attempt to spread 4 times regardless of tick rate).
-    /// </summary>
-    [Export] public int MaxEvaluations { get; private set; } = -1;
 
     /// <summary>
     /// Decides whether a spread evaluation should fire and pick targets.
