@@ -44,6 +44,15 @@ public static class CombatFactoryDefaults
     public static Attribute? DefaultCritMultiplierAttr;
 
     /// <summary>
+    /// Reaction-resolution seam consumed by <c>HurtboxComponent3D.ProcessHit</c>.
+    /// When wired, the hurtbox queries this resolver after <c>CanReceiveHit</c> and
+    /// before <c>ProcessPayload</c> to apply project-side reaction outcomes (damage
+    /// composition, status cleanse, VFX spawn). Null disables consultation gracefully
+    /// — the hurtbox falls through to its pre-A2 path.
+    /// </summary>
+    public static IReactionResolver? ReactionResolver;
+
+    /// <summary>
     /// Clears every default to null. Intended for test teardown — lets Jmodot-only
     /// test suites reset shared static state without depending on a specific
     /// consuming project's autoload reset path. Production code should not call this.
@@ -52,5 +61,6 @@ public static class CombatFactoryDefaults
     {
         DefaultCritChanceAttr = null;
         DefaultCritMultiplierAttr = null;
+        ReactionResolver = null;
     }
 }

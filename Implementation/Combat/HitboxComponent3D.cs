@@ -5,6 +5,7 @@ using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
+using Jmodot.Implementation.Combat.CapacityProviders;
 using GCol = Godot.Collections;
 using Godot;
 
@@ -63,6 +64,24 @@ using AI.BB;
         /// If true, the hitbox will automatically start an attack using its DefaultEffects on Ready.
         /// </summary>
         [Export] public bool AutoStartWithDefault { get; set; } = false;
+
+        /// <summary>
+        /// Optional cap-rule providers. Every provider must return <c>true</c> for a hit to be
+        /// accepted (logical AND / all-must-agree). When the array is empty or null, the hitbox
+        /// is unlimited — current behavior is preserved for hitboxes that don't author providers.
+        ///
+        /// <para>
+        /// In <see cref="IsContinuous"/> mode, <c>_acceptedHits</c> resets per tick alongside
+        /// <c>_hitHurtboxes.Clear()</c>, so cap rules apply per-tick (e.g., "max 3 enemies stunned
+        /// per tick" for a continuous AOE field).
+        /// </para>
+        ///
+        /// <para>
+        /// Mutable so spell wiring can swap providers at spawn time without re-authoring the
+        /// shared body-template scene (matches <see cref="DefaultEffects"/>).
+        /// </para>
+        /// </summary>
+        [Export] public GCol.Array<HitboxCapacityProvider3D>? CapacityProviders { get; set; } = new();
         #endregion
 
         #region Public State
@@ -84,6 +103,14 @@ using AI.BB;
         // Tracks targets hit during the current session/tick to prevent duplicates.
         private readonly HashSet<HurtboxComponent3D> _hitHurtboxes = new();
         private double _tickTimer = 0.0;
+
+        // Cap-rule state. _acceptedHits is the count consulted by CapacityProviders and
+        // is incremented synchronously after each accepted hit. _cachedStatProvider is
+        // pulled off the payload at StartAttack so providers don't traverse the payload
+        // every CanAcceptMoreHits call. Both reset in OnPoolReset and (for _acceptedHits)
+        // per-tick in continuous mode.
+        private int _acceptedHits = 0;
+        private IStatProvider? _cachedStatProvider = null;
 
 
         /// <summary>
@@ -170,6 +197,8 @@ using AI.BB;
 
                 // Reset tracking to allow re-hitting targets inside the volume.
                 _hitHurtboxes.Clear();
+                // Reset cap counter so capacity rules apply per-tick (e.g., "max 3 per tick").
+                _acceptedHits = 0;
 
                 // Manually scan for targets currently inside.
                 ProcessOverlappingAreas();
@@ -190,6 +219,16 @@ using AI.BB;
             CurrentPayload = payload;
             _hitHurtboxes.Clear();
             _tickTimer = 0.0;
+            _acceptedHits = 0;
+            _cachedStatProvider = payload.Stats;
+
+            // Once-per-StartAttack diagnostic: if cap providers are configured but the payload
+            // brought no stats, providers that read stats (StatCapacityProvider3D) will fail-closed.
+            // Surface this here rather than per-CanAcceptMoreHits call to avoid log spam.
+            if (CapacityProviders != null && CapacityProviders.Count > 0 && _cachedStatProvider == null)
+            {
+                Shared.JmoLogger.Warning(this, "StartAttack with CapacityProviders but no IStatProvider on payload — stat-driven providers will fail-closed.");
+            }
 
             OnAttackStarted?.Invoke();
 
@@ -219,6 +258,8 @@ using AI.BB;
 
             CurrentPayload = null;
             _hitHurtboxes.Clear();
+            _acceptedHits = 0;
+            _cachedStatProvider = null;
 
             Deactivate();
 
@@ -249,6 +290,12 @@ using AI.BB;
             IsContinuous = false;
             ContinuousTickInterval = 0.1f;
 
+            // Reset cap state. Note: CapacityProviders array is [Export]-authored and persists
+            // across pool cycles (it's the same scene's authored data); only the runtime counter
+            // and cached stat reference need resetting.
+            _acceptedHits = 0;
+            _cachedStatProvider = null;
+
             if (!IsActive) { return; }
 
             // Use immediate deactivation - OnPoolReset is called from pool management, not physics
@@ -268,7 +315,7 @@ using AI.BB;
             attacker ??= Owner ?? this;
             source ??= this;
 
-            var payload = new CombatPayload(attacker, source);
+            var payload = new CombatPayload(attacker, source, stats);
 
             foreach (var factory in DefaultEffects)
             {
@@ -395,7 +442,17 @@ using AI.BB;
                 return;
             }
 
-            // 2. Debounce / Multi-Hit Check
+            // 2. Capacity Cap Check (pre-accept)
+            // All-must-agree: if any provider says "no more hits", deactivate the hitbox
+            // and abort. Plain `for` loop, no LINQ — this runs every overlap (hot loop).
+            if (!HasCapacityForAnotherHit())
+            {
+                Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - capacity exhausted (acceptedHits={_acceptedHits})");
+                Deactivate();
+                return;
+            }
+
+            // 3. Debounce / Multi-Hit Check
             // If hurtbox is already in the set, we skip it.
             if (!_hitHurtboxes.Add(hurtbox))
             {
@@ -442,11 +499,44 @@ using AI.BB;
                 Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
                 // Always notify with the ORIGINAL payload — interceptor must not affect observers.
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
+
+                // Capacity Cap Check (post-accept)
+                // Re-evaluate after the accept so cap-of-1 hitboxes deactivate synchronously.
+                // This blocks subsequent same-tick overlaps via `IsActive=false` guard at line 375.
+                _acceptedHits++;
+                if (!HasCapacityForAnotherHit())
+                {
+                    Shared.JmoLogger.Debug(this, $"Capacity exhausted post-accept (acceptedHits={_acceptedHits}) — deactivating hitbox.");
+                    Deactivate();
+                }
             }
             else
             {
                 Shared.JmoLogger.Info(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
             }
+        }
+
+        /// <summary>
+        /// Iterate <see cref="CapacityProviders"/> and return true only if ALL providers
+        /// permit another hit. Empty/null array → unlimited (true). Plain <c>for</c> loop
+        /// (no LINQ) — this runs on every overlap and post-accept.
+        /// </summary>
+        private bool HasCapacityForAnotherHit()
+        {
+            if (CapacityProviders == null || CapacityProviders.Count == 0)
+            {
+                return true;
+            }
+            for (int i = 0; i < CapacityProviders.Count; i++)
+            {
+                var provider = CapacityProviders[i];
+                if (provider == null) { continue; }
+                if (!provider.CanAcceptMoreHits(_acceptedHits, _cachedStatProvider, Owner))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /// <summary>

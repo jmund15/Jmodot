@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using Jmodot.Core.Stats;
 
 namespace Jmodot.Core.Combat;
 
@@ -12,14 +13,16 @@ public class CombatPayload : IAttackPayload
 {
     public Node Attacker { get; }
     public Node Source { get; }
+    public IStatProvider? Stats { get; }
 
     private readonly List<ICombatEffect> _effects = new();
     public IReadOnlyList<ICombatEffect> Effects => _effects;
 
-    public CombatPayload(Node attacker, Node source)
+    public CombatPayload(Node attacker, Node source, IStatProvider? stats = null)
     {
         Attacker = attacker;
         Source = source;
+        Stats = stats;
     }
 
     public void AddEffect(ICombatEffect effect)

@@ -1,8 +1,10 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Identification;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -117,13 +119,85 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter)
         };
 
+        // 3.5. Reaction-resolver consultation (A2)
+        // If the project wired CombatFactoryDefaults.ReactionResolver, query for matching
+        // reactions (e.g., shatter on frozen, oil+fire→explosion). Outcomes apply via
+        // the resolver's project-side machinery; the resolver returns a (possibly
+        // damage-stripped) payload to forward when an Exclusive reaction matched.
+        // No resolver wired → null returned → fall through to forward original payload.
+        var payloadToForward = ConsultReactionResolver(payload, context);
+
         // 4. Forward to Brain
-        // The Combatant executes the logic defined in the Effects.
-        _combatant.ProcessPayload(payload, context);
+        // The Combatant executes the logic defined in the (possibly filtered) effects.
+        _combatant.ProcessPayload(payloadToForward, context);
 
         // 5. Feedback
+        // Notify with the ORIGINAL payload — interceptor/resolver-side filtering must not
+        // affect downstream observers (e.g., post-hit VFX hooks reading base damage).
         OnHitReceived?.Invoke(payload, context);
         return true;
+    }
+
+    /// <summary>
+    /// Consult <see cref="CombatFactoryDefaults.ReactionResolver"/> for matching reactions
+    /// and apply outcomes. Returns the payload to forward to <see cref="ICombatant.ProcessPayload"/>
+    /// — equal to <paramref name="payload"/> when no resolver is wired or no reactions matched;
+    /// may be a damage-stripped wrapper when an Exclusive reaction matched.
+    /// </summary>
+    private IAttackPayload ConsultReactionResolver(IAttackPayload payload, HitContext context)
+    {
+        var resolver = CombatFactoryDefaults.ReactionResolver;
+        if (resolver == null) { return payload; }
+
+        // Resolve attacker Identity by walking up from payload.Attacker.
+        var attackerIdentity = ResolveIdentity(payload.Attacker);
+        if (attackerIdentity == null) { return payload; }
+
+        // Resolve defender Identity by walking up from the combatant's owner.
+        var defenderNode = _combatant.OwnerNode;
+        var defenderIdentity = ResolveIdentity(defenderNode);
+        if (defenderIdentity == null) { return payload; }
+
+        // Pull active status tags from the defender's StatusEffectComponent (BB-registered).
+        var activeTags = ResolveDefenderActiveTags();
+
+        return resolver.ConsultAndApply(
+            attackerIdentity,
+            defenderIdentity,
+            activeTags,
+            payload.Attacker,
+            defenderNode,
+            payload,
+            context);
+    }
+
+    /// <summary>Walk up the tree from <paramref name="node"/> looking for the first ancestor
+    /// implementing <see cref="IIdentifiable"/>. Returns null if none found.</summary>
+    private static Identity? ResolveIdentity(Node? node)
+    {
+        var current = node;
+        while (current != null)
+        {
+            if (current is IIdentifiable identifiable)
+            {
+                return identifiable.GetIdentity();
+            }
+            current = current.GetParent();
+        }
+        return null;
+    }
+
+    /// <summary>Aggregate the defender's currently-active <see cref="CombatTag"/>s from its
+    /// <see cref="StatusEffectComponent"/> (looked up via the combatant's blackboard). Returns
+    /// an empty list when no status component is registered (defenders without status state).</summary>
+    private IReadOnlyList<CombatTag> ResolveDefenderActiveTags()
+    {
+        if (_combatant?.Blackboard == null) { return System.Array.Empty<CombatTag>(); }
+        if (!_combatant.Blackboard.TryGet<StatusEffectComponent>(BBDataSig.StatusEffects, out var statusComp) || statusComp == null)
+        {
+            return System.Array.Empty<CombatTag>();
+        }
+        return statusComp.GetActiveTags();
     }
     #endregion
     #region Core Logic

@@ -163,6 +163,25 @@ public partial class StatusEffectComponent : Node, IComponent
     }
 
     /// <summary>
+    /// Snapshot of all currently-active <see cref="CombatTag"/>s on this entity. Materialized
+    /// each call so consumers (e.g., reaction resolvers) get a stable read; cheap for typical
+    /// counts (a few active statuses at a time).
+    /// </summary>
+    public System.Collections.Generic.IReadOnlyList<CombatTag> GetActiveTags()
+    {
+        if (_activeTags.Count == 0)
+        {
+            return System.Array.Empty<CombatTag>();
+        }
+        var list = new List<CombatTag>(_activeTags.Count);
+        foreach (var kvp in _activeTags)
+        {
+            if (kvp.Value > 0) { list.Add(kvp.Key); }
+        }
+        return list;
+    }
+
+    /// <summary>
     /// Gets the count of active instances with the specified tag.
     /// </summary>
     public int GetTagCount(CombatTag tag)

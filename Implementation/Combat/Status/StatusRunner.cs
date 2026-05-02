@@ -10,7 +10,9 @@ using System.Linq;
 using AI.BB;
 using Core.Combat.Reactions;
 using Core.Combat.Status;
+using Core.Stats;
 using Core.Visual.Effects;
+using Implementation.Stats;
 using Implementation.Visual.Effects;
 using Shared;
 
@@ -79,7 +81,15 @@ public abstract partial class StatusRunner : Node
     /// </summary>
     public int SpreadEvaluationCount { get; internal set; }
 
+    /// <summary>
+    /// Stat modifiers applied to the target's StatController while this status is active.
+    /// Cleaned up declaratively via <c>RemoveAllModifiersFromSource(this)</c> on Stop.
+    /// Surfaced as a Resource list so non-Node runners (factories) can author them.
+    /// </summary>
+    public Godot.Collections.Array<StatModifier> ActiveStatModifiers { get; set; } = new();
+
     private bool _stopped;
+    private bool _modifiersApplied;
     private Node? _visualInstance;
     protected VisualEffectController? VisualController { get; private set; }
 
@@ -126,8 +136,55 @@ public abstract partial class StatusRunner : Node
         {
             VisualController?.PlayEffect(StatusVisualEffect);
         }
-        
+
+        ApplyStatModifiers();
+
         // Subclasses implement specific logic (Timers, Visuals)
+    }
+
+    private void ApplyStatModifiers()
+    {
+        if (_modifiersApplied) { return; }
+        if (ActiveStatModifiers == null || ActiveStatModifiers.Count == 0) { return; }
+
+        if (Target?.Blackboard == null
+            || !Target.Blackboard.TryGet(BBDataSig.Stats, out StatController? stats)
+            || stats == null)
+        {
+            JmoLogger.Warning(this,
+                $"ActiveStatModifiers ({ActiveStatModifiers.Count}) authored but target has no StatController on Blackboard.");
+            return;
+        }
+
+        foreach (var entry in ActiveStatModifiers)
+        {
+            if (entry == null || entry.Attribute == null || entry.Modifier == null)
+            {
+                JmoLogger.Warning(this, "Skipping null or invalid StatModifier entry.");
+                continue;
+            }
+            if (!stats.TryAddModifier(entry.Attribute, entry.Modifier, this, out _))
+            {
+                JmoLogger.Warning(this,
+                    $"Failed to apply status modifier on attribute '{entry.Attribute.AttributeName}'.");
+            }
+        }
+
+        _modifiersApplied = true;
+    }
+
+    private void RemoveStatModifiers()
+    {
+        if (!_modifiersApplied) { return; }
+
+        if (Target?.Blackboard != null
+            && Target.Blackboard.TryGet(BBDataSig.Stats, out StatController? stats)
+            && stats != null)
+        {
+            stats.RemoveAllModifiersFromSource(this);
+        }
+
+        _modifiersApplied = false;
     }
 
     /// <summary>
@@ -138,6 +195,8 @@ public abstract partial class StatusRunner : Node
     {
         if (_stopped) { return; }
         _stopped = true;
+
+        RemoveStatModifiers();
 
         if (_visualInstance != null && IsInstanceValid(_visualInstance))
         {
