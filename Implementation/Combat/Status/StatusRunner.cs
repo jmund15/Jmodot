@@ -44,7 +44,6 @@ public abstract partial class StatusRunner : Node
     public VisualEffect? StatusVisualEffect { get; set; }
 
     /// <summary>
-<<<<<<< HEAD
     /// Optional spread configuration. When non-null, the StatusEffectComponent's spread-evaluation
     /// timer ticks this runner: every <see cref="StatusSpreadConfig.TryEvaluate"/> call may spawn
     /// a sibling instance of the same status type on a nearby qualifying target.
