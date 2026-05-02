@@ -12,10 +12,12 @@ public partial class DestructibleBarricade : Node, IDamageable
 
     public event Action<HealthChangeEventArgs> OnDamaged = delegate { };
 
-    public override void _Ready()
+    public override void _EnterTree()
     {
-        base._Ready();
-        _maxDurability = _durability;
+        base._EnterTree();
+        // _EnterTree fires before any sibling's _Ready, so a TakeDamage call from
+        // a deferred-spawn neighbor sees a populated _maxDurability.
+        if (_maxDurability == 0f) { _maxDurability = _durability; }
     }
 
     public void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct)

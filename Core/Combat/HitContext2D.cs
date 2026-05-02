@@ -48,6 +48,11 @@ public class HitContext2D
     /// </summary>
     public DamageKind Kind { get; init; } = DamageKind.Direct;
 
+    /// <summary>
+    /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
+    /// Use when re-applying an existing context under a different damage cause (e.g.
+    /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).
+    /// </summary>
     public HitContext2D WithKind(DamageKind kind) => new HitContext2D
     {
         Attacker = this.Attacker,

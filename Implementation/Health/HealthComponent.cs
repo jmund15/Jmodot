@@ -193,9 +193,18 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
     /// <summary>
     /// Resets health state for pool reuse. Clears all event subscribers to prevent
-    /// handler accumulation across pool cycles. SpellBehavior.Initialize() subscribes
-    /// Health.OnDied += _ => Destroy(...) every cycle — without clearing, the Nth reuse
-    /// fires N death handlers, causing cascading Destroy calls.
+    /// handler accumulation across pool cycles. Two load-bearing reasons:
+    /// (1) SpellBehavior.Initialize subscribes OnDied += _ => Destroy(...) every cycle —
+    /// without clearing, the Nth reuse fires N death handlers, cascading Destroy calls.
+    /// (2) SpellBehavior.WireHealthToSize subscribes anonymous lambdas to OnHealthChanged
+    /// with NO matching `-=` path; the wide wipe is their only cleanup. Narrowing the wipe
+    /// causes scale-state divergence (PooledSpell_ScaleConsistent_Across10Cycles fails).
+    ///
+    /// This component is invoked by SpellResetHelper only for SPELLS in the pool; NPCs do
+    /// not pool, so sibling subscribers like HitFlashComponent on NPCs are NOT affected
+    /// by this wipe (their subscription persists for the node's full lifetime). If a future
+    /// pooled-NPC scenario emerges, the right shape is for the sibling to implement
+    /// IPoolResetable and re-subscribe in its own OnPoolReset.
     /// </summary>
     public void OnPoolReset()
     {
@@ -405,6 +414,11 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// </summary>
     private void OnStatProviderStatChanged(Attribute attribute, Variant newValue)
     {
+        // Defends against late stat broadcasts arriving during the pool-reset → re-Initialize
+        // window (subscribers that broadcast in their own _ExitTree can fire here after our
+        // OnPoolReset has cleared state but before Initialize runs).
+        if (!IsInitialized) { return; }
+
         float newMaxHealth = MaxHealth;
         if (Mathf.IsEqualApprox(newMaxHealth, _lastResolvedMaxHealth)) { return; }
 
@@ -413,17 +427,17 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
         OnMaxHealthChanged.Invoke(newMaxHealth);
 
+        // Stat-driven max-HP scaling is a Reaction-class change, not Direct impact —
+        // visual feedback subscribers (HitFlash, etc.) filter on Kind=Direct and would
+        // otherwise misclassify a debuff as a hit.
         if (ChangeHealthOnMaxChange)
         {
-            // Calculate the current health percentage against the old max health.
             float healthPercentage = previousMaxHealth > 0 ? _currentHealth / previousMaxHealth : 1f;
-            // Apply the same percentage to the new max health to scale current health.
-            SetHealth(newMaxHealth * healthPercentage, this);
+            SetHealth(newMaxHealth * healthPercentage, this, DamageKind.Reaction);
         }
         else
         {
-            // If not scaling, simply ensure current health doesn't exceed the new max.
-            SetHealth(_currentHealth, this);
+            SetHealth(_currentHealth, this, DamageKind.Reaction);
         }
     }
 

@@ -56,11 +56,12 @@ public class DurationEffect : ISpreadAwareCombatEffect
             return null;
         }
 
-        // 2. Access Component
-        if (!target.Blackboard.TryGet<StatusEffectComponent>
-                (BBDataSig.StatusEffects, out var statusComp))
+        // 2. Access Component (combined null check — TryGet=true with null value is the
+        // null-storage asymmetry case; collapsing both checks here keeps step 5 clean).
+        if (!target.Blackboard.TryGet<StatusEffectComponent>(BBDataSig.StatusEffects, out var statusComp)
+            || statusComp == null)
         {
-            return null; // Target cannot accept status effects
+            return null;
         }
 
         // 3. Instantiate the Runner (The Node)
@@ -80,14 +81,7 @@ public class DurationEffect : ISpreadAwareCombatEffect
         runner.SourceEffect = this;
         runner.SpreadGeneration = SpreadGeneration;
 
-        // 5. Add to System
-        // The Component handles parenting and lifecycle management.
-        if (statusComp == null)
-        {
-            JmoLogger.Error(this, "StatusEffectComponent resolved to null from Blackboard!");
-            return null;
-        }
-
+        // 5. Add to System (Component handles parenting and lifecycle management).
         bool wasAccepted = statusComp.AddStatus(runner, target, context);
 
         if (!wasAccepted)
