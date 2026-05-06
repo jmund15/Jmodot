@@ -27,18 +27,60 @@ public class MovementProcessor3D : IMovementProcessor3D
     private Vector3 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
 
+    private readonly IMovementStrategy3D? _default;
+    private IMovementStrategy3D? _override;
+
     public MovementProcessor3D(
         ICharacterController3D controller,
         IStatProvider statsProvider,
         ExternalForceReceiver3D forceReceiver3D,
         Node3D owner,
-        Attribute? stabilityAttr = null)
+        Attribute? stabilityAttr = null,
+        IMovementStrategy3D? defaultStrategy = null)
     {
         this._controller = controller;
         this._stats = statsProvider;
         this._forceReceiver3D = forceReceiver3D;
         this._owner = owner;
         this._stabilityAttr = stabilityAttr;
+        this._default = defaultStrategy;
+    }
+
+    public IMovementStrategy3D? Default => _default;
+
+    public IMovementStrategy3D? ActiveStrategy => _override ?? _default;
+
+    public void SetStrategyOverride(IMovementStrategy3D strategy)
+    {
+        if (_override != null && !ReferenceEquals(_override, strategy))
+        {
+            JmoLogger.Warning(this,
+                $"SetStrategyOverride conflict: replacing {_override.GetType().Name} with {strategy.GetType().Name}. " +
+                "Slot is single-writer-at-a-time by convention; concurrent writers indicate a design smell.");
+        }
+        _override = strategy;
+    }
+
+    public void ClearStrategyOverride()
+    {
+        if (_override == null)
+        {
+            JmoLogger.Warning(this, "ClearStrategyOverride called when no override was active.");
+            return;
+        }
+        _override = null;
+    }
+
+    public void ProcessMovement(Vector3 desiredDirection, float delta)
+    {
+        var active = ActiveStrategy;
+        if (active == null)
+        {
+            throw new System.InvalidOperationException(
+                "MovementProcessor3D.ProcessMovement(direction, delta) called with neither override nor Default set. " +
+                "Pass a defaultStrategy at construction or call SetStrategyOverride first.");
+        }
+        ProcessMovement(active, desiredDirection, delta);
     }
 
     /// <summary>

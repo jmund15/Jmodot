@@ -7,10 +7,12 @@ using Core.Stats;
 /// Ignores desired direction, current velocity, stats, and delta — the entity halts
 /// and stays halted while this strategy is active.
 /// <para>
-/// <b>Typical use:</b> wire as a transient override on <see cref="Jmodot.Implementation.AI.BB.BBDataSig.ActiveMovementStrategy"/>
-/// (e.g., via a BT leaf action's movement-override export) during phases where the
-/// entity must visibly stop — attack telegraphs, stunned states, dialogue camera holds,
-/// channeled ability windups. Restoring the prior strategy returns normal motion.
+/// <b>Typical use:</b> wire as a transient override on the entity's
+/// <see cref="Jmodot.Core.Actors.IMovementProcessor3D"/> via
+/// <c>SetStrategyOverride</c> (e.g., from a BT leaf action's movement-override export)
+/// during phases where the entity must visibly stop — attack telegraphs, stunned states,
+/// dialogue camera holds, channeled ability windups. <c>ClearStrategyOverride</c> returns
+/// the processor to its <c>Default</c> for normal motion.
 /// </para>
 /// <para>
 /// <b>Interaction with impulses:</b> this strategy REPLACES the currentVelocity input

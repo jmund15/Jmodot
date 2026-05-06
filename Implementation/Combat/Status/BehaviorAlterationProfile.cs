@@ -14,16 +14,16 @@ using Jmodot.Core.Visual.Effects;
 /// <remarks>
 /// <para>
 /// The base class is pure data — the only behavior is "push my movement override
-/// to BB" (handled by <see cref="BehaviorSuppressedState"/> using these exports).
-/// For unique mechanics (button-mash escape, intensity scaling, transformation),
-/// subclass and override the lifecycle hooks. Existing entities pick up the
-/// custom mechanic the moment they swap the .tres in their ProfileMap; no entity
+/// to the entity's MovementProcessor3D" (handled by <see cref="BehaviorSuppressedState"/>
+/// using these exports). For unique mechanics (button-mash escape, intensity scaling,
+/// transformation), subclass and override the lifecycle hooks. Existing entities pick up
+/// the custom mechanic the moment they swap the .tres in their ProfileMap; no entity
 /// code changes required.
 /// </para>
 /// <para>
 /// <b>Resources are shared.</b> Do NOT cache per-instance state on the Profile —
 /// multiple entities using the same .tres will overwrite each other. Per-instance
-/// runtime state (e.g., prior movement strategy to restore) lives on the consuming
+/// runtime state (e.g., did-this-state-push-an-override flag) lives on the consuming
 /// <see cref="BehaviorSuppressedState"/>; the Profile receives the state instance
 /// in its hooks and may read/write its fields if needed.
 /// </para>
@@ -32,9 +32,10 @@ using Jmodot.Core.Visual.Effects;
 public partial class BehaviorAlterationProfile : Resource
 {
     /// <summary>
-    /// Optional movement strategy pushed to BB[ActiveMovementStrategy] while this
-    /// profile is active. Null = no movement override.
+    /// Optional movement strategy pushed via <c>MovementProcessor3D.SetStrategyOverride</c>
+    /// while this profile is active. Null = no movement override.
     /// </summary>
+    [ExportGroup("Behavior Overrides")]
     [Export] public BaseMovementStrategy3D? MovementStrategyOverride { get; set; }
 
     /// <summary>

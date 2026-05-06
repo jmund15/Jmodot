@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using BB;
 using BehaviorTree;
+using Core.Actors;
 using Core.AI;
 using Core.AI.BB;
 using Jmodot.Core.Movement.Strategies;
@@ -40,12 +41,14 @@ using Shared.GodotExceptions;
 
         /// <summary>
         /// Optional movement strategy applied while this BTState is active.
-        /// Written to BB[ActiveMovementStrategy] on enter, cleared on exit.
-        /// Entity-level ProcessMovement reads this to determine movement feel per state.
+        /// On enter, the state calls <c>MovementProcessor3D.SetStrategyOverride</c>; on exit, <c>ClearStrategyOverride</c>.
+        /// Resolves the processor from <c>BB[BBDataSig.MovementProcessor]</c> in OnInit (fail-fast on missing).
         /// </summary>
+        [ExportGroup("Movement Override")]
         [Export] protected BaseMovementStrategy3D? MovementStrategyOverride;
 
         private BehaviorTree _tree = null!; // Set in OnInit, exception thrown if missing
+        private IMovementProcessor3D? _movementProcessor;
 
         protected override void OnInit()
         {
@@ -57,15 +60,24 @@ using Shared.GodotExceptions;
             _tree = tree;
             _tree.Init(Agent, BB);
             _tree.TreeFinishedLoop += OnTreeFinishLoop;
+
+            if (MovementStrategyOverride != null)
+            {
+                if (!BB.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out _movementProcessor) || _movementProcessor == null)
+                {
+                    throw new NodeConfigurationException(
+                        $"BTState '{Name}' has MovementStrategyOverride but BB.MovementProcessor is not registered.", this);
+                }
+            }
         }
 
         protected override void OnEnter()
         {
             base.OnEnter();
 
-            if (MovementStrategyOverride != null)
+            if (MovementStrategyOverride != null && _movementProcessor != null)
             {
-                BB.Set(BBDataSig.ActiveMovementStrategy, (IMovementStrategy3D)MovementStrategyOverride);
+                _movementProcessor.SetStrategyOverride((IMovementStrategy3D)MovementStrategyOverride);
             }
 
             _tree.Enter();
@@ -75,9 +87,9 @@ using Shared.GodotExceptions;
         {
             base.OnExit();
 
-            if (MovementStrategyOverride != null)
+            if (MovementStrategyOverride != null && _movementProcessor != null)
             {
-                BB.Set<IMovementStrategy3D?>(BBDataSig.ActiveMovementStrategy, null);
+                _movementProcessor.ClearStrategyOverride();
             }
 
             _tree.Exit();

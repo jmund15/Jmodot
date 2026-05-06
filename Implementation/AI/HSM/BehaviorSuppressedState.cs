@@ -5,6 +5,7 @@ using Implementation.AI.BB;
 using Implementation.Combat;
 using Implementation.Combat.Status;
 using Implementation.Visual.Effects;
+using Jmodot.Core.Actors;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Movement.Strategies;
@@ -38,12 +39,12 @@ using GColl = Godot.Collections;
 /// (entry: any trigger tag active; exit: same condition with Inverted=true).
 /// </para>
 /// <para>
-/// <b>MUTUAL EXCLUSIVITY with <c>MovementOverrideStatusRunner</c>:</b> both write
-/// to <see cref="BBDataSig.ActiveMovementStrategy"/> and cache the prior on apply.
-/// If a movement-feel-only status (slow/haste, runner-driven) overlaps with an
-/// AI-suppressing status (freeze/stun, profile-driven via this state), the BB
-/// ownership stack can break depending on exit order. Author tag categories so
-/// the two cannot be simultaneously active on the same entity.
+/// <b>MUTUAL EXCLUSIVITY with <c>MovementOverrideStatusRunner</c>:</b> both call
+/// <c>MovementProcessor3D.SetStrategyOverride</c>. The processor's slot is single-writer-at-a-time;
+/// concurrent writers trigger <c>JmoLogger.Warning</c> on conflict. <c>ClearStrategyOverride</c>
+/// ordering determines final state — author tag categories so AI-suppressing statuses
+/// (freeze/stun, profile-driven via this state) and movement-feel statuses (slow/haste,
+/// runner-driven) cannot be simultaneously active on the same entity.
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
@@ -71,8 +72,8 @@ public partial class BehaviorSuppressedState : State
     [Export] public BehaviorAlterationProfile? DefaultProfile { get; set; }
 
     private BehaviorAlterationProfile? _activeProfile;
-    private IMovementStrategy3D? _priorMovementStrategy;
     private bool _movementOverridePushed;
+    private IMovementProcessor3D? _pushedProcessor;
     private VisualEffectController? _visualController;
     private bool _visualPlayed;
     private IAnimationOrchestrator? _animationOrchestrator;
@@ -139,9 +140,16 @@ public partial class BehaviorSuppressedState : State
     {
         if (profile.MovementStrategyOverride != null)
         {
-            BB.TryGet<IMovementStrategy3D>(BBDataSig.ActiveMovementStrategy, out _priorMovementStrategy);
-            BB.Set(BBDataSig.ActiveMovementStrategy, (IMovementStrategy3D)profile.MovementStrategyOverride);
-            _movementOverridePushed = true;
+            if (BB.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var processor) && processor != null)
+            {
+                processor.SetStrategyOverride((IMovementStrategy3D)profile.MovementStrategyOverride);
+                _pushedProcessor = processor;
+                _movementOverridePushed = true;
+            }
+            else
+            {
+                JmoLogger.Error(this, "BehaviorSuppressedState has MovementStrategyOverride but BB.MovementProcessor is not registered.");
+            }
         }
 
         if (profile.PersistentVisualEffect != null)
@@ -169,9 +177,9 @@ public partial class BehaviorSuppressedState : State
     {
         if (_movementOverridePushed)
         {
-            BB.Set<IMovementStrategy3D?>(BBDataSig.ActiveMovementStrategy, _priorMovementStrategy);
+            _pushedProcessor?.ClearStrategyOverride();
+            _pushedProcessor = null;
             _movementOverridePushed = false;
-            _priorMovementStrategy = null;
         }
 
         if (_visualPlayed && profile.PersistentVisualEffect != null && _visualController != null
