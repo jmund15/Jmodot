@@ -15,7 +15,7 @@ public abstract record CombatResult
     public IEnumerable<CombatTag> Tags { get; init; }
 }
 
-public record DamageResult : CombatResult
+public record DamageResult : CombatResult, IForceCarrier
 {
     public float FinalAmount { get; init; } // Post-armor
     public float OriginalAmount { get; init; } // Pre-armor
