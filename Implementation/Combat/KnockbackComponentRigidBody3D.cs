@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Shared.Attributes;
@@ -49,6 +50,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	private RigidBody3D _rigidBody = null!;
 	private CombatantComponent _combatant = null!;
 	private IStatProvider? _statProvider; // Soft dep — null is acceptable for ConstantFloatDefinition users.
+	private CombatLog? _combatLog;        // Soft dep — null is acceptable for HSM-less receivers.
 
 	#endregion
 
@@ -130,6 +132,21 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		// Signal payload reports velocity-magnitude (m/s) for unit-consistency with the CharacterBody regime.
 		var resultingVelocityDelta = impulseInNewtonSeconds.Length() / Mathf.Max(_rigidBody.Mass, 0.001f);
 		EmitSignal(SignalName.KnockbackApplied, direction, resultingVelocityDelta, attributedSource);
+
+		// Audit-log the post-resistance velocity-delta so HSM transition conditions
+		// (KnockbackCondition) gate launch/stagger states off the same magnitude the
+		// CharacterBody regime sees. RigidBodies typically lack an HSM, so this is usually
+		// a no-op — but composite RigidBody-driven actors (e.g., a destructible turret with
+		// scripted reaction states) get parity for free.
+		_combatLog?.Log(new KnockbackResult
+		{
+			Source = attributedSource,
+			Target = this,
+			Direction = direction,
+			Force = resultingVelocityDelta,
+			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
+		});
+
 		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={resultingVelocityDelta:F2}");
 	}
 
@@ -161,6 +178,9 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 		// Soft dep — null is acceptable. AttributeFloatDefinition.ResolveFloatValue handles null safely.
 		bb.TryGet(BBDataSig.Stats, out _statProvider);
+
+		// Soft dep — null is acceptable. RigidBodies typically lack an HSM/CombatLog.
+		bb.TryGet(BBDataSig.CombatLog, out _combatLog);
 
 		IsInitialized = true;
 		Initialized();

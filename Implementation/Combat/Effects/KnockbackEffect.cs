@@ -11,11 +11,30 @@ using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Combat effect that produces a <see cref="KnockbackResult"/> implementing
-/// <see cref="IForceCarrier"/>. Designer-tunable BaseForce + falloff curves.
+/// <see cref="IForceCarrier"/>. Designer-tunable BaseForce, optionally pre-shaped at the
+/// call site by <see cref="DistanceFalloff"/> / <see cref="ConeAngleFalloff"/> curves.
 /// Direction is computed per-target as the normalized vector from
 /// <see cref="HitContext.EpicenterPosition"/> to the target's world position,
 /// optionally flattened to horizontal to avoid lofting.
 /// </summary>
+/// <remarks>
+/// <b>Curve-resolution policy (Logic-domain pure):</b> the <see cref="DistanceFalloff"/>
+/// and <see cref="ConeAngleFalloff"/> exports are designer-authoring tools whose values
+/// callers MUST pre-multiply into the input force BEFORE invoking <see cref="Apply"/> —
+/// the call site has the scene-geometry context (distance from epicenter, angle from cone
+/// axis) that this Resource cannot. Keeping the curves out of <see cref="Apply"/> preserves
+/// Logic-domain purity (no scene-context coupling on a <see cref="Resource"/>).
+///
+/// Canonical pattern at the call site (e.g., a cone hitbox dispatcher):
+/// <code>
+/// var multiplier = DistanceFalloff.Sample(d / maxRange) * AngleFalloff.Sample(angleDeg / maxAngle);
+/// var inputForce = effect.BaseForce.ResolveFloatValue(stats) * multiplier;
+/// // pass inputForce through HitContext or invoke ApplyKnockback directly
+/// </code>
+/// The receiver-side <c>KnockbackComponent3D</c> then divides by mass and stability — that
+/// pipeline is unaffected by the curves; the curves only shape what the receiver sees as
+/// "incoming impulse."
+/// </remarks>
 [GlobalClass]
 public partial class KnockbackEffect : Resource, ICombatEffect
 {

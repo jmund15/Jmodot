@@ -5,6 +5,7 @@ using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Actors;
+using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Stats;
@@ -26,6 +27,11 @@ namespace Jmodot.Implementation.Combat;
 /// OPTIONAL BLACKBOARD DEPENDENCIES:
 /// - BBDataSig.Stats (IStatProvider) — feeds <see cref="AttributeFloatDefinition"/> resolution
 ///   for <see cref="Stability"/> / <see cref="Mass"/>. ConstantFloatDefinition users sidestep this.
+/// - BBDataSig.CombatLog (CombatLog) — receives a <see cref="KnockbackResult"/> entry every
+///   time <see cref="ApplyKnockback"/> succeeds, so HSM transition conditions
+///   (<c>KnockbackCondition</c>) can gate launch/stagger/ragdoll states off post-resistance
+///   velocity-delta magnitude. Soft dep — null is acceptable; consumers without HSM
+///   routing simply skip the audit-log write.
 /// </summary>
 [GlobalClass]
 public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider
@@ -51,6 +57,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	private IMovementProcessor3D _movementProcessor = null!;
 	private CombatantComponent _combatant = null!;
 	private IStatProvider? _statProvider; // Soft dep — null is acceptable for ConstantFloatDefinition users.
+	private CombatLog? _combatLog;        // Soft dep — null is acceptable for HSM-less receivers.
 
 	#endregion
 
@@ -154,8 +161,23 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		// MovementProcessor3D.ApplyImpulse expects m/s velocity-delta, not N·s impulse.
 		_movementProcessor.ApplyImpulse(velocityDelta);
-		EmitSignal(SignalName.KnockbackApplied, direction, velocityDelta.Length(), attributedSource);
-		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={velocityDelta.Length():F2}");
+		var deltaMagnitude = velocityDelta.Length();
+		EmitSignal(SignalName.KnockbackApplied, direction, deltaMagnitude, attributedSource);
+
+		// Audit-log the post-resistance impulse so HSM transition conditions (KnockbackCondition)
+		// can gate launch/stagger/ragdoll states. KnockbackResult carries Direction + Force in the
+		// receiver's velocity-delta units (m/s), independent of the original combat-effect amplitude.
+		// Source attribution preserves the originating cause for VFX/audio chains.
+		_combatLog?.Log(new KnockbackResult
+		{
+			Source = attributedSource,
+			Target = this,
+			Direction = direction,
+			Force = deltaMagnitude,
+			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
+		});
+
+		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={deltaMagnitude:F2}");
 	}
 
 	public override void _ExitTree()
@@ -194,6 +216,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		// Soft dep — null is acceptable. AttributeFloatDefinition.ResolveFloatValue handles null safely.
 		bb.TryGet(BBDataSig.Stats, out _statProvider);
+
+		// Soft dep — null is acceptable. Receivers without HSM transition conditions (e.g., barrels,
+		// destructibles) won't have a CombatLog attached; the audit-log write becomes a no-op.
+		bb.TryGet(BBDataSig.CombatLog, out _combatLog);
 
 		IsInitialized = true;
 		Initialized();
