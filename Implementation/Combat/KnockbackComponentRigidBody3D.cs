@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Core.Stats;
 using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
@@ -13,11 +15,21 @@ using Jmodot.Implementation.Shared;
 namespace Jmodot.Implementation.Combat;
 
 /// <summary>
-/// Placeholder for knockback handling on RigidBody3D entities.
-/// TODO: Implement knockback using RigidBody3D.ApplyCentralImpulse() or ApplyImpulse().
+/// Handles knockback application for <see cref="RigidBody3D"/> entities. Subscribes to
+/// <see cref="CombatantComponent.CombatResultEvent"/> and applies impulses via
+/// <see cref="RigidBody3D.ApplyCentralImpulse"/> when a result implements
+/// <see cref="IForceCarrier"/>.
+///
+/// REGIME DIFFERENCE vs <see cref="KnockbackComponent3D"/>:
+/// - RigidBody3D has its own <see cref="RigidBody3D.Mass"/> property; no <c>Mass</c> export here.
+/// - <see cref="RigidBody3D.ApplyCentralImpulse"/> divides by mass internally — DO NOT pre-divide.
 ///
 /// REQUIRED BLACKBOARD DEPENDENCIES:
-/// - BBDataSig.CombatantComponent (CombatantComponent) - Source of combat events
+/// - BBDataSig.CombatantComponent (CombatantComponent) — source of combat events.
+///
+/// OPTIONAL BLACKBOARD DEPENDENCIES:
+/// - BBDataSig.Stats (IStatProvider) — feeds <see cref="AttributeFloatDefinition"/> resolution
+///   for <see cref="Stability"/>. ConstantFloatDefinition users sidestep this.
 /// </summary>
 [GlobalClass]
 public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
@@ -25,9 +37,10 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	#region SIGNALS
 
 	/// <summary>
-	/// Emitted when knockback is applied. Useful for VFX, audio, or other reactive systems.
+	/// Emitted when knockback is applied. Magnitude is in m/s velocity-delta units (N·s impulse
+	/// divided by RigidBody mass), consistent with the CharacterBody regime's signal payload.
 	/// </summary>
-	[Signal] public delegate void KnockbackAppliedEventHandler(Vector3 direction, float force);
+	[Signal] public delegate void KnockbackAppliedEventHandler(Vector3 direction, float magnitude, Node? attributedSource);
 
 	#endregion
 
@@ -35,22 +48,31 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 	private RigidBody3D _rigidBody = null!;
 	private CombatantComponent _combatant = null!;
+	private IStatProvider? _statProvider; // Soft dep — null is acceptable for ConstantFloatDefinition users.
 
 	#endregion
 
 	#region COMPONENT_VARIABLES
 
 	/// <summary>
-	/// Reference to the RigidBody3D to apply impulses to.
+	/// Reference to the RigidBody3D that receives impulses.
 	/// </summary>
 	[Export, RequiredExport] public RigidBody3D TargetRigidBody { get; set; } = null!;
 
+	[ExportGroup("Behavior")]
 	/// <summary>
-	/// Resistance to knockback forces. Uses diminishing returns formula:
-	/// resistanceFactor = 1 / (1 + stability).
-	/// 0 = no resistance, 1 = half force, 3 = quarter force.
+	/// If true, the Y component of the impulse is zeroed before <see cref="RigidBody3D.ApplyCentralImpulse"/> —
+	/// keeps the entity grounded under horizontal pushes.
 	/// </summary>
-	[Export(PropertyHint.Range, "0,20,0.1")] public float Stability { get; set; }
+	[Export] public bool FlattenKnockback { get; private set; } = true;
+
+	[ExportGroup("Stats")]
+	/// <summary>
+	/// Resistance to knockback forces. Resolved via the polymorphic
+	/// <see cref="BaseFloatValueDefinition"/> family (constant or stat-driven). Null → 0.
+	/// Resistance formula: <c>resistanceFactor = 1 / (1 + stability)</c>.
+	/// </summary>
+	[Export] public BaseFloatValueDefinition? Stability { get; private set; }
 
 	#endregion
 
@@ -70,13 +92,17 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 	private void OnCombatResult(CombatResult result)
 	{
-		if (result is DamageResult damageResult && damageResult.Force > 0)
+		if (result is IForceCarrier carrier && carrier.Force > 0f)
 		{
-			ApplyKnockback(damageResult.Direction, damageResult.Force);
+			ApplyKnockback(carrier.Direction, carrier.Force, result.Source);
 		}
 	}
 
-	public void ApplyKnockback(Vector3 direction, float force)
+	/// <summary>
+	/// Applies a knockback impulse (RigidBody regime: <see cref="RigidBody3D.ApplyCentralImpulse"/>
+	/// receives N·s and divides by mass internally — no manual mass-division here).
+	/// </summary>
+	public void ApplyKnockback(Vector3 direction, float incomingForce, Node? attributedSource = null)
 	{
 		if (_rigidBody == null)
 		{
@@ -84,14 +110,27 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 			return;
 		}
 
-		var scaledForce = force * StabilityScaling.CalculateResistanceFactor(Stability);
-		var impulse = direction * scaledForce;
+		if (!float.IsFinite(incomingForce) || incomingForce <= 0f)
+		{
+			JmoLogger.Warning(this, $"Knockback skipped: invalid force={incomingForce:F2}.");
+			return;
+		}
 
-		// TODO: Implement actual impulse application
-		// _rigidBody.ApplyCentralImpulse(impulse);
+		var stability = Stability?.ResolveFloatValue(_statProvider) ?? 0f;
+		var stabilityScaled = StabilityScaling.ScaleForce(direction * incomingForce, stability);
+		if (FlattenKnockback)
+		{
+			stabilityScaled = new Vector3(stabilityScaled.X, 0f, stabilityScaled.Z);
+		}
 
-		EmitSignal(SignalName.KnockbackApplied, direction, scaledForce);
-		JmoLogger.Info(this, $"TODO: Apply impulse {impulse} to RigidBody3D");
+		// RigidBody3D.ApplyCentralImpulse expects N·s and divides by mass internally — do NOT mass-divide here.
+		var impulseInNewtonSeconds = stabilityScaled;
+		_rigidBody.ApplyCentralImpulse(impulseInNewtonSeconds);
+
+		// Signal payload reports velocity-magnitude (m/s) for unit-consistency with the CharacterBody regime.
+		var resultingVelocityDelta = impulseInNewtonSeconds.Length() / Mathf.Max(_rigidBody.Mass, 0.001f);
+		EmitSignal(SignalName.KnockbackApplied, direction, resultingVelocityDelta, attributedSource);
+		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={resultingVelocityDelta:F2}");
 	}
 
 	public override void _ExitTree()
@@ -100,6 +139,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		{
 			_combatant.CombatResultEvent -= OnCombatResult;
 		}
+		base._ExitTree();
 	}
 
 	#endregion
@@ -118,6 +158,9 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		}
 
 		_rigidBody = TargetRigidBody;
+
+		// Soft dep — null is acceptable. AttributeFloatDefinition.ResolveFloatValue handles null safely.
+		bb.TryGet(BBDataSig.Stats, out _statProvider);
 
 		IsInitialized = true;
 		Initialized();
@@ -149,5 +192,12 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
 	}
 
+	#endregion
+
+	#region Test Helpers
+#if TOOLS
+	internal void SetStability(BaseFloatValueDefinition? value) => Stability = value;
+	internal void SetFlattenKnockback(bool value) => FlattenKnockback = value;
+#endif
 	#endregion
 }

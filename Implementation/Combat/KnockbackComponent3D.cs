@@ -1,12 +1,13 @@
 using Godot;
 using System;
-using GCol = Godot.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Actors;
+using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Combat.Reactions;
+using Jmodot.Core.Stats;
 using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
@@ -14,13 +15,17 @@ using Jmodot.Implementation.Shared;
 namespace Jmodot.Implementation.Combat;
 
 /// <summary>
-/// Handles knockback application for CharacterBody3D entities.
-/// Subscribes to CombatantComponent.CombatResultEvent and applies impulses
-/// immediately via MovementProcessor3D when DamageResult contains force.
+/// Handles knockback application for CharacterBody3D entities. Subscribes to
+/// <see cref="CombatantComponent.CombatResultEvent"/> and applies impulses immediately via
+/// <see cref="IMovementProcessor3D"/> when a result implements <see cref="IForceCarrier"/>.
 ///
 /// REQUIRED BLACKBOARD DEPENDENCIES:
-/// - BBDataSig.MovementProcessor (IMovementProcessor3D) - Applies the impulse
-/// - BBDataSig.CombatantComponent (CombatantComponent) - Source of combat events
+/// - BBDataSig.MovementProcessor (IMovementProcessor3D) — applies the impulse.
+/// - BBDataSig.CombatantComponent (CombatantComponent) — source of combat events.
+///
+/// OPTIONAL BLACKBOARD DEPENDENCIES:
+/// - BBDataSig.Stats (IStatProvider) — feeds <see cref="AttributeFloatDefinition"/> resolution
+///   for <see cref="Stability"/> / <see cref="Mass"/>. ConstantFloatDefinition users sidestep this.
 /// </summary>
 [GlobalClass]
 public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider
@@ -32,9 +37,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region SIGNALS
 
 	/// <summary>
-	/// Emitted when knockback is applied. Useful for VFX, audio, or other reactive systems.
+	/// Emitted when knockback is applied. Payload is in m/s velocity-delta units (consistent
+	/// across CharacterBody and RigidBody regimes). <c>attributedSource</c> propagates the
+	/// originating cause (e.g., the wizard who cast the spell) so HSM transition conditions,
+	/// VFX, and audio can attribute-chain.
 	/// </summary>
-	[Signal] public delegate void KnockbackAppliedEventHandler(Vector3 direction, float force);
+	[Signal] public delegate void KnockbackAppliedEventHandler(Vector3 direction, float magnitude, Node? attributedSource);
 
 	#endregion
 
@@ -42,23 +50,37 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	private IMovementProcessor3D _movementProcessor = null!;
 	private CombatantComponent _combatant = null!;
+	private IStatProvider? _statProvider; // Soft dep — null is acceptable for ConstantFloatDefinition users.
 
 	#endregion
 
 	#region COMPONENT_VARIABLES
 
+	[ExportGroup("Behavior")]
 	/// <summary>
-	/// If true, the Y component of knockback is zeroed out (typical for grounded characters).
+	/// If true, the Y component of the resulting velocity-delta is zeroed out (typical for
+	/// grounded characters that should be pushed horizontally, not lifted).
 	/// </summary>
-	[Export] public bool FlattenKnockback { get; set; } = true;
+	[Export] public bool FlattenKnockback { get; private set; } = true;
+
+	[ExportGroup("Stats")]
+	/// <summary>
+	/// Resistance to knockback forces. Resolved via the polymorphic
+	/// <see cref="BaseFloatValueDefinition"/> family — assign a <see cref="ConstantFloatDefinition"/>
+	/// for flat tuning, or an <see cref="AttributeFloatDefinition"/> to drive from an
+	/// <see cref="IStatProvider"/> attribute. Null → 0 (no resistance baseline).
+	///
+	/// Resistance formula: <c>resistanceFactor = 1 / (1 + stability)</c>
+	/// (0 = full force, 1 = half force, 3 = quarter force).
+	/// </summary>
+	[Export] public BaseFloatValueDefinition? Stability { get; private set; }
 
 	/// <summary>
-	/// Resistance to knockback forces. Uses diminishing returns formula:
-	/// resistanceFactor = 1 / (1 + stability).
-	/// 0 = no resistance (full knockback), 1 = half force, 3 = quarter force.
-	/// Same formula used by PhysicsInteractionComponent for consistent resistance.
+	/// Mass used to convert incoming impulse (N·s) into a velocity-delta (m/s). Assign a
+	/// <see cref="ConstantFloatDefinition"/> for flat tuning or <see cref="AttributeFloatDefinition"/>
+	/// for stat-driven mass. Null → 1.0 (preserves pre-mass-aware knockback feel).
 	/// </summary>
-	[Export(PropertyHint.Range, "0,20,0.1")] public float Stability { get; set; }
+	[Export] public BaseFloatValueDefinition? Mass { get; private set; }
 
 	#endregion
 
@@ -67,7 +89,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override void _Ready()
 	{
 		base._Ready();
-		// The component disables itself until it's initialized.
+		// Component disables itself until Initialize() succeeds.
 		ProcessMode = ProcessModeEnum.Disabled;
 	}
 
@@ -76,56 +98,64 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region COMPONENT_LOGIC
 
 	/// <summary>
-	/// Called when a combat result is received from the CombatantComponent.
-	/// Extracts knockback data from DamageResult OR KnockbackResult (pure-knockback
-	/// effects like environment deposits' impact areas) and applies impulse.
+	/// Universal force-carrier filter. Accepts any <see cref="CombatResult"/> implementing
+	/// <see cref="IForceCarrier"/> with positive force — currently <c>DamageResult</c> and
+	/// <c>KnockbackResult</c>, plus any future force-bearing result type that adds the marker.
 	/// </summary>
 	/// <remarks>
-	/// 2026-05-09 fix: previously only DamageResult was handled, silently dropping
-	/// every KnockbackResult from KnockbackEffect-only sources (rock pillar, future
-	/// non-damaging environmental impulses). Both result types carry Direction +
-	/// Force in equivalent semantics, so they unify here. Source order is
-	/// observation-only — no priority intended.
+	/// <c>PreserveVertical</c> is read off <see cref="KnockbackResult"/> when present and forwarded
+	/// to <see cref="ApplyKnockback"/> — producers like <c>KnockbackEffect</c> with
+	/// <c>UpwardAngleDegrees</c> &gt; 0 (rising rock pillar) stamp this to signal Direction.Y
+	/// is intentional. Other <see cref="IForceCarrier"/> types (DamageResult, future) default
+	/// to false and continue to flatten when <see cref="FlattenKnockback"/> is true.
 	/// </remarks>
 	private void OnCombatResult(CombatResult result)
 	{
-		if (result is DamageResult damageResult && damageResult.Force > 0)
-		{
-			// DamageResult doesn't carry PreserveVertical — damage-knockback continues
-			// to default-flatten (existing behavior preserved for fireball/etc).
-			ApplyKnockback(damageResult.Direction, damageResult.Force);
-		}
-		else if (result is KnockbackResult knockbackResult && knockbackResult.Force > 0)
-		{
-			// KnockbackResult.PreserveVertical is set by producers like KnockbackEffect
-			// with UpwardAngleDegrees > 0 — the rising rock pillar's signal that its Y
-			// component is intentional and must NOT be flattened by the receiver.
-			ApplyKnockback(knockbackResult.Direction, knockbackResult.Force, knockbackResult.PreserveVertical);
-		}
+		if (result is not IForceCarrier carrier || carrier.Force <= 0f) { return; }
+
+		var preserveVertical = (result as KnockbackResult)?.PreserveVertical ?? false;
+		ApplyKnockback(carrier.Direction, carrier.Force, result.Source, preserveVertical);
 	}
 
 	/// <summary>
-	/// Applies a knockback impulse to the MovementProcessor.
+	/// Applies a knockback impulse (CharacterBody regime: manual mass-division converts the
+	/// incoming N·s impulse into an m/s velocity-delta).
 	/// </summary>
-	/// <param name="direction">The normalized direction of the knockback.</param>
-	/// <param name="force">The magnitude of the knockback force.</param>
+	/// <param name="direction">Normalized direction of the knockback.</param>
+	/// <param name="incomingForce">Impulse magnitude in N·s.</param>
+	/// <param name="attributedSource">Originating cause for HSM transition / VFX / audio chain attribution.</param>
 	/// <param name="preserveVertical">
 	/// When true, the receiver's <see cref="FlattenKnockback"/> safety-net flatten is bypassed
-	/// — the source has stamped the Direction.Y as intentional. When false (default),
-	/// FlattenKnockback (if true) zeros the Y component as before.
+	/// — the source has stamped Direction.Y as intentional (e.g., rock pillar's rising-pop).
+	/// When false (default), FlattenKnockback (if true) zeros the Y component as before.
 	/// </param>
-	public void ApplyKnockback(Vector3 direction, float force, bool preserveVertical = false)
+	public void ApplyKnockback(Vector3 direction, float incomingForce, Node? attributedSource = null, bool preserveVertical = false)
 	{
-		var scaledForce = force * StabilityScaling.CalculateResistanceFactor(Stability);
-		var impulse = direction * scaledForce;
-
-		if (FlattenKnockback && !preserveVertical)
+		if (!float.IsFinite(incomingForce) || incomingForce <= 0f)
 		{
-			impulse = new Vector3(impulse.X, 0f, impulse.Z);
+			JmoLogger.Warning(this, $"Knockback skipped: invalid force={incomingForce:F2}.");
+			return;
+		}
+		var stability = Stability?.ResolveFloatValue(_statProvider) ?? 0f; // 0 = no resistance default
+		var mass = Mass?.ResolveFloatValue(_statProvider) ?? 1f;           // 1.0 preserves existing feel
+		if (mass <= 0f)
+		{
+			JmoLogger.Warning(this, $"Knockback skipped: invalid mass={mass:F2}. Set Mass > 0 in Inspector.");
+			return;
 		}
 
-		_movementProcessor.ApplyImpulse(impulse);
-		EmitSignal(SignalName.KnockbackApplied, direction, scaledForce);
+		var stabilityScaled = StabilityScaling.ScaleForce(direction * incomingForce, stability);
+		// CharacterBody regime: input is N·s; manual mass-division to convert to velocity-delta (m/s).
+		var velocityDelta = stabilityScaled / mass;
+		if (FlattenKnockback && !preserveVertical)
+		{
+			velocityDelta = new Vector3(velocityDelta.X, 0f, velocityDelta.Z);
+		}
+
+		// MovementProcessor3D.ApplyImpulse expects m/s velocity-delta, not N·s impulse.
+		_movementProcessor.ApplyImpulse(velocityDelta);
+		EmitSignal(SignalName.KnockbackApplied, direction, velocityDelta.Length(), attributedSource);
+		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={velocityDelta.Length():F2}");
 	}
 
 	public override void _ExitTree()
@@ -138,6 +168,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		{
 			_combatant.CombatResultEvent -= OnCombatResult;
 		}
+		base._ExitTree();
 	}
 
 	#endregion
@@ -147,9 +178,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public bool IsInitialized { get; private set; }
 	public event Action Initialized = delegate { };
 
-	/// <summary>
-	/// Retrieve dependencies from the Blackboard here.
-	/// </summary>
 	public bool Initialize(IBlackboard bb)
 	{
 		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!) || _movementProcessor == null)
@@ -164,15 +192,15 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			return false;
 		}
 
+		// Soft dep — null is acceptable. AttributeFloatDefinition.ResolveFloatValue handles null safely.
+		bb.TryGet(BBDataSig.Stats, out _statProvider);
+
 		IsInitialized = true;
 		Initialized();
 		OnPostInitialize();
 		return true;
 	}
 
-	/// <summary>
-	/// Perform setup that relies on other components here (e.g., event subscriptions).
-	/// </summary>
 	public void OnPostInitialize()
 	{
 		ProcessMode = ProcessModeEnum.Inherit;
@@ -188,10 +216,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override string[] _GetConfigurationWarnings()
 	{
 		var warnings = new List<string>();
-
-		// Configuration warnings will be shown in editor
-		// Dependencies are retrieved from Blackboard at runtime
-
+		// Dependencies are retrieved from Blackboard at runtime; no scene-time validation needed.
 		return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
 	}
 
@@ -201,12 +226,15 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region Test Helpers
 
 	// Logic-Domain tests construct the component without going through the BB wiring
-	// pipeline (Initialize). This injects the movement processor directly so the
-	// FlattenKnockback × PreserveVertical gate's pure-math behavior can be exercised
+	// pipeline (Initialize). These setters allow direct injection so the
+	// FlattenKnockback × PreserveVertical × stat-driven gates can be exercised
 	// without a full CombatantComponent + Blackboard fixture. Compiled out of release
 	// builds via #if TOOLS.
 	internal void SetMovementProcessorForTesting(IMovementProcessor3D processor) =>
 		_movementProcessor = processor;
+	internal void SetStability(BaseFloatValueDefinition? value) => Stability = value;
+	internal void SetMass(BaseFloatValueDefinition? value) => Mass = value;
+	internal void SetFlattenKnockback(bool value) => FlattenKnockback = value;
 
 	#endregion
 #endif

@@ -77,11 +77,11 @@ public partial class RecentHitCondition : BTCondition
         CombatResultType.StatusExpired => r is StatusExpiredResult,
         CombatResultType.Stat => r is StatResult,
         CombatResultType.Effect => r is EffectResult,
-        _ => true,
+        _ => false,
     };
 
     private bool MatchesForce(CombatResult r) =>
-        MinForce <= 0f || (r is DamageResult d && d.Force >= MinForce);
+        MinForce <= 0f || (r is IForceCarrier c && c.Force >= MinForce);
 
     private bool MatchesDamage(CombatResult r) =>
         MinDamage <= 0f || (r is DamageResult d && d.FinalAmount >= MinDamage);
