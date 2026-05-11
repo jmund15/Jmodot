@@ -116,6 +116,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             HitDirection = CalculateHitDirection(payload.Source),
             ImpactVelocity = CalculateImpactVelocity(payload.Source),
             EpicenterPosition = epicenter,
+            EpicenterForward = GetEpicenterForward(payload.Source),
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter)
         };
 
@@ -290,6 +291,19 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
 
         // Fallback to self position if source isn't 3D
         return GlobalPosition;
+    }
+
+    private Vector3 GetEpicenterForward(Node source)
+    {
+        // Source's local +Z axis in world space. Paired with HitDirection in
+        // KnockbackForceResolver to compute cone-angle of incidence: an on-axis
+        // hit from a -Z-facing source yields (-HitDirection).AngleTo(Basis.Z) = 0.
+        if (source is Node3D source3D)
+        {
+            return source3D.GlobalTransform.Basis.Z;
+        }
+
+        return Vector3.Forward;
     }
     #endregion
 }

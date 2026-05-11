@@ -50,6 +50,17 @@ public class HitContext
     public DamageKind Kind { get; init; } = DamageKind.Direct;
 
     /// <summary>
+    /// The forward axis of the attack source at impact time, expressed as the
+    /// source's <c>GlobalTransform.Basis.Z</c> (which is <c>Vector3.Back</c> = +Z
+    /// in Godot's convention, since nodes visually face <c>-Z</c>). Combined with
+    /// <see cref="HitDirection"/>, this lets force-modulation curves compute the
+    /// angle of incidence: on-axis hits produce
+    /// <c>(-HitDirection).AngleTo(EpicenterForward) = 0°</c>. Used by
+    /// <c>KnockbackForceResolver</c> and effect-level <c>ConeAngleFalloff</c> curves.
+    /// </summary>
+    public Vector3 EpicenterForward { get; init; } = Vector3.Back;
+
+    /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.
     /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).
@@ -62,6 +73,7 @@ public class HitContext
         ImpactVelocity = this.ImpactVelocity,
         EpicenterPosition = this.EpicenterPosition,
         DistanceFromEpicenter = this.DistanceFromEpicenter,
+        EpicenterForward = this.EpicenterForward,
         Kind = kind,
     };
 }

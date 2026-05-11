@@ -6,19 +6,25 @@ using System.Linq;
 using Reactions;
 
 /// <summary>
-/// A transient buffer that stores CombatResults for exactly one physics frame.
-/// Allows the HSM to query "Did X happen this frame?" without race conditions.
+/// A transient buffer that stores CombatResults stamped with the physics frame and
+/// combat-time elapsed when they occurred. Allows the HSM and damage layer to query
+/// "Did X happen this frame?" or "What just caused this? (within N seconds)" without
+/// race conditions.
 /// </summary>
+/// <remarks>
+/// Time-windowed queries (<see cref="GetMostRecent{T}"/>,
+/// <see cref="GetAllCombatResultsWithinCombatTime{T}"/>) walk a <c>SortedList</c> of
+/// (combatTime, results) pairs in order — no LINQ chains, no per-call iterator
+/// allocations. The float key is safe here because <c>CombatTimeElapsed</c> is
+/// monotonically incremented by <see cref="UpdateCombatTime"/>; same-frame logs reuse
+/// the same bit-identical key (no hash collisions), cross-frame logs are uniquely
+/// ordered by construction.
+/// </remarks>
 public class CombatLog
 {
-    private record struct ResultTimeContext
-    {
-        public ulong FrameId;
-        public float CombatTimeMarker;
-    }
     public float CombatTimeElapsed { get; private set; } = 0f;
-    private readonly Dictionary<ulong, List<CombatResult>> _resultsByFrame = new(); // ACCURATE
-    private readonly Dictionary<float, List<CombatResult>> _resultsByCombatTime = new(); // for time based calcs
+    private readonly Dictionary<ulong, List<CombatResult>> _resultsByFrame = new();
+    private readonly SortedList<float, List<CombatResult>> _resultsByCombatTime = new();
 
     public void UpdateCombatTime(float combatDelta)
     {
@@ -26,23 +32,25 @@ public class CombatLog
     }
 
     /// <summary>
-    /// Adds a result to the log stamped with the current frame.
+    /// Adds a result to the log stamped with the current frame and combat time.
     /// </summary>
     public void Log(CombatResult result)
     {
-        var currTimeContext = GetCurrentTimeContext();
+        var frameId = Engine.GetPhysicsFrames();
 
-        if (!_resultsByFrame.ContainsKey(currTimeContext.FrameId))
+        if (!_resultsByFrame.TryGetValue(frameId, out var frameList))
         {
-            _resultsByFrame[currTimeContext.FrameId] = new List<CombatResult> { result };
+            frameList = new List<CombatResult>();
+            _resultsByFrame[frameId] = frameList;
         }
-        else { _resultsByFrame[currTimeContext.FrameId].Add(result); }
+        frameList.Add(result);
 
-        if (!_resultsByCombatTime.ContainsKey(currTimeContext.CombatTimeMarker))
+        if (!_resultsByCombatTime.TryGetValue(CombatTimeElapsed, out var timeList))
         {
-            _resultsByCombatTime[currTimeContext.CombatTimeMarker] = new List<CombatResult> { result };
+            timeList = new List<CombatResult>();
+            _resultsByCombatTime.Add(CombatTimeElapsed, timeList);
         }
-        else { _resultsByCombatTime[currTimeContext.CombatTimeMarker].Add(result); }
+        timeList.Add(result);
     }
 
     /// <summary>
@@ -50,10 +58,8 @@ public class CombatLog
     /// </summary>
     public IEnumerable<T> GetEvents<T>() where T : CombatResult
     {
-        var currTimeContext = GetCurrentTimeContext();
-        //GD.Print($"searching result at frame '{currTimeContext.FrameId}', combat time: {currTimeContext.CombatTimeMarker}");
-
-        if (_resultsByFrame.TryGetValue(currTimeContext.FrameId, out var results))
+        var frameId = Engine.GetPhysicsFrames();
+        if (_resultsByFrame.TryGetValue(frameId, out var results))
         {
             return results.OfType<T>();
         }
@@ -65,39 +71,41 @@ public class CombatLog
     /// </summary>
     public bool HasEvent<T>(System.Func<T, bool>? predicate = null) where T : CombatResult
     {
-        var currTimeContext = GetCurrentTimeContext();
-
-        if (!_resultsByFrame.TryGetValue(currTimeContext.FrameId, out var results))
+        var frameId = Engine.GetPhysicsFrames();
+        if (!_resultsByFrame.TryGetValue(frameId, out var results))
         {
             return false;
         }
 
-        var query = results.Where(e => e is T).Cast<T>();
-
-        if (predicate != null)
+        for (int i = 0; i < results.Count; i++)
         {
-            return query.Any(e => predicate(e));
+            if (results[i] is T match && (predicate == null || predicate(match)))
+            {
+                return true;
+            }
         }
-        return query.Any();
+        return false;
     }
 
-    // Optional: Call this periodically to prevent the list from growing infinitely
-    // if the AI stops querying it.
+    /// <summary>
+    /// Clears all frames except the current one. Call periodically to prevent unbounded
+    /// growth when consumers stop querying.
+    /// </summary>
     public void PruneAllButCurrentFrame()
     {
-        var currTimeContext = GetCurrentTimeContext();
-
-        if (!_resultsByFrame.TryGetValue(currTimeContext.FrameId, out var currList))
+        var frameId = Engine.GetPhysicsFrames();
+        if (!_resultsByFrame.TryGetValue(frameId, out var currList))
         {
             _resultsByFrame.Clear();
+            _resultsByCombatTime.Clear();
             return;
         }
 
         _resultsByFrame.Clear();
-        _resultsByFrame[currTimeContext.FrameId] = currList;
+        _resultsByFrame[frameId] = currList;
 
         _resultsByCombatTime.Clear();
-        _resultsByCombatTime[currTimeContext.CombatTimeMarker] = currList;
+        _resultsByCombatTime.Add(CombatTimeElapsed, currList);
     }
 
     public void PruneOldEventsByFrameCutoff(ulong frameCutoff)
@@ -109,42 +117,98 @@ public class CombatLog
         }
     }
 
+    /// <summary>
+    /// Removes all by-time entries strictly older than <paramref name="combatTimeCutoff"/>.
+    /// Uses SortedList's index ordering to prune from the front in O(prunable count) without
+    /// LINQ allocations.
+    /// </summary>
     public void PruneOldEventsByCombatTimeCutoff(float combatTimeCutoff)
     {
-        var keysToRemove = _resultsByCombatTime.Keys.Where(k => k < combatTimeCutoff).ToList();
-        foreach (var key in keysToRemove)
+        while (_resultsByCombatTime.Count > 0 && _resultsByCombatTime.Keys[0] < combatTimeCutoff)
         {
-            _resultsByCombatTime.Remove(key);
+            _resultsByCombatTime.RemoveAt(0);
         }
     }
 
     public IEnumerable<T> GetAllCombatResultsWithinLastFrameAmount<T>(ulong frameAmt) where T : CombatResult
     {
         var frameCutoff = Engine.GetPhysicsFrames() - frameAmt;
-        return _resultsByFrame
-            .Where(pair => pair.Key >= frameCutoff)
-            .SelectMany(pair => pair.Value)
-            .OfType<T>();
+        foreach (var pair in _resultsByFrame)
+        {
+            if (pair.Key < frameCutoff)
+            {
+                continue;
+            }
+            var list = pair.Value;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] is T match)
+                {
+                    yield return match;
+                }
+            }
+        }
     }
 
+    /// <summary>
+    /// All results of type T within the last <paramref name="combatTimeThreshold"/> seconds.
+    /// Iterates the SortedList in ascending order from the cutoff; yields one match at a time
+    /// with zero LINQ chains and zero per-call iterator allocations.
+    /// </summary>
     public IEnumerable<T> GetAllCombatResultsWithinCombatTime<T>(float combatTimeThreshold) where T : CombatResult
     {
         var combatTimeCutoff = CombatTimeElapsed - combatTimeThreshold;
-        return _resultsByCombatTime
-            .Where(pair => pair.Key >= combatTimeCutoff)
-            .SelectMany(pair => pair.Value)
-            .OfType<T>();
-    }
+        var keys = _resultsByCombatTime.Keys;
+        var values = _resultsByCombatTime.Values;
 
-    #region Helpers
-
-    private ResultTimeContext GetCurrentTimeContext()
-    {
-        return new ResultTimeContext()
+        for (int k = 0; k < keys.Count; k++)
         {
-            FrameId = Engine.GetPhysicsFrames(),
-            CombatTimeMarker = CombatTimeElapsed
-        };
+            if (keys[k] < combatTimeCutoff)
+            {
+                continue;
+            }
+            var list = values[k];
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] is T match)
+                {
+                    yield return match;
+                }
+            }
+        }
     }
-    #endregion
+
+    /// <summary>
+    /// Most recently logged combat result of type T within the given seconds window, or null.
+    /// The canonical "what just caused this?" lookup — damage source attribution, kill credit,
+    /// post-hoc DoT attribution.
+    /// </summary>
+    /// <remarks>
+    /// Walks the SortedList by index descending from the most-recent entry; breaks as soon
+    /// as the cutoff is crossed. Zero allocations, zero LINQ — this is on the per-impact
+    /// hot path for <c>ForceImpactDamageApplier</c>.
+    /// </remarks>
+    public T? GetMostRecent<T>(float withinSeconds) where T : CombatResult
+    {
+        var combatTimeCutoff = CombatTimeElapsed - withinSeconds;
+        var keys = _resultsByCombatTime.Keys;
+        var values = _resultsByCombatTime.Values;
+
+        for (int k = keys.Count - 1; k >= 0; k--)
+        {
+            if (keys[k] < combatTimeCutoff)
+            {
+                break;
+            }
+            var list = values[k];
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i] is T match)
+                {
+                    return match;
+                }
+            }
+        }
+        return null;
+    }
 }

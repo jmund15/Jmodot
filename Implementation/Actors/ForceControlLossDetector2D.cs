@@ -7,8 +7,10 @@ using Core.Pooling;
 using Shared;
 
 /// <summary>
-/// 2D twin of <see cref="ForceControlLossDetector"/>. Monitors velocity to detect
-/// when external forces have overwhelmed the entity's ability to maintain control.
+/// 2D control-loss detector. Monitors velocity to detect when external forces have
+/// overwhelmed the entity's ability to maintain control. The 3D equivalent migrated to
+/// a stateless HSM-condition + receiver-read topology (see <c>ControlLostCondition</c>);
+/// this 2D variant retains the detector pattern until a 2D consumer drives the migration.
 /// Exposes typed state via properties + events; no blackboard writes.
 ///
 /// Architecture note: reads ALREADY-SCALED velocity (stability handles force reduction

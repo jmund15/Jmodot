@@ -18,8 +18,8 @@ public interface IVelocityOffsetProvider3D
 
     /// <summary>
     /// Whether this provider's offset should count toward control-loss detection on
-    /// entities with a <c>ForceControlLossDetector</c>. Default false. Capture sources
-    /// (wave drag, current-style carry effects) override to true. Source-side
+    /// entities with an <c>ExternalForceReceiver3D</c> capture path. Default false. Capture
+    /// sources (wave drag, current-style carry effects) override to true. Source-side
     /// discrimination expressed as data on the provider's own declaration site.
     /// </summary>
     bool IsCaptureOffset => false;

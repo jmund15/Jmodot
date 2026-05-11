@@ -19,7 +19,6 @@ using GCol = Godot.Collections;
 public partial class DamageEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] private BaseFloatValueDefinition _damageDefinition = null!;
-    [Export, RequiredExport] private BaseFloatValueDefinition _knockbackDefinition = null!;
 
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 
@@ -42,11 +41,24 @@ public partial class DamageEffectFactory : CombatEffectFactory
     [Export(PropertyHint.Range, "1.0,10.0,0.01")] public float DefaultCritMultiplier { get; set; } = 1.5f;
 
     [ExportGroup("Knockback")]
+    [Export, RequiredExport] private BaseFloatValueDefinition _knockbackDefinition = null!;
+
     /// <summary>
     /// Multiplier for converting impact velocity to knockback force.
     /// Set to 0 for spells that use environmental force instead of combat knockback.
     /// </summary>
     [Export] public float KnockbackVelocityScaling { get; set; } = 1f;
+
+    /// <summary>
+    /// Optional designer-tuned falloff curves shaping knockback force by distance from
+    /// the hit epicenter and angle from the source's forward axis. Both null = pass-through
+    /// (force = base × velocityMult). Only the ~20% of effects with cone/AoE geometry need these.
+    /// </summary>
+    [ExportGroup("Spatial Falloff")]
+    [Export] public Curve? DistanceFalloff { get; set; }
+    [Export] public Curve? ConeAngleFalloff { get; set; }
+    [Export] public float MaxRange { get; set; } = 5.0f;
+    [Export] public float MaxAngleDegrees { get; set; } = 45.0f;
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
@@ -74,6 +86,18 @@ public partial class DamageEffectFactory : CombatEffectFactory
             }
         }
 
-        return new DamageEffect(finalDamage, Tags, isCritical, baseKnockback, KnockbackVelocityScaling, TargetVisualEffect);
+        return new DamageEffect
+        {
+            DamageAmount = finalDamage,
+            Tags = Tags,
+            IsCritical = isCritical,
+            BaseKnockback = baseKnockback,
+            KnockbackVelocityScaling = KnockbackVelocityScaling,
+            DistanceFalloff = DistanceFalloff,
+            ConeAngleFalloff = ConeAngleFalloff,
+            MaxRange = MaxRange,
+            MaxAngleDegrees = MaxAngleDegrees,
+            Visual = TargetVisualEffect,
+        };
     }
 }

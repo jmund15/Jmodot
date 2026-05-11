@@ -11,8 +11,10 @@ using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Combat effect that produces a <see cref="KnockbackResult"/> implementing
-/// <see cref="IForceCarrier"/>. Designer-tunable BaseForce + falloff curves.
-/// Direction is computed per-target as the normalized vector from
+/// <see cref="IForceCarrier"/>. Final force is resolved by <c>KnockbackForceResolver</c>
+/// from <see cref="BaseForce"/>, optional spatial curves
+/// (<see cref="DistanceFalloff"/>/<see cref="ConeAngleFalloff"/> + their normalizers),
+/// and <see cref="VelocityScaling"/>. Direction is the normalized vector from
 /// <see cref="HitContext.EpicenterPosition"/> to the target's world position,
 /// optionally flattened to horizontal to avoid lofting.
 /// </summary>
@@ -21,9 +23,14 @@ public partial class KnockbackEffect : Resource, ICombatEffect
 {
     [ExportGroup("Force")]
     [Export] public BaseFloatValueDefinition? BaseForce { get; set; }
+    [Export] public float VelocityScaling { get; set; } = 0f;
+    [Export] public bool FlattenToHorizontal { get; set; } = true;
+
+    [ExportGroup("Spatial Falloff")]
     [Export] public Curve? DistanceFalloff { get; set; }
     [Export] public Curve? ConeAngleFalloff { get; set; }
-    [Export] public bool FlattenToHorizontal { get; set; } = true;
+    [Export] public float MaxRange { get; set; } = 5.0f;
+    [Export] public float MaxAngleDegrees { get; set; } = 45.0f;
 
     /// <summary>
     /// Vertical bias applied to the post-flatten radial direction. 0 (default) leaves direction
@@ -45,8 +52,6 @@ public partial class KnockbackEffect : Resource, ICombatEffect
 
     [ExportGroup("Visual")]
     [Export] public VisualEffect? Visual { get; private set; }
-
-    private bool _curveDeferralWarned;
 
     public CombatResult? Apply(ICombatant target, HitContext context)
     {
@@ -112,15 +117,11 @@ public partial class KnockbackEffect : Resource, ICombatEffect
         }
 
         var baseValue = BaseForce.ResolveFloatValue(null);
-
-        if ((DistanceFalloff is not null || ConeAngleFalloff is not null) && !_curveDeferralWarned)
-        {
-            _curveDeferralWarned = true;
-            JmoLogger.Warning(this,
-                $"{nameof(KnockbackEffect)}: DistanceFalloff/ConeAngleFalloff are wired but Q2 " +
-                "input plumbing is not yet implemented; curves ignored, returning BaseForce only.");
-        }
-
-        return baseValue;
+        return KnockbackForceResolver.Resolve(
+            baseValue,
+            DistanceFalloff, MaxRange,
+            ConeAngleFalloff, MaxAngleDegrees,
+            context,
+            VelocityScaling);
     }
 }
