@@ -77,13 +77,30 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	/// <summary>
 	/// Called when a combat result is received from the CombatantComponent.
-	/// Extracts knockback data from DamageResult and applies impulse.
+	/// Extracts knockback data from DamageResult OR KnockbackResult (pure-knockback
+	/// effects like environment deposits' impact areas) and applies impulse.
 	/// </summary>
+	/// <remarks>
+	/// 2026-05-09 fix: previously only DamageResult was handled, silently dropping
+	/// every KnockbackResult from KnockbackEffect-only sources (rock pillar, future
+	/// non-damaging environmental impulses). Both result types carry Direction +
+	/// Force in equivalent semantics, so they unify here. Source order is
+	/// observation-only — no priority intended.
+	/// </remarks>
 	private void OnCombatResult(CombatResult result)
 	{
 		if (result is DamageResult damageResult && damageResult.Force > 0)
 		{
+			// DamageResult doesn't carry PreserveVertical — damage-knockback continues
+			// to default-flatten (existing behavior preserved for fireball/etc).
 			ApplyKnockback(damageResult.Direction, damageResult.Force);
+		}
+		else if (result is KnockbackResult knockbackResult && knockbackResult.Force > 0)
+		{
+			// KnockbackResult.PreserveVertical is set by producers like KnockbackEffect
+			// with UpwardAngleDegrees > 0 — the rising rock pillar's signal that its Y
+			// component is intentional and must NOT be flattened by the receiver.
+			ApplyKnockback(knockbackResult.Direction, knockbackResult.Force, knockbackResult.PreserveVertical);
 		}
 	}
 
@@ -92,12 +109,17 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// </summary>
 	/// <param name="direction">The normalized direction of the knockback.</param>
 	/// <param name="force">The magnitude of the knockback force.</param>
-	public void ApplyKnockback(Vector3 direction, float force)
+	/// <param name="preserveVertical">
+	/// When true, the receiver's <see cref="FlattenKnockback"/> safety-net flatten is bypassed
+	/// — the source has stamped the Direction.Y as intentional. When false (default),
+	/// FlattenKnockback (if true) zeros the Y component as before.
+	/// </param>
+	public void ApplyKnockback(Vector3 direction, float force, bool preserveVertical = false)
 	{
 		var scaledForce = force * StabilityScaling.CalculateResistanceFactor(Stability);
 		var impulse = direction * scaledForce;
 
-		if (FlattenKnockback)
+		if (FlattenKnockback && !preserveVertical)
 		{
 			impulse = new Vector3(impulse.X, 0f, impulse.Z);
 		}
@@ -108,7 +130,11 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	public override void _ExitTree()
 	{
-		if (_combatant != null)
+		// Disposal-race guard: CombatantComponent is a Godot Node and may be freed
+		// before this _ExitTree fires during scene teardown (sibling free-order is
+		// not guaranteed). Unsubscribing from a disposed event source throws
+		// ObjectDisposedException. See BB_Apply_Cache_Restore_Pattern (IsInstanceValid).
+		if (_combatant != null && GodotObject.IsInstanceValid(_combatant))
 		{
 			_combatant.CombatResultEvent -= OnCombatResult;
 		}
@@ -170,4 +196,18 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	}
 
 	#endregion
+
+#if TOOLS
+	#region Test Helpers
+
+	// Logic-Domain tests construct the component without going through the BB wiring
+	// pipeline (Initialize). This injects the movement processor directly so the
+	// FlattenKnockback × PreserveVertical gate's pure-math behavior can be exercised
+	// without a full CombatantComponent + Blackboard fixture. Compiled out of release
+	// builds via #if TOOLS.
+	internal void SetMovementProcessorForTesting(IMovementProcessor3D processor) =>
+		_movementProcessor = processor;
+
+	#endregion
+#endif
 }
