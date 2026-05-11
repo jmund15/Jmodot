@@ -1,6 +1,6 @@
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
-using System.Linq;
+using System;
 using Core.AI.BehaviorTree.Conditions;
 using Core.Combat;
 using Core.Combat.Reactions;
@@ -51,6 +51,11 @@ public partial class RecentHitCondition : BTCondition
     [ExportGroup("Gate")]
     [Export] public bool Inverted { get; set; }
 
+    // Cached once per instance — closure captures `this` (a reference, not snapshotted values),
+    // so the inner Matches* helpers read current [Export] field values each invocation. Inspector
+    // mutations are picked up automatically with no cache-invalidation logic.
+    private Func<CombatResult, bool>? _checkPredicate;
+
     public override bool Check()
     {
         if (!BB.TryGet(BBDataSig.CombatLog, out CombatLog? log) || log == null)
@@ -61,9 +66,8 @@ public partial class RecentHitCondition : BTCondition
             return Inverted;
         }
 
-        var hit = log
-            .GetAllCombatResultsWithinCombatTime<CombatResult>(WindowSeconds)
-            .Any(r => MatchesType(r) && MatchesForce(r) && MatchesDamage(r));
+        _checkPredicate ??= r => MatchesType(r) && MatchesForce(r) && MatchesDamage(r);
+        var hit = log.AnyWithinCombatTime<CombatResult>(WindowSeconds, _checkPredicate);
 
         return Inverted ? !hit : hit;
     }

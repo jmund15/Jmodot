@@ -211,4 +211,38 @@ public class CombatLog
         }
         return null;
     }
+
+    /// <summary>
+    /// Returns true if any <typeparamref name="T"/> within the last
+    /// <paramref name="combatTimeThreshold"/> seconds satisfies the optional
+    /// <paramref name="predicate"/>. Window-aware sibling to <see cref="HasEvent{T}"/>.
+    /// </summary>
+    /// <remarks>
+    /// Walks the SortedList descending from most-recent and early-exits on the first match;
+    /// breaks as soon as the cutoff is crossed. Zero LINQ, zero per-call iterator allocations.
+    /// Hot-path for per-frame BTConditions (RecentHitCondition gating sequences).
+    /// </remarks>
+    public bool AnyWithinCombatTime<T>(float combatTimeThreshold, System.Func<T, bool>? predicate = null) where T : CombatResult
+    {
+        var combatTimeCutoff = CombatTimeElapsed - combatTimeThreshold;
+        var keys = _resultsByCombatTime.Keys;
+        var values = _resultsByCombatTime.Values;
+
+        for (int k = keys.Count - 1; k >= 0; k--)
+        {
+            if (keys[k] < combatTimeCutoff)
+            {
+                break;
+            }
+            var list = values[k];
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i] is T match && (predicate == null || predicate(match)))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }
