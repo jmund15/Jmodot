@@ -25,21 +25,22 @@ public partial class LinearMovementStrategy3D : BaseMovementStrategy3D
 
     public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, Vector3 previousDirection, IStatProvider stats, float delta)
     {
+        // Horizontal-plane navigation only. Y is owned by external forces (gravity) and
+        // impulses (knockback). The strategy must NEVER touch Y — Vector3.MoveToward
+        // operates per-component, so a target with Y=0 silently drags the input Y toward
+        // zero every frame, erasing both impulses and gravity in the same tick.
+        // Pre-v6.1 violation broke the HSM-observes-physics contract: KnockedUpState
+        // never entered because Velocity.Y was perpetually ≈0.
         var maxSpeed = _maxSpeed.ResolveFloatValue(stats);
-        var targetVelocity = desiredDirection * maxSpeed;
-        var newVelocity = currentVelocity;
+        var horizontalCurrent = new Vector3(currentVelocity.X, 0f, currentVelocity.Z);
+        var horizontalTarget = !desiredDirection.IsZeroApprox()
+            ? new Vector3(desiredDirection.X, 0f, desiredDirection.Z) * maxSpeed
+            : Vector3.Zero;
+        var rate = !desiredDirection.IsZeroApprox()
+            ? _acceleration.ResolveFloatValue(stats)
+            : _friction.ResolveFloatValue(stats);
 
-        if (!desiredDirection.IsZeroApprox())
-        {
-            newVelocity = newVelocity.MoveToward(targetVelocity,
-                _acceleration.ResolveFloatValue(stats) * delta);
-        }
-        else
-        {
-            newVelocity = newVelocity.MoveToward(Vector3.Zero,
-                _friction.ResolveFloatValue(stats) * delta);
-        }
-
-        return newVelocity;
+        var newHorizontal = horizontalCurrent.MoveToward(horizontalTarget, rate * delta);
+        return new Vector3(newHorizontal.X, currentVelocity.Y, newHorizontal.Z);
     }
 }
