@@ -3,9 +3,10 @@ namespace Jmodot.Implementation.Actors;
 using Godot;
 
 /// <summary>
-/// Per-entity policy bundling control-loss thresholds. Used by
-/// <see cref="ForceControlLossDetector"/> to decide whether sustained source-filtered
-/// force/offset magnitudes from <see cref="ExternalForceReceiver3D"/> constitute "capture."
+/// Per-entity policy bundling control-loss thresholds. Consumed by HSM transition
+/// conditions (<c>ControlLostCondition</c>/<c>ControlRegainedCondition</c>) to decide
+/// whether sustained source-filtered force/offset magnitudes from
+/// <see cref="ExternalForceReceiver3D"/> constitute "capture."
 ///
 /// Designer-tunable per-entity via .tres assets — wizard, enemies, bosses can each carry
 /// their own policy with appropriate thresholds. Single concrete class today; subclassing
@@ -17,6 +18,13 @@ using Godot;
 [GlobalClass]
 public partial class ForceControlPolicy : Resource
 {
+    /// <summary>
+    /// In-memory fallback policy with the default thresholds. Used by conditions when
+    /// no <see cref="ForceControlPolicy"/> Export is wired on the scene — keeps
+    /// null-policy callers safe instead of forcing every actor to author a .tres.
+    /// </summary>
+    public static readonly ForceControlPolicy Default = new();
+
     [ExportGroup("Force Axis")]
 
     /// <summary>

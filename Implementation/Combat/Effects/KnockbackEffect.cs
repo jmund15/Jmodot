@@ -11,38 +11,26 @@ using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Combat effect that produces a <see cref="KnockbackResult"/> implementing
-/// <see cref="IForceCarrier"/>. Designer-tunable BaseForce, optionally pre-shaped at the
-/// call site by <see cref="DistanceFalloff"/> / <see cref="ConeAngleFalloff"/> curves.
-/// Direction is computed per-target as the normalized vector from
+/// <see cref="IForceCarrier"/>. Final force is resolved by <c>KnockbackForceResolver</c>
+/// from <see cref="BaseForce"/>, optional spatial curves
+/// (<see cref="DistanceFalloff"/>/<see cref="ConeAngleFalloff"/> + their normalizers),
+/// and <see cref="VelocityScaling"/>. Direction is the normalized vector from
 /// <see cref="HitContext.EpicenterPosition"/> to the target's world position,
 /// optionally flattened to horizontal to avoid lofting.
 /// </summary>
-/// <remarks>
-/// <b>Curve-resolution policy (Logic-domain pure):</b> the <see cref="DistanceFalloff"/>
-/// and <see cref="ConeAngleFalloff"/> exports are designer-authoring tools whose values
-/// callers MUST pre-multiply into the input force BEFORE invoking <see cref="Apply"/> —
-/// the call site has the scene-geometry context (distance from epicenter, angle from cone
-/// axis) that this Resource cannot. Keeping the curves out of <see cref="Apply"/> preserves
-/// Logic-domain purity (no scene-context coupling on a <see cref="Resource"/>).
-///
-/// Canonical pattern at the call site (e.g., a cone hitbox dispatcher):
-/// <code>
-/// var multiplier = DistanceFalloff.Sample(d / maxRange) * AngleFalloff.Sample(angleDeg / maxAngle);
-/// var inputForce = effect.BaseForce.ResolveFloatValue(stats) * multiplier;
-/// // pass inputForce through HitContext or invoke ApplyKnockback directly
-/// </code>
-/// The receiver-side <c>KnockbackComponent3D</c> then divides by mass and stability — that
-/// pipeline is unaffected by the curves; the curves only shape what the receiver sees as
-/// "incoming impulse."
-/// </remarks>
 [GlobalClass]
 public partial class KnockbackEffect : Resource, ICombatEffect
 {
     [ExportGroup("Force")]
     [Export] public BaseFloatValueDefinition? BaseForce { get; set; }
+    [Export] public float VelocityScaling { get; set; } = 0f;
+    [Export] public bool FlattenToHorizontal { get; set; } = true;
+
+    [ExportGroup("Spatial Falloff")]
     [Export] public Curve? DistanceFalloff { get; set; }
     [Export] public Curve? ConeAngleFalloff { get; set; }
-    [Export] public bool FlattenToHorizontal { get; set; } = true;
+    [Export] public float MaxRange { get; set; } = 5.0f;
+    [Export] public float MaxAngleDegrees { get; set; } = 45.0f;
 
     /// <summary>
     /// Vertical bias applied to the post-flatten radial direction. 0 (default) leaves direction
@@ -64,8 +52,6 @@ public partial class KnockbackEffect : Resource, ICombatEffect
 
     [ExportGroup("Visual")]
     [Export] public VisualEffect? Visual { get; private set; }
-
-    private bool _curveDeferralWarned;
 
     public CombatResult? Apply(ICombatant target, HitContext context)
     {
@@ -131,15 +117,11 @@ public partial class KnockbackEffect : Resource, ICombatEffect
         }
 
         var baseValue = BaseForce.ResolveFloatValue(null);
-
-        if ((DistanceFalloff is not null || ConeAngleFalloff is not null) && !_curveDeferralWarned)
-        {
-            _curveDeferralWarned = true;
-            JmoLogger.Warning(this,
-                $"{nameof(KnockbackEffect)}: DistanceFalloff/ConeAngleFalloff are wired but Q2 " +
-                "input plumbing is not yet implemented; curves ignored, returning BaseForce only.");
-        }
-
-        return baseValue;
+        return KnockbackForceResolver.Resolve(
+            baseValue,
+            DistanceFalloff, MaxRange,
+            ConeAngleFalloff, MaxAngleDegrees,
+            context,
+            VelocityScaling);
     }
 }

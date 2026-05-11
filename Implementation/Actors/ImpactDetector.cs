@@ -45,9 +45,8 @@ public partial class ImpactDetector : Node, IPoolResetable
     {
         // TODO(perf): swarm scenarios with N>30 actors will multiply slide-collision iteration cost.
         // If profiling shows this hot, add a generic [Export] bool Enabled toggle so consumers
-        // can suspend detection — do NOT couple to ForceControlLossDetector or any other specific
-        // consumer (defeats the modular impact contract). MinImpactSpeed already filters most
-        // trivial contacts pre-allocation.
+        // can suspend detection — do NOT couple to any specific consumer (defeats the modular
+        // impact contract). MinImpactSpeed already filters most trivial contacts pre-allocation.
         if (_controller == null || _body == null)
         {
             return;

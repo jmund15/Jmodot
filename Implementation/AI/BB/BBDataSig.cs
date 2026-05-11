@@ -156,11 +156,12 @@ public static partial class BBDataSig
     #region FORCE_DETECTION_COMPONENTS
 
     /// <summary>
-    /// Typed component reference for the actor's <c>ForceControlLossDetector</c>. Conditions
-    /// and BT actions read <c>IsControlLost</c> / subscribe to events directly through this
-    /// reference rather than polling stringly-typed flags.
+    /// Typed component reference for the actor's <c>ExternalForceReceiver3D</c>. The
+    /// canonical receiver-shaped query source: HSM transition conditions read
+    /// <c>GetCaptureForce(target)</c> / <c>GetDominantForceSource(target)</c>; damage
+    /// attribution falls back here when no transient knockback dominates the CombatLog window.
     /// </summary>
-    public static readonly StringName ForceControlLossDetector = new("ForceControlLossDetector");
+    public static readonly StringName ExternalForceReceiver = new("ExternalForceReceiver");
 
     /// <summary>
     /// Typed component reference for the actor's <c>ImpactDetector</c>. Consumers subscribe

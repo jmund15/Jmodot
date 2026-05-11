@@ -11,23 +11,64 @@ using System.Collections.Generic;
 using Core.Combat.Reactions;
 using Shared;
 
-public struct DamageEffect : ICombatEffect
+/// <summary>
+/// Combat-layer effect that applies damage to a target's HealthComponent and reports
+/// the resulting force/critical state via a DamageResult. Knockback magnitude is
+/// computed by <see cref="KnockbackForceResolver.Resolve"/> from the base + spatial
+/// falloff curves + impact velocity.
+/// </summary>
+/// <remarks>
+/// Constructed via named-property init by <c>DamageEffectFactory.Create</c>. A class
+/// (not struct) because <c>ICombatEffect</c> reference semantics box-through anyway —
+/// the struct optimization bought nothing and made the 10-arg positional ctor fragile
+/// (silent param-order swap risk: <c>BaseKnockback</c> ↔ <c>MaxRange</c> are both
+/// <c>float</c>).
+/// </remarks>
+public class DamageEffect : ICombatEffect
 {
-    public readonly float DamageAmount;
-    public readonly bool IsCritical;
-    /// <summary>Static force applied regardless of speed.</summary>
-    public readonly float BaseKnockback;
-    /// <summary>Multiplier for converting ImpactVelocity magnitude to extra force.</summary>
-    public readonly float KnockbackVelocityScaling;
-    public IEnumerable<CombatTag> Tags { get; private set; }
-    public VisualEffect? Visual { get; private init; }
+    public float DamageAmount { get; init; }
+    public bool IsCritical { get; init; }
 
+    /// <summary>Static force applied regardless of impact speed (units/sec²).</summary>
+    public float BaseKnockback { get; init; }
+
+    /// <summary>Multiplier for converting ImpactVelocity magnitude to extra force.</summary>
+    public float KnockbackVelocityScaling { get; init; } = 1f;
+
+    /// <summary>Optional distance-falloff curve sampled at <c>distance/MaxRange ∈ [0,1]</c>.</summary>
+    public Curve? DistanceFalloff { get; init; }
+
+    /// <summary>Optional angle-falloff curve sampled at <c>angle/MaxAngleDegrees ∈ [0,1]</c>.</summary>
+    public Curve? ConeAngleFalloff { get; init; }
+
+    /// <summary>Distance normalizer for <see cref="DistanceFalloff"/> (meters).</summary>
+    public float MaxRange { get; init; } = 5.0f;
+
+    /// <summary>Angle normalizer for <see cref="ConeAngleFalloff"/> (degrees, half-angle).</summary>
+    public float MaxAngleDegrees { get; init; } = 45.0f;
+
+    public IEnumerable<CombatTag> Tags { get; init; } = [];
+    public VisualEffect? Visual { get; init; }
+
+    /// <summary>Init-syntax constructor: <c>new DamageEffect { DamageAmount = ..., ... }</c>.</summary>
+    public DamageEffect() { }
+
+    /// <summary>
+    /// Positional constructor preserved for backwards compatibility with existing
+    /// callers (factories, test fixtures). New code SHOULD prefer the init-syntax
+    /// constructor — both <c>BaseKnockback</c>/<c>MaxRange</c> are <c>float</c> and
+    /// positional swaps compile silently.
+    /// </summary>
     public DamageEffect(
         float damageAmount,
         IEnumerable<CombatTag> tags,
         bool isCritical = false,
         float baseKnockback = 10f,
         float knockbackVelocityScaling = 1f,
+        Curve? distanceFalloff = null,
+        Curve? coneAngleFalloff = null,
+        float maxRange = 5.0f,
+        float maxAngleDegrees = 45.0f,
         VisualEffect? visual = null)
     {
         DamageAmount = damageAmount;
@@ -35,6 +76,10 @@ public struct DamageEffect : ICombatEffect
         IsCritical = isCritical;
         BaseKnockback = baseKnockback;
         KnockbackVelocityScaling = knockbackVelocityScaling;
+        DistanceFalloff = distanceFalloff;
+        ConeAngleFalloff = coneAngleFalloff;
+        MaxRange = maxRange;
+        MaxAngleDegrees = maxAngleDegrees;
         Visual = visual;
     }
 
@@ -42,15 +87,20 @@ public struct DamageEffect : ICombatEffect
     {
         if (!target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health) || health == null)
         {
-            JmoLogger.Error(this, $"Target '{target.GetUnderlyingNode().Name}' has no HealthComponent!");
+            // Soft no-op: VFX-only dummy targets and environmental hit-receivers do not
+            // carry a HealthComponent. Demoted from Error so test fixtures and incidental
+            // hits do not trip the project-wide JmoLogger.Error → test-fail contract.
+            JmoLogger.Warning(this,
+                $"DamageEffect.Apply soft no-op: target '{target.GetUnderlyingNode().Name}' has no HealthComponent.");
             return null;
         }
 
-        // Calculate total knockback force: Static Base + (Impact Speed * Scaling)
-        float impactSpeed = context.ImpactVelocity.Length();
-        float totalForceConfig = BaseKnockback + (impactSpeed * KnockbackVelocityScaling);
-
-        // TODO: add damage modifier modules (armor, weakness, true damage, etc.)
+        float totalForce = KnockbackForceResolver.Resolve(
+            BaseKnockback,
+            DistanceFalloff, MaxRange,
+            ConeAngleFalloff, MaxAngleDegrees,
+            context,
+            KnockbackVelocityScaling);
 
         health.TakeDamage(DamageAmount, context.Attacker, context.Kind);
 
@@ -62,7 +112,7 @@ public struct DamageEffect : ICombatEffect
             OriginalAmount = DamageAmount,
             FinalAmount = DamageAmount,
             Direction = context.HitDirection,
-            Force = totalForceConfig,
+            Force = totalForce,
             IsCritical = IsCritical,
             IsFatal = health.IsDead
         };
