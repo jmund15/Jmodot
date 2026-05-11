@@ -18,6 +18,8 @@ public partial class HealEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
+        this.ValidateRequiredExports();
+
         float percent = HealPercent.ResolveFloatValue(stats);
         return new HealEffect(percent, TargetVisualEffect);
     }

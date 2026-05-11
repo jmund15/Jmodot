@@ -62,6 +62,8 @@ public partial class DamageEffectFactory : CombatEffectFactory
 
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
     {
+        this.ValidateRequiredExports();
+
         float baseDamage = _damageDefinition.ResolveFloatValue(stats);
         float baseKnockback = _knockbackDefinition.ResolveFloatValue(stats);
 

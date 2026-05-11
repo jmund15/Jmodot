@@ -20,6 +20,8 @@ public partial class StatEffectFactory : CombatEffectFactory
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     public override ICombatEffect Create(IStatProvider? stats = null)
     {
+        this.ValidateRequiredExports();
+
         return new StatEffect(Attribute, Modifier, Tags, TargetVisualEffect);
     }
 }
