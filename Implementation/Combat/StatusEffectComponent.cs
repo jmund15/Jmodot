@@ -644,6 +644,13 @@ public partial class StatusEffectComponent : Node, IComponent
     /// Test-only: directly unregister tags. Pairs with _TestRegisterTags for symmetric setup/teardown.
     /// </summary>
     internal void _TestUnregisterTags(IEnumerable<CombatTag> tags) => UnregisterTags(tags);
+
+    /// <summary>
+    /// Test-only: inject a StatusRunner into the active list, bypassing AddStatus' policy /
+    /// category-interaction / tag-registration pipeline. Used by spread-orchestration tests that
+    /// need a runner present without exercising the acceptance path.
+    /// </summary>
+    internal void _TestAddRunner(StatusRunner runner) => _activeRunners.Add(runner);
 #endif
     #endregion
 }

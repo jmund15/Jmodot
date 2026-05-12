@@ -216,9 +216,20 @@ public abstract partial class StatusRunner : Node
     private VisualEffectController? FindVisualController(ICombatant target)
     {
         if (target?.OwnerNode == null) { return null; }
-        
+
         // Try to find in children
         var controller = target.OwnerNode.GetChildrenOfType<VisualEffectController>().FirstOrDefault();
         return controller;
     }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only: set <see cref="Target"/> without running <see cref="Start"/>'s full lifecycle
+    /// (persistent-visual instantiation, stat-modifier application, visual-controller resolution).
+    /// Used by spread tests that drive the post-Start state directly.
+    /// </summary>
+    internal void _TestSetTarget(ICombatant target) => Target = target;
+#endif
+    #endregion
 }
