@@ -109,7 +109,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
             if (_scalableShapes.Count > 0)
             {
-                JmoLogger.Debug(this, $"Discovered {_scalableShapes.Count} collision shapes to scale");
+                JmoLogger.Debug(this, $"[Collision] Discovered {_scalableShapes.Count} collision shapes to scale");
             }
 
             // [POOL:DIAG] Log discovered shapes and their base scales

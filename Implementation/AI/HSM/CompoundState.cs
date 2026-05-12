@@ -202,7 +202,7 @@ using Shared.GodotExceptions;
                 var guardKey = (PrimarySubState, newSubState);
                 if (_lastGuardedTransition != guardKey)
                 {
-                    JmoLogger.Debug(this, $"Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
+                    JmoLogger.Debug(this, $"[HSM] Transition Guard prevents '{PrimarySubState.Name}' from transitioning to '{newSubState}'.");
                     _lastGuardedTransition = guardKey;
                 }
                 return;
@@ -221,7 +221,7 @@ using Shared.GodotExceptions;
             if (PrimarySubState != oldSubState)
             {
                 // This can happen if a transition signal arrives late, after another transition has already occurred.
-                JmoLogger.Debug(this, $"Received transition from '{oldSubState.Name}', but current state is '{PrimarySubState.Name}'. Ignoring stale transition.");
+                JmoLogger.Debug(this, $"[HSM] Received transition from '{oldSubState.Name}', but current state is '{PrimarySubState.Name}'. Ignoring stale transition.");
                 return;
             }
 

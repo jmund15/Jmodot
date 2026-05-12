@@ -32,7 +32,7 @@ public partial class CorruptedAltar : Node, IHealable
 
         if (_corruption <= 0)
         {
-            JmoLogger.Info(this, "The Altar is cleansed!");
+            JmoLogger.Info(this, "[Reaction] The Altar is cleansed!");
         }
     }
 }

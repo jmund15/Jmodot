@@ -163,7 +163,7 @@ public partial class CoverWaypointSelection : WaypointSelectionStrategy
         var response = nav.RequestNewNavPath(bestCandidate, overridePathCalcThresh: 0f);
         if (response == NavReqPathResponse.Success)
         {
-            JmoLogger.Info(this, $"Cover waypoint selected (score={bestScore:F2}).");
+            JmoLogger.Info(this, $"[Navigator] Cover waypoint selected (score={bestScore:F2}).");
             return true;
         }
 

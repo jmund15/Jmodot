@@ -115,7 +115,7 @@ public partial class StatusEffectComponent : Node, IComponent
         if (!policyResult.IsAccepted && !policyResult.ShouldRefreshOldest)
         {
             // Fully rejected - don't add
-            JmoLogger.Info(this, $"Status rejected by stack policy: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
+            JmoLogger.Info(this, $"[Status] Rejected by stack policy: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
             return false;
         }
 
@@ -135,7 +135,7 @@ public partial class StatusEffectComponent : Node, IComponent
         // Step 2: Process category interactions (e.g., Water cancels Fire)
         if (!ProcessCategoryInteractions(runner))
         {
-            JmoLogger.Info(this, $"Status rejected by category interaction: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
+            JmoLogger.Info(this, $"[Status] Rejected by category interaction: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
             return false;
         }
 
@@ -220,7 +220,7 @@ public partial class StatusEffectComponent : Node, IComponent
             runner.Stop(wasDispelled: true);
         }
 
-        JmoLogger.Info(this, $"Cleared {runners.Count} status effects.");
+        JmoLogger.Info(this, $"[Status] Cleared {runners.Count} effects.");
     }
     #endregion
 
@@ -277,7 +277,7 @@ public partial class StatusEffectComponent : Node, IComponent
             if (oldest is IDurationRefreshable refreshable)
             {
                 refreshable.RefreshDuration(incomingRunner);
-                JmoLogger.Info(this, $"Refreshed duration for {tag.TagId}");
+                JmoLogger.Debug(this, $"[Status] Refreshed duration for {tag.TagId}");
                 return;
             }
         }
@@ -296,7 +296,7 @@ public partial class StatusEffectComponent : Node, IComponent
             if (oldest != null)
             {
                 oldest.Stop(wasDispelled: true);
-                JmoLogger.Info(this, $"Replaced oldest {tag.TagId} runner");
+                JmoLogger.Debug(this, $"[Status] Replaced oldest {tag.TagId} runner");
                 return;
             }
         }
@@ -368,34 +368,34 @@ public partial class StatusEffectComponent : Node, IComponent
         {
             case CategoryInteractionEffect.CancelExisting:
                 existingRunner.Stop(wasDispelled: true);
-                JmoLogger.Info(this, "Interaction canceled existing effect");
+                JmoLogger.Info(this, "[Status] Interaction canceled existing effect");
                 break;
 
             case CategoryInteractionEffect.ReduceDuration:
                 if (existingRunner is IDurationModifiable modifiable)
                 {
                     modifiable.ReduceDuration(interaction.Magnitude);
-                    JmoLogger.Info(this, $"Interaction reduced duration by {interaction.Magnitude}");
+                    JmoLogger.Debug(this, $"[Status] Interaction reduced duration by {interaction.Magnitude}");
                 }
                 break;
 
             case CategoryInteractionEffect.CancelBoth:
                 existingRunner.Stop(wasDispelled: true);
                 rejectIncoming = true;
-                JmoLogger.Info(this, "Interaction canceled both incoming and existing effects");
+                JmoLogger.Info(this, "[Status] Interaction canceled both incoming and existing effects");
                 break;
 
             case CategoryInteractionEffect.Amplify:
                 if (existingRunner is IAmplifiable amplifiable)
                 {
                     amplifiable.Amplify(interaction.Magnitude);
-                    JmoLogger.Info(this, $"Interaction amplified effect by {interaction.Magnitude}");
+                    JmoLogger.Debug(this, $"[Status] Interaction amplified effect by {interaction.Magnitude}");
                 }
                 break;
 
             case CategoryInteractionEffect.CancelIncoming:
                 rejectIncoming = true;
-                JmoLogger.Info(this, "Interaction canceled incoming effect");
+                JmoLogger.Info(this, "[Status] Interaction canceled incoming effect");
                 break;
 
             case CategoryInteractionEffect.Transform:

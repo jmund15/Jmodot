@@ -177,7 +177,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
 		});
 
-		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={deltaMagnitude:F2}");
+		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={direction}, |Δv|={deltaMagnitude:F2}");
 	}
 
 	public override void _ExitTree()

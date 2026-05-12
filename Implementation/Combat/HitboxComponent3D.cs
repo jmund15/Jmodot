@@ -234,9 +234,9 @@ using AI.BB;
 
             // Activate FIRST so that Monitoring=true is queued before ProcessOverlappingAreas.
             // Deferred calls execute in FIFO order.
-            Shared.JmoLogger.Debug(this, $"StartAttack - pre-Activate Monitoring={Monitoring}");
+            Shared.JmoLogger.Debug(this, $"[Impact] StartAttack - pre-Activate Monitoring={Monitoring}");
             Activate();
-            Shared.JmoLogger.Debug(this, $"StartAttack - post-Activate Monitoring={Monitoring} (deferred, actual change next frame)");
+            Shared.JmoLogger.Debug(this, $"[Impact] StartAttack - post-Activate Monitoring={Monitoring} (deferred, actual change next frame)");
 
             // CRITICAL FIX: GetOverlappingAreas() requires the physics broadphase to update
             // AFTER Monitoring=true. When spawned during physics callbacks (SpawnEffect OnDestroy),
@@ -398,14 +398,14 @@ using AI.BB;
             // Guard: GetOverlappingAreas() requires Monitoring to be enabled.
             if (!Monitoring)
             {
-                Shared.JmoLogger.Debug(this, $"ProcessOverlappingAreas SKIPPED - Monitoring=false");
+                Shared.JmoLogger.Debug(this, $"[Impact] ProcessOverlappingAreas SKIPPED - Monitoring=false");
                 return;
             }
 
             // Check all currently overlapping areas.
             // Essential for "Spawn on top" or "Beam" logic.
             var areas = GetOverlappingAreas();
-            Shared.JmoLogger.Debug(this, $"ProcessOverlappingAreas found {areas.Count} overlapping areas");
+            Shared.JmoLogger.Debug(this, $"[Impact] ProcessOverlappingAreas found {areas.Count} overlapping areas");
             foreach (var area in areas)
             {
                 if (area is HurtboxComponent3D hurtbox)
@@ -421,14 +421,14 @@ using AI.BB;
 
             if (!IsActive || CurrentPayload == null)
             {
-                Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
+                Shared.JmoLogger.Debug(this, $"[Impact] TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
                 return;
             }
 
             // 1. Self-Hit Prevention
             if (_selfHurtbox != null && hurtbox == _selfHurtbox)
             {
-                Shared.JmoLogger.Debug(this, "TryHitHurtbox BLOCKED - self-hit prevention");
+                Shared.JmoLogger.Debug(this, "[Impact] TryHitHurtbox BLOCKED - self-hit prevention");
                 return;
             }
 
@@ -438,7 +438,7 @@ using AI.BB;
             // The ATTACKER decides "I won't hit this target" - matches how collision exceptions work.
             if (HasCollisionExceptionWith(hurtbox.Owner))
             {
-                Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"[Impact] TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
                 return;
             }
 
@@ -447,7 +447,7 @@ using AI.BB;
             // and abort. Plain `for` loop, no LINQ — this runs every overlap (hot loop).
             if (!HasCapacityForAnotherHit())
             {
-                Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - capacity exhausted (acceptedHits={_acceptedHits})");
+                Shared.JmoLogger.Debug(this, $"[Impact] TryHitHurtbox BLOCKED - capacity exhausted (acceptedHits={_acceptedHits})");
                 Deactivate();
                 return;
             }
@@ -456,7 +456,7 @@ using AI.BB;
             // If hurtbox is already in the set, we skip it.
             if (!_hitHurtboxes.Add(hurtbox))
             {
-                Shared.JmoLogger.Debug(this, "TryHitHurtbox BLOCKED - already hit this target");
+                Shared.JmoLogger.Debug(this, "[Impact] TryHitHurtbox BLOCKED - already hit this target");
                 return;
             }
 
@@ -506,7 +506,7 @@ using AI.BB;
                 _acceptedHits++;
                 if (!HasCapacityForAnotherHit())
                 {
-                    Shared.JmoLogger.Debug(this, $"Capacity exhausted post-accept (acceptedHits={_acceptedHits}) — deactivating hitbox.");
+                    Shared.JmoLogger.Debug(this, $"[Impact] Capacity exhausted post-accept (acceptedHits={_acceptedHits}) — deactivating hitbox.");
                     Deactivate();
                 }
             }

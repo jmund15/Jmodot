@@ -147,7 +147,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
 		});
 
-		JmoLogger.Info(this, $"Knockback applied: dir={direction}, |Δv|={resultingVelocityDelta:F2}");
+		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={direction}, |Δv|={resultingVelocityDelta:F2}");
 	}
 
 	public override void _ExitTree()

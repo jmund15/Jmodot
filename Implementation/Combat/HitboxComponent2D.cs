@@ -150,9 +150,9 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         OnAttackStarted?.Invoke();
 
-        Shared.JmoLogger.Debug(this, $"StartAttack - pre-Activate Monitoring={Monitoring}");
+        Shared.JmoLogger.Debug(this, $"[Impact] StartAttack - pre-Activate Monitoring={Monitoring}");
         Activate();
-        Shared.JmoLogger.Debug(this, $"StartAttack - post-Activate Monitoring={Monitoring} (deferred, actual change next frame)");
+        Shared.JmoLogger.Debug(this, $"[Impact] StartAttack - post-Activate Monitoring={Monitoring} (deferred, actual change next frame)");
 
         _pendingOverlapRetries = PendingOverlapRetryFrames;
     }
@@ -261,12 +261,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     {
         if (!Monitoring)
         {
-            Shared.JmoLogger.Debug(this, "ProcessOverlappingAreas SKIPPED - Monitoring=false");
+            Shared.JmoLogger.Debug(this, "[Impact] ProcessOverlappingAreas SKIPPED - Monitoring=false");
             return;
         }
 
         var areas = GetOverlappingAreas();
-        Shared.JmoLogger.Debug(this, $"ProcessOverlappingAreas found {areas.Count} overlapping areas");
+        Shared.JmoLogger.Debug(this, $"[Impact] ProcessOverlappingAreas found {areas.Count} overlapping areas");
         foreach (var area in areas)
         {
             if (area is HurtboxComponent2D hurtbox)
@@ -280,25 +280,25 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     {
         if (!IsActive || CurrentPayload == null)
         {
-            Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
+            Shared.JmoLogger.Debug(this, $"[Impact] TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");
             return;
         }
 
         if (_selfHurtbox != null && hurtbox == _selfHurtbox)
         {
-            Shared.JmoLogger.Debug(this, "TryHitHurtbox BLOCKED - self-hit prevention");
+            Shared.JmoLogger.Debug(this, "[Impact] TryHitHurtbox BLOCKED - self-hit prevention");
             return;
         }
 
         if (HasCollisionExceptionWith(hurtbox.Owner))
         {
-            Shared.JmoLogger.Debug(this, $"TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
+            Shared.JmoLogger.Debug(this, $"[Impact] TryHitHurtbox BLOCKED - collision exception with {hurtbox.Owner?.Name}");
             return;
         }
 
         if (!_hitHurtboxes.Add(hurtbox))
         {
-            Shared.JmoLogger.Debug(this, "TryHitHurtbox BLOCKED - already hit this target");
+            Shared.JmoLogger.Debug(this, "[Impact] TryHitHurtbox BLOCKED - already hit this target");
             return;
         }
 

@@ -56,7 +56,7 @@ public partial class HistoryAwareWaypointSelection : WaypointSelectionStrategy
         if (waypointHistory.Count > 0)
         {
             waypointHistory.Dequeue();
-            JmoLogger.Info(this, "HistoryAwareWaypoint: relaxing history (evicted oldest) for target selection.");
+            JmoLogger.Info(this, "[Navigator] HistoryAwareWaypoint: relaxing history (evicted oldest) for target selection.");
             if (TryPickValidTarget(nav, context, waypointHistory))
             {
                 return true;

@@ -285,7 +285,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             return;
         }
 
-        JmoLogger.Debug(this, $"Tree root task '{RootTask.Name}' finished with status {newStatus}.");
+        JmoLogger.Debug(this, $"[BT] Tree root task '{RootTask.Name}' finished with status {newStatus}.");
         EmitSignal(SignalName.TreeFinishedLoop, (long)newStatus);
 
         // Tree was already disabled (e.g., external Exit() raced with terminal status) — nothing to do.
@@ -294,7 +294,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
         switch (Policy)
         {
             case RestartPolicy.AlwaysRestart:
-                JmoLogger.Info(this, "Resetting and restarting tree...");
+                JmoLogger.Info(this, "[BT] Resetting and restarting tree...");
                 EmitSignal(SignalName.TreeReset);
                 RootTask.Exit();  // Ensure a clean exit before re-entering.
                 RootTask.Enter();
