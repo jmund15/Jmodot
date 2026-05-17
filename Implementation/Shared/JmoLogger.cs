@@ -8,9 +8,41 @@ using System.Runtime.CompilerServices;
 /// across the project and leverages Godot's debugger for clear presentation of warnings and errors.
 /// This is the definitive tool for all diagnostic output.
 /// </summary>
+public enum LogLevel
+{
+    Error,
+    Warning,
+    Info,
+    Debug,
+}
+
 public static class JmoLogger
 {
     private const string DEBUG_ENABLED_SETTING = "debug/jmodot/debug_logging_enabled";
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only fan-out invoked AFTER each production-sink write. Test code
+    /// subscribes via JmoLoggerSpy; the (Level, Tag, Message) shape gives the
+    /// spy enough to assert "no errors emitted from any subsystem" without
+    /// pulling structured-log infrastructure into production builds.
+    /// Tag = context type name (or string content when context IS a string).
+    /// </summary>
+    internal static event Action<LogLevel, string, string>? _TestOnLogEmitted;
+
+    private static void EmitTestSignal(LogLevel level, object? context, string message)
+    {
+        var tag = context switch
+        {
+            null => "<null>",
+            string s => s,
+            _ => context.GetType().Name,
+        };
+        _TestOnLogEmitted?.Invoke(level, tag, message);
+    }
+#endif
+    #endregion
 
     // Cache to avoid ProjectSettings lookup on every Debug() call
     private static bool? _debugEnabledCache;
@@ -140,6 +172,9 @@ public static class JmoLogger
         [CallerMemberName] string callerMemberName = "")
     {
         GD.PushError(BuildLogMessage("ERROR", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
+#if TOOLS
+        EmitTestSignal(LogLevel.Error, context, message);
+#endif
     }
 
     #endregion
@@ -167,6 +202,9 @@ public static class JmoLogger
         [CallerMemberName] string callerMemberName = "")
     {
         GD.PushWarning(BuildLogMessage("WARNING", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
+#if TOOLS
+        EmitTestSignal(LogLevel.Warning, context, message);
+#endif
     }
 
     #endregion
@@ -194,6 +232,9 @@ public static class JmoLogger
         [CallerMemberName] string callerMemberName = "")
     {
         GD.Print(BuildLogMessage("INFO", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
+#if TOOLS
+        EmitTestSignal(LogLevel.Info, context, message);
+#endif
     }
 
     #endregion
@@ -225,6 +266,9 @@ public static class JmoLogger
             return;
         }
         GD.Print(BuildLogMessage("DEBUG", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
+#if TOOLS
+        EmitTestSignal(LogLevel.Debug, context, message);
+#endif
     }
 
     #endregion
