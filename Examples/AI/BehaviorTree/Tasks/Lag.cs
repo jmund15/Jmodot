@@ -66,7 +66,7 @@ public partial class Lag : BehaviorAction
             return duration;
         }
 
-        return duration + JmoRng.GetRndInRange(0f, additiveVariation);
+        return duration + JmoRng.NonDeterministic().GetRndInRange(0f, additiveVariation);
     }
 
     #region Test Helpers

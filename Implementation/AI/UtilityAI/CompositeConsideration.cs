@@ -54,7 +54,7 @@ public partial class CompositeConsideration : UtilityConsideration
 
         if (Operator == ConsiderationOperator.Random)
         {
-            var randConsid = Considerations[JmoRng.Rnd.Next(0, Considerations.Count)];
+            var randConsid = Considerations[JmoRng.NonDeterministic().GetRndInt(Considerations.Count)];
             return randConsid.Evaluate(context);
         }
 

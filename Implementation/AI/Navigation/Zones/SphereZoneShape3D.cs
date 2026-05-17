@@ -11,6 +11,8 @@ using Shared;
 [GlobalClass, Tool]
 public partial class SphereZoneShape3D : ZoneShape3D
 {
+    private readonly JmoRng _rng = JmoRng.NonDeterministic();
+
     [Export(PropertyHint.Range, "1.0, 100.0, 0.5")]
     private float _radius = 10f;
 
@@ -40,8 +42,8 @@ public partial class SphereZoneShape3D : ZoneShape3D
             return center;
         }
 
-        Vector3 dir = JmoRng.GetRndVector3ZeroY();
-        float dist = Mathf.Sqrt(JmoRng.GetRndFloat()) * _radius;
+        Vector3 dir = _rng.GetRndVector3ZeroY();
+        float dist = Mathf.Sqrt(_rng.GetRndFloat()) * _radius;
         return center + dir * dist;
     }
 

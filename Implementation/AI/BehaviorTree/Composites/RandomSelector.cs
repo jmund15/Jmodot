@@ -99,7 +99,7 @@ public partial class RandomSelector : CompositeTask
         // Fisher-Yates shuffle
         for (int i = _shuffledIndices.Length - 1; i > 0; i--)
         {
-            int j = JmoRng.Rnd.Next(i + 1);
+            int j = JmoRng.NonDeterministic().GetRndInt(i + 1);
             (_shuffledIndices[i], _shuffledIndices[j]) = (_shuffledIndices[j], _shuffledIndices[i]);
         }
     }

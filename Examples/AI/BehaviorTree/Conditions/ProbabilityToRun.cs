@@ -19,7 +19,7 @@ public partial class ProbabilityToRun : BTCondition
 
     public override void OnParentTaskEnter()
     {
-        _lastCheckResult = JmoRng.Rnd.NextSingle() < RunProbability;
+        _lastCheckResult = JmoRng.NonDeterministic().GetRndFloat() < RunProbability;
         _isActive = true;
     }
 

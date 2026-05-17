@@ -54,7 +54,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     public override void Initialize(DirectionSet3D directions)
     {
         base.Initialize(directions);
-        _timeOffset = JmoRng.GetRndInRange(0f, 1000f);
+        _timeOffset = JmoRng.NonDeterministic().GetRndInRange(0f, 1000f);
         _accumulatedTime = 0f;
 
         if (_noise == null)

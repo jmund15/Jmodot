@@ -48,7 +48,7 @@ public partial class RandomTimeLimit : BTCondition
     public static float GetRandomDuration(float min, float max)
     {
         if (min >= max) { return min; }
-        return JmoRng.GetRndInRange(min, max);
+        return JmoRng.NonDeterministic().GetRndInRange(min, max);
     }
 
     #region Test Helpers

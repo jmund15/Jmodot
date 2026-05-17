@@ -24,6 +24,8 @@ using GCol = Godot.Collections;
 [GlobalClass]
 public partial class StatusSpreadConfig : Resource
 {
+    private readonly JmoRng _rng = JmoRng.NonDeterministic();
+
     [ExportGroup("Chance & Timing")]
     /// <summary>
     /// Per-evaluation chance to attempt a spread (rolled once per evaluation tick).
@@ -115,14 +117,14 @@ public partial class StatusSpreadConfig : Resource
         if (!ShouldFireByGeneration(host.SpreadGeneration)) { return false; }
 
         float effectiveChance = GetEffectiveChance(host.SpreadGeneration);
-        if (JmoRng.GetRndFloat() >= effectiveChance) { return false; }
+        if (_rng.GetRndFloat() >= effectiveChance) { return false; }
 
         var candidates = FilterCandidates(nearbyCandidates);
         if (candidates.Count == 0) { return false; }
 
         for (int i = 0; i < MaxTargetsPerEvaluation && candidates.Count > 0; i++)
         {
-            int idx = JmoRng.GetRndInt(candidates.Count);
+            int idx = _rng.GetRndInt(candidates.Count);
             picks.Add(candidates[idx]);
             candidates.RemoveAt(idx);
         }

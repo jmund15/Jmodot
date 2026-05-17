@@ -149,7 +149,7 @@ public partial class UtilitySelector : CompositeTask
                     bestAction = topTasks.OrderByDescending(t => t.Priority).First();
                     break;
                 case TieBreaker.Random:
-                    bestAction = topTasks[JmoRng.Rnd.Next(0, topTasks.Count)];
+                    bestAction = topTasks[JmoRng.NonDeterministic().GetRndInt(topTasks.Count)];
                     break;
                 case TieBreaker.FirstInList:
                 default:

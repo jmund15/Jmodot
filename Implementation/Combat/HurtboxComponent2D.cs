@@ -173,7 +173,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
         }
 
         // 3. FALLBACK: Random direction (e.g., standing directly on explosion)
-        return JmoRng.GetRndVector2();
+        return JmoRng.NonDeterministic().GetRndVector2();
     }
 
     private Vector2 CalculateImpactVelocity(Node source)
