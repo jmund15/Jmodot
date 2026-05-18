@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
 
+using System;
 using Core.AI;
 using Implementation.AI.BehaviorTree.Tasks;
 using Implementation.Shared;
@@ -20,11 +21,13 @@ public partial class Lag : BehaviorAction
     private float _additiveVariation = 0.0f;
 
     private SceneTreeTimer _timer = null!;
+    private JmoRng? _rng;
 
     protected override void OnEnter()
     {
         base.OnEnter();
-        float effectiveDuration = CalculateEffectiveDuration(_duration, _additiveVariation);
+        _rng ??= JmoRng.NonDeterministic();
+        float effectiveDuration = CalculateEffectiveDuration(_duration, _additiveVariation, _rng.GetRndFloat());
 
         if (effectiveDuration <= 0f)
         {
@@ -54,19 +57,21 @@ public partial class Lag : BehaviorAction
     }
 
     /// <summary>
-    /// Calculates the effective wait duration.
-    /// Returns duration + Random(0, additiveVariation) when variation > 0.
-    /// Returns duration exactly when variation <= 0.
-    /// Exposed as static for testability.
+    /// Pure-math effective wait duration. Returns <paramref name="duration"/> exactly when
+    /// <paramref name="additiveVariation"/> &lt;= 0; otherwise returns
+    /// <c>duration + clamp01(variationRoll) * additiveVariation</c>.
+    /// RNG ownership lives at the call site (see <see cref="OnEnter"/>) so this function
+    /// is pure-CLR testable without Godot runtime.
     /// </summary>
-    public static float CalculateEffectiveDuration(float duration, float additiveVariation)
+    public static float CalculateEffectiveDuration(float duration, float additiveVariation, float variationRoll)
     {
         if (additiveVariation <= 0f)
         {
             return duration;
         }
 
-        return duration + JmoRng.NonDeterministic().GetRndInRange(0f, additiveVariation);
+        float clampedRoll = Math.Clamp(variationRoll, 0f, 1f);
+        return duration + clampedRoll * additiveVariation;
     }
 
     #region Test Helpers
