@@ -50,6 +50,8 @@ public static class AtomicConfigFile
             JmoLogger.Warning(LogTag, $"[Persistence:ConfigIO] LoadOrCreate: corrupt config at '{userPath}' (load returned {loadErr}); backed up to '{backupPath}'");
         }
 
+        // Discard cfg — it may carry partial state from the failed Load. Return a fresh
+        // instance so the caller's defaults aren't merged with garbage.
         return new ConfigFile();
     }
 

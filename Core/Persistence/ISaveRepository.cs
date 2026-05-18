@@ -22,13 +22,22 @@ using System;
 /// <typeparam name="T">The persisted payload type. Reference type only.</typeparam>
 public interface ISaveRepository<T> where T : class
 {
+    /// <summary>True when a persisted artifact exists on disk.</summary>
     bool HasSavedData { get; }
 
+    /// <summary>Returns the persisted payload, or a fresh default when <see cref="HasSavedData"/> is false.</summary>
     T Load();
 
+    /// <summary>Atomically persists <paramref name="data"/> and fires <see cref="DataChanged"/> on success.</summary>
     void Save(T data);
 
+    /// <summary>Removes the persisted artifact. No-op when none exists.</summary>
     void Delete();
 
+    /// <summary>
+    /// Fires after a successful <see cref="Save"/> with the saved payload. Implementers MUST
+    /// initialize with <c>= delegate { };</c> per project convention (csharp_patterns.md) to skip
+    /// per-fire null checks.
+    /// </summary>
     event Action<T>? DataChanged;
 }
