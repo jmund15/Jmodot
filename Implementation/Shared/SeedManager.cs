@@ -21,7 +21,7 @@ public partial class SeedManager : Node
         Instance = this;
         if (MasterSeed == 0)
         {
-            JmoLogger.Warning(this, "MasterSeed=0 — auto-generated seed; trail variation will not be reproducible across runs. Set MasterSeed in the inspector for deterministic runs.");
+            JmoLogger.Warning(this, "MasterSeed=0 — auto-generated seed; variation will not be reproducible across runs. Set MasterSeed in the inspector for deterministic runs.");
             _activeSeed = (int)GD.Randi();
         }
         else
