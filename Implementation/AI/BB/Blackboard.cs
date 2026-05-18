@@ -15,8 +15,6 @@ using System.Collections.Generic;
 [Tool]
 public partial class Blackboard : Node, IBlackboard
 {
-    protected IBlackboard? ParentBB { get; set; }
-    //protected Dictionary<StringName, Variant> BBData { get; set; } = new();
     // For Godot-compatible types (GodotObject, primitives, engine structs)
     private Dictionary<StringName, Variant> _variantData = new();
 
@@ -30,15 +28,9 @@ public partial class Blackboard : Node, IBlackboard
     // This field is not serialized, so either Godot.Collections or System.Collections.Generic is fine.
     // We use Godot.Collections for consistency within the class.
     protected Dictionary<StringName, Action<object>> Subscriptions { get; set; } = new();
-    /// <summary>
-    ///     Establishes a parent blackboard, allowing this blackboard to fall back to the parent
-    ///     for data retrieval if a key is not found locally.
-    /// </summary>
-    /// <param name="parentBB">The IBlackboard instance to use as a parent.</param>
-    public void SetParent(IBlackboard? parentBB)
-    {
-        this.ParentBB = parentBB;
-    }
+
+    public bool ContainsLocal(StringName key)
+        => _pocoData.ContainsKey(key) || _variantData.ContainsKey(key);
 
     /// <summary>
     ///     Retrieves a reference type value from the blackboard.
@@ -169,13 +161,7 @@ public partial class Blackboard : Node, IBlackboard
             return false;
         }
 
-        // 3. Recurse to parent
-        if (ParentBB != null)
-        {
-            return ParentBB.TryGet(key, out value);
-        }
-
-        // 4. Key isn't found anywhere
+        // Key isn't found locally. Cross-scope resolution lives on BlackboardGraph.TryGetUp.
         return false;
     }
     /// <summary>
@@ -232,9 +218,21 @@ public partial class Blackboard : Node, IBlackboard
 
     private void NotifySubscribers(StringName key, object newValue)
     {
-        if (Subscriptions.TryGetValue(key, out var callbacks))
+        if (!Subscriptions.TryGetValue(key, out var callbacks) || callbacks == null)
         {
-            callbacks?.Invoke(newValue);
+            return;
+        }
+        foreach (var sub in callbacks.GetInvocationList())
+        {
+            try
+            {
+                ((Action<object>)sub).Invoke(newValue);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                var subscriberType = sub.Target?.GetType().FullName ?? "<static>";
+                JmoLogger.Warning(this, $"Subscriber {subscriberType} for key '{key}' threw {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            }
         }
     }
 

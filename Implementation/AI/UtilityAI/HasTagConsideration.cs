@@ -17,12 +17,23 @@ public partial class HasTagConsideration : UtilityConsideration
 
     protected override float CalculateBaseScore(IBlackboard blackboard)
     {
-        // The "bubble-up" GetVar logic checks local blackboard first, then parent (squad)
-        if (!blackboard.TryGet<StringName>(BBDataSig.ActiveSquadTag, out var activeTag))
+        StringName? activeTag = null;
+
+        // Cross-scope read: if the blackboard is wired into a graph, the squad-written tag
+        // lives upchain. Local-only fallback preserves test fixtures with no graph wired.
+        var graph = blackboard.FindParentGraph();
+        if (graph != null)
         {
-            return 0f;
+            if (graph.TryGetUp<StringName>(BBDataSig.ActiveSquadTag, out var fromChain))
+            {
+                activeTag = fromChain;
+            }
+        }
+        else if (blackboard.TryGet<StringName>(BBDataSig.ActiveSquadTag, out var local))
+        {
+            activeTag = local;
         }
 
-        return activeTag == RequiredTag ? 1.0f : 0.0f;
+        return activeTag != null && activeTag == RequiredTag ? 1.0f : 0.0f;
     }
 }

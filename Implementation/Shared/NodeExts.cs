@@ -9,8 +9,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using Godot.Collections;
+using Jmodot.Core.AI.BB;
 using Jmodot.Core.Identification;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
@@ -34,6 +36,17 @@ public static class NodeExts
     {
         return control.IsValid() ? control : null;
     }
+
+    public static IBlackboardGraph? GetGraph(this Node node)
+        => node.TryGetFirstChildOfType<BlackboardGraph>(out var graph) ? graph : null;
+
+    /// <summary>
+    /// Returns the BlackboardGraph that owns this Blackboard, or null if none is wired.
+    /// Walks one node-tree hop (Blackboard → its parent), so cross-scope reads silently
+    /// degrade to local-only when no graph is configured (test fixtures, standalone use).
+    /// </summary>
+    public static IBlackboardGraph? FindParentGraph(this IBlackboard bb)
+        => (bb as Node)?.GetParent() as IBlackboardGraph;
 
     public static void SafeQueueFree(this Node node)
     {

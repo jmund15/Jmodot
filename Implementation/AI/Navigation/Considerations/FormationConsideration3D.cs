@@ -63,28 +63,41 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
         // Initialize all directions with zero scores
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        // 1. Check if formation is active (read from squad BB via parent chain)
-        if (!blackboard.TryGet<bool>(BBDataSig.FormationActive, out var isActive) || !isActive)
+        // Cross-scope reads (FormationActive, FormationSlotPositions) live on the squad scope;
+        // FormationSlotIndex is agent-local. The graph carries the cross-scope walk; local-only
+        // fallback preserves test fixtures that haven't wired a graph hierarchy.
+        var graph = blackboard.FindParentGraph();
+
+        bool isActive;
+        if (graph != null)
         {
-            return scores;
+            if (!graph.TryGetUp<bool>(BBDataSig.FormationActive, out isActive) || !isActive) { return scores; }
+        }
+        else
+        {
+            if (!blackboard.TryGet<bool>(BBDataSig.FormationActive, out isActive) || !isActive) { return scores; }
         }
 
-        // 2. Get assigned slot index from agent blackboard
         if (!blackboard.TryGet<int>(BBDataSig.FormationSlotIndex, out var slotIndex) || slotIndex < 0)
         {
             return scores;
         }
 
-        // 3. Exclude leader if configured
         if (_excludeLeader && slotIndex == 0)
         {
             return scores;
         }
 
-        // 4. Get slot positions from squad blackboard (via parent chain)
-        if (!blackboard.TryGet<Dictionary<int, Vector3>>(BBDataSig.FormationSlotPositions, out var slotPositions) ||
-            slotPositions == null ||
-            !slotPositions.TryGetValue(slotIndex, out var targetSlotPosition))
+        Dictionary<int, Vector3>? slotPositions;
+        if (graph != null)
+        {
+            if (!graph.TryGetUp<Dictionary<int, Vector3>>(BBDataSig.FormationSlotPositions, out slotPositions)) { return scores; }
+        }
+        else
+        {
+            if (!blackboard.TryGet<Dictionary<int, Vector3>>(BBDataSig.FormationSlotPositions, out slotPositions)) { return scores; }
+        }
+        if (slotPositions == null || !slotPositions.TryGetValue(slotIndex, out var targetSlotPosition))
         {
             return scores;
         }

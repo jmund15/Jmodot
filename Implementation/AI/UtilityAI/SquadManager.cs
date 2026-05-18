@@ -46,8 +46,8 @@ public partial class SquadManager : Node
 
     #endregion
 
-    private Blackboard? _squadBlackboard;
-    private List<IBlackboard> _memberBlackboards = new();
+    private BlackboardGraph? _squadGraph;
+    private List<IBlackboardGraph> _memberGraphs = new();
     private List<Node3D> _memberNodes = new();
 
     /// <summary>
@@ -63,8 +63,11 @@ public partial class SquadManager : Node
 
     public override void _Ready()
     {
-        // Try to find blackboard child - may be pre-added or added later
-        _squadBlackboard = this.GetFirstChildOfType<Blackboard>();
+        // Try to find graph child - may be pre-added or added later
+        if (this.TryGetFirstChildOfType<BlackboardGraph>(out var graph))
+        {
+            _squadGraph = graph;
+        }
 
         // Initialize with default formation if set
         if (_defaultFormation != null)
@@ -73,13 +76,11 @@ public partial class SquadManager : Node
         }
     }
 
-    /// <summary>
-    /// For testing: Manually inject the squad blackboard.
-    /// </summary>
-    internal void SetSquadBlackboard(Blackboard blackboard)
-    {
-        _squadBlackboard = blackboard;
-    }
+    #region Test Helpers
+#if TOOLS
+    internal void SetSquadGraph(BlackboardGraph graph) => _squadGraph = graph;
+#endif
+    #endregion
 
     #region Member Management
 
@@ -90,40 +91,40 @@ public partial class SquadManager : Node
     /// <param name="isLeader">If true, this member becomes the formation leader (slot 0).</param>
     public void AddMember(Node3D memberNode, bool isLeader = false)
     {
-        var bb = memberNode.GetFirstChildOfInterface<IBlackboard>();
-        if (bb == null)
+        var graph = memberNode.GetGraph();
+        if (graph == null)
         {
-            JmoLogger.Warning(this, $"Cannot add member {memberNode.Name}: no IBlackboard found");
+            JmoLogger.Warning(this, $"Cannot add member {memberNode.Name}: no BlackboardGraph found");
             return;
         }
 
-        AddMemberInternal(memberNode, bb, isLeader);
+        AddMemberInternal(memberNode, graph, isLeader);
     }
 
     /// <summary>
-    /// Adds a member with an explicitly provided blackboard.
-    /// Useful for testing or when blackboard is not a direct child.
+    /// Adds a member with an explicitly provided graph.
+    /// Useful for testing or when graph is not a direct child.
     /// </summary>
-    public void AddMember(Node3D memberNode, IBlackboard memberBlackboard, bool isLeader = false)
+    public void AddMember(Node3D memberNode, IBlackboardGraph memberGraph, bool isLeader = false)
     {
-        AddMemberInternal(memberNode, memberBlackboard, isLeader);
+        AddMemberInternal(memberNode, memberGraph, isLeader);
     }
 
-    private void AddMemberInternal(Node3D memberNode, IBlackboard bb, bool isLeader)
+    private void AddMemberInternal(Node3D memberNode, IBlackboardGraph graph, bool isLeader)
     {
-        // Add to tracking lists
         _memberNodes.Add(memberNode);
-        _memberBlackboards.Add(bb);
-        bb.SetParent(_squadBlackboard);
+        _memberGraphs.Add(graph);
+        if (_squadGraph != null)
+        {
+            graph.AttachParent(_squadGraph);
+        }
 
-        // Handle leader designation
         if (isLeader)
         {
             _leaderMemberIndex = _memberNodes.Count - 1;
-            _squadBlackboard?.Set(BBDataSig.FormationLeader, memberNode);
+            _squadGraph?.Local.Set(BBDataSig.FormationLeader, memberNode);
         }
 
-        // Reassign all slots when membership changes
         ReassignSlots();
     }
 
@@ -138,18 +139,17 @@ public partial class SquadManager : Node
             return;
         }
 
-        var bb = _memberBlackboards[index];
-        bb.SetParent(null);
-        bb.Set(BBDataSig.FormationSlotIndex, -1);
+        var graph = _memberGraphs[index];
+        graph.DetachParent();
+        graph.Local.Set(BBDataSig.FormationSlotIndex, -1);
 
         _memberNodes.RemoveAt(index);
-        _memberBlackboards.RemoveAt(index);
+        _memberGraphs.RemoveAt(index);
 
-        // Update leader index if needed
         if (_leaderMemberIndex == index)
         {
             _leaderMemberIndex = -1;
-            _squadBlackboard?.Set<Node3D?>(BBDataSig.FormationLeader, null);
+            _squadGraph?.Local.Set<Node3D?>(BBDataSig.FormationLeader, null);
         }
         else if (_leaderMemberIndex > index)
         {
@@ -173,7 +173,7 @@ public partial class SquadManager : Node
         _currentFormation = formation;
         _currentAnchorMode = anchorMode;
 
-        _squadBlackboard?.Set(BBDataSig.FormationActive, true);
+        _squadGraph?.Local.Set(BBDataSig.FormationActive, true);
 
         // Reassign slots for all existing members
         ReassignSlots();
@@ -185,13 +185,12 @@ public partial class SquadManager : Node
     public void ClearFormation()
     {
         _currentFormation = null;
-        _squadBlackboard?.Set(BBDataSig.FormationActive, false);
-        _squadBlackboard?.Set<Dictionary<int, Vector3>?>(BBDataSig.FormationSlotPositions, null);
+        _squadGraph?.Local.Set(BBDataSig.FormationActive, false);
+        _squadGraph?.Local.Set<Dictionary<int, Vector3>?>(BBDataSig.FormationSlotPositions, null);
 
-        // Clear slot assignments from all members
-        foreach (var bb in _memberBlackboards)
+        foreach (var g in _memberGraphs)
         {
-            bb.Set(BBDataSig.FormationSlotIndex, -1);
+            g.Local.Set(BBDataSig.FormationSlotIndex, -1);
         }
     }
 
@@ -203,7 +202,7 @@ public partial class SquadManager : Node
     /// <param name="anchorForward">Direction the formation faces.</param>
     public void UpdateFormationPositions(Vector3 anchorPosition, Vector3 anchorForward)
     {
-        if (_currentFormation == null || _squadBlackboard == null)
+        if (_currentFormation == null || _squadGraph == null)
         {
             return;
         }
@@ -225,7 +224,7 @@ public partial class SquadManager : Node
             anchorForward,
             memberPositions);
 
-        _squadBlackboard.Set(BBDataSig.FormationSlotPositions, slotPositions);
+        _squadGraph.Local.Set(BBDataSig.FormationSlotPositions, slotPositions);
     }
 
     /// <summary>
@@ -260,9 +259,9 @@ public partial class SquadManager : Node
             int memberIndex = assignment.Key;
             int slotIndex = assignment.Value;
 
-            if (memberIndex >= 0 && memberIndex < _memberBlackboards.Count)
+            if (memberIndex >= 0 && memberIndex < _memberGraphs.Count)
             {
-                _memberBlackboards[memberIndex].Set(BBDataSig.FormationSlotIndex, slotIndex);
+                _memberGraphs[memberIndex].Local.Set(BBDataSig.FormationSlotIndex, slotIndex);
             }
         }
     }
@@ -276,30 +275,28 @@ public partial class SquadManager : Node
     /// </summary>
     public void UpdateSquadBlackboard()
     {
-        if (_squadBlackboard == null || _memberBlackboards.Count == 0)
+        if (_squadGraph == null || _memberGraphs.Count == 0)
         {
             return;
         }
 
         float averageHealth = CalculateAverageHealth();
-        _squadBlackboard.Set(BBDataSig.SquadAverageHealth, averageHealth);
-
-        // Set squad behavior tag based on state
-        _squadBlackboard.Set(BBDataSig.HasSquadTag, true);
+        _squadGraph.Local.Set(BBDataSig.SquadAverageHealth, averageHealth);
+        _squadGraph.Local.Set(BBDataSig.HasSquadTag, true);
 
         if (averageHealth < _panicHealthThreshold)
         {
-            _squadBlackboard.Set(BBDataSig.ActiveSquadTag, _highThreatTag);
+            _squadGraph.Local.Set(BBDataSig.ActiveSquadTag, _highThreatTag);
         }
         else
         {
-            _squadBlackboard.Set(BBDataSig.ActiveSquadTag, _attackTag);
+            _squadGraph.Local.Set(BBDataSig.ActiveSquadTag, _attackTag);
         }
     }
 
     private float CalculateAverageHealth()
     {
-        if (_memberBlackboards.Count == 0)
+        if (_memberGraphs.Count == 0)
         {
             return 0.5f;
         }
@@ -307,9 +304,11 @@ public partial class SquadManager : Node
         float totalHealth = 0f;
         int validCount = 0;
 
-        foreach (var bb in _memberBlackboards)
+        // Local-only intent: iterate members and ask each for their HealthComponent.
+        // Squad does NOT walk down into members' BBs here — it walks the member list directly.
+        foreach (var g in _memberGraphs)
         {
-            if (bb.TryGet<Core.Health.IHealth>(BBDataSig.HealthComponent, out var health) && health != null)
+            if (g.Local.TryGet<Core.Health.IHealth>(BBDataSig.HealthComponent, out var health) && health != null)
             {
                 totalHealth += health.CurrentHealth / health.MaxHealth;
                 validCount++;
