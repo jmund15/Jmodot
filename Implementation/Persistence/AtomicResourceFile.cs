@@ -1,6 +1,5 @@
 namespace Jmodot.Implementation.Persistence;
 
-using System.Threading;
 using Godot;
 using Jmodot.Implementation.Shared;
 
@@ -19,24 +18,25 @@ using Jmodot.Implementation.Shared;
 /// on the next load.
 /// </para>
 /// <para>
-/// A retry loop (3× / 50ms) around the rename rides out transient
-/// <c>ERROR_SHARING_VIOLATION</c> from Windows antivirus scan-on-close handles.
+/// Low-level path / rename / cleanup primitives live in <see cref="AtomicFileHelper"/>
+/// (shared with <see cref="AtomicConfigFile"/>). A retry loop
+/// (<see cref="AtomicFileHelper.RenameRetryCount"/>× / <see cref="AtomicFileHelper.RenameRetryDelayMs"/>ms)
+/// around the rename rides out transient <c>ERROR_SHARING_VIOLATION</c> from Windows antivirus
+/// scan-on-close handles.
 /// </para>
 /// </remarks>
 public static class AtomicResourceFile
 {
     private const string LogTag = "AtomicResourceFile";
-    private const int RenameRetryCount = 3;
-    private const int RenameRetryDelayMs = 50;
 
     public static Error WriteAtomic<T>(T resource, string userPath) where T : Resource
     {
-        var tmpPath = MakeTempPath(userPath);
+        var tmpPath = AtomicFileHelper.MakeTempPath(userPath);
 
         var saveErr = ResourceSaver.Save(resource, tmpPath);
         if (saveErr != Error.Ok)
         {
-            CleanupTemp(tmpPath);
+            AtomicFileHelper.CleanupTemp(tmpPath);
             JmoLogger.Warning(LogTag, $"[Persistence:AtomicIO] WriteAtomic: ResourceSaver.Save failed for '{tmpPath}': {saveErr}");
             return saveErr;
         }
@@ -46,60 +46,22 @@ public static class AtomicResourceFile
             var delErr = DirAccess.RemoveAbsolute(userPath);
             if (delErr != Error.Ok)
             {
-                CleanupTemp(tmpPath);
+                AtomicFileHelper.CleanupTemp(tmpPath);
                 JmoLogger.Warning(LogTag, $"[Persistence:AtomicIO] WriteAtomic: failed to delete destination '{userPath}': {delErr} (tmp cleaned)");
                 return delErr;
             }
         }
 
-        var renameErr = RenameWithRetry(tmpPath, userPath);
+        var renameErr = AtomicFileHelper.RenameWithRetry(tmpPath, userPath);
         if (renameErr != Error.Ok)
         {
             // Preserve tmp: destination is already deleted, so the tmp is the only durable
             // copy of the new content. ReadIfExists's recovery branch promotes it on next load.
-            JmoLogger.Warning(LogTag, $"[Persistence:AtomicIO] WriteAtomic: rename '{tmpPath}' -> '{userPath}' failed after {RenameRetryCount} retries: {renameErr}; tmp preserved for ReadIfExists recovery");
+            JmoLogger.Warning(LogTag, $"[Persistence:AtomicIO] WriteAtomic: rename '{tmpPath}' -> '{userPath}' failed after {AtomicFileHelper.RenameRetryCount} retries: {renameErr}; tmp preserved for ReadIfExists recovery");
             return renameErr;
         }
 
         return Error.Ok;
-    }
-
-    private static Error RenameWithRetry(string from, string to)
-    {
-        var lastErr = Error.Ok;
-        for (var attempt = 0; attempt < RenameRetryCount; attempt++)
-        {
-            lastErr = DirAccess.RenameAbsolute(from, to);
-            if (lastErr == Error.Ok)
-            {
-                return Error.Ok;
-            }
-
-            if (attempt < RenameRetryCount - 1)
-            {
-                Thread.Sleep(RenameRetryDelayMs);
-            }
-        }
-
-        return lastErr;
-    }
-
-    /// <summary>
-    /// Inserts <c>.tmp</c> before the final extension so <see cref="ResourceSaver"/>
-    /// still keys off the original extension. <c>foo.tres</c> → <c>foo.tmp.tres</c>.
-    /// </summary>
-    private static string MakeTempPath(string userPath)
-    {
-        var dot = userPath.LastIndexOf('.');
-        return dot < 0 ? userPath + ".tmp" : userPath.Substring(0, dot) + ".tmp" + userPath.Substring(dot);
-    }
-
-    private static void CleanupTemp(string tmpPath)
-    {
-        if (FileAccess.FileExists(tmpPath))
-        {
-            DirAccess.RemoveAbsolute(tmpPath);
-        }
     }
 
     public static T? ReadIfExists<T>(
@@ -108,14 +70,14 @@ public static class AtomicResourceFile
     {
         if (!FileAccess.FileExists(userPath))
         {
-            var tmpPath = MakeTempPath(userPath);
+            var tmpPath = AtomicFileHelper.MakeTempPath(userPath);
             if (!FileAccess.FileExists(tmpPath))
             {
                 return null;
             }
 
             JmoLogger.Warning(LogTag, $"[Persistence:AtomicIO] ReadIfExists: recovering interrupted write — completing rename '{tmpPath}' -> '{userPath}'");
-            var renameErr = RenameWithRetry(tmpPath, userPath);
+            var renameErr = AtomicFileHelper.RenameWithRetry(tmpPath, userPath);
             if (renameErr != Error.Ok)
             {
                 JmoLogger.Warning(LogTag, $"[Persistence:AtomicIO] ReadIfExists: recovery rename failed: {renameErr}; tmp left in place");
