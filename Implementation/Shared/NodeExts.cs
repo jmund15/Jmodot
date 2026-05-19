@@ -292,6 +292,25 @@ public static class NodeExts
         throw new InvalidDataException($"Couldn't find a child of interface {typeof(T).Name} in node {root.Name}");
     }
 
+    /// <summary>
+    /// Walks the parent chain from <paramref name="start"/> upward and returns the first
+    /// ancestor matching <typeparamref name="T"/>. Returns <c>null</c> if none found.
+    /// Set <paramref name="includeSelf"/> to <c>true</c> to also consider <paramref name="start"/>.
+    /// </summary>
+    public static T? FindFirstAncestorOfType<T>(this Node start, bool includeSelf = false) where T : class
+    {
+        var cursor = includeSelf ? (Node?)start : start.GetParent();
+        while (cursor != null)
+        {
+            if (cursor is T match)
+            {
+                return match;
+            }
+            cursor = cursor.GetParent();
+        }
+        return null;
+    }
+
     public static Array<T> GetChildrenOfType<[MustBeVariant] T>(this Node root, bool includeSubChildren = true)
         where T : Node
     {

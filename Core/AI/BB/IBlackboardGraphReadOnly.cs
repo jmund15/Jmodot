@@ -32,4 +32,15 @@ public interface IBlackboardGraphReadOnly
 
     /// <summary>Folds across self + all descendants (DFS), reading <paramref name="key"/> per scope.</summary>
     TAcc AggregateDown<TAcc>(StringName key, TAcc seed, Func<TAcc, object, TAcc> fold);
+
+    /// <summary>
+    /// Subscribe to set-events on <paramref name="key"/> across the scope-graph topology selected by <paramref name="mode"/>.
+    /// See <see cref="ScopeWatchMode"/> for the LocalOnly / LocalOrAncestor / LocalOrDescendant semantics.
+    /// Callback exception isolation matches <see cref="IBlackboardReadOnly"/>'s leaf subscription contract: one
+    /// throwing subscriber must not break dispatch to other subscribers (design §12).
+    /// </summary>
+    void Subscribe(StringName key, Action<object> callback, ScopeWatchMode mode);
+
+    /// <summary>Unsubscribe a callback previously registered with the matching <paramref name="key"/> and <paramref name="mode"/>.</summary>
+    void Unsubscribe(StringName key, Action<object> callback, ScopeWatchMode mode);
 }

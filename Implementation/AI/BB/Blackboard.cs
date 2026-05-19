@@ -91,10 +91,12 @@ public partial class Blackboard : Node, IBlackboard
                 return Error.Ok; // No change
             }
             _pocoData[key] = val;
-            // Note: POCOs can't be easily sent through the subscription system
-            // unless you change its signature to Action<object>.
-            // For now, we'll notify with a null variant.
-            NotifySubscribers(key, default);
+            // Pass the boxed POCO value to subscribers — Subscriptions IS Action<object>,
+            // so the historical "null variant" workaround is no longer required. Pre-Pos-3
+            // this branch handed null to subscribers and the actual value was reachable only
+            // via TryGet; that asymmetry broke BlackboardGraph's wildcard AnyKeyChanged
+            // fan-out for POCO writes (e.g. StringName signal values).
+            NotifySubscribers(key, val!);
         }
 
         return Error.Ok;
@@ -216,22 +218,46 @@ public partial class Blackboard : Node, IBlackboard
         }
     }
 
+    /// <summary>
+    /// Wildcard observation hook — fires for every Set, regardless of whether a key-specific
+    /// subscriber exists. Used by <see cref="BlackboardGraph"/> to dispatch scope-aware
+    /// subscriptions across the graph topology at write time. Exception-isolated.
+    /// </summary>
+    internal event Action<StringName, object>? AnyKeyChanged;
+
     private void NotifySubscribers(StringName key, object newValue)
     {
-        if (!Subscriptions.TryGetValue(key, out var callbacks) || callbacks == null)
+        if (Subscriptions.TryGetValue(key, out var callbacks) && callbacks != null)
+        {
+            foreach (var sub in callbacks.GetInvocationList())
+            {
+                try
+                {
+                    ((Action<object>)sub).Invoke(newValue);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var subscriberType = sub.Target?.GetType().FullName ?? "<static>";
+                    JmoLogger.Warning(this, $"Subscriber {subscriberType} for key '{key}' threw {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+                }
+            }
+        }
+
+        var anyKey = AnyKeyChanged;
+        if (anyKey == null)
         {
             return;
         }
-        foreach (var sub in callbacks.GetInvocationList())
+        foreach (var sub in anyKey.GetInvocationList())
         {
             try
             {
-                ((Action<object>)sub).Invoke(newValue);
+                ((Action<StringName, object>)sub).Invoke(key, newValue);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 var subscriberType = sub.Target?.GetType().FullName ?? "<static>";
-                JmoLogger.Warning(this, $"Subscriber {subscriberType} for key '{key}' threw {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+                JmoLogger.Warning(this, $"AnyKeyChanged subscriber {subscriberType} for key '{key}' threw {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
             }
         }
     }

@@ -22,20 +22,48 @@ public partial class BlackboardGraph : Node, IBlackboardGraph
     private BlackboardGraph? _parent;
     private readonly List<BlackboardGraph> _children = new();
     private bool _disposed;
+    private bool _anyKeyHooked;
+    private readonly Dictionary<StringName, GraphKeyState> _keyStates = new();
 
-    public override void _Ready()
+    /// <summary>
+    /// Production-safe programmatic initialization seam. Sets <see cref="ScopeTag"/> + leaf
+    /// <see cref="Blackboard"/> without requiring scene-tree wiring. Call BEFORE
+    /// <see cref="AttachParent"/> and BEFORE adding the node to a scene tree. Idempotent on
+    /// already-initialized graphs throws — double-init is a programmer error.
+    /// </summary>
+    public void Initialize(StringName scopeTag, Blackboard leaf)
     {
         if (_local != null!)
         {
+            throw new InvalidOperationException("BlackboardGraph already initialized.");
+        }
+        _scopeTag = scopeTag;
+        _local = leaf;
+        HookLocalAnyKeyChanged();
+    }
+
+    public override void _Ready()
+    {
+        if (_local == null!)
+        {
+            var found = this.GetFirstChildOfType<Blackboard>();
+            if (found == null)
+            {
+                throw new NodeConfigurationException("BlackboardGraph requires a child Blackboard node", this);
+            }
+            _local = found;
+        }
+        HookLocalAnyKeyChanged();
+    }
+
+    private void HookLocalAnyKeyChanged()
+    {
+        if (_anyKeyHooked || _local == null!)
+        {
             return;
         }
-
-        var found = this.GetFirstChildOfType<Blackboard>();
-        if (found == null)
-        {
-            throw new NodeConfigurationException("BlackboardGraph requires a child Blackboard node", this);
-        }
-        _local = found;
+        _local.AnyKeyChanged += OnLocalAnyKeyChanged;
+        _anyKeyHooked = true;
     }
 
     public IBlackboard Local => _local;
@@ -173,6 +201,12 @@ public partial class BlackboardGraph : Node, IBlackboardGraph
 
         DetachParent();
 
+        if (_anyKeyHooked && _local != null!)
+        {
+            _local.AnyKeyChanged -= OnLocalAnyKeyChanged;
+            _anyKeyHooked = false;
+        }
+
         // Godot frees children when the parent node is freed — no need to QueueFree _local explicitly.
         if (GodotObject.IsInstanceValid(this))
         {
@@ -182,10 +216,115 @@ public partial class BlackboardGraph : Node, IBlackboardGraph
 
     public override void _ExitTree() => DisposeSubgraph();
 
+    public void Subscribe(StringName key, Action<object> callback, ScopeWatchMode mode)
+    {
+        if (!_keyStates.TryGetValue(key, out var state))
+        {
+            state = new GraphKeyState();
+            _keyStates[key] = state;
+        }
+        GetListForMode(state, mode).Add(callback);
+    }
+
+    public void Unsubscribe(StringName key, Action<object> callback, ScopeWatchMode mode)
+    {
+        if (!_keyStates.TryGetValue(key, out var state))
+        {
+            return;
+        }
+        GetListForMode(state, mode).Remove(callback);
+        if (state.IsEmpty)
+        {
+            _keyStates.Remove(key);
+        }
+    }
+
+    private static List<Action<object>> GetListForMode(GraphKeyState state, ScopeWatchMode mode) => mode switch
+    {
+        ScopeWatchMode.LocalOnly => state.LocalOnly,
+        ScopeWatchMode.LocalOrAncestor => state.LocalOrAncestor,
+        ScopeWatchMode.LocalOrDescendant => state.LocalOrDescendant,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown ScopeWatchMode."),
+    };
+
+    private void OnLocalAnyKeyChanged(StringName key, object value)
+    {
+        // Self: fire all three mode lists (local-set is the trigger for every mode).
+        if (_keyStates.TryGetValue(key, out var selfState))
+        {
+            FireSnapshot(selfState.LocalOnly, value, key, "LocalOnly");
+            FireSnapshot(selfState.LocalOrAncestor, value, key, "LocalOrAncestor(self)");
+            FireSnapshot(selfState.LocalOrDescendant, value, key, "LocalOrDescendant(self)");
+        }
+
+        // Ancestors with LocalOrDescendant subscriptions for `key` — they watch for any
+        // descendant (current node included) writing this key on its local.
+        var ancestor = _parent;
+        while (ancestor != null)
+        {
+            if (ancestor._keyStates.TryGetValue(key, out var aState))
+            {
+                FireSnapshot(aState.LocalOrDescendant, value, key, "LocalOrDescendant(ancestor)");
+            }
+            ancestor = ancestor._parent;
+        }
+
+        // Descendants with LocalOrAncestor subscriptions for `key` — they watch for any
+        // ancestor (current node included) writing this key on its local.
+        FanDownLocalOrAncestor(this, key, value);
+    }
+
+    private void FanDownLocalOrAncestor(BlackboardGraph node, StringName key, object value)
+    {
+        foreach (var child in node._children)
+        {
+            if (child._keyStates.TryGetValue(key, out var cState))
+            {
+                FireSnapshot(cState.LocalOrAncestor, value, key, "LocalOrAncestor(descendant)");
+            }
+            FanDownLocalOrAncestor(child, key, value);
+        }
+    }
+
+    private void FireSnapshot(List<Action<object>> callbacks, object value, StringName key, string label)
+    {
+        if (callbacks.Count == 0)
+        {
+            return;
+        }
+        // Snapshot for re-entrancy safety — a callback may sub/unsub mid-dispatch.
+        var snapshot = callbacks.ToArray();
+        foreach (var cb in snapshot)
+        {
+            try
+            {
+                cb(value);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                var subscriberType = cb.Target?.GetType().FullName ?? "<static>";
+                JmoLogger.Warning(this, $"[BlackboardGraph] {label} subscriber {subscriberType} for key '{key}' threw {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+    }
+
+    private sealed class GraphKeyState
+    {
+        public readonly List<Action<object>> LocalOnly = new();
+        public readonly List<Action<object>> LocalOrAncestor = new();
+        public readonly List<Action<object>> LocalOrDescendant = new();
+        public bool IsEmpty => LocalOnly.Count == 0 && LocalOrAncestor.Count == 0 && LocalOrDescendant.Count == 0;
+    }
+
     #region Test Helpers
 #if TOOLS
     /// <summary>Test seam: inject the local Blackboard without scene-tree wiring (mirrors BlackboardTest's no-tree pattern).</summary>
-    internal void InitializeForTesting(Blackboard local) => _local = local;
+    internal void InitializeForTesting(Blackboard local)
+    {
+        _local = local;
+        HookLocalAnyKeyChanged();
+    }
+
     internal void SetScopeTagForTesting(StringName? tag) => _scopeTag = tag;
 #endif
     #endregion
