@@ -7,7 +7,7 @@ using Godot;
 /// Seeded instance RNG wrapping <see cref="RandomNumberGenerator"/>. Every game
 /// randomness consumer holds its own instance; same seed → same sequence, always.
 /// <para>
-/// Determinism contract: <see cref="FromStream"/> derives a stream-isolated seed via
+/// Determinism contract: <see cref="FromRawStreamName"/> derives a stream-isolated seed via
 /// <see cref="SeedManager.DeriveChild"/>; <see cref="NonDeterministic"/> is the
 /// Pos 3 migration target (every call site invoking it is a known non-deterministic
 /// site to be replaced — <c>Grep("NonDeterministic\(")</c> for the current backlog).
@@ -109,17 +109,17 @@ public sealed class JmoRng
     /// registry over raw string calls. A typo'd <paramref name="streamName"/>
     /// silently yields a different seed — the registry indirection is what makes
     /// "adding a top-level stream requires code review" enforceable (PushinPotions
-    /// uses <c>SeedStreams.X.CreateRng(parentSeed)</c>; raw <c>FromStream("X", ...)</c>
+    /// uses <c>SeedStreams.X.CreateRng(parentSeed)</c>; raw <c>FromRawStreamName("X", ...)</c>
     /// escapes that gate).
     /// </para>
     /// </summary>
-    public static JmoRng FromStream(string streamName, int parentSeed)
+    public static JmoRng FromRawStreamName(string streamName, int parentSeed)
         => new JmoRng(SeedManager.DeriveChild(parentSeed, streamName));
 
     /// <summary>
     /// Pos 3 migration target — every call-site invoking this factory is a known
     /// non-deterministic site to be replaced with a properly seeded instance via
-    /// constructor injection, Blackboard slot, or <see cref="FromStream"/>.
+    /// constructor injection, Blackboard slot, or <see cref="FromRawStreamName"/>.
     /// Grep <c>NonDeterministic\(</c> for the current backlog.
     /// </summary>
     public static JmoRng NonDeterministic()
