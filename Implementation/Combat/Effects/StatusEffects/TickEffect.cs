@@ -100,12 +100,8 @@ public class TickEffect : ISpreadAwareCombatEffect
         // 4. Inject the Snapshot Data
         runner.Setup(Duration, Interval, PerTickEffect, TickVisuals, PersistentVisuals, Tags, Visual, TickVisualEffect);
 
-        // 4a. Wire spread (if configured) — runner.SpreadConfig drives the component's spread loop;
-        // runner.SourceEffect lets the loop re-Apply this snapshot to spread to a picked target;
-        // runner.SpreadGeneration carries the per-instance generation count.
-        runner.SpreadConfig = SpreadConfig;
-        runner.SourceEffect = this;
-        runner.SpreadGeneration = SpreadGeneration;
+        // 4a. Wire spread (if configured) — see StatusEffectApplyHelper.WireSpread.
+        StatusEffectApplyHelper.WireSpread(runner, this);
 
         // 5. Add to System
         // The Component handles parenting and lifecycle management.

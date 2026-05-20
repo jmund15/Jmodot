@@ -290,7 +290,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
             return;
         }
 
-        SetHealth(_currentHealth + amount, source);
+        SetHealth(_currentHealth + amount, source, DamageKind.Heal);
     }
 
     /// <summary>
@@ -313,7 +313,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
         _currentHealth = Mathf.Clamp(healthOnRevive, 1, MaxHealth);
 
-        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, MaxHealth, source);
+        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, MaxHealth, source, DamageKind.Heal);
 
         // Invoke the specific resurrection event first for systems that only care about this transition.
         OnResurrected.Invoke(eventArgs);

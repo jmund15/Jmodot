@@ -75,11 +75,8 @@ public class DurationEffect : ISpreadAwareCombatEffect
         // 4. Inject the Snapshot Data
         runner.Setup(Duration, StartEffect, EndEffect, PersistentVisuals, Tags, Visual);
 
-        // 4a. Wire spread (if configured) — runner.SpreadConfig drives the component's spread loop;
-        // runner.SourceEffect lets the loop re-Apply this snapshot to spread to a picked target.
-        runner.SpreadConfig = SpreadConfig;
-        runner.SourceEffect = this;
-        runner.SpreadGeneration = SpreadGeneration;
+        // 4a. Wire spread (if configured) — see StatusEffectApplyHelper.WireSpread.
+        StatusEffectApplyHelper.WireSpread(runner, this);
 
         // 5. Add to System (Component handles parenting and lifecycle management).
         bool wasAccepted = statusComp.AddStatus(runner, target, context);

@@ -20,6 +20,9 @@ public enum DamageKind
 
     /// <summary>Hazard, fire-on-the-floor, lava, environmental DoT.</summary>
     Environmental = 3,
+
+    /// <summary>Positive health change — healing, resurrection, regen. Not a damage cause; Direct-only feedback filters skip it.</summary>
+    Heal = 4,
 }
 
 /// <summary>

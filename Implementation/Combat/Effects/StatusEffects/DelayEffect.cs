@@ -73,10 +73,8 @@ public class DelayEffect : ISpreadAwareCombatEffect
         // 4. Inject the Snapshot Data
         runner.Setup(Delay, DelayedEffect, PersistentVisuals, Tags, Visual);
 
-        // 4a. Wire spread (if configured).
-        runner.SpreadConfig = SpreadConfig;
-        runner.SourceEffect = this;
-        runner.SpreadGeneration = SpreadGeneration;
+        // 4a. Wire spread (if configured) — see StatusEffectApplyHelper.WireSpread.
+        StatusEffectApplyHelper.WireSpread(runner, this);
 
         // 5. Add to System (Component handles parenting and lifecycle management).
         bool wasAccepted = statusComp.AddStatus(runner, target, context);
