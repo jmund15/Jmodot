@@ -102,6 +102,36 @@ public static class JmoMath
     }
 
     /// <summary>
+    /// Returns the index of the nearest candidate to <paramref name="origin"/>,
+    /// or <c>-1</c> if the list is empty. Ties broken by list order (first wins).
+    /// </summary>
+    /// <remarks>
+    /// Takes positions rather than nodes deliberately: <c>Node3D.GlobalPosition</c> returns
+    /// <c>Vector3.Zero</c> outside a live SceneTree, so a node-based signature would force every
+    /// caller's tests into a scene fixture. Callers extract positions at the call site instead,
+    /// keeping this helper a pure function.
+    /// </remarks>
+    public static int SelectNearest(IReadOnlyList<Vector3> candidatePositions, Vector3 origin)
+    {
+        if (candidatePositions.Count == 0) { return -1; }
+
+        int bestIdx = 0;
+        float bestDistSq = origin.DistanceSquaredTo(candidatePositions[0]);
+
+        for (int i = 1; i < candidatePositions.Count; i++)
+        {
+            float distSq = origin.DistanceSquaredTo(candidatePositions[i]);
+            if (distSq < bestDistSq)
+            {
+                bestIdx = i;
+                bestDistSq = distSq;
+            }
+        }
+
+        return bestIdx;
+    }
+
+    /// <summary>
     /// Closest distance from point <paramref name="p"/> to the line segment [<paramref name="a"/>, <paramref name="b"/>].
     /// Projects <paramref name="p"/> onto the segment and clamps the parameter to [0,1] so points
     /// beyond the endpoints measure to the nearest endpoint. Degenerate segments (a == b) collapse
