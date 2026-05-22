@@ -171,4 +171,20 @@ public static partial class BBDataSig
     public static readonly StringName ImpactDetector = new("ImpactDetector");
 
     #endregion
+
+    #region GRAB_HOLD_THROW
+
+    /// <summary>
+    /// Reference to the holder component that physically holds a grabbed node (e.g. a hand).
+    /// Runtime key value "HandMovementComponent" kept stable for backwards compatibility.
+    /// </summary>
+    public static readonly StringName HolderComponent = new("HandMovementComponent");
+    public static readonly StringName GrabberHolding = new("Grabber_Holding");
+    public static readonly StringName GrabbableComponent = new("GrabbableComponent");
+    public static readonly StringName GrabbablePickedUp = new("Grabbable_PickedUp");
+    public static readonly StringName GrabbableHolder = new("Grabbable_Holder");
+    public static readonly StringName GrabbableJustThrownFlag = new("Grabbable_JustThrown_Flag");
+    public static readonly StringName GrabbableThrownVelocity = new("Grabbable_ThrownVelocity");
+
+    #endregion
 }
