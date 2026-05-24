@@ -79,9 +79,10 @@ public partial class SeedManager : Node
         return hash;
     }
 
-    /// <summary>
-    /// Get a system-specific seed derived from the active master seed.
-    /// </summary>
-    public int GetSystemSeed(string systemName)
-        => DeriveSystemSeed(_activeSeed, systemName);
+    #region Test Helpers
+#if TOOLS
+    internal void SetActiveSeedForTesting(int value) => _activeSeed = value;
+    internal static void SetInstanceForTesting(SeedManager? instance) => Instance = instance;
+#endif
+    #endregion
 }
