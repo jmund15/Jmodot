@@ -63,11 +63,24 @@ public partial class GrabbableComponent3D : Node3D, IGrabbable3D, IThrowable3D, 
     }
 
     #region IInteractable3D
-    // The grabbable is "interactable" only in the capability-query sense — the real grab
-    // path is the IHolder3D handshake (RequestGrab/ConfirmGrab). Generic Interact has no
-    // holder context, so it is a no-op; grabbing flows through RequestGrab(IHolder3D).
-    public bool CanInteract(Node3D interactor) => IsGrabbable;
-    public void Interact(Node3D interactor) { }
+    // Grab flows through the interact verb: the interactor's holder is resolved from the
+    // interactor root, and a free holder begins the reserve→confirm handshake.
+    public bool CanInteract(Node3D interactor)
+        => IsGrabbable && _currentState == MechanicalState.AVAILABLE && TryResolveFreeHolder(interactor, out _);
+
+    public void Interact(Node3D interactor)
+    {
+        if (!TryResolveFreeHolder(interactor, out var holder)) { return; }
+        holder!.RequestHold(this);
+    }
+
+    private bool TryResolveFreeHolder(Node3D interactor, out IHolder3D? holder)
+    {
+        holder = null;
+        if (interactor == null) { return false; }
+        return interactor.TryGetFirstChildOfInterface<IHolder3D>(out holder, includeSubChildren: true)
+            && holder != null && holder.HeldNode == null;
+    }
     #endregion
 
     #region Transactional Handshake
