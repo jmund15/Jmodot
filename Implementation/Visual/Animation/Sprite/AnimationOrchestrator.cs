@@ -142,9 +142,6 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
     /// <summary>
     /// Sets the base state (e.g., "run", "attack"). Triggers a hard reset of the animation.
     /// </summary>
-    /// <summary>
-    /// Sets the base state (e.g., "run", "attack"). Triggers a hard reset of the animation.
-    /// </summary>
     public void StartAnim(StringName baseName)
     {
         UpdateAnim(baseName, AnimUpdateMode.Reset);
@@ -155,39 +152,97 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         BaseAnimName = baseName;
         var finalName = BuildFinalName();
 
-        //GD.Print($"Anim Orch playing anim '{finalName}' with mode {mode}");
+        var playable = ResolvePlayableAnimation(finalName);
+        if (playable == null)
+        {
+            HandleMissingAnimation(finalName);
+            return;
+        }
 
         if (mode == AnimUpdateMode.Reset || !IsPlaying())
         {
-            if (_targetAnimator.HasAnimation(finalName))
-            {
-                _targetAnimator.StartAnim(finalName);
-            }
-            else if (_targetAnimator.HasAnimation(BaseAnimName))
-            {
-                _targetAnimator.StartAnim(BaseAnimName);
-            }
-            else
-            {
-                WarnMissingAnimationOnce(finalName, BaseAnimName);
-            }
+            _targetAnimator.StartAnim(playable);
         }
         else
         {
-            if (_targetAnimator.HasAnimation(finalName))
+            _targetAnimator.UpdateAnim(playable, mode);
+        }
+    }
+
+    /// <summary>
+    /// Resolves which clip the target animator should play for <paramref name="finalName"/>,
+    /// degrading through three tiers: (1) the exact directional clip; (2) the nearest available
+    /// directional clip by angular proximity to the current facing — lets a 4-directional art set
+    /// serve an 8-direction request (e.g. "downLeft" → "left"); (3) the undirected base clip.
+    /// Returns null when no clip exists for this base name at all.
+    /// </summary>
+    private StringName? ResolvePlayableAnimation(StringName finalName)
+    {
+        if (_targetAnimator.HasAnimation(finalName))
+        {
+            return finalName;
+        }
+
+        var closestDirectional = FindClosestAvailableDirectional();
+        if (closestDirectional != null)
+        {
+            return closestDirectional;
+        }
+
+        if (_targetAnimator.HasAnimation(BaseAnimName))
+        {
+            return BaseAnimName;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Among the directional variants of <see cref="BaseAnimName"/> that actually exist on the
+    /// target animator, returns the one whose direction is closest (max dot product) to the
+    /// current facing. Returns null if direction logic is disabled or no directional clip exists.
+    /// Equidistant ties resolve to the first match in DirectionLabels insertion order (strict
+    /// greater-than) — deterministic, and the choice between two equidistant directions is cosmetic.
+    /// </summary>
+    private StringName? FindClosestAvailableDirectional()
+    {
+        if (DirectionSet == null || CurrentAnimationDirection.IsZeroApprox())
+        {
+            return null;
+        }
+
+        StringName? best = null;
+        var bestDot = float.MinValue;
+        foreach (var kvp in DirectionLabels)
+        {
+            var candidate = new StringName($"{BaseAnimName}{DirectionSuffixSeparator}{kvp.Value}");
+            if (!_targetAnimator.HasAnimation(candidate))
             {
-                 _targetAnimator.UpdateAnim(finalName, mode);
+                continue;
             }
-            else if (_targetAnimator.HasAnimation(BaseAnimName))
+
+            var dot = kvp.Key.Dot(CurrentAnimationDirection);
+            if (dot > bestDot)
             {
-                // Fallback: directional version missing but base exists (partial directional sets).
-                _targetAnimator.UpdateAnim(BaseAnimName, mode);
-            }
-            else
-            {
-                WarnMissingAnimationOnce(finalName, BaseAnimName);
+                bestDot = dot;
+                best = candidate;
             }
         }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Last-resort handling when no clip resolves for the request. Warns once, then synthesizes a
+    /// deferred AnimFinished so a state machine gating its exit on AnimFinished (e.g. CraftSpellState)
+    /// degrades to "zero-length clip completed" instead of hanging forever. Deferred — not synchronous —
+    /// to match the engine's always-async animation_finished and to fire after a caller that subscribes
+    /// to AnimFinished immediately *after* calling StartAnim within the same frame.
+    /// </summary>
+    private void HandleMissingAnimation(StringName finalName)
+    {
+        WarnMissingAnimationOnce(finalName, BaseAnimName);
+        Callable.From(() => AnimFinished.Invoke(finalName)).CallDeferred();
     }
 
     private void WarnMissingAnimationOnce(StringName finalName, StringName baseName)
