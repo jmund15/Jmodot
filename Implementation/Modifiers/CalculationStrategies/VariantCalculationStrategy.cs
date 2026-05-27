@@ -7,18 +7,18 @@ using Core.Modifiers.CalculationStrategies;
 using Shared;
 
 /// <summary>
-///     Folds int modifiers by grouping on their StageRule's StageId, ordering by Order, and reducing
-///     each stage. See <see cref="FloatCalculationStrategy" /> for the priority/ordering contract.
+///     Folds Variant modifiers by grouping on their StageRule's StageId, ordering by Order, and reducing
+///     each stage. Replaces the old priority-override-only Variant strategy.
 /// </summary>
-public partial class IntCalculationStrategy : Resource, ICalculationStrategy<int>
+public partial class VariantCalculationStrategy : Resource, ICalculationStrategy<Variant>
 {
-    public int Calculate(int baseValue, IReadOnlyList<IModifier<int>> modifiers)
+    public Variant Calculate(Variant baseValue, IReadOnlyList<IModifier<Variant>> modifiers)
     {
-        var typed = modifiers.OfType<IIntModifier>().ToList();
+        var typed = modifiers.OfType<IVariantModifier>().ToList();
         var active = typed.Where(m => m.StageRule != null).ToList();
         if (active.Count < typed.Count)
         {
-            JmoLogger.Warning(this, $"Dropped {typed.Count - active.Count} int modifier(s) with a null StageRule from the fold — an unset StageRule (e.g. an unauthored .tres slot) silently resolves the stat incorrectly.");
+            JmoLogger.Warning(this, $"Dropped {typed.Count - active.Count} Variant modifier(s) with a null StageRule from the fold — an unset StageRule silently resolves the stat incorrectly.");
         }
         if (active.Count == 0) { return baseValue; }
 

@@ -4,8 +4,10 @@ using Godot.Collections;
 using Stats;
 
 /// <summary>
-///     The generic interface for any object that can modify a value. It contains all the
-///     necessary contracts for priority, calculation stage, and tag-based conflict resolution.
+///     The generic interface for any object that can modify a value. It contains the
+///     contracts for priority and tag-based conflict resolution. The fold behaviour itself
+///     is data-driven via a typed StageRule on the concrete modifier interfaces
+///     (<see cref="IFloatModifier" />, <see cref="IIntModifier" />, etc.).
 /// </summary>
 /// <typeparam name="T">The type of value to be modified.</typeparam>
 public interface IModifier<T>
@@ -34,14 +36,4 @@ public interface IModifier<T>
     /// if the character has at least one of these contexts active.
     /// </summary>
     Array<string> RequiredContextTags { get; }
-
-    /// <summary>
-    ///     Applies the modification to a given value.
-    ///     Note: For PercentAdd stage, the return value semantics differ by type:
-    ///     - Float modifiers return Value/100f (decimal fraction). The strategy sums fractions directly.
-    ///     - Int modifiers return the raw Value. The IntCalculationStrategy compensates with (100 + bonus) / 100f.
-    /// </summary>
-    /// <param name="currentValue">The value as calculated from all previous stages and modifiers.</param>
-    /// <returns>The newly modified value.</returns>
-    T Modify(T currentValue);
 }

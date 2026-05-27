@@ -34,7 +34,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     // Default strategies (can make static if we make the get calc strat static)
     private readonly FloatCalculationStrategy _defaultFloatCalcStrat = new();
     private readonly IntCalculationStrategy _defaultIntCalcStrat = new();
-    private readonly BoolOverrideStrategy _defaultBoolCalcStrat = new();
+    private readonly BoolCalculationStrategy _defaultBoolCalcStrat = new();
 
     private readonly HashSet<StatContext> _activeContexts = new();
 

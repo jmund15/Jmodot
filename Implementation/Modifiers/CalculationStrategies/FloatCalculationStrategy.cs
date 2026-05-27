@@ -4,46 +4,32 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.Modifiers;
 using Core.Modifiers.CalculationStrategies;
-using Core.Stats;
+using Shared;
 
+/// <summary>
+///     Folds float modifiers by grouping on their StageRule's StageId, ordering the stages by Order,
+///     and reducing each stage. Modifiers arrive pre-sorted by Priority descending (from
+///     <c>ModifiableProperty.GetFinalModifiers</c>); GroupBy is order-stable, so that ordering survives
+///     into each stage's values — Override relies on index 0 being the highest priority.
+/// </summary>
 public partial class FloatCalculationStrategy : Resource, ICalculationStrategy<float>
 {
     public float Calculate(float baseValue, IReadOnlyList<IModifier<float>> modifiers)
     {
-        var activeModifiers = modifiers.OfType<IFloatModifier>().ToList();
-        // --- Stage 1: BaseAdd ---
-        foreach (var mod in activeModifiers)
+        var typed = modifiers.OfType<IFloatModifier>().ToList();
+        var active = typed.Where(m => m.StageRule != null).ToList();
+        if (active.Count < typed.Count)
         {
-            // Check if the modifier is the correct type to have a 'Stage'
-            if (mod.Stage == CalculationStage.BaseAdd)
-            {
-                baseValue = mod.Modify(baseValue);
-            }
+            JmoLogger.Warning(this, $"Dropped {typed.Count - active.Count} float modifier(s) with a null StageRule from the fold — an unset StageRule (e.g. an unauthored .tres slot) silently resolves the stat incorrectly.");
         }
+        if (active.Count == 0) { return baseValue; }
 
-        // --- Stage 2: PercentAdd ---
-        var totalPercentBonus = 0f;
-        foreach (var mod in activeModifiers)
+        var running = baseValue;
+        foreach (var group in active.GroupBy(m => m.StageRule.StageId)
+                                    .OrderBy(g => g.First().StageRule.Order))
         {
-            if (mod.Stage == CalculationStage.PercentAdd)
-            {
-                // For this stage, Modify() returns the percentage value itself.
-                totalPercentBonus += mod.Modify(0f);
-            }
+            running = group.First().StageRule.Reduce(running, group.Select(m => m.Value).ToList());
         }
-
-        baseValue *= 1.0f + totalPercentBonus;
-
-
-        // --- Stage 3: FinalMultiply ---
-        foreach (var mod in activeModifiers)
-        {
-            if (mod.Stage == CalculationStage.FinalMultiply)
-            {
-                baseValue = mod.Modify(baseValue);
-            }
-        }
-
-        return baseValue;
+        return running;
     }
 }

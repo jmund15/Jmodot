@@ -9,6 +9,7 @@ using Core.AI.Affinities;
 using Core.AI.BB;
 using Core.Components;
 using Core.Modifiers;
+using Core.Modifiers.StageRules;
 using Core.Shared;
 using Modifiers;
 using Modifiers.CalculationStrategies;
@@ -48,13 +49,17 @@ public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvid
     private readonly Dictionary<Affinity, ModifiableProperty<float>> _properties = new();
 
     /// <summary>
-    /// Shared clamped strategy instance — stateless, safe to share across all properties.
+    /// Shared default fold strategy — stateless, safe to share across all properties.
+    /// The [0,1] clamp is applied via always-on Floor(0)/Cap(1) boundary modifiers (see
+    /// <see cref="GetOrCreateProperty" />), not by the strategy itself.
     /// </summary>
-    private static readonly ClampedFloatCalculationStrategy AffinityStrategy = new()
-    {
-        MinValue = 0f,
-        MaxValue = 1f
-    };
+    private static readonly FloatCalculationStrategy AffinityStrategy = new();
+
+    /// <summary>
+    /// Stable owner for the always-on [0,1] boundary modifiers, so they survive
+    /// <see cref="RemoveAllModifiersFromSource" /> calls targeting real modifier sources.
+    /// </summary>
+    private readonly object _boundaryOwner = new();
 
     /// <summary>
     /// Fired when an affinity's effective value changes. Provides the affinity, old value, and new value.
@@ -261,6 +266,12 @@ public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvid
                           ?? (_baseValues.TryGetValue(affinity, out float exported) ? exported : 0f);
 
         var prop = new ModifiableProperty<float>(Mathf.Clamp(baseValue, 0f, 1f), AffinityStrategy);
+
+        // Always-on [0,1] clamp via boundary modifiers folded last by StageRule.Order
+        // (Floor 490 -> max(r,0), Cap 500 -> min(r,1)), reproducing the old clamped strategy.
+        prop.AddModifier(new FloatAttributeModifier(0f, new FloorStageRule(0f), 0), _boundaryOwner);
+        prop.AddModifier(new FloatAttributeModifier(0f, new CapStageRule(1f), 0), _boundaryOwner);
+
         _properties[affinity] = prop;
 
         // Ensure the base values dict stays in sync for inspector reflection

@@ -1,7 +1,7 @@
 namespace Jmodot.Implementation.Modifiers;
 
-using Core.Stats;
 using Jmodot.Core.Modifiers;
+using Jmodot.Core.Modifiers.StageRules;
 using Godot.Collections;
 
 /// <summary>
@@ -9,8 +9,10 @@ using Godot.Collections;
 /// Its effect is determined by its Priority relative to other override modifiers.
 /// </summary>
 [GlobalClass]
-public partial class VariantOverrideModifier : Resource, IModifier<Variant>
+public partial class VariantOverrideModifier : Resource, IVariantModifier, IModifier<Variant>
 {
+    [Export] public VariantModifierStageRule StageRule { get; private set; }
+
     [Export] public Variant Value { get; private set; }
     [Export] public int Priority { get; private set; }
     [Export] public Array<string> EffectTags { get; private set; } = new();
@@ -18,12 +20,8 @@ public partial class VariantOverrideModifier : Resource, IModifier<Variant>
     [Export] public Array<string> ContextTags { get; private set; } = new();
     [Export] public Array<string> RequiredContextTags { get; private set; } = new();
 
-    /// <summary>
-    /// For an override, the Modify method simply ignores the input value
-    /// and returns its own configured Value.
-    /// </summary>
-    public Variant Modify(Variant currentValue)
+    public VariantOverrideModifier()
     {
-        return Value;
+        StageRule = new VariantOverrideStageRule();
     }
 }

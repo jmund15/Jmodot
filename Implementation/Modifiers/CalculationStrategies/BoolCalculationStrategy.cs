@@ -7,18 +7,19 @@ using Core.Modifiers.CalculationStrategies;
 using Shared;
 
 /// <summary>
-///     Folds int modifiers by grouping on their StageRule's StageId, ordering by Order, and reducing
-///     each stage. See <see cref="FloatCalculationStrategy" /> for the priority/ordering contract.
+///     Folds bool modifiers by grouping on their StageRule's StageId, ordering by Order, and reducing
+///     each stage. Replaces the old priority-override-only bool strategy; with a single modifier the
+///     override fold is bit-identical to the prior behaviour.
 /// </summary>
-public partial class IntCalculationStrategy : Resource, ICalculationStrategy<int>
+public partial class BoolCalculationStrategy : Resource, ICalculationStrategy<bool>
 {
-    public int Calculate(int baseValue, IReadOnlyList<IModifier<int>> modifiers)
+    public bool Calculate(bool baseValue, IReadOnlyList<IModifier<bool>> modifiers)
     {
-        var typed = modifiers.OfType<IIntModifier>().ToList();
+        var typed = modifiers.OfType<IBoolModifier>().ToList();
         var active = typed.Where(m => m.StageRule != null).ToList();
         if (active.Count < typed.Count)
         {
-            JmoLogger.Warning(this, $"Dropped {typed.Count - active.Count} int modifier(s) with a null StageRule from the fold — an unset StageRule (e.g. an unauthored .tres slot) silently resolves the stat incorrectly.");
+            JmoLogger.Warning(this, $"Dropped {typed.Count - active.Count} bool modifier(s) with a null StageRule from the fold — an unset StageRule silently resolves the stat incorrectly.");
         }
         if (active.Count == 0) { return baseValue; }
 

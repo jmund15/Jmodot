@@ -1,28 +1,26 @@
 namespace Jmodot.Core.Modifiers;
 
-using System;
 using Godot.Collections;
 using Jmodot.Core.Identification;
-using Jmodot.Implementation.Shared;
-using Stats;
+using Jmodot.Core.Modifiers.StageRules;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 ///     Resource for modifying a float value. This is the primary tool
 ///     a designer will use to create all standard buffs, debuffs, and equipment bonuses in the editor.
-///     It fully implements the IModifier contract, including stages, priority, and tags.
+///     It implements the IModifier contract: a raw Value, a data-driven StageRule, priority, and tags.
 /// </summary>
 [GlobalClass]
 public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifier<float>
 {
-    [Export] public CalculationStage Stage { get; private set; } = CalculationStage.BaseAdd;
+    /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
+    [Export, RequiredExport] public FloatModifierStageRule StageRule { get; private set; } = null!;
 
     [ExportGroup("Modification Value")]
     /// <summary>
-    /// The value to use for the modification. How this is interpreted depends on the Stage.
-    /// For BaseAdd: A flat value (e.g., 10 for +10).
-    /// For PercentAdd: A whole number percentage (e.g., 10 for +10%, 50 for +50%).
-    ///   Note: Modify() returns Value/100f (the decimal fraction). The strategy sums these fractions.
-    /// For FinalMultiply: A multiplier (e.g., 2.0 for x2).
+    /// The raw value, interpreted by the StageRule's Reduce:
+    /// additive — a flat value (10 for +10); summed-percent — a whole-number percent (10 for +10%);
+    /// multiply — a multiplier (2.0 for x2).
     /// </summary>
     [Export] public float Value { get; private set; }
     [Export] public int Priority { get; private set; }
@@ -41,30 +39,15 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifie
     [Export] public Array<string> CancelsEffectTags { get; private set; } = new();
     [Export] public Array<string> ContextTags { get; private set; } = new();
     [Export] public Array<string> RequiredContextTags { get; private set; } = new();
-    public float Modify(float currentValue)
-    {
-        if (!Enum.IsDefined(Stage))
-        {
-            JmoLogger.Warning(this, $"Unknown CalculationStage '{Stage}' in FloatAttributeModifier");
-            return currentValue;
-        }
 
-        return Stage switch
-        {
-            CalculationStage.BaseAdd => currentValue + Value,
-            CalculationStage.PercentAdd => Value / 100f,
-            CalculationStage.FinalMultiply => currentValue * Value,
-            _ => currentValue
-        };
-    }
     public FloatAttributeModifier()
     {
         // Default constructor for editor use.
     }
-    public FloatAttributeModifier(float value, CalculationStage stage, int priority)
+    public FloatAttributeModifier(float value, FloatModifierStageRule stageRule, int priority)
     {
         Value = value;
-        Stage = stage;
+        StageRule = stageRule;
         Priority = priority;
     }
 }

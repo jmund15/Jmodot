@@ -1,15 +1,17 @@
 namespace Jmodot.Core.Modifiers;
 
 using Godot.Collections;
+using Jmodot.Core.Modifiers.StageRules;
 
 /// <summary>
-///     Resource for modifying a bool value.
+///     Resource for modifying a bool value. Defaults to an override fold (highest-priority value wins).
 /// </summary>
 [GlobalClass]
-public partial class BoolAttributeModifier : Resource, IModifier<bool>
+public partial class BoolAttributeModifier : Resource, IBoolModifier, IModifier<bool>
 {
-    [Export]
-    public bool Value { get; private set; }
+    [Export] public BoolModifierStageRule StageRule { get; private set; }
+
+    [Export] public bool Value { get; private set; }
     [Export] public int Priority { get; private set; }
 
     [ExportGroup("EffectTags & Cancellation")]
@@ -18,9 +20,14 @@ public partial class BoolAttributeModifier : Resource, IModifier<bool>
     [Export] public Array<string> ContextTags { get; private set; } = new();
     [Export] public Array<string> RequiredContextTags { get; private set; } = new();
 
-    public bool Modify(bool currentValue)
+    public BoolAttributeModifier()
     {
-        return Value; // bool just overrides
+        StageRule = new BoolOverrideStageRule();
+    }
+
+    public BoolAttributeModifier(bool value, int priority) : this()
+    {
+        Value = value;
+        Priority = priority;
     }
 }
-
