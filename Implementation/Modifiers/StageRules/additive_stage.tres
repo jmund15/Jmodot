@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="AdditiveStageRule" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://c05s7ljaewxnx" path="res://Jmodot/Core/Modifiers/StageRules/AdditiveStageRule.cs" id="1_additive"]
+
+[resource]
+script = ExtResource("1_additive")
+metadata/_custom_type_script = "uid://c05s7ljaewxnx"

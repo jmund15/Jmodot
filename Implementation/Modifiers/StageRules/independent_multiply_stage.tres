@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="IndependentMultiplyStageRule" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://u80wvwadwsxm" path="res://Jmodot/Core/Modifiers/StageRules/IndependentMultiplyStageRule.cs" id="1_independent_multiply"]
+
+[resource]
+script = ExtResource("1_independent_multiply")
+metadata/_custom_type_script = "uid://u80wvwadwsxm"

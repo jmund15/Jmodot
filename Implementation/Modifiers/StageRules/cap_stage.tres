@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="CapStageRule" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://bmygg7ofwwxtd" path="res://Jmodot/Core/Modifiers/StageRules/CapStageRule.cs" id="1_cap"]
+
+[resource]
+script = ExtResource("1_cap")
+CapValue = 1.0
+metadata/_custom_type_script = "uid://bmygg7ofwwxtd"
