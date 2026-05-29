@@ -26,7 +26,9 @@ public partial class IntCalculationStrategy : Resource, ICalculationStrategy<int
         foreach (var group in active.GroupBy(m => m.StageRule.StageId)
                                     .OrderBy(g => g.First().StageRule.Order))
         {
-            running = group.First().StageRule.Reduce(running, group.Select(m => m.Value).ToList());
+            var rule = group.First().StageRule;
+            rule.Validate();
+            running = rule.Reduce(running, group.Select(m => m.Value).ToList());
         }
         return running;
     }

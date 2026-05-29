@@ -23,4 +23,12 @@ public abstract partial class IntModifierStageRule : Resource
     ///     <paramref name="stageValues" /> arrives PRE-SORTED by modifier Priority descending.
     /// </summary>
     public abstract int Reduce(int running, IReadOnlyList<int> stageValues);
+
+    /// <summary>
+    ///     Fail-fast configuration check, called once per fold by the calculation strategy (cached, not
+    ///     per-frame). Default is a no-op; boundary rules with a designer-authored bound override this to
+    ///     reject inert/destructive defaults (e.g. a Cap rule left at CapValue=0). Throw
+    ///     <see cref="Jmodot.Implementation.Shared.GodotExceptions.ResourceConfigurationException" />.
+    /// </summary>
+    public virtual void Validate() { }
 }
