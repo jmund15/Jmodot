@@ -11,7 +11,7 @@ using Jmodot.Core.Shared.Attributes;
 ///     It implements the IModifier contract: a raw Value, a data-driven StageRule, priority, and tags.
 /// </summary>
 [GlobalClass]
-public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifier<float>
+public partial class FloatAttributeModifier : Resource, IFloatModifier, IModifier<float>, ITaggableModifier
 {
     /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
     [Export, RequiredExport] public FloatModifierStageRule StageRule { get; private set; } = null!;

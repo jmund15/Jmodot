@@ -132,25 +132,30 @@ public class ModifiableProperty<T> : IModifiableProperty
         }
         var modifiers = _modifierEntries.Select(entry => entry.Modifier);
         var sortedModifiers = modifiers.OrderByDescending(m => m.Priority).ToList();
+
+        // Tag cancel/context-gate filtering applies only to opt-in ITaggableModifier instances.
+        // Non-taggable modifiers carry no tags and are retained in priority order untouched.
         var tagsToCancel = new HashSet<string>();
         foreach (var mod in sortedModifiers)
         {
-            if (mod.CancelsEffectTags == null) { continue; }
-            foreach (var tag in mod.CancelsEffectTags)
+            if (mod is not ITaggableModifier taggable || taggable.CancelsEffectTags == null) { continue; }
+            foreach (var tag in taggable.CancelsEffectTags)
             {
                 tagsToCancel.Add(tag);
             }
         }
 
         var postCancelledMods = sortedModifiers
-            .Where(mod => mod.EffectTags == null || !mod.EffectTags.Any(tagsToCancel.Contains))
+            .Where(mod => mod is not ITaggableModifier taggable
+                          || taggable.EffectTags == null
+                          || !taggable.EffectTags.Any(tagsToCancel.Contains))
             .ToList();
 
         HashSet<string> collectedContextTags = [];
         foreach (var mod in postCancelledMods)
         {
-            if (mod.ContextTags == null) { continue; }
-            foreach (var tag in mod.ContextTags)
+            if (mod is not ITaggableModifier taggable || taggable.ContextTags == null) { continue; }
+            foreach (var tag in taggable.ContextTags)
             {
                 collectedContextTags.Add(tag);
             }
@@ -159,9 +164,9 @@ public class ModifiableProperty<T> : IModifiableProperty
         var postRequiredMods =
             // keep any mods where any of their required context tags exist in the collected tag hashset
             postCancelledMods.Where(m =>
-                (m.RequiredContextTags == null || m.RequiredContextTags.Count == 0)
-                ||
-                m.RequiredContextTags.Any(collectedContextTags.Contains)).ToList();
+                m is not ITaggableModifier taggable
+                || (taggable.RequiredContextTags == null || taggable.RequiredContextTags.Count == 0)
+                || taggable.RequiredContextTags.Any(collectedContextTags.Contains)).ToList();
 
         return postRequiredMods;
     }
