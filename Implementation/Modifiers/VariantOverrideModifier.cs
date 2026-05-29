@@ -9,7 +9,7 @@ using Godot.Collections;
 /// Its effect is determined by its Priority relative to other override modifiers.
 /// </summary>
 [GlobalClass]
-public partial class VariantOverrideModifier : Resource, IVariantModifier, IModifier<Variant>, ITaggableModifier
+public partial class VariantOverrideModifier : Resource, IVariantModifier, ITaggableModifier
 {
     [Export] public VariantModifierStageRule StageRule { get; private set; }
 

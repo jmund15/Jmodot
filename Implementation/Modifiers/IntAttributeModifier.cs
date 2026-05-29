@@ -10,7 +10,7 @@ using Jmodot.Core.Shared.Attributes;
 ///     It implements the IModifier contract: a raw Value, a data-driven StageRule, priority, and tags.
 /// </summary>
 [GlobalClass]
-public partial class IntAttributeModifier : Resource, IIntModifier, IModifier<int>, ITaggableModifier
+public partial class IntAttributeModifier : Resource, IIntModifier, ITaggableModifier
 {
     /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
     [Export, RequiredExport] public IntModifierStageRule StageRule { get; private set; } = null!;

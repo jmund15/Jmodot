@@ -8,7 +8,7 @@ using Jmodot.Core.Modifiers.StageRules;
 ///     <see cref="Value" /> is unused by the flip rule but present to satisfy the IBoolModifier contract.
 /// </summary>
 [GlobalClass]
-public partial class BoolFlipAttributeModifier : Resource, IBoolModifier, IModifier<bool>, ITaggableModifier
+public partial class BoolFlipAttributeModifier : Resource, IBoolModifier, ITaggableModifier
 {
     [Export] public BoolModifierStageRule StageRule { get; private set; }
 
