@@ -11,6 +11,13 @@ using Jmodot.Core.Physics;
 /// falls back to a contact-normal heuristic (up-facing → Ground, else Wall).
 /// Projects needing finer reasons supply their own resolver via the seam.
 /// </summary>
+/// <remarks>
+/// Two intentional coarseness choices a finer-grained consumer should be aware of:
+/// (1) the <see cref="IIdentifiable"/> check inspects the collider root only — it does
+/// not walk children, unlike a project resolver that may use TryGetFirstChildOfInterface;
+/// (2) any identified body classifies as <see cref="CollisionReason.Entity"/> regardless
+/// of contact-normal orientation, so an identified floor never resolves to Ground here.
+/// </remarks>
 public sealed class DefaultCollisionReasonResolver : ICollisionReasonResolver
 {
     public CollisionReason Resolve(Node collider, Vector3 normal)
