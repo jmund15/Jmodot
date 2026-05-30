@@ -19,7 +19,7 @@ using Jmodot.Core.Shared;
 /// - <see cref="IGodotNodeInterface"/>: underlying node for collision-exception wiring and
 ///   <c>IImpactable</c> discovery via the host's blackboard.
 /// </summary>
-public interface ICollisionHost : IVelocityProvider3D, IDamageable, IIdentifiable, IGodotNodeInterface
+public interface ICollisionHost : IDamageable, IIdentifiable, IGodotNodeInterface
 {
     /// <summary>
     /// The physics driver used to read pre-move velocity and write post-collision velocity.
