@@ -30,7 +30,6 @@ public partial class Directional3DVariantSource : AnimVariantSource
     /// </summary>
     public void UpdateDirection(Vector3 newDirection)
     {
-        //JmoLogger.Info(this, $"updating direction for anim style. new dir: {newDirection}");
         if (DirectionSet == null || newDirection.IsZeroApprox())
         {
             //_currentVariant = "";
@@ -39,9 +38,6 @@ public partial class Directional3DVariantSource : AnimVariantSource
 
         Vector3 closestDir = DirectionSet.GetClosestDirection(newDirection.Normalized());
         _currentVariant = DirectionLabels.TryGetValue(closestDir, out string label) ? label : "";
-        // JmoLogger.Info(this, $"closest dir: {closestDir}" +
-        //                      $"\nvariant label: '{_currentVariant}'");
-
     }
 
     public override string GetAnimVariant() => _currentVariant;

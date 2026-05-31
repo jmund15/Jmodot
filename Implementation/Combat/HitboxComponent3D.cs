@@ -417,8 +417,6 @@ using AI.BB;
 
         private void TryHitHurtbox(HurtboxComponent3D hurtbox)
         {
-            //Shared.JmoLogger.Debug(this, $"TryHitHurtbox: target={hurtbox.Owner?.Name ?? "NULL"}, IsActive={IsActive}, HasPayload={CurrentPayload != null}");
-
             if (!IsActive || CurrentPayload == null)
             {
                 Shared.JmoLogger.Debug(this, $"[Impact] TryHitHurtbox BLOCKED - IsActive={IsActive}, HasPayload={CurrentPayload != null}");

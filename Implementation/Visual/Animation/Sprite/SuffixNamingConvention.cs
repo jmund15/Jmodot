@@ -20,7 +20,6 @@ public partial class SuffixNamingConvention : AnimationNamingConvention
         if (string.IsNullOrEmpty(baseName)) { return ""; }
 
         var validVariants = variants.Where(v => !string.IsNullOrEmpty(v));
-        //JmoLogger.Info(this, $"validVariants: {validVariants.Count()}");
         if (!validVariants.Any()) { return baseName; }
 
         // Using Concat for performance with many variants.

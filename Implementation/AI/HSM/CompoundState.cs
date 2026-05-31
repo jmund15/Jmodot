@@ -259,8 +259,6 @@ using Shared.GodotExceptions;
 
             EmitSignal(SignalName.TransitionedSubState, oldSubState, newSubState);
             if (_debugComponent.IsValid()) { _debugComponent.OnTransitionedState(oldSubState, newSubState); }
-
-            //JmoLogger.Debug(this, $"Completed transition FROM '{oldSubState.Name}' TO '{newSubState.Name}'. Current State '{PrimarySubState.Name}'");
         }
 
 
