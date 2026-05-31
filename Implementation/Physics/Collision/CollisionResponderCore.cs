@@ -106,6 +106,29 @@ public sealed class CollisionResponderCore : ICollisionResponder
     }
 
     /// <summary>
+    /// Convenience overload: unpacks an authored <see cref="CollisionResponseConfig"/> plus a
+    /// runtime-resolved stat provider into the field-by-field <c>Initialize</c>. The pierce/slide
+    /// strategy casts mirror the config's <c>CollisionPhysicsStrategy?</c> export type.
+    /// </summary>
+    public void Initialize(CollisionResponseConfig config, IStatProvider? statProvider)
+    {
+        Initialize(
+            config.CategoryResponses,
+            config.DefaultResponse,
+            config.UseNormalFallback,
+            config.GroundCategory,
+            config.WallCategory,
+            config.BounceStrategy,
+            config.PierceStrategy as PiercePhysicsStrategy,
+            config.SlideStrategy as SlidePhysicsStrategy,
+            config.ExemptLayers,
+            config.GravityScaleAttribute,
+            config.PostBounceGravityMultiplier,
+            config.BounceSpeedAttribute,
+            statProvider);
+    }
+
+    /// <summary>
     /// Clears all mutable per-instance state then re-registers counts. Call on pool reuse so a
     /// recycled host starts fresh. The bounce-frame sentinel resets to <see cref="ulong.MaxValue"/>
     /// (NOT 0 — a frame-0 bounce after reuse would otherwise be coalesced/swallowed).
@@ -120,7 +143,7 @@ public sealed class CollisionResponderCore : ICollisionResponder
         RegisterAllCounts();
     }
 
-    public bool HandleCollision(ICollisionHost host, CollisionContact contact)
+    public bool HandleCollision(ICollisionResponseHost host, CollisionContact contact)
     {
         // 0. EXEMPT LAYERS — persist without any processing
         if (_exemptLayers != 0 && contact.Collider is CollisionObject3D obj
@@ -145,7 +168,7 @@ public sealed class CollisionResponderCore : ICollisionResponder
         _slideStrategy?.ConfigureBody(host, hitbox);
     }
 
-    public bool HandleCollisionWithResponse(ICollisionHost host, CollisionContact contact, BaseCollisionResponse response)
+    public bool HandleCollisionWithResponse(ICollisionResponseHost host, CollisionContact contact, BaseCollisionResponse response)
     {
         // DESTROY — immediate exit, no properties needed
         if (response is DestroyCollisionResponse)
@@ -193,8 +216,10 @@ public sealed class CollisionResponderCore : ICollisionResponder
             }
         }
 
-        // Hoist impact speed once — used by both 3.5 (velocity fallback) and 4 (min threshold).
-        float impactSpeed = host.Controller.PreMoveVelocity.Length();
+        // Hoist impact speed once — used by 3.5 (velocity fallback), 4 (min threshold), and
+        // self-damage scaling. Polymorphic on the host: kinematic → pre-move velocity, rigid →
+        // its own contact-time source. No Controller dependency in the decision path.
+        float impactSpeed = host.CollisionImpactVelocity.Length();
 
         // 3.5. VELOCITY-DRIVEN FALLBACK — if impact speed is below the configured
         //     fallback threshold, swap to FallbackResponse (sticky per-mapping, same
@@ -214,8 +239,13 @@ public sealed class CollisionResponderCore : ICollisionResponder
             return true; // Persist without consuming count, self-damage, or physics
         }
 
-        // 5. DISPATCH PHYSICS — apply the physics strategy.
-        var physicsResult = DispatchPhysics(host, contact, durable);
+        // 5. ENACT PHYSICS — the host applies the selected strategy (kinematic delegates to
+        //    strategy.Apply; rigid enacts its own response). Ignore has no strategy → enacting
+        //    EnactCollisionResponse(null) would yield Failed and wrongly destroy, so guard it to
+        //    Applied, preserving the legacy "Ignore persists + consumes count" behavior.
+        PhysicsApplyResult physicsResult = durable is IgnoreCollisionResponse
+            ? PhysicsApplyResult.Applied
+            : host.EnactCollisionResponse(SelectStrategy(durable), contact, durable.VelocityRetention);
         if (physicsResult == PhysicsApplyResult.Failed)
         {
             return false;
@@ -244,15 +274,20 @@ public sealed class CollisionResponderCore : ICollisionResponder
                 RecordPierceHit(contact);
             }
 
-            // 9. APPLY BOUNCE STAT MODIFIERS — gravity (once) + speed (per-bounce)
-            ApplyBounceStatModifiers(durable);
-
-            // 10. APPLY PIERCE STAT MODIFIERS — speed (per-pierce)
-            ApplyPierceStatModifiers(durable);
+            // 9/10. APPLY POST-BOUNCE/PIERCE STAT MODIFIERS — kinematic-only. The gravity/speed
+            //    mods mutate the controller-backed movement pipeline via the stat system; a
+            //    non-kinematic host has no such pipeline, so a uniform skip is the correct
+            //    no-op (Marker Interface as Capability Query). _gravityModified is per-instance
+            //    core state, so this stays in the core rather than relocating to the host.
+            if (host is ICollisionHost)
+            {
+                ApplyBounceStatModifiers(durable);
+                ApplyPierceStatModifiers(durable);
+            }
 
             // 11. APPLY SELF-DAMAGE — health-less hosts no-op via IDamageable, matching the
             //     legacy "host.Health != null" gate's observable behavior.
-            float selfDamage = ResolveSelfDamage(host, durable);
+            float selfDamage = ResolveSelfDamage(impactSpeed, durable);
             if (selfDamage > 0)
             {
                 host.TakeDamage(selfDamage, this);
@@ -263,19 +298,21 @@ public sealed class CollisionResponderCore : ICollisionResponder
         return true;
     }
 
-    private PhysicsApplyResult DispatchPhysics(
-        ICollisionHost host, CollisionContact contact, DurableCollisionResponse response)
+    /// <summary>
+    /// Selects the configured physics strategy for a durable response. The host enacts it via
+    /// <see cref="ICollisionResponseHost.EnactCollisionResponse"/> — the core no longer calls
+    /// <c>Apply</c> directly. Returns null for Ignore (handled by the caller's guard) and for any
+    /// unrecognized future durable, so the host's <c>strategy?.Apply(…) ?? Failed</c> degrades to
+    /// Failed — matching the legacy switch's <c>_ => Failed</c> default.
+    /// </summary>
+    private ICollisionPhysicsStrategy? SelectStrategy(DurableCollisionResponse response)
     {
         return response switch
         {
-            BounceCollisionResponse => _bounceStrategy?.Apply(host, contact, response.VelocityRetention)
-                ?? PhysicsApplyResult.Failed,
-            PierceCollisionResponse => _pierceStrategy?.Apply(host, contact, response.VelocityRetention)
-                ?? PhysicsApplyResult.Failed,
-            SlideCollisionResponse  => _slideStrategy?.Apply(host, contact, response.VelocityRetention)
-                ?? PhysicsApplyResult.Failed,
-            IgnoreCollisionResponse => PhysicsApplyResult.Applied,
-            _ => PhysicsApplyResult.Failed
+            BounceCollisionResponse => _bounceStrategy,
+            PierceCollisionResponse => _pierceStrategy,
+            SlideCollisionResponse  => _slideStrategy,
+            _ => null
         };
     }
 
@@ -395,12 +432,11 @@ public sealed class CollisionResponderCore : ICollisionResponder
 
     // ─── Self-Damage Resolution ─────────────────────
 
-    private float ResolveSelfDamage(ICollisionHost host, DurableCollisionResponse response)
+    private float ResolveSelfDamage(float impactSpeed, DurableCollisionResponse response)
     {
         if (response.SelfDamageDefinition == null) { return 0f; }
 
-        float velocity = host.Controller.PreMoveVelocity.Length();
-        return response.SelfDamageDefinition.ResolveCollisionDamage(velocity, GetStatProvider());
+        return response.SelfDamageDefinition.ResolveCollisionDamage(impactSpeed, GetStatProvider());
     }
 
     /// <summary>

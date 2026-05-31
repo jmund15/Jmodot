@@ -18,7 +18,7 @@ public interface ICollisionResponder
     /// Resolves the response for the contact (category match → normal fallback → default) and
     /// dispatches it. Returns true to persist, false to destroy.
     /// </summary>
-    bool HandleCollision(ICollisionHost host, CollisionContact contact);
+    bool HandleCollision(ICollisionResponseHost host, CollisionContact contact);
 
     /// <summary>
     /// Dispatches a collision with an explicitly-provided response, bypassing mapping
@@ -26,7 +26,7 @@ public interface ICollisionResponder
     /// independently. All guards (count check, velocity thresholds, frame coalescing,
     /// debounce, stat modifiers) still apply.
     /// </summary>
-    bool HandleCollisionWithResponse(ICollisionHost host, CollisionContact contact, BaseCollisionResponse response);
+    bool HandleCollisionWithResponse(ICollisionResponseHost host, CollisionContact contact, BaseCollisionResponse response);
 
     /// <summary>
     /// Configures the host's physical body at initialization time (e.g., pierce layer masks).

@@ -48,20 +48,7 @@ public partial class CollisionResponderComponent3D : Node3D, IComponent, IPoolRe
 
         bb.TryGet(BBDataSig.Stats, out IStatProvider? stats);
 
-        _core.Initialize(
-            Config.CategoryResponses,
-            Config.DefaultResponse,
-            Config.UseNormalFallback,
-            Config.GroundCategory,
-            Config.WallCategory,
-            Config.BounceStrategy,
-            Config.PierceStrategy as PiercePhysicsStrategy,
-            Config.SlideStrategy as SlidePhysicsStrategy,
-            Config.ExemptLayers,
-            Config.GravityScaleAttribute,
-            Config.PostBounceGravityMultiplier,
-            Config.BounceSpeedAttribute,
-            stats);
+        _core.Initialize(Config, stats);
 
         IsInitialized = true;
         Initialized();
@@ -83,13 +70,13 @@ public partial class CollisionResponderComponent3D : Node3D, IComponent, IPoolRe
 
     #region ICollisionResponder
 
-    public bool HandleCollision(ICollisionHost host, CollisionContact contact)
+    public bool HandleCollision(ICollisionResponseHost host, CollisionContact contact)
     {
         if (!IsInitialized) { return true; }
         return _core.HandleCollision(host, contact);
     }
 
-    public bool HandleCollisionWithResponse(ICollisionHost host, CollisionContact contact, BaseCollisionResponse response)
+    public bool HandleCollisionWithResponse(ICollisionResponseHost host, CollisionContact contact, BaseCollisionResponse response)
     {
         if (!IsInitialized) { return true; }
         return _core.HandleCollisionWithResponse(host, contact, response);
