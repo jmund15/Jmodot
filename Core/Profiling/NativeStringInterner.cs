@@ -30,6 +30,8 @@ public sealed class NativeStringInterner<T>
     /// <summary>Returns the cached handle for <paramref name="s"/>, allocating once on first sight.</summary>
     public T Intern(string s)
     {
+        ArgumentNullException.ThrowIfNull(s);
+
         if (this._cache.TryGetValue(s, out var existing))
         {
             return existing;

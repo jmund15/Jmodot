@@ -111,6 +111,9 @@ public sealed class TracyProfilerBackend : IProfilerBackend
 #if TOOLS
     /// <summary>Clears the calling thread's zone stack so mapping tests start from a known state.</summary>
     internal static void ClearThreadZoneStackForTesting() => _zoneStack?.Clear();
+
+    /// <summary>Clears the cached ProjectSettings value so a future test re-reads it fresh.</summary>
+    internal static void ResetEnabledCacheForTesting() => _enabledCache = null;
 #endif
     #endregion
 }

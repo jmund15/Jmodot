@@ -26,6 +26,7 @@ public sealed class TracyNative : ITracyNative
     // distinct threads still share this map + counter — hence the concurrent-safe primitives.
     private readonly ConcurrentDictionary<ulong, PInvoke.TracyCZoneCtx> _activeZones = new();
     private readonly NativeStringInterner<CString> _nameInterner = new(CString.FromString);
+    private readonly object _internGate = new();
     private long _nextHandle;
 
     public bool IsAvailable { get; }
@@ -90,8 +91,13 @@ public sealed class TracyNative : ITracyNative
 
     public void Plot(string name, double value)
     {
-        // Stored by pointer → must persist; the interner allocs once and never frees.
-        CString interned = this._nameInterner.Intern(name);
+        // Stored by pointer → must persist; the interner allocs once and never frees. OnPlot carries
+        // no per-thread serialization (unlike zones), so guard the plain-Dictionary interner.
+        CString interned;
+        lock (this._internGate)
+        {
+            interned = this._nameInterner.Intern(name);
+        }
         PInvoke.TracyEmitPlot(interned, value);
     }
 
