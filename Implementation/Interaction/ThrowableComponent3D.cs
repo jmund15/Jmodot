@@ -23,6 +23,7 @@ public partial class ThrowableComponent3D : Node3D, IThrowable3D
 
     public bool IsFlying { get; private set; }
     public event Action<Node3D, Vector3> OnThrown = delegate { };
+    public event Action<Node3D, ReleasePayload> OnThrownWithPayload = delegate { };
 
     private CharacterBody3D _body = null!;
     private Vector3 _velocity;
@@ -38,12 +39,13 @@ public partial class ThrowableComponent3D : Node3D, IThrowable3D
         SetPhysicsProcess(false);
     }
 
-    public void Throw(Vector3 throwVelocity)
+    public void Throw(ReleasePayload payload)
     {
-        _velocity = throwVelocity;
+        _velocity = payload.LaunchVelocity;
         IsFlying = true;
         SetPhysicsProcess(true);
-        OnThrown?.Invoke(_body, throwVelocity);
+        OnThrown?.Invoke(_body, payload.LaunchVelocity);
+        OnThrownWithPayload?.Invoke(_body, payload);
     }
 
     public override void _PhysicsProcess(double delta)

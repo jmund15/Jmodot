@@ -7,6 +7,7 @@ using Core.Components;
 using Core.Input;
 using Core.Interaction;
 using Core.Shared.Attributes;
+using Core.Stats;
 using Implementation.AI.BB;
 using Implementation.Shared;
 using GCol = Godot.Collections;
@@ -40,6 +41,10 @@ public partial class HolderComponent3D : Node3D, IComponent, IHolder3D
     [Export] public Node3D? HoldAnchor { get; private set; }
 
     public Node3D? HeldNode { get; private set; }
+
+    private IStatProvider? _statProvider;
+    /// <inheritdoc />
+    public IStatProvider? StatProvider => _statProvider;
 
     public event Action<IGrabbable3D> AttemptingGrab = delegate { };
     public event Action<IGrabbable3D> CompletedGrab = delegate { };
@@ -237,6 +242,10 @@ public partial class HolderComponent3D : Node3D, IComponent, IHolder3D
             JmoLogger.Error(this, "[Interaction] IntentSource missing from Blackboard — holder release is inert.");
             return false;
         }
+
+        // Optional: a holder whose entity has no stats is valid (null StatProvider). Do NOT
+        // early-return false on absence — read the framework interface, never a PP-concrete type.
+        bb.TryGet<IStatProvider>(BBDataSig.Stats, out _statProvider);
 
         IsInitialized = true;
         Initialized.Invoke();

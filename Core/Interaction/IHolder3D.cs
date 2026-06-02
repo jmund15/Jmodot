@@ -3,6 +3,7 @@ namespace Jmodot.Core.Interaction;
 using System;
 using Godot;
 using Jmodot.Core.Shared;
+using Jmodot.Core.Stats;
 
 /// <summary>
 /// A component that can physically hold a <see cref="Node3D"/> and drive the
@@ -15,6 +16,13 @@ using Jmodot.Core.Shared;
 public interface IHolder3D : IGodotNodeInterface
 {
     Node3D? HeldNode { get; }
+
+    /// <summary>
+    /// Stats of the entity driving this holder, forwarded into a <see cref="ReleasePayload.Thrower"/>
+    /// on release so downstream effects can scale by the thrower. Null when the holder's entity has
+    /// no stats — a valid configuration, not an error.
+    /// </summary>
+    IStatProvider? StatProvider { get; }
 
     /// <summary>Begin the reserve→confirm handshake against <paramref name="grabbable"/>.</summary>
     bool RequestHold(IGrabbable3D grabbable);

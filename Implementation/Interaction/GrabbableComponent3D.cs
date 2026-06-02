@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Interaction;
 using System;
 using Godot;
 using Jmodot.Core.Interaction;
+using Jmodot.Core.Movement;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
@@ -36,6 +37,7 @@ public partial class GrabbableComponent3D : Node3D, IGrabbable3D, IThrowable3D, 
     public event Action<Node3D> OnGrabbed = delegate { };
     public event Action<Node3D> OnDropped = delegate { };
     public event Action<Node3D, Vector3> OnThrown = delegate { };
+    public event Action<Node3D, ReleasePayload> OnThrownWithPayload = delegate { };
     public event Action<Node3D> OnReleased = delegate { };
     #endregion
 
@@ -163,7 +165,7 @@ public partial class GrabbableComponent3D : Node3D, IGrabbable3D, IThrowable3D, 
         ReleaseInternal(fireDropped: true, fireReleased: true);
     }
 
-    public void Throw(Vector3 throwVelocity)
+    public void Throw(ReleasePayload payload)
     {
         if (_currentState != MechanicalState.HELD)
         {
@@ -175,8 +177,14 @@ public partial class GrabbableComponent3D : Node3D, IGrabbable3D, IThrowable3D, 
         // ReleaseInternal handles state cleanup and fires OnDropped + OnReleased once.
         ReleaseInternal(fireDropped: true, fireReleased: true);
 
+        // Launch AFTER ReleaseInternal: a frozen RigidBody discards velocity set before unfreeze.
+        // Null-conditional no-ops safely for bodies that are not launchable.
+        (PhysicalBody as ILaunchable3D)?.Launch(payload.LaunchVelocity);
+
         // holder guaranteed non-null when we were in HELD state.
-        OnThrown?.Invoke((Node3D)holder!.GetUnderlyingNode(), throwVelocity);
+        var holderNode = (Node3D)holder!.GetUnderlyingNode();
+        OnThrown?.Invoke(holderNode, payload.LaunchVelocity);
+        OnThrownWithPayload?.Invoke(holderNode, payload);
     }
 
     /// <summary>
