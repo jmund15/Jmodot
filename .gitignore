@@ -76,6 +76,7 @@ packages/
 # General igno
 # Claude Code session artifacts
 logs/
+.claude/.cache/
 
 # Semantic-search plugin index (DreB)
 .search-index/
