@@ -41,9 +41,9 @@ public partial class AffinityCurveModifier : ConsiderationModifier
             return baseScore;
         }
 
-        // Get the affinities component from the blackboard.
-        var affinities = blackboard.Get<AIAffinitiesComponent>(BBDataSig.Affinities);
-        if (affinities == null)
+        // TryGet (not Get): an agent without an AIAffinitiesComponent has the key absent, which
+        // Get would THROW on — defeating the graceful base-score path below. TryGet returns false.
+        if (!blackboard.TryGet<AIAffinitiesComponent>(BBDataSig.Affinities, out var affinities) || affinities == null)
         {
             JmoLogger.Warning(
                 this,
@@ -72,4 +72,11 @@ public partial class AffinityCurveModifier : ConsiderationModifier
         // 3. Apply the multiplier to the base score.
         return baseScore * multiplier;
     }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>Test seam: sets the private response curve so the affinity-lookup path is reachable.</summary>
+    internal void _TestSetResponseCurve(Curve curve) => this._responseCurve = curve;
+#endif
+    #endregion
 }

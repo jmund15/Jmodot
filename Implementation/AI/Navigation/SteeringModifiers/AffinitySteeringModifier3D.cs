@@ -32,10 +32,11 @@ public partial class AffinitySteeringModifier3D : SteeringConsiderationModifier3
             return;
         }
 
-        var affinities = blackboard.Get<AIAffinitiesComponent>(BBDataSig.Affinities);
-        if (affinities == null)
+        // TryGet (not Get): an agent without an AIAffinitiesComponent has the key absent, which
+        // Get would THROW on — defeating this graceful skip. TryGet returns false.
+        if (!blackboard.TryGet<AIAffinitiesComponent>(BBDataSig.Affinities, out var affinities) || affinities == null)
         {
-            return; // Agent will have logged this critical error already.
+            return;
         }
 
         // --- Core Logic ---
@@ -56,4 +57,15 @@ public partial class AffinitySteeringModifier3D : SteeringConsiderationModifier3
             scores[key] *= multiplier;
         }
     }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>Test seam: sets the private exports so the affinity-lookup path is reachable.</summary>
+    internal void _TestSetExports(Affinity affinity, Curve curve)
+    {
+        this._affinityToMeasure = affinity;
+        this._responseCurve = curve;
+    }
+#endif
+    #endregion
 }
