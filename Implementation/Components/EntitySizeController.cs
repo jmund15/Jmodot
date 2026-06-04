@@ -55,7 +55,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
     /// <summary>
     /// Parent nodes whose descendants should NOT be scaled.
-    /// Use this to exclude entire branches (e.g., GrabberComponent3D for wizards).
+    /// Use this to exclude entire branches (e.g., a detection or interaction sub-area).
     /// </summary>
     [Export] public GCol.Array<Node>? ExcludedParents { get; set; }
 

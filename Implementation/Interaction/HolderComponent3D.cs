@@ -19,7 +19,7 @@ using GCol = Godot.Collections;
 /// Framework-general — the consuming game's animation state machine calls <see cref="ConfirmHold"/>
 /// from a reach keyframe and <see cref="CompleteRelease"/> after a release animation.
 ///
-/// <para>Replaces the actor-side role of the old PushinPotions <c>GrabberComponent3D</c>; absorbs
+/// <para>Replaces the actor-side role of the consuming game's former grab god-component; absorbs
 /// its handshake + the hand's reparent-holding. Detection/dispatch is the
 /// <see cref="InteractorComponent3D"/>'s job — grab arrives via the interact verb
 /// (<see cref="GrabbableComponent3D.Interact"/> → <see cref="RequestHold"/>).</para>
