@@ -38,14 +38,6 @@ using GColl = Godot.Collections;
 /// <see cref="Examples.AI.HSM.TransitionConditions.StatusActiveAnyTagCondition"/>
 /// (entry: any trigger tag active; exit: same condition with Inverted=true).
 /// </para>
-/// <para>
-/// <b>MUTUAL EXCLUSIVITY with <c>MovementOverrideStatusRunner</c>:</b> both call
-/// <c>MovementProcessor3D.SetStrategyOverride</c>. The processor's slot is single-writer-at-a-time;
-/// concurrent writers trigger <c>JmoLogger.Warning</c> on conflict. <c>ClearStrategyOverride</c>
-/// ordering determines final state — author tag categories so AI-suppressing statuses
-/// (freeze/stun, profile-driven via this state) and movement-feel statuses (slow/haste,
-/// runner-driven) cannot be simultaneously active on the same entity.
-/// </para>
 /// </remarks>
 [GlobalClass, Tool]
 public partial class BehaviorSuppressedState : State
