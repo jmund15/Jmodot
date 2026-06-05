@@ -44,6 +44,38 @@ public sealed class JmoRng
     public int GetRndInRange(int min, int max) => _rng.RandiRange(min, max);
 
     /// <summary>
+    /// Returns a deterministic random <c>long</c> in [0, <paramref name="maxExclusive"/>).
+    /// Godot exposes no native 64-bit draw, so the value is assembled from two 32-bit
+    /// <see cref="RandomNumberGenerator.Randi"/> words in <c>ulong</c> space (assembling through
+    /// <c>int</c> would sign-extend the high word). Rejection sampling discards the incomplete
+    /// top bucket so the result is free of modulo bias. Same seed → same sequence.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">If <paramref name="maxExclusive"/> &lt;= 0.</exception>
+    public long GetRndLong(long maxExclusive)
+    {
+        if (maxExclusive <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxExclusive), maxExclusive, "maxExclusive must be positive.");
+        }
+
+        ulong range = (ulong)maxExclusive;
+        // Largest multiple of range that fits in ulong; samples at or above it fall in the
+        // incomplete final bucket and are rejected to keep the distribution uniform.
+        ulong limit = ulong.MaxValue - (ulong.MaxValue % range);
+        ulong sample;
+        do
+        {
+            ulong hi = _rng.Randi();
+            ulong lo = _rng.Randi();
+            sample = (hi << 32) | lo;
+        }
+        while (sample >= limit);
+
+        return (long)(sample % range);
+    }
+
+    /// <summary>
     /// Returns a random float in [min, max). Max is exclusive (System.Random.NextSingle
     /// scaling), unlike <see cref="RandomNumberGenerator.RandfRange"/> which is inclusive.
     /// </summary>
