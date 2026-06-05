@@ -18,6 +18,14 @@ public interface IBlackboard : IBlackboardReadOnly
     /// distinguish "key absent" from "key present, value null", track the absence separately
     /// (e.g. via <see cref="IBlackboardReadOnly.ContainsLocal"/>) — do not rely on
     /// <c>TryGet</c> alone.
+    /// <para>
+    /// <b>Subscriber notification on null-write is intentional:</b> a null write still fires the
+    /// key's subscribers (and the wildcard graph-dispatch hook) with a <c>null</c> payload. This
+    /// is the canonical "value cleared" signal — consumers may act on it (e.g. resetting a latched
+    /// flag, fanning a clear down the blackboard graph). It deliberately does NOT mirror the
+    /// <c>TryGet</c>=false read semantics above: the producer-notify and reader-query sides are
+    /// asymmetric by design.
+    /// </para>
     /// </remarks>
-    Error Set<T>(StringName key, T value);
+    void Set<T>(StringName key, T value);
 }

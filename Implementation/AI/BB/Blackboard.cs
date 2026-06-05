@@ -43,7 +43,7 @@ public partial class Blackboard : Node, IBlackboard
     /// Sets a value in the blackboard. It intelligently stores the value
     /// either as a Variant (for Godot types) or a direct object reference (for POCOs).
     /// </summary>
-    public Error Set<T>(StringName key, T val)
+    public void Set<T>(StringName key, T val)
     {
         // Null values can be tricky, let's handle them explicitly.
         // We'll store them in the variant dictionary as a Nil variant.
@@ -52,7 +52,7 @@ public partial class Blackboard : Node, IBlackboard
             _pocoData.Remove(key);
             _variantData[key] = default; // Variant.Type.Nil
             NotifySubscribers(key, default);
-            return Error.Ok;
+            return;
         }
 
         // The key distinction: Does T inherit from GodotObject?
@@ -62,7 +62,7 @@ public partial class Blackboard : Node, IBlackboard
             _pocoData.Remove(key); // Ensure no key collision.
             if (_variantData.TryGetValue(key, out var oldVal) && oldVal.Obj == godotObj)
             {
-                return Error.Ok; // No change
+                return; // No change
             }
             Variant v = Variant.From(godotObj);
             _variantData[key] = v;
@@ -76,7 +76,7 @@ public partial class Blackboard : Node, IBlackboard
             Variant v = Variant.From(val); // This will work for types with [MustBeVariant]
             if (_variantData.TryGetValue(key, out var oldVal) && oldVal.Equals(v))
             {
-                 return Error.Ok; // No change
+                 return; // No change
             }
             _variantData[key] = v;
             NotifySubscribers(key, v);
@@ -88,7 +88,7 @@ public partial class Blackboard : Node, IBlackboard
             _variantData.Remove(key); // Ensure no key collision.
             if (_pocoData.TryGetValue(key, out var oldVal) && ReferenceEquals(oldVal, val))
             {
-                return Error.Ok; // No change
+                return; // No change
             }
             _pocoData[key] = val;
             // Pass the boxed POCO value to subscribers — Subscriptions IS Action<object>,
@@ -98,8 +98,6 @@ public partial class Blackboard : Node, IBlackboard
             // fan-out for POCO writes (e.g. StringName signal values).
             NotifySubscribers(key, val!);
         }
-
-        return Error.Ok;
     }
 
     /// <summary>
