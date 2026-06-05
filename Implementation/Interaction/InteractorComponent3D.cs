@@ -185,6 +185,7 @@ public partial class InteractorComponent3D : Area3D, IComponent
     internal void SetInteractAction(InputAction value) => InteractAction = value;
     internal void SimulateAreaEntered(Area3D area) => OnAreaEntered(area);
     internal void SimulateAreaExited(Area3D area) => OnAreaExited(area);
+    internal void SetIntentSourceForTesting(IIntentSource value) => _intentSource = value;
 
 #endif
     #endregion
