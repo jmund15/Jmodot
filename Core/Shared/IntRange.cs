@@ -1,14 +1,24 @@
 namespace Jmodot.Core.Shared;
 
 using System;
+using Godot;
 
 /// <summary>
-///     An inclusive integer interval <c>[Min, Max]</c>. A dependency-free value type for
-///     deterministic generation config (counts, spans, budgets). Equality is structural
-///     (record struct), so two ranges with the same bounds compare equal.
+///     An inclusive integer interval <c>[Min, Max]</c> for deterministic generation config
+///     (counts, spans, budgets). A <see cref="Resource" /> so designers author it once in the
+///     Inspector and share it across config Resources (depth ranges, spine/branch specs, budgets)
+///     instead of repeating int-pair <c>[Export]</c>s. Reference identity, not value equality —
+///     two ranges with the same bounds are distinct instances.
 /// </summary>
-public readonly record struct IntRange(int Min, int Max)
+[GlobalClass, Tool]
+public sealed partial class IntRange : Resource
 {
+    /// <summary>Inclusive lower bound. Defaults to 0; consumers decide what an unset/zero bound means.</summary>
+    [Export] public int Min { get; set; }
+
+    /// <summary>Inclusive upper bound. Defaults to 0; consumers decide what an unset/zero bound means.</summary>
+    [Export] public int Max { get; set; }
+
     /// <summary>True if <paramref name="value" /> lies within <c>[Min, Max]</c> (both ends inclusive).</summary>
     public bool Contains(int value) => value >= this.Min && value <= this.Max;
 
