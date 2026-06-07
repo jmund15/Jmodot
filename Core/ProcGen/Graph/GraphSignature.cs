@@ -24,9 +24,9 @@ public static class GraphSignature
 {
     // ASCII control chars chosen as delimiters because they never appear in authored node ids,
     // template ids, or port names — so a tuple boundary can never be forged by id content.
-    private const char FieldSep = '\u001F';   // unit separator — between tuple members
-    private const char RecordSep = '\u001E';  // record separator — between records within a section
-    private const char SectionSep = '\u001D'; // group separator — between the node and edge sections
+    internal const char FieldSep = '\u001F';   // unit separator — between tuple members
+    internal const char RecordSep = '\u001E';  // record separator — between records within a section
+    internal const char SectionSep = '\u001D'; // group separator — between the node and edge sections
 
     /// <summary>
     ///     Produces the canonical topology signature of <paramref name="graph" />. Stable across
