@@ -7,24 +7,33 @@ using Jmodot.Core.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 /// <summary>
-///     The isolated spec for alternate routes (parallel paths off the spine): how many
-///     (<see cref="Count" />), how long each (<see cref="Length" />), where they attach
+///     The isolated spec for alternate routes (parallel paths off the spine): how many GUARANTEED
+///     loops co-planned with the spine backbone (<see cref="GuaranteedCount" />), how many extra
+///     OPPORTUNISTIC loops decorated afterward (<see cref="OpportunisticCount" />), how long each
+///     (<see cref="Length" />), the minimum spine separation between a loop's divergence and rejoin
+///     endpoints (<see cref="MinAnchorSeparation" />), where they attach
 ///     (<see cref="AttachmentWeights" />), plus structure-local placement rules. Draws from the
 ///     global config; never cross-references the spine or branch specs (two-tier isolation).
 /// </summary>
 [GlobalClass, Tool]
 public sealed partial class AlternateRouteSpec : Resource
 {
-    /// <summary>Inclusive count of alternate routes to generate. Null leaves it to the generator default.</summary>
+    /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × MinAnchorSeparation + 3.</summary>
     [ExportGroup("Topology")]
-    [Export] public IntRange? Count { get; private set; }
+    [Export] public IntRange? GuaranteedCount { get; private set; }
+
+    /// <summary>Inclusive count of OPPORTUNISTIC loops — extra best-effort routes decorated after the backbone; soft-skipped if they cannot close. Null leaves it to the generator default.</summary>
+    [Export] public IntRange? OpportunisticCount { get; private set; }
 
     /// <summary>Inclusive node-count range per alternate route. Null leaves it to the generator default.</summary>
     [Export] public IntRange? Length { get; private set; }
 
-    /// <summary>SOFT biases scoring which spine node a route attaches to. Empty slots dropped by <see cref="EffectiveAttachmentWeights" />.</summary>
+    /// <summary>Minimum spine separation (DistanceFromSource gap) between a guaranteed loop's divergence X and rejoin Y. <c>&gt;= 2</c> keeps the loop non-degenerate (avoids a 1-segment loop). Read by the generator's anchor-pair eligibility and by the consuming profile's backbone-feasibility check (Spine.Length.Min ≥ GuaranteedCount.Min × this + 3).</summary>
+    [Export(PropertyHint.Range, "1,16,or_greater")] public int MinAnchorSeparation { get; private set; } = 2;
+
+    /// <summary>SOFT biases scoring how attractive a node is as a route ENDPOINT (divergence X / rejoin Y; see <see cref="EndpointWeight" />). A distinct family from <see cref="Weights" /> (room-selection placement scoring). Empty slots dropped by <see cref="EffectiveAttachmentWeights" />.</summary>
     [ExportGroup("Placement Rules")]
-    [Export] public Godot.Collections.Array<SlotWeight?> AttachmentWeights { get; private set; } = new();
+    [Export] public Godot.Collections.Array<EndpointWeight?> AttachmentWeights { get; private set; } = new();
 
     /// <summary>Structure-local HARD filters for route placements (combined with global constraints). Empty slots dropped by <see cref="EffectiveConstraints" />.</summary>
     [Export] public Godot.Collections.Array<SlotConstraint?> Constraints { get; private set; } = new();
@@ -33,8 +42,8 @@ public sealed partial class AlternateRouteSpec : Resource
     [Export] public Godot.Collections.Array<SlotWeight?> Weights { get; private set; } = new();
 
     /// <summary>Null-filtered view of <see cref="AttachmentWeights" />, recomputed per read.</summary>
-    public IReadOnlyList<SlotWeight> EffectiveAttachmentWeights =>
-        this.AttachmentWeights.Where(w => w != null).Cast<SlotWeight>().ToList();
+    public IReadOnlyList<EndpointWeight> EffectiveAttachmentWeights =>
+        this.AttachmentWeights.Where(w => w != null).Cast<EndpointWeight>().ToList();
 
     /// <summary>Null-filtered view of <see cref="Constraints" />, recomputed per read.</summary>
     public IReadOnlyList<SlotConstraint> EffectiveConstraints =>
@@ -44,20 +53,31 @@ public sealed partial class AlternateRouteSpec : Resource
     public IReadOnlyList<SlotWeight> EffectiveWeights =>
         this.Weights.Where(w => w != null).Cast<SlotWeight>().ToList();
 
-    /// <summary>Per-knob fail-fast: validates <see cref="Count" /> and <see cref="Length" /> (Min≤Max) and rejects null rule-array entries.</summary>
+    /// <summary>Per-knob fail-fast: validates <see cref="GuaranteedCount" />, <see cref="OpportunisticCount" />, <see cref="Length" /> (Min≤Max, Min≥0), <see cref="MinAnchorSeparation" /> (≥1), and rejects null rule-array entries.</summary>
     public void Validate()
     {
-        this.Count?.Validate();
+        this.GuaranteedCount?.Validate();
+        this.OpportunisticCount?.Validate();
         this.Length?.Validate();
-        if (this.Count != null && this.Count.Min < 0)
+        if (this.GuaranteedCount != null && this.GuaranteedCount.Min < 0)
         {
             throw new ResourceConfigurationException(
-                $"{nameof(AlternateRouteSpec)}.{nameof(this.Count)}.Min must be non-negative.", this);
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.GuaranteedCount)}.Min must be non-negative.", this);
+        }
+        if (this.OpportunisticCount != null && this.OpportunisticCount.Min < 0)
+        {
+            throw new ResourceConfigurationException(
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.OpportunisticCount)}.Min must be non-negative.", this);
         }
         if (this.Length != null && this.Length.Min < 0)
         {
             throw new ResourceConfigurationException(
                 $"{nameof(AlternateRouteSpec)}.{nameof(this.Length)}.Min must be non-negative.", this);
+        }
+        if (this.MinAnchorSeparation < 1)
+        {
+            throw new ResourceConfigurationException(
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.MinAnchorSeparation)} must be >= 1.", this);
         }
         if (this.AttachmentWeights.Any(w => w is null))
         {
@@ -78,9 +98,11 @@ public sealed partial class AlternateRouteSpec : Resource
 
     #region Test Helpers
 #if TOOLS
-    internal void SetCount(IntRange? value) => this.Count = value;
+    internal void SetGuaranteedCount(IntRange? value) => this.GuaranteedCount = value;
+    internal void SetOpportunisticCount(IntRange? value) => this.OpportunisticCount = value;
     internal void SetLength(IntRange? value) => this.Length = value;
-    internal void SetAttachmentWeights(Godot.Collections.Array<SlotWeight?> value) => this.AttachmentWeights = value;
+    internal void SetMinAnchorSeparation(int value) => this.MinAnchorSeparation = value;
+    internal void SetAttachmentWeights(Godot.Collections.Array<EndpointWeight?> value) => this.AttachmentWeights = value;
     internal void SetConstraints(Godot.Collections.Array<SlotConstraint?> value) => this.Constraints = value;
     internal void SetWeights(Godot.Collections.Array<SlotWeight?> value) => this.Weights = value;
 #endif

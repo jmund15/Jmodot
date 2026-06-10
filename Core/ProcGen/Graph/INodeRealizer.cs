@@ -22,4 +22,11 @@ public interface INodeRealizer
     ///     <paramref name="region" /> on success, or <c>false</c> (region defaulted) if vetoed.
     /// </summary>
     bool TryReserve(in ReserveRequest request, IReadOnlyCollection<ReservedRegion> occupied, out ReservedRegion region);
+
+    /// <summary>
+    ///     Releases a previously-reserved <paramref name="region" />, undoing a <see cref="TryReserve" />
+    ///     during backtrack (a routing node is uncommitted so the generator can re-pick elsewhere). The
+    ///     engine never reads region geometry back — this is the sole un-reserve channel.
+    /// </summary>
+    void Release(in ReservedRegion region);
 }

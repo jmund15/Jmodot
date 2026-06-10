@@ -7,7 +7,7 @@ using Jmodot.Core.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 /// <summary>
-///     The isolated spec for branches (dead-end offshoots): how many (<see cref="Density" />), how
+///     The isolated spec for branches (dead-end offshoots): how many (<see cref="Count" />), how
 ///     deep each reaches (<see cref="Depth" />), and the branching factor (<see cref="FanOut" />),
 ///     plus structure-local placement rules. Draws from the global config; never cross-references
 ///     the spine or alternate-route specs (two-tier isolation). Depth bounds topology only —
@@ -18,7 +18,7 @@ public sealed partial class BranchSpec : Resource
 {
     /// <summary>Inclusive count of branches to grow off the graph. Null leaves it to the generator default.</summary>
     [ExportGroup("Topology")]
-    [Export] public IntRange? Density { get; private set; }
+    [Export] public IntRange? Count { get; private set; }
 
     /// <summary>Inclusive per-branch depth (node reach from its attachment point). Null leaves it to the generator default.</summary>
     [Export] public IntRange? Depth { get; private set; }
@@ -41,16 +41,16 @@ public sealed partial class BranchSpec : Resource
     public IReadOnlyList<SlotWeight> EffectiveWeights =>
         this.Weights.Where(w => w != null).Cast<SlotWeight>().ToList();
 
-    /// <summary>Per-knob fail-fast: validates <see cref="Density" />, <see cref="Depth" />, <see cref="FanOut" /> (Min≤Max) and rejects null rule-array entries.</summary>
+    /// <summary>Per-knob fail-fast: validates <see cref="Count" />, <see cref="Depth" />, <see cref="FanOut" /> (Min≤Max) and rejects null rule-array entries.</summary>
     public void Validate()
     {
-        this.Density?.Validate();
+        this.Count?.Validate();
         this.Depth?.Validate();
         this.FanOut?.Validate();
-        if (this.Density != null && this.Density.Min < 0)
+        if (this.Count != null && this.Count.Min < 0)
         {
             throw new ResourceConfigurationException(
-                $"{nameof(BranchSpec)}.{nameof(this.Density)}.Min must be non-negative.", this);
+                $"{nameof(BranchSpec)}.{nameof(this.Count)}.Min must be non-negative.", this);
         }
         if (this.Depth != null && this.Depth.Min < 0)
         {
@@ -76,7 +76,7 @@ public sealed partial class BranchSpec : Resource
 
     #region Test Helpers
 #if TOOLS
-    internal void SetDensity(IntRange? value) => this.Density = value;
+    internal void SetCount(IntRange? value) => this.Count = value;
     internal void SetDepth(IntRange? value) => this.Depth = value;
     internal void SetFanOut(IntRange? value) => this.FanOut = value;
     internal void SetConstraints(Godot.Collections.Array<SlotConstraint?> value) => this.Constraints = value;

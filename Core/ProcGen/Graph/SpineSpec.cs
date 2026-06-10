@@ -19,6 +19,12 @@ public sealed partial class SpineSpec : Resource
     [ExportGroup("Topology")]
     [Export] public IntRange? Length { get; private set; }
 
+    /// <summary>Optional forced entrance template for the Source node. Endpoints are SPECIAL — pinned by this slot, not via an interior <c>Pins</c> index. Null leaves the Source template to the generator. Validated at generation time (unsatisfiable → PinUnsatisfiable), not by topology-only <see cref="Validate" />.</summary>
+    [Export] public PinnedPlacement? SourcePin { get; private set; }
+
+    /// <summary>Optional forced boss/exit template for the Sink node. The Sink position is sample-dependent, so it cannot use a fixed interior index — it is pinned by this slot. Null leaves the Sink template to the generator. Validated at generation time, not by topology-only <see cref="Validate" />.</summary>
+    [Export] public PinnedPlacement? SinkPin { get; private set; }
+
     /// <summary>Structure-local HARD filters for spine placements (combined with global constraints). Empty Inspector slots (null) are dropped by <see cref="EffectiveConstraints" />.</summary>
     [ExportGroup("Placement Rules")]
     [Export] public Godot.Collections.Array<SlotConstraint?> Constraints { get; private set; } = new();
@@ -58,6 +64,8 @@ public sealed partial class SpineSpec : Resource
     #region Test Helpers
 #if TOOLS
     internal void SetLength(IntRange? value) => this.Length = value;
+    internal void SetSourcePin(PinnedPlacement? value) => this.SourcePin = value;
+    internal void SetSinkPin(PinnedPlacement? value) => this.SinkPin = value;
     internal void SetConstraints(Godot.Collections.Array<SlotConstraint?> value) => this.Constraints = value;
     internal void SetWeights(Godot.Collections.Array<SlotWeight?> value) => this.Weights = value;
 #endif

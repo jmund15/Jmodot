@@ -14,4 +14,7 @@ public enum ViolationKind
 
     /// <summary>A pinned placement could not be satisfied (no admissible slot at its anchor).</summary>
     PinUnsatisfiable,
+
+    /// <summary>Generation completed but fewer guaranteed alternate routes were embedded than required.</summary>
+    AlternateRoutesUnfilled,
 }
