@@ -9,29 +9,26 @@ using Jmodot.Core.Shared;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
-///     The constructive floor-graph generator (P3a.6, realizer-free since P3b.3): turns an
-///     <see cref="ISkeletonConfig" /> + a root seed into a deterministic, gate-aware Source→Sink
-///     topology. A static utility (matching <c>PointCloudGenerator</c>) — every draw derives a
-///     distinct seeded sub-stream from the floor seed, so the whole algorithm is RNG-free at the
-///     boundary and re-runnable byte-for-byte.
+///     The constructive floor-graph generator (P3a.6, realizer-free since P3b.3, single-attempt
+///     since P3b.5): turns an <see cref="ISkeletonConfig" /> + ONE floor seed into a deterministic,
+///     gate-aware Source→Sink topology. A static utility (matching <c>PointCloudGenerator</c>) —
+///     every draw derives a distinct seeded sub-stream from the floor seed, so the whole algorithm
+///     is RNG-free at the boundary and re-runnable byte-for-byte.
 ///     <para>
 ///         Stage 1 of the two-stage pipeline (design-se §1): this pass is pure topology — geometry
-///         embedding is the holistic embedder's job (stage 2), run by the floor pipeline against the
-///         finished graph. Interim (until the P3b.5 publish slice) the generator keeps its floor
-///         re-roll loop and stays publicly callable as the graph-view data source.
+///         embedding is the holistic embedder's job (stage 2). <c>FloorPipeline</c> is the ONE
+///         re-roll owner: it derives the per-attempt floor seed and decides retry-vs-fail-fast from
+///         the returned violation kinds (<see cref="ViolationKind.PinUnsatisfiable" /> can never be
+///         fixed by re-rolling; <see cref="ViolationKind.SpineInfeasible" /> can).
 ///     </para>
 /// </summary>
-public static class GraphGenerator
+internal static class GraphGenerator
 {
-    // Config-promotable (no formal promote-machinery — matches PointCloudGenerator.MaxRejectionIterations).
-    // Relocates to FloorPipelineSettings at the P3b.5 publish slice.
-    private const int MaxFloorAttempts = 16;
-
     // ASCII unit separator — the same id-delimiter discipline PartialGraph / CandidateSlot use, so node
     // id segments can never be forged by id content.
     private const char Sep = (char)0x1F;
 
-    public static GraphGenerationResult Generate(ISkeletonConfig config, int seedRoot)
+    public static GraphGenerationResult GenerateSingle(ISkeletonConfig config, int floorSeed)
     {
         if (config == null)
         {
@@ -40,30 +37,11 @@ public static class GraphGenerator
 
         config.Validate();
 
-        var fatal = new Violation(
-            ViolationKind.SpineInfeasible, Severity.Fatal,
-            "Spine could not be laid within the floor-attempt budget.");
-
-        for (int attempt = 0; attempt < MaxFloorAttempts; attempt++)
-        {
-            int floorSeed = SeedManager.DeriveChild(seedRoot, "floor", attempt.ToString());
-            var state = new GenState(config, floorSeed);
-            var outcome = state.BuildFloor(out var cause);
-            if (outcome == FloorOutcome.Ok)
-            {
-                return state.ToResult(attempt + 1, succeeded: true);
-            }
-
-            if (outcome == FloorOutcome.PinUnsatisfiable)
-            {
-                // A pin can never become satisfiable by re-rolling — fail fast, do not exhaust attempts.
-                return GenState.Failure(attempt + 1, cause);
-            }
-
-            fatal = cause;
-        }
-
-        return GenState.Failure(MaxFloorAttempts, fatal);
+        var state = new GenState(config, floorSeed);
+        var outcome = state.BuildFloor(out var cause);
+        return outcome == FloorOutcome.Ok
+            ? state.ToResult(succeeded: true)
+            : GenState.Failure(cause);
     }
 
     /// <summary>
@@ -851,16 +829,15 @@ public static class GraphGenerator
 
         // ── Result materialization ──────────────────────────────────────────
 
-        public GraphGenerationResult ToResult(int attempts, bool succeeded)
+        public GraphGenerationResult ToResult(bool succeeded)
         {
             IFloorGraph? graph = this._g.HasSpineEndpoints ? this._g.ToFloorGraph() : null;
-            return new GraphGenerationResult(graph, attempts, this._warnings.ToList(), succeeded);
+            return new GraphGenerationResult(graph, this._warnings.ToList(), succeeded);
         }
 
-        public static GraphGenerationResult Failure(int attempts, Violation cause)
+        public static GraphGenerationResult Failure(Violation cause)
             => new(
                 null,
-                attempts,
                 new List<Violation> { cause },
                 succeeded: false);
 

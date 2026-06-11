@@ -44,7 +44,7 @@ public static class GraphSignature
             .OrderBy(s => s, StringComparer.Ordinal);
 
         var edgeTuples = graph.Edges
-            .Select(EdgeTuple)
+            .Select(e => EdgeTupleCore(e, includePorts: true))
             .OrderBy(s => s, StringComparer.Ordinal);
 
         var builder = new StringBuilder();
@@ -54,7 +54,10 @@ public static class GraphSignature
         return builder.ToString();
     }
 
-    private static string EdgeTuple(IGraphEdge e)
+    // The ONE canonical edge tuple every signature derives from: GraphSignature keeps the port
+    // columns, TopologySignature projects them out. A future edge field added here joins every
+    // signature at once and can never silently miss one of them.
+    internal static string EdgeTupleCore(IGraphEdge e, bool includePorts)
     {
         if (e.Provenance.Kind == EdgeProvenanceKind.Unset)
         {
@@ -62,15 +65,22 @@ public static class GraphSignature
                 $"Edge {e.From.Id}:{e.FromPort} -> {e.To.Id}:{e.ToPort} carries Unset provenance; a signature cannot be computed over an unstamped edge.");
         }
 
-        return string.Join(
-            FieldSep,
-            e.From.Id.ToString(),
-            e.FromPort.ToString(),
-            e.To.Id.ToString(),
-            e.ToPort.ToString(),
-            e.IsGated.ToString(),
-            e.Traversal.ToString(),
-            e.Provenance.Kind.ToString(),
-            e.Provenance.RouteOrdinal.ToString());
+        var fields = new List<string>(8) { e.From.Id.ToString() };
+        if (includePorts)
+        {
+            fields.Add(e.FromPort.ToString());
+        }
+
+        fields.Add(e.To.Id.ToString());
+        if (includePorts)
+        {
+            fields.Add(e.ToPort.ToString());
+        }
+
+        fields.Add(e.IsGated.ToString());
+        fields.Add(e.Traversal.ToString());
+        fields.Add(e.Provenance.Kind.ToString());
+        fields.Add(e.Provenance.RouteOrdinal.ToString());
+        return string.Join(FieldSep, fields);
     }
 }

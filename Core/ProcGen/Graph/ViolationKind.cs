@@ -17,4 +17,13 @@ public enum ViolationKind
 
     /// <summary>Generation completed but fewer guaranteed alternate routes were embedded than required.</summary>
     AlternateRoutesUnfilled,
+
+    /// <summary>Embedding failed closure-parity arithmetic (no pose assignment can close a cycle on the grid).</summary>
+    EmbedClosureParity,
+
+    /// <summary>Embedding ran out of envelope space or repair budget while placing footprints.</summary>
+    EmbedSpaceTight,
+
+    /// <summary>Embedding found no compatible port binding for an edge.</summary>
+    EmbedNoBinding,
 }
