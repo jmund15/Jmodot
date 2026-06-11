@@ -9,37 +9,33 @@ using Jmodot.Core.Shared;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
-///     The constructive floor-graph generator (P3a.6): turns an <see cref="ISkeletonConfig" /> + a
-///     root seed into a deterministic, gate-aware Source→Sink topology with a per-node geometry layout.
-///     A static utility (matching <c>PointCloudGenerator</c>) — every draw derives a distinct seeded
-///     sub-stream from the floor seed, so the whole algorithm is RNG-free at the boundary and
-///     re-runnable byte-for-byte.
+///     The constructive floor-graph generator (P3a.6, realizer-free since P3b.3): turns an
+///     <see cref="ISkeletonConfig" /> + a root seed into a deterministic, gate-aware Source→Sink
+///     topology. A static utility (matching <c>PointCloudGenerator</c>) — every draw derives a
+///     distinct seeded sub-stream from the floor seed, so the whole algorithm is RNG-free at the
+///     boundary and re-runnable byte-for-byte.
 ///     <para>
-///         Boundary purity (design §9/§10): the engine never reads back <see cref="ReservedRegion" />
-///         geometry. Route closure is <b>topological</b> (a free, type-compatible port on the target);
-///         the realizer's <see cref="INodeRealizer.TryReserve" /> veto is the sole placement-failure
-///         signal, and <see cref="INodeRealizer.Release" /> the sole un-reserve channel during backtrack.
+///         Stage 1 of the two-stage pipeline (design-se §1): this pass is pure topology — geometry
+///         embedding is the holistic embedder's job (stage 2), run by the floor pipeline against the
+///         finished graph. Interim (until the P3b.5 publish slice) the generator keeps its floor
+///         re-roll loop and stays publicly callable as the graph-view data source.
 ///     </para>
 /// </summary>
 public static class GraphGenerator
 {
     // Config-promotable (no formal promote-machinery — matches PointCloudGenerator.MaxRejectionIterations).
+    // Relocates to FloorPipelineSettings at the P3b.5 publish slice.
     private const int MaxFloorAttempts = 16;
-    private const int BacktrackBudget = 8;
 
     // ASCII unit separator — the same id-delimiter discipline PartialGraph / CandidateSlot use, so node
     // id segments can never be forged by id content.
     private const char Sep = (char)0x1F;
 
-    public static GraphGenerationResult Generate(ISkeletonConfig config, int seedRoot, INodeRealizer realizer)
+    public static GraphGenerationResult Generate(ISkeletonConfig config, int seedRoot)
     {
         if (config == null)
         {
             throw new ArgumentNullException(nameof(config));
-        }
-        if (realizer == null)
-        {
-            throw new ArgumentNullException(nameof(realizer));
         }
 
         config.Validate();
@@ -51,14 +47,13 @@ public static class GraphGenerator
         for (int attempt = 0; attempt < MaxFloorAttempts; attempt++)
         {
             int floorSeed = SeedManager.DeriveChild(seedRoot, "floor", attempt.ToString());
-            var state = new GenState(config, realizer, floorSeed);
+            var state = new GenState(config, floorSeed);
             var outcome = state.BuildFloor(out var cause);
             if (outcome == FloorOutcome.Ok)
             {
                 return state.ToResult(attempt + 1, succeeded: true);
             }
 
-            state.ReleaseAll();
             if (outcome == FloorOutcome.PinUnsatisfiable)
             {
                 // A pin can never become satisfiable by re-rolling — fail fast, do not exhaust attempts.
@@ -74,8 +69,9 @@ public static class GraphGenerator
     /// <summary>
     ///     Stable role-preference ordering: templates whose <see cref="INodeTemplate.Role" /> equals
     ///     <paramref name="preferred" /> come first, original pool order preserved within each group
-    ///     (.NET <c>OrderBy</c> is a stable sort). Used to bias routing/branch passes toward Connector
-    ///     templates without disturbing determinism. Exposed for direct unit testing of the sort.
+    ///     (.NET <c>OrderBy</c> is a stable sort). Gives a pass's preferred role draw-order priority
+    ///     (which cumulative-weight bucket a roll lands in) without disturbing determinism. Exposed
+    ///     for direct unit testing of the sort.
     /// </summary>
     internal static IReadOnlyList<INodeTemplate> OrderByRolePreference(
         IReadOnlyList<INodeTemplate> templates, TemplateRole preferred)
@@ -89,26 +85,21 @@ public static class GraphGenerator
     }
 
     /// <summary>
-    ///     One floor-build attempt's mutable working set: the builder, the insertion-ordered geometry
-    ///     layout, the per-node region index (for the <c>Near</c> forward-hint and for Release), and the
-    ///     accumulated soft warnings. Re-created per attempt so a re-roll starts from a clean graph.
+    ///     One floor-build attempt's mutable working set: the builder, the tentatively-reserved
+    ///     anchor ports, and the accumulated soft warnings. Re-created per attempt so a re-roll
+    ///     starts from a clean graph.
     /// </summary>
     private sealed class GenState
     {
         private readonly ISkeletonConfig _config;
-        private readonly INodeRealizer _realizer;
         private readonly int _floorSeed;
 
         private readonly PartialGraph _g = new();
-        private readonly List<(GraphNode Node, ReservedRegion Region)> _layout = new();
-        private readonly Dictionary<StringName, ReservedRegion> _regionByNodeId = new();
-        private readonly List<ReservedRegion> _occupied = new();
         private readonly List<Violation> _warnings = new();
         private readonly HashSet<string> _anchorReservedPorts = new();
 
-        // Monotonic node-id ordinal — advances on every placement attempt (including a backtracked
-        // retry), guaranteeing globally-unique, deterministic ids and letting a veto-by-id retry escape
-        // the vetoed id.
+        // Monotonic node-id ordinal — advances on every placement, guaranteeing globally-unique,
+        // deterministic ids.
         private int _ordinal;
 
         // Monotonic loop-route ordinal — captured once per LayRouteBetween call and stamped on every edge
@@ -117,10 +108,9 @@ public static class GraphGenerator
         // restart would collide (Loop, 0). Distinct from _ordinal, which counts per-placement attempts.
         private int _routeOrdinal;
 
-        public GenState(ISkeletonConfig config, INodeRealizer realizer, int floorSeed)
+        public GenState(ISkeletonConfig config, int floorSeed)
         {
             this._config = config;
-            this._realizer = realizer;
             this._floorSeed = floorSeed;
         }
 
@@ -138,7 +128,7 @@ public static class GraphGenerator
 
             if (!this.LayGuaranteedLoops(out cause))
             {
-                return FloorOutcome.SpineInfeasible; // a guaranteed loop could not be embedded — re-roll
+                return FloorOutcome.SpineInfeasible; // a guaranteed loop could not be laid — re-roll
             }
 
             this.LayOpportunisticRoutes();
@@ -173,7 +163,7 @@ public static class GraphGenerator
             Dictionary<int, INodeTemplate> forcedByIndex = this.ResolveForcedTemplates(length);
 
             INodeTemplate? forcedFirst = forcedByIndex.GetValueOrDefault(0);
-            GraphNode? first = this.PlaceNode("spine", near: null, requiredType: default, anchor: null, weights, constraints, forcedFirst);
+            GraphNode? first = this.PlaceNode("spine", requiredType: default, anchor: null, weights, constraints, forcedFirst);
             if (first == null)
             {
                 cause = forcedFirst != null
@@ -201,7 +191,7 @@ public static class GraphGenerator
 
                 INodeTemplate? forced = forcedByIndex.GetValueOrDefault(i);
                 GraphNode? node = this.PlaceNode(
-                    "spine", near: this._regionByNodeId[prev.Id], requiredType: exit.Type,
+                    "spine", requiredType: exit.Type,
                     anchor: new PortSlot(prev, exit), weights, constraints, forced);
                 if (node == null)
                 {
@@ -265,7 +255,7 @@ public static class GraphGenerator
                 {
                     cause = new Violation(
                         ViolationKind.SpineInfeasible, Severity.Fatal,
-                        "A guaranteed alternate route could not be embedded after backtracking.");
+                        "A guaranteed alternate route could not be laid.");
                     return false;
                 }
             }
@@ -277,7 +267,7 @@ public static class GraphGenerator
                 // authored config, but a sampled short spine can still under-fill).
                 this._warnings.Add(new Violation(
                     ViolationKind.AlternateRoutesUnfilled, Severity.Warning,
-                    $"Embedded {pairs.Count} guaranteed loops; {guaranteed} requested."));
+                    $"Laid {pairs.Count} guaranteed loops; {guaranteed} requested."));
             }
 
             return true;
@@ -419,12 +409,11 @@ public static class GraphGenerator
         }
 
         /// <summary>
-        ///     Lays a route of routing nodes from <c>pair.X</c> and closes onto <c>pair.Y</c>. Reserves
-        ///     the whole chain provisionally (PartialGraph has no node removal, so commit is deferred);
-        ///     a <see cref="INodeRealizer.TryReserve" /> veto triggers Release of the last reserved node
-        ///     and a fresh-id retry, bounded by <see cref="BacktrackBudget" />. Commits AddNode + Connect
-        ///     only once the full chain reserves cleanly; closure onto Y is topological (Y's reserved
-        ///     spare port). Returns false if the route cannot be embedded within the backtrack budget.
+        ///     Lays a route of routing nodes from <c>pair.X</c> and closes onto <c>pair.Y</c>. Template
+        ///     selection is deterministic per slot, so a route either resolves every slot or fails
+        ///     outright (no admissible template — returns false; guaranteed routes re-roll the floor,
+        ///     opportunistic routes soft-skip). Commits AddNode + Connect only once the full chain
+        ///     resolves; closure onto Y is topological (Y's reserved spare port).
         /// </summary>
         private bool LayRouteBetween(AnchorPair pair, AlternateRouteSpec spec, string passKey)
         {
@@ -438,8 +427,7 @@ public static class GraphGenerator
                 routeLen = 1;
             }
 
-            var prov = new List<(StringName Id, INodeTemplate Template, ReservedRegion Region)>();
-            int backtrackUsed = 0;
+            var prov = new List<(StringName Id, INodeTemplate Template)>();
             StringName entryType = pair.XPort.Type;
 
             while (prov.Count < routeLen)
@@ -451,34 +439,15 @@ public static class GraphGenerator
 
                 int ord = this._ordinal++;
                 var id = new StringName($"{passKey}{Sep}{ord}");
-                ReservedRegion? near = prov.Count > 0 ? prov[^1].Region : this._regionByNodeId[pair.X.Id];
 
-                (INodeTemplate Template, ReservedRegion Region)? reserved =
-                    this.ReserveFor(id, entryType, anchor: null, Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), near, passKey, ord, forced: null, pref: TemplateRole.Connector);
-
-                if (reserved != null)
+                INodeTemplate? template = this.SelectTemplate(
+                    id, entryType, anchor: null, Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), passKey, ord, forced: null, pref: TemplateRole.Connector);
+                if (template == null)
                 {
-                    prov.Add((id, reserved.Value.Template, reserved.Value.Region));
-                    this._occupied.Add(reserved.Value.Region);
-                    continue;
+                    return false; // no admissible routing template — deterministic, retry cannot help
                 }
 
-                // Veto-exhaustion for this id — backtrack: release the last reserved node and retry with
-                // a fresh id (the ordinal already advanced, so the next attempt escapes a veto-by-id).
-                if (backtrackUsed >= BacktrackBudget)
-                {
-                    this.ReleaseProvisional(prov);
-                    return false;
-                }
-
-                backtrackUsed++;
-                if (prov.Count > 0)
-                {
-                    var last = prov[^1];
-                    this._realizer.Release(in last.Region);
-                    this._occupied.Remove(last.Region);
-                    prov.RemoveAt(prov.Count - 1);
-                }
+                prov.Add((id, template));
             }
 
             if (prov.Count == 0)
@@ -489,14 +458,12 @@ public static class GraphGenerator
             return this.CommitRoute(pair, prov, routeOrdinal);
         }
 
-        private bool CommitRoute(AnchorPair pair, List<(StringName Id, INodeTemplate Template, ReservedRegion Region)> prov, int routeOrdinal)
+        private bool CommitRoute(AnchorPair pair, List<(StringName Id, INodeTemplate Template)> prov, int routeOrdinal)
         {
             var nodes = new List<GraphNode>(prov.Count);
             foreach (var step in prov)
             {
                 GraphNode n = this._g.AddNode(step.Id, step.Template);
-                this._layout.Add((n, step.Region));
-                this._regionByNodeId[step.Id] = step.Region;
                 nodes.Add(n);
             }
 
@@ -523,17 +490,6 @@ public static class GraphGenerator
 
             this._g.Connect(prevNode, prevPort, pair.Y, pair.YPort, provenance: new EdgeProvenance(EdgeProvenanceKind.Loop, routeOrdinal)); // topological closure onto Y
             return true;
-        }
-
-        private void ReleaseProvisional(List<(StringName Id, INodeTemplate Template, ReservedRegion Region)> prov)
-        {
-            foreach (var step in prov)
-            {
-                this._realizer.Release(in step.Region);
-                this._occupied.Remove(step.Region);
-            }
-
-            prov.Clear();
         }
 
         private Dictionary<int, INodeTemplate> ResolveForcedTemplates(int length)
@@ -584,7 +540,7 @@ public static class GraphGenerator
             }
 
             List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, spec.MinAnchorSeparation, spec.EffectiveAttachmentWeights);
-            int embedded = 0;
+            int laid = 0;
             foreach (AnchorPair pair in pairs)
             {
                 if (this._g.NodeCount >= this.BudgetMax)
@@ -594,18 +550,18 @@ public static class GraphGenerator
 
                 if (this.LayRouteBetween(pair, spec, "opportunistic"))
                 {
-                    embedded++;
+                    laid++;
                 }
 
                 // else: soft-skip — an opportunistic route that cannot close is simply dropped.
             }
 
             int requestedMin = spec.OpportunisticCount?.Min ?? 0;
-            if (embedded < requestedMin)
+            if (laid < requestedMin)
             {
                 this._warnings.Add(new Violation(
                     ViolationKind.AlternateRoutesUnfilled, Severity.Warning,
-                    $"Embedded {embedded} opportunistic routes; {requestedMin} requested."));
+                    $"Laid {laid} opportunistic routes; {requestedMin} requested."));
             }
         }
 
@@ -666,12 +622,14 @@ public static class GraphGenerator
                     return; // parent exhausted its spare ports
                 }
 
+                // Free-growth passes (spine + branch) prefer Body — branches dead-end into pocket
+                // rooms; only routing passes prefer Connector (design-se §2).
                 GraphNode? child = this.PlaceNode(
-                    "branch", near: this._regionByNodeId[parent.Id], requiredType: exit.Type,
-                    anchor: new PortSlot(parent, exit), weights, constraints, forced: null, pref: TemplateRole.Connector);
+                    "branch", requiredType: exit.Type,
+                    anchor: new PortSlot(parent, exit), weights, constraints, forced: null);
                 if (child == null)
                 {
-                    return; // veto-exhausted — soft-skip the rest of this branch
+                    return; // no admissible template — soft-skip the rest of this branch
                 }
 
                 IGraphPort? entry = this.SelectOpenPort(child, exit.Type);
@@ -701,42 +659,36 @@ public static class GraphGenerator
         // ── Placement primitives ────────────────────────────────────────────
 
         /// <summary>
-        ///     Commits a new node into the spine: reserves a region (re-picking on a veto) then AddNode +
-        ///     layout record. Returns null when no template is constraint-admissible or every candidate
-        ///     is vetoed. Used commit-as-you-go for the spine (a mid-spine failure re-rolls the floor).
+        ///     Commits a new node: resolves a template then AddNode. Returns null when no template is
+        ///     constraint-admissible. Used commit-as-you-go for the spine (a mid-spine failure
+        ///     re-rolls the floor).
         /// </summary>
         private GraphNode? PlaceNode(
-            string passKey, ReservedRegion? near, StringName requiredType,
+            string passKey, StringName requiredType,
             PortSlot? anchor, IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
             INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body)
         {
             int ord = this._ordinal++;
             var nodeId = new StringName($"{passKey}{Sep}{ord}");
 
-            (INodeTemplate Template, ReservedRegion Region)? reserved =
-                this.ReserveFor(nodeId, requiredType, anchor, weights, constraints, near, passKey, ord, forced, pref);
-            if (reserved == null)
+            INodeTemplate? template = this.SelectTemplate(nodeId, requiredType, anchor, weights, constraints, passKey, ord, forced, pref);
+            if (template == null)
             {
                 return null;
             }
 
-            GraphNode node = this._g.AddNode(nodeId, reserved.Value.Template);
-            this._layout.Add((node, reserved.Value.Region));
-            this._regionByNodeId[nodeId] = reserved.Value.Region;
-            this._occupied.Add(reserved.Value.Region);
-            return node;
+            return this._g.AddNode(nodeId, template);
         }
 
         /// <summary>
-        ///     Resolves a template for <paramref name="nodeId" /> and reserves its region. Hard-filters
-        ///     the pool by port-type compatibility + constraints, weighted-draws a candidate, and on a
-        ///     realizer veto removes it and re-picks. Returns the chosen (template, region), or null on an
-        ///     empty candidate set or veto-exhaustion. Does NOT touch the graph — caller commits.
+        ///     Resolves a template for <paramref name="nodeId" />: hard-filters the pool by port-type
+        ///     compatibility + constraints, then weighted-draws a candidate. Returns null on an empty
+        ///     candidate set. Does NOT touch the graph — caller commits.
         /// </summary>
-        private (INodeTemplate Template, ReservedRegion Region)? ReserveFor(
+        private INodeTemplate? SelectTemplate(
             StringName nodeId, StringName requiredType, PortSlot? anchor,
             IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
-            ReservedRegion? near, string passKey, int ordinal,
+            string passKey, int ordinal,
             INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body)
         {
             List<INodeTemplate> candidates;
@@ -763,19 +715,7 @@ public static class GraphGenerator
                 return null;
             }
 
-            while (candidates.Count > 0)
-            {
-                INodeTemplate t = this.WeightedDraw(candidates, passKey, nodeId, ordinal, anchor, weights);
-                var request = new ReserveRequest(t, nodeId, near);
-                if (this._realizer.TryReserve(in request, this._occupied, out var region))
-                {
-                    return (t, region);
-                }
-
-                candidates.Remove(t); // veto → re-pick a different template
-            }
-
-            return null; // veto-exhaustion
+            return this.WeightedDraw(candidates, passKey, nodeId, ordinal, anchor, weights);
         }
 
         private INodeTemplate WeightedDraw(
@@ -800,7 +740,7 @@ public static class GraphGenerator
         {
             if (anchor == null)
             {
-                return 1; // no placement context (spine source / provisional route node) — neutral
+                return 1; // no placement context (spine source / route node) — neutral
             }
 
             long product = 1;
@@ -823,7 +763,7 @@ public static class GraphGenerator
         {
             if (anchor == null)
             {
-                return true; // no placement context (spine source / provisional route node)
+                return true; // no placement context (spine source / route node)
             }
 
             bool hasMetrics = this._g.TryGetMetrics(out _);
@@ -913,28 +853,13 @@ public static class GraphGenerator
 
         public GraphGenerationResult ToResult(int attempts, bool succeeded)
         {
-            var layout = new Dictionary<IGraphNode, ReservedRegion>(this._layout.Count);
-            foreach (var (node, region) in this._layout)
-            {
-                layout[node] = region;
-            }
-
             IFloorGraph? graph = this._g.HasSpineEndpoints ? this._g.ToFloorGraph() : null;
-            return new GraphGenerationResult(graph, layout, attempts, this._warnings.ToList(), succeeded);
-        }
-
-        public void ReleaseAll()
-        {
-            foreach (var (_, region) in this._layout)
-            {
-                this._realizer.Release(in region);
-            }
+            return new GraphGenerationResult(graph, attempts, this._warnings.ToList(), succeeded);
         }
 
         public static GraphGenerationResult Failure(int attempts, Violation cause)
             => new(
                 null,
-                new Dictionary<IGraphNode, ReservedRegion>(),
                 attempts,
                 new List<Violation> { cause },
                 succeeded: false);
