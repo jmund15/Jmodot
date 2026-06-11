@@ -46,6 +46,17 @@ public static partial class BBDataSig
     public static readonly StringName KnockbackComponent = new("KnockbackComponent");
     #endregion
 
+    #region Physics
+
+    /// <summary>
+    /// The entity's physics-interaction component (IImpactable provision).
+    /// Read by ImpactCollisionStrategy to route impact responses; the consuming
+    /// game's physics interaction component provides it.
+    /// </summary>
+    public static readonly StringName PhysicsInteraction = new("PhysicsInteraction");
+
+    #endregion
+
     #region ROBBER_PROPERTIES
 
     public static readonly StringName RobberBag = new("RobberBag");

@@ -107,6 +107,7 @@ public partial class DebugFormationComponent : Node
     /// </summary>
     private void DrawFormationSlots()
     {
+#if JMODOT_DEBUG_DRAW
         // Check if formation is active
         if (!_squadBlackboard!.TryGet<bool>(BBDataSig.FormationActive, out var isActive) || !isActive)
         {
@@ -160,6 +161,7 @@ public partial class DebugFormationComponent : Node
             // Draw slot index as text above the sphere
             DebugDraw3D.DrawText(slotPos + Vector3.Up * _slotSphereRadius * 2f, $"[{slotIndex}]", 16, slotColor);
         }
+#endif
     }
 
     /// <summary>
@@ -167,6 +169,7 @@ public partial class DebugFormationComponent : Node
     /// </summary>
     private void DrawMemberConnections(Dictionary<int, Vector3> slotPositions, HashSet<int> occupiedSlots)
     {
+#if JMODOT_DEBUG_DRAW
         // Access members through reflection or exposed property if available
         // For now, iterate through children of squad manager looking for agents with blackboards
         foreach (var child in GetTree().GetNodesInGroup("SquadMembers"))
@@ -205,6 +208,7 @@ public partial class DebugFormationComponent : Node
 
             DebugDraw3D.DrawLine(memberPos, slotPos, _connectionLineColor);
         }
+#endif
     }
 
     /// <summary>

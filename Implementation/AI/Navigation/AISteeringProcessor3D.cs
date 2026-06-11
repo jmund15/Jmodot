@@ -210,6 +210,7 @@ public partial class AISteeringProcessor3D : Node
             return;
         }
 
+#if JMODOT_DEBUG_DRAW
         // HACK: change later?
         var _ownerAgent = GetOwner<Node3D>();
         var _time = Time.GetTicksMsec() / 1000.0f;
@@ -252,6 +253,7 @@ public partial class AISteeringProcessor3D : Node
         DebugDraw2D.SetText("Frames drawn", Engine.GetFramesDrawn());
         DebugDraw2D.SetText("FPS", Engine.GetFramesPerSecond());
         DebugDraw2D.SetText("delta", delta);
+#endif
     }
 
     /// <summary>
