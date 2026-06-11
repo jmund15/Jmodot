@@ -65,6 +65,7 @@ public static partial class BBDataSig
     public static readonly StringName EatableComp = new("EatableComp");
     public static readonly StringName OccupantComp = new("OccupantComp");
     public static readonly StringName JumpsLeft = new("JumpsLeft");
+    public static readonly StringName EntitySeed = new("EntitySeed");
 
     #endregion
 

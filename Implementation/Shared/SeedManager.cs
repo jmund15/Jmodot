@@ -79,6 +79,40 @@ public partial class SeedManager : Node
         return hash;
     }
 
+    /// <summary>
+    /// Hit-path lineage derivation: folds <paramref name="label"/> as a string segment,
+    /// then folds <paramref name="index"/> directly as an int (no stringification).
+    /// This is the int-segment index domain — deliberately distinct from
+    /// <see cref="SeedSequence"/>'s stringified-counter path; the two do NOT compose.
+    /// Use for hot-path keys (e.g. per-hit derivation) where the index is a raw int.
+    /// </summary>
+    public static int DeriveChild(int parentSeed, string label, int index)
+    {
+        unchecked
+        {
+            int hash = DeriveSystemSeed(parentSeed, label);
+            hash = (hash * 16777619) ^ index;
+            return hash;
+        }
+    }
+
+    /// <summary>
+    /// Two-int-segment hit-path derivation: folds <paramref name="label"/> as a string
+    /// segment, then <paramref name="index1"/> and <paramref name="index2"/> directly as
+    /// ints in order. Order-sensitive — (a,b) and (b,a) derive distinct seeds. Same
+    /// int-segment index domain as <see cref="DeriveChild(int, string, int)"/>.
+    /// </summary>
+    public static int DeriveChild(int parentSeed, string label, int index1, int index2)
+    {
+        unchecked
+        {
+            int hash = DeriveSystemSeed(parentSeed, label);
+            hash = (hash * 16777619) ^ index1;
+            hash = (hash * 16777619) ^ index2;
+            return hash;
+        }
+    }
+
     #region Test Helpers
 #if TOOLS
     internal void SetActiveSeedForTesting(int value) => _activeSeed = value;
