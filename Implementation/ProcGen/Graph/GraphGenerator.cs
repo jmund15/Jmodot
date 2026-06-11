@@ -81,17 +81,6 @@ public static class GraphGenerator
         IReadOnlyList<INodeTemplate> templates, TemplateRole preferred)
         => templates.OrderBy(t => t.Role == preferred ? 0 : 1).ToList();
 
-    /// <summary>
-    ///     Decision-E port-type compatibility: equal types match; an unset/empty <see cref="StringName" />
-    ///     on either side is the wildcard that matches any type. Exposed for direct unit testing.
-    /// </summary>
-    internal static bool PortTypeMatches(StringName portType, StringName requiredType)
-    {
-        bool portWildcard = string.IsNullOrEmpty(portType);
-        bool requiredWildcard = string.IsNullOrEmpty(requiredType);
-        return portWildcard || requiredWildcard || portType == requiredType;
-    }
-
     private enum FloorOutcome
     {
         Ok,
@@ -973,6 +962,6 @@ public static class GraphGenerator
         }
 
         private static bool TypeMatches(StringName portType, StringName requiredType)
-            => PortTypeMatches(portType, requiredType);
+            => PortTypes.Matches(portType, requiredType);
     }
 }
