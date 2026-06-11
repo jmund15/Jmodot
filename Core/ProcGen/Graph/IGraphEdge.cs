@@ -27,4 +27,7 @@ public interface IGraphEdge
 
     /// <summary>Whether the edge is bidirectional or one-way From → To.</summary>
     EdgeTraversal Traversal { get; }
+
+    /// <summary>Which generation pass laid this edge (and which route within that pass).</summary>
+    EdgeProvenance Provenance { get; }
 }

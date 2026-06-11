@@ -14,7 +14,8 @@ public sealed class GraphEdge : IGraphEdge
         IGraphNode to,
         StringName toPort,
         bool isGated,
-        EdgeTraversal traversal)
+        EdgeTraversal traversal,
+        EdgeProvenance provenance = default)
     {
         this.From = from;
         this.FromPort = fromPort;
@@ -22,6 +23,7 @@ public sealed class GraphEdge : IGraphEdge
         this.ToPort = toPort;
         this.IsGated = isGated;
         this.Traversal = traversal;
+        this.Provenance = provenance;
     }
 
     public IGraphNode From { get; }
@@ -35,4 +37,6 @@ public sealed class GraphEdge : IGraphEdge
     public bool IsGated { get; }
 
     public EdgeTraversal Traversal { get; }
+
+    public EdgeProvenance Provenance { get; }
 }

@@ -122,6 +122,12 @@ public static class GraphGenerator
         // the vetoed id.
         private int _ordinal;
 
+        // Monotonic loop-route ordinal — captured once per LayRouteBetween call and stamped on every edge
+        // that route commits, so distinct routes get distinct ordinals and shared-anchor rings stay
+        // disambiguated. One counter threads BOTH loop passes (guaranteed + opportunistic) — a per-pass
+        // restart would collide (Loop, 0). Distinct from _ordinal, which counts per-placement attempts.
+        private int _routeOrdinal;
+
         public GenState(ISkeletonConfig config, INodeRealizer realizer, int floorSeed)
         {
             this._config = config;
@@ -223,7 +229,7 @@ public static class GraphGenerator
                     return FloorOutcome.SpineInfeasible;
                 }
 
-                this._g.Connect(prev, exit, node, entry);
+                this._g.Connect(prev, exit, node, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Spine, 0));
                 prev = node;
                 placed++;
             }
@@ -433,6 +439,10 @@ public static class GraphGenerator
         /// </summary>
         private bool LayRouteBetween(AnchorPair pair, AlternateRouteSpec spec, string passKey)
         {
+            // Captured once per call (before any early return) so a dangling partial commit still consumes
+            // its unique ordinal — harmless, and keeps every committed route's ordinal route-unique.
+            int routeOrdinal = this._routeOrdinal++;
+
             int routeLen = this.DrawCount(spec.Length, fallback: 1, passKey, "len" + pair.X.Id);
             if (routeLen < 1)
             {
@@ -487,10 +497,10 @@ public static class GraphGenerator
                 return false; // budget left no room for even one routing node
             }
 
-            return this.CommitRoute(pair, prov);
+            return this.CommitRoute(pair, prov, routeOrdinal);
         }
 
-        private bool CommitRoute(AnchorPair pair, List<(StringName Id, INodeTemplate Template, ReservedRegion Region)> prov)
+        private bool CommitRoute(AnchorPair pair, List<(StringName Id, INodeTemplate Template, ReservedRegion Region)> prov, int routeOrdinal)
         {
             var nodes = new List<GraphNode>(prov.Count);
             foreach (var step in prov)
@@ -511,7 +521,7 @@ public static class GraphGenerator
                     return false; // route node exposes no compatible entry port (config error)
                 }
 
-                this._g.Connect(prevNode, prevPort, n, entry);
+                this._g.Connect(prevNode, prevPort, n, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Loop, routeOrdinal));
                 prevNode = n;
                 IGraphPort? exit = this.SelectOpenPort(n, requiredType: default);
                 if (exit == null)
@@ -522,7 +532,7 @@ public static class GraphGenerator
                 prevPort = exit;
             }
 
-            this._g.Connect(prevNode, prevPort, pair.Y, pair.YPort); // topological closure onto Y
+            this._g.Connect(prevNode, prevPort, pair.Y, pair.YPort, provenance: new EdgeProvenance(EdgeProvenanceKind.Loop, routeOrdinal)); // topological closure onto Y
             return true;
         }
 
@@ -639,13 +649,15 @@ public static class GraphGenerator
                     break; // no node has a spare port — stop branching
                 }
 
-                this.GrowBranch(anchor, depth, fanout, weights, constraints);
+                this.GrowBranch(anchor, depth, fanout, weights, constraints, b);
             }
         }
 
+        // rootOrdinal = the b-th branch growth (the LayBranches loop index); the whole tree under this
+        // root shares it, even when a branch roots on a node an earlier branch created.
         private void GrowBranch(
             GraphNode parent, int depth, int fanout,
-            IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints)
+            IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints, int rootOrdinal)
         {
             if (depth <= 0)
             {
@@ -679,8 +691,8 @@ public static class GraphGenerator
                     return;
                 }
 
-                this._g.Connect(parent, exit, child, entry);
-                this.GrowBranch(child, depth - 1, fanout, weights, constraints);
+                this._g.Connect(parent, exit, child, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Branch, rootOrdinal));
+                this.GrowBranch(child, depth - 1, fanout, weights, constraints, rootOrdinal);
             }
         }
 

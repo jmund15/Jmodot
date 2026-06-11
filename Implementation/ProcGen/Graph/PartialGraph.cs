@@ -24,13 +24,12 @@ internal sealed class PartialGraph
 
     private readonly List<GraphNode> _nodes = new();
     private readonly List<GraphEdge> _edges = new();
-    private readonly List<GraphEdge> _backbone = new();
 
     private GraphNode? _source;
     private GraphNode? _sink;
 
     // Lazily-built, cached metrics snapshot. Null = stale/uncomputed; rebuilt on demand once a spine
-    // exists. Nulled by Invalidate() from every topology mutation (NOT from TagBackbone).
+    // exists. Nulled by Invalidate() from every topology mutation.
     private IGraphMetrics? _snapshot;
 
     // Test-injected metrics override. When non-null it wins over the real snapshot regardless of spine
@@ -66,26 +65,32 @@ internal sealed class PartialGraph
 
     /// <summary>Connects two member nodes, bridging each <see cref="IGraphPort" /> to its
     /// <see cref="IGraphPort.Name" /> (the kernel <see cref="GraphEdge" /> stores port-names). Rejects a
-    /// duplicate parallel edge (same From/FromPort/To/ToPort — direction-sensitive, matching the
-    /// GraphSignature oracle) and any non-member endpoint.</summary>
+    /// re-bind of an already-bound port (ports are single-use) and any non-member endpoint.</summary>
     internal GraphEdge Connect(
         GraphNode from,
         IGraphPort fromPort,
         GraphNode to,
         IGraphPort toPort,
         bool gated = false,
-        EdgeTraversal traversal = EdgeTraversal.Bidirectional)
+        EdgeTraversal traversal = EdgeTraversal.Bidirectional,
+        EdgeProvenance provenance = default)
     {
         this.RequireMember(from, nameof(from));
         this.RequireMember(to, nameof(to));
 
-        if (this.HasParallelEdge(from.Id, fromPort.Name, to.Id, toPort.Name))
+        if (!this.IsPortOpen(from.Id, fromPort.Name))
         {
             throw new ArgumentException(
-                $"A parallel edge {from.Id}:{fromPort.Name} -> {to.Id}:{toPort.Name} already exists.", nameof(fromPort));
+                $"Port {from.Id}:{fromPort.Name} is already bound; ports are single-use.", nameof(fromPort));
         }
 
-        var edge = new GraphEdge(from, fromPort.Name, to, toPort.Name, gated, traversal);
+        if (!this.IsPortOpen(to.Id, toPort.Name))
+        {
+            throw new ArgumentException(
+                $"Port {to.Id}:{toPort.Name} is already bound; ports are single-use.", nameof(toPort));
+        }
+
+        var edge = new GraphEdge(from, fromPort.Name, to, toPort.Name, gated, traversal, provenance);
         this._edges.Add(edge);
         this.Invalidate();
         return edge;
@@ -94,8 +99,7 @@ internal sealed class PartialGraph
     /// <summary>Splits a member edge by inserting a node mid-edge: removes the original, appends
     /// <c>from → [new]</c> then <c>[new] → to</c>. Outer faces keep the original edge's ports; inner
     /// faces use <paramref name="insert" />.Ports[0] (toward From) and Ports[1] (toward To) — throws if
-    /// fewer than 2 ports. Gated/Traversal are inherited by both halves. If the original was a backbone
-    /// edge, both halves are retagged (atomic — no throw seam between the removal and the retag).</summary>
+    /// fewer than 2 ports. Gated/Traversal/Provenance are inherited by both halves.</summary>
     internal GraphNode SplitEdge(GraphEdge edge, INodeTemplate insert)
     {
         var idx = this.IndexOfEdge(edge);
@@ -117,47 +121,18 @@ internal sealed class PartialGraph
             throw new ArgumentException($"Splitting this edge would produce a duplicate node id '{newId}'.", nameof(edge));
         }
 
-        var wasBackbone = this.IsBackbone(edge);
         var inserted = new GraphNode(newId, insert);
-        var firstHalf = new GraphEdge(edge.From, edge.FromPort, inserted, insert.Ports[0].Name, edge.IsGated, edge.Traversal);
-        var secondHalf = new GraphEdge(inserted, insert.Ports[1].Name, edge.To, edge.ToPort, edge.IsGated, edge.Traversal);
+        var firstHalf = new GraphEdge(edge.From, edge.FromPort, inserted, insert.Ports[0].Name, edge.IsGated, edge.Traversal, edge.Provenance);
+        var secondHalf = new GraphEdge(inserted, insert.Ports[1].Name, edge.To, edge.ToPort, edge.IsGated, edge.Traversal, edge.Provenance);
 
-        // From here on: synchronous, throw-free CLR mutations — atomic by construction.
         this._nodes.Add(inserted);
         this._edges.RemoveAt(idx);
-        if (wasBackbone)
-        {
-            this._backbone.Remove(edge);
-        }
-
         this._edges.Add(firstHalf);
         this._edges.Add(secondHalf);
-        if (wasBackbone)
-        {
-            this._backbone.Add(firstHalf);
-            this._backbone.Add(secondHalf);
-        }
 
         this.Invalidate();
         return inserted;
     }
-
-    /// <summary>Tags a member edge as backbone (spine). Intentionally does NOT invalidate the metrics
-    /// snapshot — backbone membership is not part of the graph topology metrics depend on (design §5).</summary>
-    internal void TagBackbone(GraphEdge edge)
-    {
-        if (this.IndexOfEdge(edge) < 0)
-        {
-            throw new ArgumentException("Edge is not a member of this graph.", nameof(edge));
-        }
-
-        if (!this.IsBackbone(edge))
-        {
-            this._backbone.Add(edge);
-        }
-    }
-
-    public bool IsBackbone(GraphEdge edge) => this._backbone.Contains(edge);
 
     /// <summary>Commits the spine Source. Throws on re-commit (lifecycle) or a non-member node (a
     /// non-member endpoint yields -1 distances downstream).</summary>
@@ -287,19 +262,6 @@ internal sealed class PartialGraph
         }
 
         return null;
-    }
-
-    private bool HasParallelEdge(StringName fromId, StringName fromPort, StringName toId, StringName toPort)
-    {
-        foreach (var e in this._edges)
-        {
-            if (e.From.Id == fromId && e.FromPort == fromPort && e.To.Id == toId && e.ToPort == toPort)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private int IndexOfEdge(GraphEdge edge) => this._edges.IndexOf(edge);

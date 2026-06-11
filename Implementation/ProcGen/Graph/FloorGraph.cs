@@ -26,6 +26,16 @@ public sealed class FloorGraph : IFloorGraph
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(sink);
 
+        foreach (var edge in edges)
+        {
+            if (edge.Provenance.Kind == EdgeProvenanceKind.Unset)
+            {
+                throw new ArgumentException(
+                    $"Edge {edge.From.Id}:{edge.FromPort} -> {edge.To.Id}:{edge.ToPort} carries Unset provenance; every edge must be stamped by its generation pass before the graph is built.",
+                    nameof(edges));
+            }
+        }
+
         this.Nodes = nodes;
         this.Edges = edges;
         this.Source = source;

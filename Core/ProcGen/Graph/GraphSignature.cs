@@ -14,7 +14,7 @@ using System.Text;
 ///     produces a different signature.
 ///     <para>
 ///     Direction-sensitive by design (no bidirectional canonicalization): the edge tuple is emitted
-///     exactly as stored — <c>(From.Id, FromPort, To.Id, ToPort, IsGated, Traversal)</c> — so a
+///     exactly as stored — <c>(From.Id, FromPort, To.Id, ToPort, IsGated, Traversal, Provenance.Kind, Provenance.RouteOrdinal)</c> — so a
 ///     reversed or re-gated edge is detected rather than masked. Ordering is removed by ordinal-sorting
 ///     the node-id strings and the edge-tuple strings independently; nothing is ever ordered by
 ///     reference identity (which would defeat cross-instance determinism).
@@ -55,12 +55,22 @@ public static class GraphSignature
     }
 
     private static string EdgeTuple(IGraphEdge e)
-        => string.Join(
+    {
+        if (e.Provenance.Kind == EdgeProvenanceKind.Unset)
+        {
+            throw new ArgumentException(
+                $"Edge {e.From.Id}:{e.FromPort} -> {e.To.Id}:{e.ToPort} carries Unset provenance; a signature cannot be computed over an unstamped edge.");
+        }
+
+        return string.Join(
             FieldSep,
             e.From.Id.ToString(),
             e.FromPort.ToString(),
             e.To.Id.ToString(),
             e.ToPort.ToString(),
             e.IsGated.ToString(),
-            e.Traversal.ToString());
+            e.Traversal.ToString(),
+            e.Provenance.Kind.ToString(),
+            e.Provenance.RouteOrdinal.ToString());
+    }
 }

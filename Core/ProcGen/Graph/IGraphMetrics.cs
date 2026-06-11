@@ -47,6 +47,8 @@ public interface IGraphMetrics
     /// <summary>
     ///     Edges whose removal disconnects Sink from Source — the directed dominator-derived
     ///     cut edges. Empty if Sink is already unreachable from Source.
+    ///     NOT the backbone/spine — for which generation pass laid an edge, use
+    ///     <see cref="IGraphEdge.Provenance" />.
     /// </summary>
     IReadOnlyList<IGraphEdge> CriticalEdges { get; }
 
