@@ -16,6 +16,15 @@ public partial class SeedManager : Node
     private int _activeSeed;
     public int ActiveSeed => _activeSeed;
 
+    /// <summary>
+    /// True once <see cref="ActiveSeed"/> has been assigned (in <see cref="_Ready"/>).
+    /// Distinguishes "seed is set" from "seed is the int default 0" — consumers that
+    /// derive from <see cref="ActiveSeed"/> must gate on this to catch a bind-order bug
+    /// (reading the seed before this autoload's _Ready ran) rather than silently deriving
+    /// from 0.
+    /// </summary>
+    public bool HasActiveSeed { get; private set; }
+
     public override void _Ready()
     {
         Instance = this;
@@ -28,6 +37,7 @@ public partial class SeedManager : Node
         {
             _activeSeed = MasterSeed;
         }
+        HasActiveSeed = true;
         JmoLogger.Info(this, $"SeedManager initialized. Active seed: {_activeSeed}");
     }
 
@@ -115,7 +125,12 @@ public partial class SeedManager : Node
 
     #region Test Helpers
 #if TOOLS
-    internal void SetActiveSeedForTesting(int value) => _activeSeed = value;
+    internal void SetActiveSeedForTesting(int value)
+    {
+        _activeSeed = value;
+        HasActiveSeed = true;
+    }
+
     internal static void SetInstanceForTesting(SeedManager? instance) => Instance = instance;
 #endif
     #endregion
