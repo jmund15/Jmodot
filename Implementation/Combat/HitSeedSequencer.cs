@@ -19,9 +19,15 @@ using Jmodot.Implementation.Shared;
 /// </para>
 /// <para>
 /// Cleanup: <see cref="Reset"/> on the receiver's pool return clears all entries; a bounded
-/// least-recently-used eviction backstops entries whose attacker vanished via QueueFree (which fires
-/// no domain event). LRU never evicts a just-active attack, so an overflow cannot reset an in-flight
-/// counter (which would duplicate a hit seed).
+/// least-recently-used eviction (cap <c>MaxSequences</c>) backstops entries whose attacker vanished
+/// via QueueFree (which fires no domain event). The eviction target is the least-recently-TOUCHED
+/// attack, so a continuously-re-hitting attack stays most-recently-used and is never evicted. Residual
+/// collision window (precise statement, not the stronger "never resets an in-flight counter"): an
+/// attack idle for ≥<c>MaxSequences</c> distinct OTHER attacks on this receiver between two of its own
+/// hits can have its counter evicted and re-derive from idx 0 — a duplicate hit seed. The trigger is
+/// extreme (that many distinct simultaneous attackers on one receiver) and harmless while nothing
+/// consumes the hit seed; make eviction recency-window-aware before a consumer relies on per-hit
+/// uniqueness if that window is ever reachable.
 /// </para>
 /// </summary>
 public sealed class HitSeedSequencer

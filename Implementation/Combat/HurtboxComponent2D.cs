@@ -148,7 +148,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
         // context type. For now we adapt by passing the 2D context through the
         // shared Node fields (Attacker, Source); direction/velocity are 2D-specific
         // and read from HitContext2D in 2D-aware effects.
-        _combatant.ProcessPayload(payload, ToHitContextAdapter(context));
+        _combatant.ProcessPayload(payload, ToHitContext(context));
 
         OnHitReceived?.Invoke(payload, context);
         return true;
@@ -242,7 +242,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
     /// 3D axes. 2D-aware effects should read the richer HitContext2D via the
     /// OnHitReceived event instead.
     /// </summary>
-    private static HitContext ToHitContextAdapter(HitContext2D c) => HitContextAdapter.To3D(c);
+    private static HitContext ToHitContext(HitContext2D c) => HitContextAdapter.To3D(c);
 
     #endregion
 }

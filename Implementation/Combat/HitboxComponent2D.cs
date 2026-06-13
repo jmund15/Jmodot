@@ -209,7 +209,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         source ??= this;
 
         var (attackSeed, provenance) = NextAttackSeed();
-        var payload = new CombatPayload(attacker, source, null, attackSeed, provenance);
+        var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
         foreach (var factory in DefaultEffects)
         {
