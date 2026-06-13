@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using BB;
 using Core.AI;
+using Core.AI.BB;
 using Core.AI.Navigation.Zones;
 using Navigation;
 using Jmodot.AI.Navigation;
@@ -50,6 +51,16 @@ public partial class NavWanderAction : SteeringBehaviorAction
     private bool _navActive;
     private bool _pendingFirstTarget;
     private readonly Queue<Vector3> _waypointHistory = new();
+
+    // Per-agent zone-sampling stream, derived from BBDataSig.EntitySeed (re-derived each Init).
+    private JmoRng _rng = null!;
+    private bool _warnedNoSeed;
+
+    public override void Init(Node agent, IBlackboard bb)
+    {
+        base.Init(agent, bb);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, this, ref _warnedNoSeed);
+    }
 
     protected override void OnEnter()
     {
@@ -117,7 +128,7 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         if (_waypointStrategy != null)
         {
-            var context = new WaypointContext(_zoneCenter, ((Node3D)Agent).GlobalPosition, BB);
+            var context = new WaypointContext(_zoneCenter, ((Node3D)Agent).GlobalPosition, BB, _rng);
             if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
             {
                 JmoLogger.Warning(this, "WaypointStrategy failed to find target.");
@@ -127,7 +138,8 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
         for (int i = 0; i < _maxTargetAttempts; i++)
         {
-            Vector3 candidate = _targetZone.SampleRandomInteriorPoint(_zoneCenter);
+            Vector3 candidate = _targetZone.SampleRandomInteriorPoint(
+                _zoneCenter, _rng ??= EntityRngResolver.Resolve(BB, SeedKinds.ZoneShape, this, ref _warnedNoSeed));
             var response = _navAgent.RequestNewNavPath(candidate, overridePathCalcThresh: 0f);
             if (response == NavReqPathResponse.Success)
             {

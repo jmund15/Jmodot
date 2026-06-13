@@ -1,6 +1,7 @@
 namespace Jmodot.Core.AI.Navigation.Zones;
 
 using Godot;
+using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Abstract base for zone shape definitions used by ZoneBoundaryConsideration3D.
@@ -34,7 +35,7 @@ public abstract partial class ZoneShape3D : Resource
     /// Distribution should be approximately uniform across the zone area.
     /// Points are on the XZ plane (Y matches center Y).
     /// </summary>
-    public abstract Vector3 SampleRandomInteriorPoint(Vector3 center);
+    public abstract Vector3 SampleRandomInteriorPoint(Vector3 center, JmoRng rng);
 
     /// <summary>
     /// Returns true if the given point is inside or on the boundary of the zone.

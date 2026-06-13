@@ -22,4 +22,12 @@ public static class SeedKinds
     [SeedStreamKey("status_spread")] public const string StatusSpread = "status_spread";
     [SeedStreamKey("reaction")] public const string Reaction = "reaction";
     [SeedStreamKey("spread")] public const string Spread = "spread";
+
+    // AI component-kind segments — each AI consumer derives DeriveChild(entitySeed, <kind>)
+    // for a statistically-isolated per-consumer stream off the agent's entity seed.
+    [SeedStreamKey("selector")] public const string Selector = "selector";
+    [SeedStreamKey("utility_selector")] public const string UtilitySelector = "utility_selector";
+    [SeedStreamKey("wander")] public const string Wander = "wander";
+    [SeedStreamKey("composite_consideration")] public const string CompositeConsideration = "composite_consideration";
+    [SeedStreamKey("zone_shape")] public const string ZoneShape = "zone_shape";
 }

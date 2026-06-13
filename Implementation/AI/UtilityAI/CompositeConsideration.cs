@@ -48,13 +48,19 @@ public partial class CompositeConsideration : UtilityConsideration
     [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
     protected float Threshold = 0.1f;
 
+    // Shared-Resource warn latch for the missing-EntitySeed fallback (warns once per .tres).
+    private bool _warnedNoSeed;
+
     protected override float CalculateBaseScore(IBlackboard context)
     {
         if (Considerations.Count == 0) { return 0f; }
 
         if (Operator == ConsiderationOperator.Random)
         {
-            var randConsid = Considerations[JmoRng.NonDeterministic().GetRndInt(Considerations.Count)];
+            // Per-agent deterministic pick off the entity seed. Re-derived each evaluation →
+            // the pick is FIXED per agent (was non-deterministic-varying); intentional, pinned.
+            var rng = EntityRngResolver.Resolve(context, SeedKinds.CompositeConsideration, this, ref _warnedNoSeed);
+            var randConsid = Considerations[rng.GetRndInt(Considerations.Count)];
             return randConsid.Evaluate(context);
         }
 

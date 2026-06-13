@@ -33,12 +33,18 @@ public partial class UtilitySelector : CompositeTask
     private IUtilityTask? _currentUtilityTask;
     private BehaviorTask? _runningChild;
     private float _reassessmentTimer;
+
+    // Per-agent Random-tiebreak stream, derived from BBDataSig.EntitySeed (re-derived each Init).
+    private JmoRng _rng = null!;
+    private bool _warnedNoSeed;
     #endregion
 
     #region TASK_UPDATES
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
+
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.UtilitySelector, this, ref _warnedNoSeed);
 
         // Validate that children are the correct type during initialization.
         foreach (var childTask in ChildTasks)
@@ -149,7 +155,7 @@ public partial class UtilitySelector : CompositeTask
                     bestAction = topTasks.OrderByDescending(t => t.Priority).First();
                     break;
                 case TieBreaker.Random:
-                    bestAction = topTasks[JmoRng.NonDeterministic().GetRndInt(topTasks.Count)];
+                    bestAction = topTasks[(_rng ??= EntityRngResolver.Resolve(BB, SeedKinds.UtilitySelector, this, ref _warnedNoSeed)).GetRndInt(topTasks.Count)];
                     break;
                 case TieBreaker.FirstInList:
                 default:
@@ -178,6 +184,13 @@ public partial class UtilitySelector : CompositeTask
             }
         }
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void _TestInit(Node agent, IBlackboard bb) => Init(agent, bb);
+    internal int _TestNextDraw(int max) => _rng.GetRndInt(max);
+#endif
+    #endregion
 
     private void OnChildStatusChanged(TaskStatus newStatus)
     {

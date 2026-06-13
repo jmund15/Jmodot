@@ -156,4 +156,17 @@ public sealed class JmoRng
     /// </summary>
     public static JmoRng NonDeterministic()
         => new JmoRng(Guid.NewGuid().GetHashCode());
+
+    /// <summary>
+    /// Permanent designed-fallback factory — a Guid-seeded instance for a site that has
+    /// NO lineage seed available and is NOT migration debt: e.g. a Jmodot AI consumer
+    /// whose host game never adopted the entity-seed scheme, or an agent whose
+    /// <c>EntitySeed</c> Blackboard slot is unset. Mechanically identical to
+    /// <see cref="NonDeterministic"/> (both Guid-seeded), but kept DISTINCT so the
+    /// <c>NonDeterministic(</c> migration backlog is not polluted with sites that are
+    /// deliberately, permanently unseeded. Callers pair this with one
+    /// <see cref="JmoLogger"/> warning (per-instance latch) so the unseeded path stays visible.
+    /// </summary>
+    public static JmoRng UnseededByDesign()
+        => new JmoRng(Guid.NewGuid().GetHashCode());
 }

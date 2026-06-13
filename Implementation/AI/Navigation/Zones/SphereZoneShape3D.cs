@@ -11,8 +11,6 @@ using Shared;
 [GlobalClass, Tool]
 public partial class SphereZoneShape3D : ZoneShape3D
 {
-    private readonly JmoRng _rng = JmoRng.NonDeterministic();
-
     [Export(PropertyHint.Range, "1.0, 100.0, 0.5")]
     private float _radius = 10f;
 
@@ -35,15 +33,15 @@ public partial class SphereZoneShape3D : ZoneShape3D
         return toCenter.LengthSquared() < 0.001f ? Vector3.Forward : toCenter.Normalized();
     }
 
-    public override Vector3 SampleRandomInteriorPoint(Vector3 center)
+    public override Vector3 SampleRandomInteriorPoint(Vector3 center, JmoRng rng)
     {
         if (_radius <= 0f)
         {
             return center;
         }
 
-        Vector3 dir = _rng.GetRndVector3ZeroY();
-        float dist = Mathf.Sqrt(_rng.GetRndFloat()) * _radius;
+        Vector3 dir = rng.GetRndVector3ZeroY();
+        float dist = Mathf.Sqrt(rng.GetRndFloat()) * _radius;
         return center + dir * dist;
     }
 

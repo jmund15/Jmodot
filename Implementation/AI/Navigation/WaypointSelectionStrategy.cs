@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.AI.Navigation;
 
 using System.Collections.Generic;
 using Core.AI.Navigation.Zones;
+using Shared;
 
 /// <summary>
 /// Controls what position the zone is centered on when sampling candidates.
@@ -43,6 +44,8 @@ public abstract partial class WaypointSelectionStrategy : Resource
     protected ZoneShape3D? Zone => _zone;
     protected int MaxAttempts => _maxAttempts;
 
+    private bool _warnedNoRng;
+
     /// <summary>
     /// Samples a candidate waypoint. Delegates to zone if configured,
     /// otherwise falls back to a random point on the navigation mesh.
@@ -55,7 +58,18 @@ public abstract partial class WaypointSelectionStrategy : Resource
                 ? context.CurrentPosition
                 : context.OriginPosition;
             center = nav.SnapToNavMesh(center);
-            return _zone.SampleRandomInteriorPoint(center);
+
+            var rng = context.Rng;
+            if (rng == null)
+            {
+                if (!_warnedNoRng)
+                {
+                    JmoLogger.Warning(this, "[Lineage] WaypointSelectionStrategy: no per-agent Rng in context — UnseededByDesign fallback (non-deterministic sampling).");
+                    _warnedNoRng = true;
+                }
+                rng = JmoRng.UnseededByDesign();
+            }
+            return _zone.SampleRandomInteriorPoint(center, rng);
         }
         return nav.SampleRandomNavPoint();
     }

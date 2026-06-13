@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.Navigation;
 
 using Core.AI.BB;
+using Shared;
 
 /// <summary>
 /// Contextual data passed from a waypoint action to its selection strategy.
@@ -26,11 +27,20 @@ public readonly struct WaypointContext
     /// </summary>
     public readonly IBlackboard? Blackboard;
 
+    /// <summary>
+    /// Optional per-agent seeded stream supplied by the calling action (derived from its
+    /// entity seed). Zone-sampling strategies advance it for deterministic-per-agent samples.
+    /// Null when the action hasn't adopted the entity-seed scheme — the strategy then falls
+    /// back to <see cref="JmoRng.UnseededByDesign"/>.
+    /// </summary>
+    public readonly JmoRng? Rng;
+
     public WaypointContext(Vector3 originPosition, Vector3 currentPosition)
     {
         OriginPosition = originPosition;
         CurrentPosition = currentPosition;
         Blackboard = null;
+        Rng = null;
     }
 
     public WaypointContext(Vector3 originPosition, Vector3 currentPosition, IBlackboard? blackboard)
@@ -38,5 +48,14 @@ public readonly struct WaypointContext
         OriginPosition = originPosition;
         CurrentPosition = currentPosition;
         Blackboard = blackboard;
+        Rng = null;
+    }
+
+    public WaypointContext(Vector3 originPosition, Vector3 currentPosition, IBlackboard? blackboard, JmoRng? rng)
+    {
+        OriginPosition = originPosition;
+        CurrentPosition = currentPosition;
+        Blackboard = blackboard;
+        Rng = rng;
     }
 }

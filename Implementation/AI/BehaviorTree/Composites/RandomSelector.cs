@@ -1,6 +1,8 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
+using Godot;
 using Core.AI;
+using Core.AI.BB;
 using Shared;
 
 /// <summary>
@@ -13,6 +15,17 @@ public partial class RandomSelector : CompositeTask
 {
     private int[] _shuffledIndices = [];
     private int _currentIdx = -1;
+
+    // Per-agent shuffle stream, derived from BBDataSig.EntitySeed. Re-derived on every Init
+    // (the pooling-refresh contract: a re-acquired agent re-stamps its seed, then re-Inits).
+    private JmoRng _rng = null!;
+    private bool _warnedNoSeed;
+
+    public override void Init(Node agent, IBlackboard bb)
+    {
+        base.Init(agent, bb);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.Selector, this, ref _warnedNoSeed);
+    }
 
     protected override void OnEnter()
     {
@@ -88,6 +101,13 @@ public partial class RandomSelector : CompositeTask
         }
     }
 
+    #region Test Helpers
+#if TOOLS
+    internal void _TestInit(Node agent, IBlackboard bb) => Init(agent, bb);
+    internal int _TestNextDraw(int max) => _rng.GetRndInt(max);
+#endif
+    #endregion
+
     private void ShuffleIndices()
     {
         _shuffledIndices = new int[ChildTasks.Count];
@@ -99,7 +119,7 @@ public partial class RandomSelector : CompositeTask
         // Fisher-Yates shuffle
         for (int i = _shuffledIndices.Length - 1; i > 0; i--)
         {
-            int j = JmoRng.NonDeterministic().GetRndInt(i + 1);
+            int j = (_rng ??= EntityRngResolver.Resolve(BB, SeedKinds.Selector, this, ref _warnedNoSeed)).GetRndInt(i + 1);
             (_shuffledIndices[i], _shuffledIndices[j]) = (_shuffledIndices[j], _shuffledIndices[i]);
         }
     }

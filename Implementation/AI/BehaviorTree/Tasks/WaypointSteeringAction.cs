@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using BB;
 using Core.AI;
+using Core.AI.BB;
 using Navigation;
 using Jmodot.AI.Navigation;
 using Shared;
@@ -56,6 +57,16 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     private bool _pickFailed;
     private float _retryTimer;
     private readonly Queue<Vector3> _waypointHistory = new();
+
+    // Per-agent zone-sampling stream, derived from BBDataSig.EntitySeed (re-derived each Init).
+    private JmoRng _rng = null!;
+    private bool _warnedNoSeed;
+
+    public override void Init(Node agent, IBlackboard bb)
+    {
+        base.Init(agent, bb);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, this, ref _warnedNoSeed);
+    }
 
     protected override void OnEnter()
     {
@@ -131,7 +142,7 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     {
         if (_navAgent == null || _waypointStrategy == null) { return; }
 
-        var context = new WaypointContext(_originPosition, ((Node3D)Agent).GlobalPosition, BB);
+        var context = new WaypointContext(_originPosition, ((Node3D)Agent).GlobalPosition, BB, _rng);
         if (!_waypointStrategy.TrySelectTarget(_navAgent, context, _waypointHistory))
         {
             JmoLogger.Warning(this, "WaypointStrategy failed to find target.");
