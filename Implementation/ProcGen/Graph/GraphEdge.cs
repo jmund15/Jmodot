@@ -8,6 +8,11 @@ using Jmodot.Core.ProcGen.Graph;
 /// </summary>
 public sealed class GraphEdge : IGraphEdge
 {
+    /// <param name="provenance">
+    ///     Which generation pass laid this edge. The default (<c>EdgeProvenanceKind.Unset</c>) is
+    ///     rejected at <see cref="FloorGraph" /> construction and <c>GraphSignature.Of</c> — always
+    ///     stamp a concrete provenance before the edge reaches graph assembly.
+    /// </param>
     public GraphEdge(
         IGraphNode from,
         StringName fromPort,

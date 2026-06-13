@@ -13,7 +13,7 @@ using Jmodot.Core.ProcGen.Spatial;
 ///     against template ports under <see cref="PortCompatibility.Matches" /> — stage 1 binds by
 ///     TYPE only, so width-incompatible neighborhoods pass generation and must be caught here;
 ///     (c) envelope arithmetic (footprint-area sum and per-template dimension fit). Gate (a)
-///     closure-parity runs inside the embedder's own pre-search check (P3b.4) — a typed
+///     closure-parity runs inside the embedder's own pre-search check — a typed
 ///     <see cref="EmbedFailureCause.ClosureParity" /> return IS that gate firing. Non-spatial
 ///     templates are skipped; the embedder rejects them loudly at its own entry.
 /// </summary>

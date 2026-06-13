@@ -18,7 +18,7 @@ public partial class FloorPipelineSettings : Resource
     ///     up. ≤ 0 is rejected at Generate entry (a resaved .tres can null-strip this to 0; the
     ///     guard turns that silent zero into a loud configuration error).
     /// </summary>
-    [Export]
+    [Export(PropertyHint.Range, "1,100")]
     public int MaxFloorAttempts { get; set; } = 16;
 
     /// <summary>Stage-2 embedder settings; required — a stripped slot fails loud at Generate entry.</summary>

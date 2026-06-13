@@ -8,11 +8,11 @@ using Godot;
 using Jmodot.Core.ProcGen.Graph;
 
 /// <summary>
-///     Full-result determinism oracle (design-se §5, recreated at P3b.5): composes
+///     Full-result determinism oracle (design-se §5): composes
 ///     <see cref="GraphSignature" /> over the graph with an Id-sorted per-node
 ///     <c>(TemplateId, OriginCells, Yaw, SizeCells)</c> section and a canonically-sorted doorway
-///     section — pose INCLUDES the yaw quadrant and doorways are first-class, the two axes the
-///     retired pre-P3b version dropped. Sections share <see cref="GraphSignature" />'s delimiter
+///     section — pose INCLUDES the yaw quadrant and doorways are first-class. Sections share
+///     <see cref="GraphSignature" />'s delimiter
 ///     consts (the one canonical edge-tuple core); all ordering is ordinal, never emission or
 ///     dictionary order.
 /// </summary>

@@ -10,6 +10,11 @@ using Godot;
 /// </summary>
 public static class PortTypes
 {
+    /// <summary>
+    ///     Returns <c>true</c> when <paramref name="portType" /> and <paramref name="requiredType" />
+    ///     are compatible: equal types match, and an empty/null <see cref="StringName" /> on either
+    ///     side is the wildcard that matches any type.
+    /// </summary>
     public static bool Matches(StringName portType, StringName requiredType)
     {
         bool portWildcard = string.IsNullOrEmpty(portType);

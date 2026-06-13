@@ -15,6 +15,6 @@ public partial class EmbedderSettings : Resource
     ///     the search may spend before returning a typed failure. Must be positive; tuned via the
     ///     seed-corpus gate.
     /// </summary>
-    [Export]
+    [Export(PropertyHint.Range, "1,1024")]
     public int RepairBudget { get; set; } = 64;
 }
