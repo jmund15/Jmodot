@@ -183,7 +183,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         return null;
     }
 
-    private static List<StringName> CycleNodeRing(IReadOnlyList<IGraphEdge> cycle)
+    // internal (not private) so the ring walk is directly unit-testable without a full Embed —
+    // it is the one place a malformed (non-simple) Loop cycle would hang the pipeline.
+    internal static List<StringName> CycleNodeRing(IReadOnlyList<IGraphEdge> cycle)
     {
         var adjacency = new Dictionary<StringName, List<StringName>>();
         foreach (IGraphEdge edge in cycle)
@@ -201,12 +203,35 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         do
         {
             ring.Add(current);
+
+            // A simple ring visits each node once, so the walk closes within adjacency.Count steps.
+            // A non-simple cycle (a node of degree > 2 — e.g. a Loop route sharing an interior node
+            // with its tree path) would otherwise truncate early or never re-reach start (infinite
+            // hang). Fail loud with the offending node count instead of wedging the embed.
+            if (ring.Count > adjacency.Count)
+            {
+                throw new InvalidOperationException(
+                    $"CycleNodeRing walked {ring.Count} nodes over a {adjacency.Count}-node cycle: " +
+                    "the source graph produced a non-simple Loop cycle (a node with degree > 2). " +
+                    "This indicates a malformed topology upstream of the embedder.");
+            }
+
             List<StringName> neighbors = adjacency[current];
             StringName next = neighbors[0] == previous && neighbors.Count > 1 ? neighbors[1] : neighbors[0];
             previous = current;
             current = next;
         }
         while (current != start);
+
+        // The walk closed back onto start; a simple ring will have visited every node exactly once.
+        // A shorter ring means it short-circuited across a shared node (figure-eight), skipping a
+        // branch — the truncated-ring failure mode. Reject it rather than embed a partial cycle.
+        if (ring.Count != adjacency.Count)
+        {
+            throw new InvalidOperationException(
+                $"CycleNodeRing closed after {ring.Count} of {adjacency.Count} nodes: the source graph " +
+                "produced a non-simple Loop cycle (a branch left unvisited), indicating malformed topology upstream.");
+        }
 
         return ring;
     }
