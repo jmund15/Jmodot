@@ -5,6 +5,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Identification;
+using Jmodot.Core.Pooling;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -17,8 +18,13 @@ using Implementation.Shared;
 /// Acts as a Gateway/Filter to the ICombatant found in the Blackboard.
 /// </summary>
 [GlobalClass]
-public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvider
+public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvider, IPoolResetable
 {
+    // Per-attack hit-seed sequencer (composed; shared shape with HurtboxComponent2D). Cleared on
+    // pool return via OnPoolReset. _warnedMissingSeed is the per-instance one-shot warn latch.
+    private readonly HitSeedSequencer _hitSeeds = new();
+    private bool _warnedMissingSeed;
+
     #region IBlackboardProvider Implementation
     /// <summary>
     /// Auto-registers this component with the blackboard during EntityNodeComponentsInitializer.
@@ -98,6 +104,37 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     }
 
     /// <summary>
+    /// Resolves the per-hit lineage seed for an incoming attack. Reads the RECEIVER's EntitySeed
+    /// LIVE from the combatant's blackboard (never cached — a pooled entity re-stamps its seed),
+    /// then delegates the provenance 2×2 + counter to <see cref="HitSeedSequencer"/>. Fires one
+    /// missing-seed warning per instance.
+    /// </summary>
+    private int? ResolveHitSeed(IAttackPayload payload)
+    {
+        int? receiverSeed = null;
+        if (_combatant?.Blackboard != null && _combatant.Blackboard.TryGet<int>(BBDataSig.EntitySeed, out var rs))
+        {
+            receiverSeed = rs;
+        }
+
+        var hitSeed = _hitSeeds.Resolve(payload.AttackSeed, payload.SeedProvenance, receiverSeed, out bool warnMissing);
+        if (warnMissing && !_warnedMissingSeed)
+        {
+            JmoLogger.Warning(this,
+                "[Lineage] Hurtbox could not derive a hit seed for a seeded/expected attack (missing attack seed or receiver EntitySeed) — this hit is non-deterministic.");
+            _warnedMissingSeed = true;
+        }
+        return hitSeed;
+    }
+
+    /// <summary>Resets per-attack hit-seed counters + the warn latch for clean pool reuse.</summary>
+    public void OnPoolReset()
+    {
+        _hitSeeds.Reset();
+        _warnedMissingSeed = false;
+    }
+
+    /// <summary>
     /// Called DIRECTLY by HitboxComponent3D.
     /// This is the receiving end of the Handshake.
     /// </summary>
@@ -117,7 +154,8 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             ImpactVelocity = CalculateImpactVelocity(payload.Source),
             EpicenterPosition = epicenter,
             EpicenterForward = GetEpicenterForward(payload.Source),
-            DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter)
+            DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
+            HitSeed = ResolveHitSeed(payload),
         };
 
         // 3.5. Reaction-resolver consultation (A2)

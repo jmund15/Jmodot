@@ -112,6 +112,12 @@ using AI.BB;
         private int _acceptedHits = 0;
         private IStatProvider? _cachedStatProvider = null;
 
+        // Cached Blackboard REFERENCE (not the seed value) for reading the attacker's EntitySeed
+        // live at attack assembly. _attackSeq is the per-entity attack counter — lazily built from
+        // the live seed and nulled on pool reset so a re-acquired hitbox re-derives for its new entity.
+        private IBlackboard? _bb;
+        private Shared.SeedSequence? _attackSeq;
+
 
         /// <summary>
         /// Number of physics frames to retry the pending overlap check.
@@ -127,6 +133,7 @@ using AI.BB;
 
         public bool Initialize(IBlackboard bb)
         {
+            _bb = bb;
             bb?.TryGet(BBDataSig.HurtboxComponent, out _selfHurtbox);
 
             // Hitbox is generally autonomous, receiving data from its controller.
@@ -295,6 +302,7 @@ using AI.BB;
             // and cached stat reference need resetting.
             _acceptedHits = 0;
             _cachedStatProvider = null;
+            _attackSeq = null; // re-acquired hitbox re-derives from its new entity's seed
 
             if (!IsActive) { return; }
 
@@ -315,7 +323,8 @@ using AI.BB;
             attacker ??= Owner ?? this;
             source ??= this;
 
-            var payload = new CombatPayload(attacker, source, stats);
+            var (attackSeed, provenance) = NextAttackSeed();
+            var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
             foreach (var factory in DefaultEffects)
             {
@@ -326,6 +335,22 @@ using AI.BB;
             }
 
             StartAttack(payload);
+        }
+
+        /// <summary>
+        /// Next per-attack lineage seed from this attacker's entity <see cref="Shared.SeedSequence"/>.
+        /// Reads EntitySeed LIVE from the blackboard (never cached) and lazily (re)builds the sequence,
+        /// so a pooled hitbox re-acquired with a new entity seed derives a fresh per-attack stream.
+        /// Returns (null, Missing) for attackers with no entity seed (e.g. unseeded environment hazards).
+        /// </summary>
+        private (int? Seed, SeedProvenance Provenance) NextAttackSeed()
+        {
+            if (_bb != null && _bb.TryGet<int>(BBDataSig.EntitySeed, out var entitySeed))
+            {
+                _attackSeq ??= new Shared.SeedSequence(entitySeed, Shared.SeedKinds.Attack);
+                return (_attackSeq.Next(), SeedProvenance.Seeded);
+            }
+            return (null, SeedProvenance.Missing);
         }
         #endregion
 

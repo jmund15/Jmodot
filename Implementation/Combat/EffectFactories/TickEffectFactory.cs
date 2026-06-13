@@ -28,7 +28,7 @@ public partial class TickEffectFactory : CombatEffectFactory
     [Export] public VisualEffect? TickVisualEffect { get; set; }
     [Export] public StatusSpreadConfig? Spread { get; set; }
 
-    public override ICombatEffect Create(IStatProvider? stats = null)
+    public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 
@@ -36,7 +36,7 @@ public partial class TickEffectFactory : CombatEffectFactory
             Runner,
             Duration.ResolveFloatValue(stats),
             Interval.ResolveFloatValue(stats),
-            PerTickEffect.Create(stats),
+            PerTickEffect.Create(stats, seed),
             TickVisuals,
             PersistentVisuals,
             Tags,

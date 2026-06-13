@@ -60,7 +60,7 @@ public partial class DamageEffectFactory : CombatEffectFactory
     [Export] public float MaxRange { get; set; } = 5.0f;
     [Export] public float MaxAngleDegrees { get; set; } = 45.0f;
 
-    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
+    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 

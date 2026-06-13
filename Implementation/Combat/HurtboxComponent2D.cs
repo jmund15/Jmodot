@@ -3,6 +3,7 @@ using System;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Pooling;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -17,8 +18,12 @@ using Implementation.Shared;
 /// entity dimension.
 /// </summary>
 [GlobalClass]
-public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvider
+public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvider, IPoolResetable
 {
+    // Per-attack hit-seed sequencer (composed; shared shape with HurtboxComponent3D).
+    private readonly HitSeedSequencer _hitSeeds = new();
+    private bool _warnedMissingSeed;
+
     #region IBlackboardProvider Implementation
     public (StringName Key, object Value)? Provision => (BBDataSig.HurtboxComponent, this);
     #endregion
@@ -88,6 +93,36 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
     }
 
     /// <summary>
+    /// Resolves the per-hit lineage seed for an incoming attack — reads the RECEIVER's EntitySeed
+    /// LIVE from the combatant's blackboard, then delegates to <see cref="HitSeedSequencer"/>.
+    /// Fires one missing-seed warning per instance. Mirrors HurtboxComponent3D.
+    /// </summary>
+    private int? ResolveHitSeed(IAttackPayload payload)
+    {
+        int? receiverSeed = null;
+        if (_combatant?.Blackboard != null && _combatant.Blackboard.TryGet<int>(BBDataSig.EntitySeed, out var rs))
+        {
+            receiverSeed = rs;
+        }
+
+        var hitSeed = _hitSeeds.Resolve(payload.AttackSeed, payload.SeedProvenance, receiverSeed, out bool warnMissing);
+        if (warnMissing && !_warnedMissingSeed)
+        {
+            JmoLogger.Warning(this,
+                "[Lineage] Hurtbox could not derive a hit seed for a seeded/expected attack (missing attack seed or receiver EntitySeed) — this hit is non-deterministic.");
+            _warnedMissingSeed = true;
+        }
+        return hitSeed;
+    }
+
+    /// <summary>Resets per-attack hit-seed counters + the warn latch for clean pool reuse.</summary>
+    public void OnPoolReset()
+    {
+        _hitSeeds.Reset();
+        _warnedMissingSeed = false;
+    }
+
+    /// <summary>
     /// Called DIRECTLY by HitboxComponent2D. Receiving end of the handshake.
     /// </summary>
     public bool ProcessHit(IAttackPayload payload)
@@ -102,7 +137,8 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
             HitDirection = CalculateHitDirection(payload.Source),
             ImpactVelocity = CalculateImpactVelocity(payload.Source),
             EpicenterPosition = epicenter,
-            DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter)
+            DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
+            HitSeed = ResolveHitSeed(payload),
         };
 
         // Forward to Brain. The Combatant's ProcessPayload signature is dimension-
@@ -206,15 +242,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
     /// 3D axes. 2D-aware effects should read the richer HitContext2D via the
     /// OnHitReceived event instead.
     /// </summary>
-    private static HitContext ToHitContextAdapter(HitContext2D c) => new HitContext
-    {
-        Attacker = c.Attacker,
-        Source = c.Source,
-        HitDirection = new Vector3(c.HitDirection.X, 0f, c.HitDirection.Y),
-        ImpactVelocity = new Vector3(c.ImpactVelocity.X, 0f, c.ImpactVelocity.Y),
-        EpicenterPosition = new Vector3(c.EpicenterPosition.X, 0f, c.EpicenterPosition.Y),
-        DistanceFromEpicenter = c.DistanceFromEpicenter
-    };
+    private static HitContext ToHitContextAdapter(HitContext2D c) => HitContextAdapter.To3D(c);
 
     #endregion
 }

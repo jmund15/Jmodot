@@ -49,6 +49,12 @@ public sealed record class HitContext2D
     public DamageKind Kind { get; init; } = DamageKind.Direct;
 
     /// <summary>
+    /// The per-hit lineage seed (see <see cref="HitContext.HitSeed"/>). Copied across the
+    /// 2D→3D adapter so 2D combat shares the same per-hit determinism.
+    /// </summary>
+    public int? HitSeed { get; init; }
+
+    /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.
     /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).

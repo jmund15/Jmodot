@@ -61,6 +61,13 @@ public sealed record class HitContext
     public Vector3 EpicenterForward { get; init; } = Vector3.Back;
 
     /// <summary>
+    /// The per-hit lineage seed the receiving hurtbox derived from the attack's
+    /// <see cref="IAttackPayload.AttackSeed"/> and this receiver's entity seed. Null when the
+    /// attack is unseeded/missing or the receiver has no entity seed. Consumed by L5 (per-hit crit).
+    /// </summary>
+    public int? HitSeed { get; init; }
+
+    /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.
     /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).

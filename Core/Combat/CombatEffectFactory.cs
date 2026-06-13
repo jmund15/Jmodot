@@ -14,5 +14,5 @@ public abstract partial class CombatEffectFactory : Resource, ICombatEffectFacto
 {
     [Export] public VisualEffect? TargetVisualEffect { get; set; }
 
-    public abstract ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null);
+    public abstract ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null);
 }

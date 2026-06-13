@@ -20,7 +20,7 @@ public partial class KnockbackEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] private KnockbackEffect _effect = null!;
 
-    public override ICombatEffect Create(IStatProvider? stats = null)
+    public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
         return this._effect;

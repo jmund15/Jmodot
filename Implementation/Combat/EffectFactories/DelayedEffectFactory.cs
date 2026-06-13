@@ -21,14 +21,14 @@ public partial class DelayedEffectFactory : CombatEffectFactory
     [Export] public PackedScene? PersistentVisuals { get; set; }
     [Export] public StatusSpreadConfig? Spread { get; set; }
 
-    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
+    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 
         var effect = new DelayEffect(
             Runner,
             Delay.ResolveFloatValue(stats),
-            EffectToApply.Create(stats),
+            EffectToApply.Create(stats, seed),
             PersistentVisuals,
             Tags,
             TargetVisualEffect

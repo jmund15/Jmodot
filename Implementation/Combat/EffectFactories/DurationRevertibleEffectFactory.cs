@@ -22,11 +22,11 @@ public partial class DurationRevertibleEffectFactory : CombatEffectFactory
     [Export] public PackedScene? PersistentVisuals { get; set; }
     [Export] public StatusSpreadConfig? Spread { get; set; }
 
-    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
+    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 
-        var effect = RevertibleEffect.Create(stats);
+        var effect = RevertibleEffect.Create(stats, seed);
         if (effect is not IRevertibleCombatEffect revertibleEffect)
         {
             JmoLogger.Error(this, $"{RevertibleEffect.ResourcePath}'s effect is not revertible!");

@@ -58,7 +58,7 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
     /// </summary>
     [Export] public float KnockbackVelocityScaling { get; set; } = 1f;
 
-    public override ICombatEffect Create(IStatProvider? stats = null)
+    public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 

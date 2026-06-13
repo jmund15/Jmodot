@@ -22,15 +22,15 @@ public partial class DurationEffectFactory : CombatEffectFactory
     [Export] public PackedScene? PersistentVisuals { get; set; }
     [Export] public StatusSpreadConfig? Spread { get; set; }
 
-    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
+    public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 
         var effect = new DurationEffect(
             Runner,
             Duration.ResolveFloatValue(stats),
-            OnStartEffect?.Create(stats),
-            OnEndEffect?.Create(stats),
+            OnStartEffect?.Create(stats, seed),
+            OnEndEffect?.Create(stats, seed),
             PersistentVisuals,
             Tags,
             TargetVisualEffect

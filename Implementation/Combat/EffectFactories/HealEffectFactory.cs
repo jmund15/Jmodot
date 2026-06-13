@@ -16,7 +16,7 @@ public partial class HealEffectFactory : CombatEffectFactory
     [Export, RequiredExport]
     public BaseFloatValueDefinition HealPercent { get; private set; } = null!;
 
-    public override ICombatEffect Create(IStatProvider? stats = null)
+    public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
 

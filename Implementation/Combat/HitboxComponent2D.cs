@@ -75,6 +75,11 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     private const int PendingOverlapRetryFrames = 3;
 
     private int _pendingOverlapRetries = 0;
+
+    // Cached Blackboard REFERENCE (not the seed value); _attackSeq is the per-entity attack counter,
+    // lazily built from the live EntitySeed and nulled on pool reset. Mirrors HitboxComponent3D.
+    private IBlackboard? _bb;
+    private Shared.SeedSequence? _attackSeq;
     #endregion
 
     #region IComponent Implementation
@@ -82,6 +87,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
     public bool Initialize(IBlackboard bb)
     {
+        _bb = bb;
         bb?.TryGet(BBDataSig.HurtboxComponent, out _selfHurtbox);
 
         IsInitialized = true;
@@ -188,6 +194,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         IsContinuous = false;
         ContinuousTickInterval = 0.1f;
+        _attackSeq = null; // re-acquired hitbox re-derives from its new entity's seed
 
         if (!IsActive) { return; }
 
@@ -201,7 +208,8 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         attacker ??= Owner ?? this;
         source ??= this;
 
-        var payload = new CombatPayload(attacker, source);
+        var (attackSeed, provenance) = NextAttackSeed();
+        var payload = new CombatPayload(attacker, source, null, attackSeed, provenance);
 
         foreach (var factory in DefaultEffects)
         {
@@ -212,6 +220,21 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         }
 
         StartAttack(payload);
+    }
+
+    /// <summary>
+    /// Next per-attack lineage seed from this attacker's entity <see cref="Shared.SeedSequence"/>,
+    /// reading EntitySeed LIVE from the blackboard and lazily (re)building the sequence. Mirrors
+    /// HitboxComponent3D. Returns (null, Missing) when the attacker has no entity seed.
+    /// </summary>
+    private (int? Seed, SeedProvenance Provenance) NextAttackSeed()
+    {
+        if (_bb != null && _bb.TryGet<int>(BBDataSig.EntitySeed, out var entitySeed))
+        {
+            _attackSeq ??= new Shared.SeedSequence(entitySeed, Shared.SeedKinds.Attack);
+            return (_attackSeq.Next(), SeedProvenance.Seeded);
+        }
+        return (null, SeedProvenance.Missing);
     }
     #endregion
 

@@ -14,15 +14,32 @@ public class CombatPayload : IAttackPayload
     public Node Attacker { get; }
     public Node Source { get; }
     public IStatProvider? Stats { get; }
+    public int? AttackSeed { get; }
+    public SeedProvenance SeedProvenance { get; }
 
     private readonly List<ICombatEffect> _effects = new();
     public IReadOnlyList<ICombatEffect> Effects => _effects;
 
-    public CombatPayload(Node attacker, Node source, IStatProvider? stats = null)
+    public CombatPayload(Node attacker, Node source, IStatProvider? stats = null,
+        int? attackSeed = null, SeedProvenance provenance = SeedProvenance.Missing)
     {
         Attacker = attacker;
         Source = source;
         Stats = stats;
+        AttackSeed = attackSeed;
+        SeedProvenance = provenance;
+    }
+
+    /// <summary>
+    /// Returns a copy carrying the given attack-seed lineage, preserving Attacker/Source/Stats
+    /// and the effects list. The single propagation chokepoint — wrapper/filter sites that
+    /// rebuild a payload route through here so the lineage token is never dropped.
+    /// </summary>
+    public CombatPayload With(int? attackSeed, SeedProvenance provenance)
+    {
+        var copy = new CombatPayload(Attacker, Source, Stats, attackSeed, provenance);
+        copy._effects.AddRange(_effects);
+        return copy;
     }
 
     public void AddEffect(ICombatEffect effect)

@@ -16,14 +16,14 @@
 //     [Export] public GCol.Array<GameplayTag> Tags { get; set; } = [];
 //     [Export] public PackedScene PersistentVisuals { get; set; }
 //
-//     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null)
+//     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null)
 //     {
 //         return new ConditionStatusRunner
 //         {
 //             Condition = Condition,
 //             CheckInterval = CheckInterval,
-//             OnTickEffect = EffectToApplyOnTick?.Create(stats),
-//             OnEndEffect = EffectToApplyOnEnd?.Create(stats),
+//             OnTickEffect = EffectToApplyOnTick?.Create(stats, seed),
+//             OnEndEffect = EffectToApplyOnEnd?.Create(stats, seed),
 //             Tags = Tags,
 //             PersistentVisuals = PersistentVisuals
 //         };
