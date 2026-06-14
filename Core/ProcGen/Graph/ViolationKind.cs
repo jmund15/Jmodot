@@ -26,4 +26,11 @@ public enum ViolationKind
 
     /// <summary>Embedding found no compatible port binding for an edge.</summary>
     EmbedNoBinding,
+
+    /// <summary>
+    ///     Generation completed but fewer branches were grown than BranchSpec.Count.Min requested.
+    ///     Appended last to preserve the append-only ordinal contract (serialized .tres ints must
+    ///     never shift meaning).
+    /// </summary>
+    BranchesUnfilled,
 }

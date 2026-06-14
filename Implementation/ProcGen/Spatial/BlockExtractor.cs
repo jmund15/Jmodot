@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.ProcGen.Spatial;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -107,7 +108,8 @@ internal static class BlockExtractor
         return cycles;
     }
 
-    private static (StringName A, StringName B) RouteAnchors(IReadOnlyList<IGraphEdge> routeEdges)
+    // internal (not private) so the anchor-extraction invariant is directly unit-testable.
+    internal static (StringName A, StringName B) RouteAnchors(IReadOnlyList<IGraphEdge> routeEdges)
     {
         var incidence = new Dictionary<StringName, int>();
         foreach (IGraphEdge edge in routeEdges)
@@ -116,7 +118,17 @@ internal static class BlockExtractor
             incidence[edge.To.Id] = incidence.GetValueOrDefault(edge.To.Id) + 1;
         }
 
+        // A well-formed Loop route is an open chain with exactly two degree-1 endpoints. A self-closed
+        // or otherwise malformed route violates that invariant; fail loud with the offending count
+        // rather than throwing an opaque IndexOutOfRangeException on anchors[0]/anchors[1].
         var anchors = incidence.Where(kv => kv.Value == 1).Select(kv => kv.Key).ToList();
+        if (anchors.Count != 2)
+        {
+            throw new InvalidOperationException(
+                $"RouteAnchors expected exactly two degree-1 endpoints in a Loop route but found {anchors.Count}: " +
+                "the route is self-closed or malformed, indicating bad topology upstream of the embedder.");
+        }
+
         return (anchors[0], anchors[1]);
     }
 
@@ -169,7 +181,14 @@ internal static class BlockExtractor
         StringName cursor = to;
         while (cursor != from)
         {
-            path.Add(cameBy[cursor]);
+            if (!cameBy.TryGetValue(cursor, out IGraphEdge? edge))
+            {
+                throw new System.InvalidOperationException(
+                    $"BlockExtractor: no non-Loop path connects route anchors '{from}' and '{to}' — "
+                    + "loop routes must anchor on the spine/branch tree (generator invariant).");
+            }
+
+            path.Add(edge);
             cursor = cameFrom[cursor];
         }
 
