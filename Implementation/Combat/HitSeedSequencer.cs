@@ -18,21 +18,22 @@ using Jmodot.Implementation.Shared;
 /// transient (cleared on the receiver's pool return), never save-serialized.
 /// </para>
 /// <para>
-/// Cleanup: <see cref="Reset"/> on the receiver's pool return clears all entries; a bounded
-/// least-recently-used eviction (cap <c>MaxSequences</c>) backstops entries whose attacker vanished
-/// via QueueFree (which fires no domain event). The eviction target is the least-recently-TOUCHED
-/// attack, so a continuously-re-hitting attack stays most-recently-used and is never evicted. Residual
-/// collision window (precise statement, not the stronger "never resets an in-flight counter"): an
-/// attack idle for ≥<c>MaxSequences</c> distinct OTHER attacks on this receiver between two of its own
-/// hits can have its counter evicted and re-derive from idx 0 — a duplicate hit seed. The trigger is
-/// extreme (that many distinct simultaneous attackers on one receiver) and harmless while nothing
-/// consumes the hit seed; make eviction recency-window-aware before a consumer relies on per-hit
-/// uniqueness if that window is ever reachable.
+/// Cleanup: <see cref="Reset"/> on the receiver's pool return clears all entries; a recency-window-aware
+/// stale sweep (soft cap <c>DefaultMaxSequences</c>) backstops entries whose attacker vanished via
+/// QueueFree (which fires no domain event). On cap pressure the least-recently-touched entry is evicted
+/// ONLY if it is stale - untouched for at least one full cap-window of derivations; a still-active attack
+/// (touched within the window) is protected even when it is the LRU, so an in-flight continuous attack
+/// between ticks is never evicted and never re-derives from idx 0 (the duplicate hit seed pure LRU could
+/// produce). When every entry is within the window (many simultaneously-active attacks on one receiver),
+/// the dictionary grows transiently above the cap - bounded by the count of genuinely-active distinct
+/// attackers, cleared on pool return. Residual window (now far narrower): an attack untouched for
+/// >= <c>DefaultMaxSequences</c> derivations while the dict is at cap can still be swept and re-derive
+/// from idx 0 - reachable only under absurd distinct-attacker counts on a single receiver.
 /// </para>
 /// </summary>
 public sealed class HitSeedSequencer
 {
-    private const int MaxSequences = 128;
+    private const int DefaultMaxSequences = 128;
 
     private struct HitSeq
     {
@@ -41,7 +42,13 @@ public sealed class HitSeedSequencer
     }
 
     private readonly Dictionary<int, HitSeq> _sequences = new();
+    private readonly int _maxSequences;
     private long _tick;
+
+    public HitSeedSequencer()
+    {
+        this._maxSequences = DefaultMaxSequences;
+    }
 
     /// <summary>
     /// Resolves the per-hit seed for an incoming attack per the provenance 2×2 table:
@@ -49,7 +56,7 @@ public sealed class HitSeedSequencer
     /// UnseededByDesign → null silent; Missing → null + warn. <paramref name="warnMissing"/> is set
     /// when the caller should fire a one-shot missing-seed warning (the caller owns the latch).
     /// </summary>
-    public int? Resolve(int? attackSeed, SeedProvenance provenance, int? receiverEntitySeed, out bool warnMissing)
+    public int? ResolveHitSeed(int? attackSeed, SeedProvenance provenance, int? receiverEntitySeed, out bool warnMissing)
     {
         warnMissing = false;
         switch (provenance)
@@ -79,7 +86,7 @@ public sealed class HitSeedSequencer
     {
         if (!this._sequences.TryGetValue(attackSeed, out var seq))
         {
-            if (this._sequences.Count >= MaxSequences) { this.EvictLeastRecentlyUsed(); }
+            if (this._sequences.Count >= this._maxSequences) { this.TryEvictStaleEntry(); }
             seq = default;
         }
 
@@ -90,7 +97,13 @@ public sealed class HitSeedSequencer
         return idx;
     }
 
-    private void EvictLeastRecentlyUsed()
+    // Recency-window-aware eviction (replaces pure LRU): evict the least-recently-touched entry ONLY if it
+    // is stale — untouched for at least one full cap-window of derivations (_maxSequences). A still-active
+    // attack (touched within the window) is protected even when it is the LRU, so an in-flight continuous
+    // attack between ticks is never evicted → never re-derives from idx 0 (the duplicate hit seed). When
+    // every entry is within the window, no eviction occurs and the dict grows transiently (bounded by the
+    // count of genuinely-active distinct attackers, cleared on pool return).
+    private void TryEvictStaleEntry()
     {
         int oldestKey = 0;
         long oldest = long.MaxValue;
@@ -102,11 +115,21 @@ public sealed class HitSeedSequencer
                 oldestKey = kvp.Key;
             }
         }
-        this._sequences.Remove(oldestKey);
+        if (this._tick - oldest >= this._maxSequences)
+        {
+            this._sequences.Remove(oldestKey);
+        }
     }
 
     #region Test Helpers
 #if TOOLS
+    /// <summary>Test-only: construct with a small cap so the eviction/recency policy is exercisable
+    /// in a handful of calls (production always uses the parameterless ctor → DefaultMaxSequences).</summary>
+    internal HitSeedSequencer(int maxSequences)
+    {
+        this._maxSequences = maxSequences;
+    }
+
     internal int SequenceCount => this._sequences.Count;
 #endif
     #endregion

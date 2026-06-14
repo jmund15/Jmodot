@@ -10,6 +10,11 @@ using Jmodot.Implementation.Combat;
 /// - NEVER return null. Return the original payload if no filtering is needed.
 /// - Return an empty-effects payload to suppress all combat effects while still allowing
 ///   ProcessHit validation and OnHitReceived to fire.
+/// - LINEAGE INVARIANT: the returned payload MUST carry the original's <c>AttackSeed</c> and
+///   <c>SeedProvenance</c>. The receiving hurtbox derives its per-hit lineage seed from the payload
+///   it processes, so dropping the token silently breaks per-hit determinism (e.g. continuous-attack
+///   crit rolls). When rebuilding, use <see cref="CombatPayload.RebuildWithEffects"/> (preserves the
+///   token) rather than a raw <c>new CombatPayload(...)</c>.
 /// - Implementers must be safe to invoke from inside HitboxComponent2D.TryHitHurtbox
 ///   (which may run during a physics callback).
 /// </summary>

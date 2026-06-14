@@ -105,7 +105,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
             receiverSeed = rs;
         }
 
-        var hitSeed = _hitSeeds.Resolve(payload.AttackSeed, payload.SeedProvenance, receiverSeed, out bool warnMissing);
+        var hitSeed = _hitSeeds.ResolveHitSeed(payload.AttackSeed, payload.SeedProvenance, receiverSeed, out bool warnMissing);
         if (warnMissing && !_warnedMissingSeed)
         {
             JmoLogger.Warning(this,

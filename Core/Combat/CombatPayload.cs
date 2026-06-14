@@ -31,14 +31,34 @@ public class CombatPayload : IAttackPayload
     }
 
     /// <summary>
-    /// Returns a copy carrying the given attack-seed lineage, preserving Attacker/Source/Stats
-    /// and the effects list. The single propagation chokepoint — wrapper/filter sites that
-    /// rebuild a payload route through here so the lineage token is never dropped.
+    /// Returns a copy that RESTAMPS the lineage token (AttackSeed/SeedProvenance), preserving
+    /// Attacker/Source/Stats and the FULL effects list unchanged. Use when re-seeding an existing
+    /// payload without altering its effects (reserved for the planned reaction-chain reseed; no
+    /// production caller yet). Orthogonal to <see cref="RebuildWithEffects"/>: this swaps the seed
+    /// keeping effects; that swaps the effects keeping the seed.
     /// </summary>
     public CombatPayload With(int? attackSeed, SeedProvenance provenance)
     {
         var copy = new CombatPayload(Attacker, Source, Stats, attackSeed, provenance);
         copy._effects.AddRange(_effects);
+        return copy;
+    }
+
+    /// <summary>
+    /// Rebuilds a payload from <paramref name="original"/> with a DIFFERENT effect set, preserving
+    /// Attacker/Source/Stats AND the lineage token (AttackSeed/SeedProvenance). The single
+    /// seed-preserving path for effect-selective filters — routing rebuilds through here means a
+    /// filter can't silently drop the lineage token (the historical Stats/seed-drop bug). Null
+    /// effects in <paramref name="effects"/> are skipped (matches <see cref="AddEffect"/>).
+    /// </summary>
+    public static CombatPayload RebuildWithEffects(IAttackPayload original, IEnumerable<ICombatEffect> effects)
+    {
+        var copy = new CombatPayload(original.Attacker, original.Source, original.Stats,
+            original.AttackSeed, original.SeedProvenance);
+        foreach (var effect in effects)
+        {
+            copy.AddEffect(effect);
+        }
         return copy;
     }
 

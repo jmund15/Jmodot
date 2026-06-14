@@ -20,6 +20,7 @@ public static class HitContextAdapter
         ImpactVelocity = new Vector3(c.ImpactVelocity.X, 0f, c.ImpactVelocity.Y),
         EpicenterPosition = new Vector3(c.EpicenterPosition.X, 0f, c.EpicenterPosition.Y),
         DistanceFromEpicenter = c.DistanceFromEpicenter,
+        Kind = c.Kind,
         HitSeed = c.HitSeed,
     };
 }
