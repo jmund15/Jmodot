@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Shared;
 
 using System;
 using Godot;
+using Jmodot.Core.Shared;
 
 /// <summary>
 /// Seeded instance RNG wrapping <see cref="RandomNumberGenerator"/>. Every game
@@ -19,7 +20,7 @@ using Godot;
 /// beyond the RefCounted, and the underlying generator is never exposed.
 /// </para>
 /// </summary>
-public sealed class JmoRng
+public sealed class JmoRng : IRng
 {
     private readonly RandomNumberGenerator _rng;
     private const int MaxAttempts = 10;

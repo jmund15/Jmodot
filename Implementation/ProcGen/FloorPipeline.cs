@@ -7,6 +7,7 @@ using Godot;
 using Jmodot.Core.ProcGen;
 using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.ProcGen.Spatial;
+using Jmodot.Core.Shared;
 using Jmodot.Implementation.ProcGen.Graph;
 using Jmodot.Implementation.ProcGen.Spatial;
 using Jmodot.Implementation.Shared;
@@ -35,7 +36,8 @@ public static class FloorPipeline
         GeometryEnvelope envelope,
         int seedRoot,
         FloorPipelineSettings? settings = null,
-        IFloorEmbedder? embedder = null)
+        IFloorEmbedder? embedder = null,
+        Func<int, IRng>? rngFactory = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(envelope);
@@ -61,7 +63,7 @@ public static class FloorPipeline
         for (int attempt = 0; attempt < settings.MaxFloorAttempts; attempt++)
         {
             int floorSeed = SeedManager.DeriveChild(seedRoot, "floor", attempt);
-            var stage1 = GraphGenerator.GenerateSingle(config, floorSeed);
+            var stage1 = GraphGenerator.GenerateSingle(config, floorSeed, rngFactory);
             if (!stage1.Succeeded)
             {
                 if (stage1.Violations.Any(v => v.Reason == ViolationKind.PinUnsatisfiable))

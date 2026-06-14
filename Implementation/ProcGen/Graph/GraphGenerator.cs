@@ -28,7 +28,13 @@ internal static class GraphGenerator
     // id segments can never be forged by id content.
     private const char Sep = (char)0x1F;
 
-    public static GraphGenerationResult GenerateSingle(ISkeletonConfig config, int floorSeed)
+    // Default RNG factory: allocates a JmoRng per derived seed only when INVOKED (a lambda, not a
+    // pre-constructed instance), so it never runs Godot's native StringName..cctor at type-load and
+    // stays safe for pure-Logic call paths. An injected factory lets a future engine-free RNG swap in.
+    private static readonly Func<int, IRng> DefaultRngFactory = seed => new JmoRng(seed);
+
+    public static GraphGenerationResult GenerateSingle(
+        ISkeletonConfig config, int floorSeed, Func<int, IRng>? rngFactory = null)
     {
         if (config == null)
         {
@@ -37,7 +43,7 @@ internal static class GraphGenerator
 
         config.Validate();
 
-        var state = new GenState(config, floorSeed);
+        var state = new GenState(config, floorSeed, rngFactory ?? DefaultRngFactory);
         var outcome = state.BuildFloor(out var cause);
         return outcome == FloorOutcome.Ok
             ? state.ToResult(succeeded: true)
@@ -71,10 +77,15 @@ internal static class GraphGenerator
     {
         private readonly ISkeletonConfig _config;
         private readonly int _floorSeed;
+        private readonly Func<int, IRng> _rngFactory;
 
         private readonly PartialGraph _g = new();
         private readonly List<Violation> _warnings = new();
         private readonly HashSet<string> _anchorReservedPorts = new();
+
+        // Spine membership — loop routes may only anchor here (BlockExtractor's tree-path invariant:
+        // the non-Loop skeleton must connect every pair of route anchors).
+        private readonly HashSet<StringName> _spineNodeIds = new();
 
         // Monotonic node-id ordinal — advances on every placement, guaranteeing globally-unique,
         // deterministic ids.
@@ -86,10 +97,11 @@ internal static class GraphGenerator
         // restart would collide (Loop, 0). Distinct from _ordinal, which counts per-placement attempts.
         private int _routeOrdinal;
 
-        public GenState(ISkeletonConfig config, int floorSeed)
+        public GenState(ISkeletonConfig config, int floorSeed, Func<int, IRng> rngFactory)
         {
             this._config = config;
             this._floorSeed = floorSeed;
+            this._rngFactory = rngFactory;
         }
 
         private int BudgetMax => this._config.NodeBudget?.Max ?? int.MaxValue;
@@ -151,6 +163,7 @@ internal static class GraphGenerator
             }
 
             this._g.SetSource(first);
+            this._spineNodeIds.Add(first.Id);
             GraphNode prev = first;
             int placed = 1;
 
@@ -167,10 +180,12 @@ internal static class GraphGenerator
                     break; // prev has no spare port to grow from — stop the spine here
                 }
 
+                // Interior nodes need an entry AND an exit port; only the tail may be a dead-end cap.
+                int minPorts = i < length - 1 ? 2 : 1;
                 INodeTemplate? forced = forcedByIndex.GetValueOrDefault(i);
                 GraphNode? node = this.PlaceNode(
                     "spine", requiredType: exit.Type,
-                    anchor: new PortSlot(prev, exit), weights, constraints, forced);
+                    anchor: new PortSlot(prev, exit), weights, constraints, forced, minPorts: minPorts);
                 if (node == null)
                 {
                     cause = forced != null
@@ -187,6 +202,7 @@ internal static class GraphGenerator
                 }
 
                 this._g.Connect(prev, exit, node, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Spine, 0));
+                this._spineNodeIds.Add(node.Id);
                 prev = node;
                 placed++;
             }
@@ -201,6 +217,14 @@ internal static class GraphGenerator
                     cause = PinUnsatisfiable($"spine truncated at {placed} nodes before reaching the pin at index {idx}.");
                     return FloorOutcome.PinUnsatisfiable;
                 }
+            }
+
+            // Degradation stays bounded by the authored range: truncating WITHIN [Min, drawn] is
+            // accepted, but a spine below Length.Min breaks the structural contract — re-roll.
+            if (lengthSpec != null && placed < lengthSpec.Min)
+            {
+                cause = SpineInfeasible($"spine truncated at {placed} nodes, below Length.Min ({lengthSpec.Min}).");
+                return FloorOutcome.SpineInfeasible;
             }
 
             this._g.SetSink(prev);
@@ -242,7 +266,7 @@ internal static class GraphGenerator
             {
                 // Fewer eligible anchor pairs than requested — surfaced as a soft warning (the floor is
                 // still a valid connected topology; the backbone-feasibility Validate gate guards the
-                // authored config, but a sampled short spine can still under-fill).
+                // authored config, but a sampled short or spare-port-poor spine can still under-fill).
                 this._warnings.Add(new Violation(
                     ViolationKind.AlternateRoutesUnfilled, Severity.Warning,
                     $"Laid {pairs.Count} guaranteed loops; {guaranteed} requested."));
@@ -298,7 +322,7 @@ internal static class GraphGenerator
                     choices.Add((p, this.EndpointWeightProduct(p, weights)));
                 }
 
-                var rng = new JmoRng(SeedManager.DeriveChild(this._floorSeed, passKey, "anchors", pick.ToString()));
+                var rng = this._rngFactory(SeedManager.DeriveChild(this._floorSeed, passKey, "anchors", pick.ToString()));
                 long total = WeightedPick.TotalWeight(choices);
                 (GraphNode X, GraphNode Y) chosen = WeightedPick.Pick(choices, rng.GetRndLong(total));
 
@@ -337,7 +361,7 @@ internal static class GraphGenerator
         {
             var nodes = this._g.Nodes;
             var withSpare = nodes
-                .Where(n => this.SelectAnchorPort(n) != null)
+                .Where(n => this._spineNodeIds.Contains(n.Id) && this.SelectAnchorPort(n) != null)
                 .ToList();
 
             var pairs = new List<(GraphNode X, GraphNode Y)>();
@@ -418,8 +442,10 @@ internal static class GraphGenerator
                 int ord = this._ordinal++;
                 var id = new StringName($"{passKey}{Sep}{ord}");
 
+                // minPorts 2: a route node must pass through (entry + exit); a 1-port dead-end here
+                // would fail the whole route at commit time.
                 INodeTemplate? template = this.SelectTemplate(
-                    id, entryType, anchor: null, Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), passKey, ord, forced: null, pref: TemplateRole.Connector);
+                    id, entryType, anchor: null, Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), passKey, ord, forced: null, pref: TemplateRole.Connector, minPorts: 2);
                 if (template == null)
                 {
                     return false; // no admissible routing template — deterministic, retry cannot help
@@ -438,36 +464,71 @@ internal static class GraphGenerator
 
         private bool CommitRoute(AnchorPair pair, List<(StringName Id, INodeTemplate Template)> prov, int routeOrdinal)
         {
+            // Resolve the FULL entry/exit port chain BEFORE mutating the graph. The previous form
+            // committed every node up front and then walked binding ports, so a mid-walk bail (a route
+            // node whose entry cannot match the predecessor's exit type) left orphan nodes + a dangling
+            // Loop-stamped chain behind — and for opportunistic routes that failure is soft-skipped, so
+            // the malformed topology shipped in a "successful" graph. Route nodes are fresh, so port
+            // occupancy is local to the route; track claimed ports per node without touching the graph,
+            // mirroring SelectOpenPort's template-order, wildcard-aware pick so committed routes stay
+            // byte-identical to the pre-staging path.
+            var plan = new List<(IGraphPort Entry, IGraphPort Exit)>(prov.Count);
+            StringName prevPortType = pair.XPort.Type;
+            foreach (var step in prov)
+            {
+                var claimed = new HashSet<StringName>();
+                IGraphPort? entry = FirstSparePort(step.Template, prevPortType, claimed);
+                if (entry == null)
+                {
+                    return false; // no compatible entry port — commit nothing
+                }
+
+                claimed.Add(entry.Name);
+                IGraphPort? exit = FirstSparePort(step.Template, requiredType: default, claimed);
+                if (exit == null)
+                {
+                    return false; // no spare exit to continue / close — commit nothing
+                }
+
+                plan.Add((entry, exit));
+                prevPortType = exit.Type;
+            }
+
+            // Full chain resolved (closure onto Y is topological). Mutate atomically: add all route
+            // nodes, then wire X → n1 → … → Y in the same order the pre-staging path did.
             var nodes = new List<GraphNode>(prov.Count);
             foreach (var step in prov)
             {
-                GraphNode n = this._g.AddNode(step.Id, step.Template);
-                nodes.Add(n);
+                nodes.Add(this._g.AddNode(step.Id, step.Template));
             }
 
             GraphNode prevNode = pair.X;
             IGraphPort prevPort = pair.XPort;
-            foreach (GraphNode n in nodes)
+            for (int i = 0; i < nodes.Count; i++)
             {
-                IGraphPort? entry = this.SelectOpenPort(n, prevPort.Type);
-                if (entry == null)
-                {
-                    return false; // route node exposes no compatible entry port (config error)
-                }
-
-                this._g.Connect(prevNode, prevPort, n, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Loop, routeOrdinal));
-                prevNode = n;
-                IGraphPort? exit = this.SelectOpenPort(n, requiredType: default);
-                if (exit == null)
-                {
-                    return false; // no spare exit to continue / close
-                }
-
-                prevPort = exit;
+                this._g.Connect(prevNode, prevPort, nodes[i], plan[i].Entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Loop, routeOrdinal));
+                prevNode = nodes[i];
+                prevPort = plan[i].Exit;
             }
 
             this._g.Connect(prevNode, prevPort, pair.Y, pair.YPort, provenance: new EdgeProvenance(EdgeProvenanceKind.Loop, routeOrdinal)); // topological closure onto Y
             return true;
+        }
+
+        // Template-order, wildcard-aware spare-port pick for a FRESH route node: a port is spare when
+        // not yet claimed earlier in this route's plan (a fresh node has no graph edges). Mirrors
+        // SelectOpenPort so a staged commit selects the identical ports the live walk would have.
+        private static IGraphPort? FirstSparePort(INodeTemplate template, StringName requiredType, HashSet<StringName> claimed)
+        {
+            foreach (IGraphPort port in template.Ports)
+            {
+                if (!claimed.Contains(port.Name) && TypeMatches(port.Type, requiredType))
+                {
+                    return port;
+                }
+            }
+
+            return null;
         }
 
         private Dictionary<int, INodeTemplate> ResolveForcedTemplates(int length)
@@ -564,6 +625,7 @@ internal static class GraphGenerator
             var weights = spec.EffectiveWeights;
             var constraints = spec.EffectiveConstraints;
 
+            int grown = 0;
             for (int b = 0; b < count; b++)
             {
                 GraphNode? anchor = this.PickBranchAnchor();
@@ -572,7 +634,20 @@ internal static class GraphGenerator
                     break; // no node has a spare port — stop branching
                 }
 
+                int before = this._g.NodeCount;
                 this.GrowBranch(anchor, depth, fanout, weights, constraints, b);
+                if (this._g.NodeCount > before)
+                {
+                    grown++;
+                }
+            }
+
+            int branchMin = spec.Count?.Min ?? 0;
+            if (grown < branchMin)
+            {
+                this._warnings.Add(new Violation(
+                    ViolationKind.BranchesUnfilled, Severity.Warning,
+                    $"Grew {grown} branches; BranchSpec.Count.Min is {branchMin}."));
             }
         }
 
@@ -644,12 +719,12 @@ internal static class GraphGenerator
         private GraphNode? PlaceNode(
             string passKey, StringName requiredType,
             PortSlot? anchor, IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
-            INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body)
+            INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body, int minPorts = 1)
         {
             int ord = this._ordinal++;
             var nodeId = new StringName($"{passKey}{Sep}{ord}");
 
-            INodeTemplate? template = this.SelectTemplate(nodeId, requiredType, anchor, weights, constraints, passKey, ord, forced, pref);
+            INodeTemplate? template = this.SelectTemplate(nodeId, requiredType, anchor, weights, constraints, passKey, ord, forced, pref, minPorts);
             if (template == null)
             {
                 return null;
@@ -667,13 +742,13 @@ internal static class GraphGenerator
             StringName nodeId, StringName requiredType, PortSlot? anchor,
             IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
             string passKey, int ordinal,
-            INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body)
+            INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body, int minPorts = 1)
         {
             List<INodeTemplate> candidates;
             if (forced != null)
             {
-                // A pin overrides free selection (and the constraint filter — it is authored intent);
-                // it still requires a port compatible with its predecessor.
+                // A pin overrides free selection (and the constraint + minPorts filters — it is
+                // authored intent); it still requires a port compatible with its predecessor.
                 candidates = HasOpenTypeMatch(forced, requiredType)
                     ? new List<INodeTemplate> { forced }
                     : new List<INodeTemplate>();
@@ -682,6 +757,7 @@ internal static class GraphGenerator
             {
                 candidates = OrderByRolePreference(
                     this._config.TemplatePool
+                        .Where(t => t.Ports.Count >= minPorts)
                         .Where(t => HasOpenTypeMatch(t, requiredType))
                         .Where(t => this.PassesConstraints(t, anchor, constraints))
                         .ToList(),
@@ -707,7 +783,7 @@ internal static class GraphGenerator
                 choices.Add((t, this.PlacementWeightProduct(anchor, t, weights, hasMetrics)));
             }
 
-            var rng = new JmoRng(SeedManager.DeriveChild(
+            var rng = this._rngFactory(SeedManager.DeriveChild(
                 this._floorSeed, passKey, "pick", nodeId.ToString(), ordinal.ToString()));
             long total = WeightedPick.TotalWeight(choices);
             long roll = rng.GetRndLong(total);
@@ -823,7 +899,7 @@ internal static class GraphGenerator
                 return spec.Min;
             }
 
-            var rng = new JmoRng(SeedManager.DeriveChild(this._floorSeed, passKey, tag));
+            var rng = this._rngFactory(SeedManager.DeriveChild(this._floorSeed, passKey, tag));
             return RangeRoll.Within(spec, rng.GetRndLong(span + 1));
         }
 
