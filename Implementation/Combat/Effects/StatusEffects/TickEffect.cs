@@ -43,6 +43,7 @@ public class TickEffect : ISpreadAwareCombatEffect
     /// loop when re-Applying this snapshot on a picked target.
     /// </summary>
     public int SpreadGeneration { get; set; } = 0;
+    public int? NextStreamSeed { get; set; }
 
     public TickEffect(
         PackedScene prefab,

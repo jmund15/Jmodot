@@ -65,25 +65,45 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
         float baseDamage = _damageDefinition.ResolveFloatValue(stats);
         float baseKnockback = _knockbackDefinition.ResolveFloatValue(stats);
 
+        // Resolve crit attributes: per-factory override wins, else the project-wide CombatFactoryDefaults
+        // seam, else crit disabled. Both null = no crit (graceful).
+        var critChanceAttr = CritChanceAttrOverride ?? CombatFactoryDefaults.DefaultCritChanceAttr;
+        bool critEnabled = critChanceAttr != null && stats != null;
+        float critChance = critEnabled ? stats!.GetStatValue<float>(critChanceAttr!) : 0f;
+        var critMultAttr = CritMultiplierAttrOverride ?? CombatFactoryDefaults.DefaultCritMultiplierAttr;
+        float critMultiplier = (critMultAttr != null && stats != null)
+            ? stats.GetStatValue(critMultAttr, DefaultCritMultiplier)
+            : DefaultCritMultiplier;
+
+        if ((seed?.Resolution ?? CritResolution.Resolved) == CritResolution.DeferredPerHit)
+        {
+            // Continuous hitbox: defer the roll to Apply (un-baked damage; crit params carried).
+            return new DistanceScaledDamageEffect(
+                baseDamage,
+                baseKnockback,
+                Tags,
+                false,
+                DamageFalloff,
+                KnockbackFalloff,
+                KnockbackVelocityScaling,
+                TargetVisualEffect,
+                CritResolution.DeferredPerHit,
+                critEnabled ? critChance : 0f,
+                critMultiplier,
+                seed?.Seed ?? 0);
+        }
+
+        // Resolved: roll once now from the assembly-derived seed (UnseededByDesign when unseeded;
+        // never NonDeterministic). Crit multiplier baked into baseDamage, mirroring legacy behavior.
         bool isCritical = false;
         float finalDamage = baseDamage;
-
-        // Resolve crit chance attribute: per-factory override wins, else the project-wide
-        // CombatFactoryDefaults seam, else crit disabled. Both null = no crit roll (graceful).
-        var critChanceAttr = CritChanceAttrOverride ?? CombatFactoryDefaults.DefaultCritChanceAttr;
-        if (critChanceAttr != null && stats != null)
+        if (critEnabled)
         {
-            float critChance = stats.GetStatValue<float>(critChanceAttr);
-            isCritical = JmoRng.NonDeterministic().GetRndFloat() < critChance;
-
-            if (isCritical)
-            {
-                var critMultAttr = CritMultiplierAttrOverride ?? CombatFactoryDefaults.DefaultCritMultiplierAttr;
-                float multiplier = critMultAttr != null
-                    ? stats.GetStatValue(critMultAttr, DefaultCritMultiplier)
-                    : DefaultCritMultiplier;
-                finalDamage = baseDamage * multiplier;
-            }
+            float roll = seed.HasValue
+                ? new JmoRng(seed.Value.Seed).GetRndFloat()
+                : JmoRng.UnseededByDesign().GetRndFloat();
+            isCritical = CritResolver.Resolve(roll, critChance);
+            if (isCritical) { finalDamage = baseDamage * critMultiplier; }
         }
 
         return new DistanceScaledDamageEffect(

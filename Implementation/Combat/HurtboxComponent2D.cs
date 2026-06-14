@@ -130,15 +130,17 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
         if (!CanReceiveHit()) { return false; }
 
         Vector2 epicenter = GetEpicenterPosition(payload.Source);
+        // Resolve once before the context — shared by the fallback knockback roll and the context (mirrors 3D).
+        int? hitSeed = ResolveHitSeed(payload);
         HitContext2D context = new HitContext2D
         {
             Attacker = payload.Attacker,
             Source = payload.Source,
-            HitDirection = CalculateHitDirection(payload.Source),
+            HitDirection = CalculateHitDirection(payload.Source, hitSeed),
             ImpactVelocity = CalculateImpactVelocity(payload.Source),
             EpicenterPosition = epicenter,
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
-            HitSeed = ResolveHitSeed(payload),
+            HitSeed = hitSeed,
         };
 
         // Forward to Brain. The Combatant's ProcessPayload signature is dimension-
@@ -175,7 +177,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
         SetPhysicsProcess(false);
     }
 
-    private Vector2 CalculateHitDirection(Node source)
+    private Vector2 CalculateHitDirection(Node source, int? knockbackSeed)
     {
         // 1. VELOCITY BASED (projectiles — direction they're traveling)
         if (source is IVelocityProvider2D velocityProvider && velocityProvider.LinearVelocity.LengthSquared() > 0.01f)
@@ -208,8 +210,12 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
             }
         }
 
-        // 3. FALLBACK: Random direction (e.g., standing directly on explosion)
-        return JmoRng.NonDeterministic().GetRndVector2();
+        // 3. FALLBACK: deterministic random direction derived from this hit's lineage seed (mirrors 3D);
+        // UnseededByDesign when the hit has no seed (never NonDeterministic, the debt marker).
+        var fallbackRng = knockbackSeed.HasValue
+            ? new JmoRng(SeedManager.DeriveChild(knockbackSeed.Value, SeedKinds.Knockback))
+            : JmoRng.UnseededByDesign();
+        return fallbackRng.GetRndVector2();
     }
 
     private Vector2 CalculateImpactVelocity(Node source)

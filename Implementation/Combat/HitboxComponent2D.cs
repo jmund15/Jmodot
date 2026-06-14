@@ -211,15 +211,35 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         var (attackSeed, provenance) = NextAttackSeed();
         var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
+        // Mirrors HitboxComponent3D: effectIdx (per slot) selects the crit seed/mode per effect.
+        int effectIdx = 0;
         foreach (var factory in DefaultEffects)
         {
             if (factory != null)
             {
-                payload.AddEffect(factory.Create(stats));
+                payload.AddEffect(factory.Create(stats, BuildEffectSeed(attackSeed, provenance, effectIdx)));
             }
+            effectIdx++;
         }
 
         StartAttack(payload);
+    }
+
+    /// <summary>Crit-resolution mode + lineage seed for one assembled effect (mirrors HitboxComponent3D):
+    /// continuous → deferred per-hit (seed carries effectIdx); one-shot seeded → resolve now; unseeded → null.</summary>
+    private EffectCreationSeed? BuildEffectSeed(int? attackSeed, SeedProvenance provenance, int effectIdx)
+    {
+        if (IsContinuous)
+        {
+            return new EffectCreationSeed(effectIdx, CritResolution.DeferredPerHit);
+        }
+        if (provenance == SeedProvenance.Seeded && attackSeed.HasValue)
+        {
+            return new EffectCreationSeed(
+                Shared.SeedManager.DeriveChild(attackSeed.Value, Shared.SeedKinds.Crit, effectIdx),
+                CritResolution.Resolved);
+        }
+        return null;
     }
 
     /// <summary>

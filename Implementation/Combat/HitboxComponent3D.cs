@@ -326,15 +326,41 @@ using AI.BB;
             var (attackSeed, provenance) = NextAttackSeed();
             var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
+            // effectIdx advances per slot (including nulls) for index-stability against editor reordering;
+            // it disambiguates the crit derivation when one hit carries multiple effects.
+            int effectIdx = 0;
             foreach (var factory in DefaultEffects)
             {
                 if (factory != null)
                 {
-                    payload.AddEffect(factory.Create(stats));
+                    payload.AddEffect(factory.Create(stats, BuildEffectSeed(attackSeed, provenance, effectIdx)));
                 }
+                effectIdx++;
             }
 
             StartAttack(payload);
+        }
+
+        /// <summary>
+        /// Selects the crit-resolution mode + lineage seed for one assembled effect. A continuous hitbox
+        /// re-applies the same payload every tick, so its crit must defer to per-hit apply time (the seed
+        /// carries <paramref name="effectIdx"/> for the apply-time derivation). A one-shot attack resolves
+        /// once here from the per-attack lineage (whole swing crits together); an unseeded attacker yields
+        /// null so the factory falls back to <c>UnseededByDesign</c>.
+        /// </summary>
+        private EffectCreationSeed? BuildEffectSeed(int? attackSeed, SeedProvenance provenance, int effectIdx)
+        {
+            if (IsContinuous)
+            {
+                return new EffectCreationSeed(effectIdx, CritResolution.DeferredPerHit);
+            }
+            if (provenance == SeedProvenance.Seeded && attackSeed.HasValue)
+            {
+                return new EffectCreationSeed(
+                    Shared.SeedManager.DeriveChild(attackSeed.Value, Shared.SeedKinds.Crit, effectIdx),
+                    CritResolution.Resolved);
+            }
+            return null;
         }
 
         /// <summary>

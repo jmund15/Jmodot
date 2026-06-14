@@ -20,4 +20,11 @@ public interface ISpreadAwareCombatEffect : ICombatEffect
     /// generation gate + falloff curve. Default 0 = primary application.
     /// </summary>
     int SpreadGeneration { get; set; }
+
+    /// <summary>
+    /// Stream seed to stamp on the spawned runner so its own spread rolls are deterministic and disjoint
+    /// from its parent/siblings (the spread generation chain). Null = the runner derives its stream from
+    /// the applying hit's <c>HitContext.HitSeed</c> instead (the primary-application path).
+    /// </summary>
+    int? NextStreamSeed { get; set; }
 }

@@ -105,6 +105,35 @@ public abstract partial class StatusRunner : Node
     /// </summary>
     public ICombatant Target { get; private set; }
 
+    /// <summary>
+    /// Root lineage seed for this runner's spread rolls. For a primary application it derives from the
+    /// applying hit (<c>HitContext.HitSeed</c>) at <see cref="Start"/>; for a spread child it is stamped
+    /// via the generation chain before Start (<see cref="InjectStreamSeed"/>). Null = unseeded.
+    /// </summary>
+    public int? StreamSeed { get; private set; }
+
+    private Shared.SeedSequence? _spreadRollSeq;
+
+    /// <summary>
+    /// Per-runner roll source for one spread evaluation: draws a fresh seed from this runner's spread
+    /// sequence (advancing it) and returns a JmoRng seeded from it — so each evaluation is deterministic
+    /// AND disjoint from sibling runners sharing the same <c>StatusSpreadConfig</c> Resource (the
+    /// cross-stomp the old per-config <c>_rng</c> caused). Unseeded runners fall back to UnseededByDesign.
+    /// </summary>
+    public Shared.JmoRng NextSpreadEvalRng()
+    {
+        if (!StreamSeed.HasValue) { return Shared.JmoRng.UnseededByDesign(); }
+        _spreadRollSeq ??= new Shared.SeedSequence(StreamSeed.Value, Shared.SeedKinds.StatusSpread);
+        return new Shared.JmoRng(_spreadRollSeq.Next());
+    }
+
+    /// <summary>Stamps the spread-child stream seed (generation chain) before <see cref="Start"/>; a null
+    /// arg leaves the runner to derive its stream from the applying hit instead (primary application).</summary>
+    internal void InjectStreamSeed(int? streamSeed)
+    {
+        if (streamSeed.HasValue) { StreamSeed = streamSeed; }
+    }
+
 
     /// <summary>
     /// ICombatEffect Implementation.
@@ -118,6 +147,14 @@ public abstract partial class StatusRunner : Node
     {
         Target = target;
         Context = context;
+
+        // Primary application: derive the spread stream from the applying hit, unless a spread-child stream
+        // seed was already injected (generation chain). "status_spread" keeps this disjoint from the
+        // "crit" consumer of the same HitSeed.
+        if (!StreamSeed.HasValue && context.HitSeed is int hitSeed)
+        {
+            StreamSeed = Shared.SeedManager.DeriveChild(hitSeed, Shared.SeedKinds.StatusSpread);
+        }
 
         if (PersistentVisuals != null)
         {

@@ -26,6 +26,7 @@ public class DelayEffect : ISpreadAwareCombatEffect
 
     public Core.Combat.Status.StatusSpreadConfig? SpreadConfig { get; set; }
     public int SpreadGeneration { get; set; } = 0;
+    public int? NextStreamSeed { get; set; }
 
     public DelayEffect(
         PackedScene prefab,

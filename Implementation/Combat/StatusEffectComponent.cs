@@ -552,9 +552,9 @@ public partial class StatusEffectComponent : Node, IComponent
         if (!cfg.TryEvaluate(runner, nearby, out var picks)) { return; }
 
         int newGen = runner.SpreadGeneration + 1;
-        foreach (var pickedTarget in picks)
+        for (int pickIdx = 0; pickIdx < picks.Count; pickIdx++)
         {
-            SpawnSpreadRunner(runner, pickedTarget, newGen);
+            SpawnSpreadRunner(runner, picks[pickIdx], newGen, pickIdx);
         }
     }
 
@@ -610,7 +610,7 @@ public partial class StatusEffectComponent : Node, IComponent
     /// stale generation values don't leak to subsequent reads (telemetry, debug log,
     /// later iterations of the foreach in EvaluateSpread).
     /// </summary>
-    private void SpawnSpreadRunner(StatusRunner sourceRunner, ICombatant pickedTarget, int newGeneration)
+    private void SpawnSpreadRunner(StatusRunner sourceRunner, ICombatant pickedTarget, int newGeneration, int pickIdx)
     {
         if (sourceRunner.SourceEffect is not ISpreadAwareCombatEffect spreadAware)
         {
@@ -619,7 +619,13 @@ public partial class StatusEffectComponent : Node, IComponent
         }
 
         int previousGeneration = spreadAware.SpreadGeneration;
+        int? previousStreamSeed = spreadAware.NextStreamSeed;
         spreadAware.SpreadGeneration = newGeneration;
+        // Each spawned child gets its own deterministic stream seed via the generation chain, so its
+        // future spread rolls are reproducible and disjoint from its parent's and its siblings'.
+        spreadAware.NextStreamSeed = sourceRunner.StreamSeed.HasValue
+            ? Shared.SeedManager.DeriveChild(sourceRunner.StreamSeed.Value, Shared.SeedKinds.Spread, newGeneration, pickIdx)
+            : (int?)null;
         try
         {
             spreadAware.Apply(pickedTarget, sourceRunner.Context);
@@ -627,6 +633,7 @@ public partial class StatusEffectComponent : Node, IComponent
         finally
         {
             spreadAware.SpreadGeneration = previousGeneration;
+            spreadAware.NextStreamSeed = previousStreamSeed;
         }
     }
 

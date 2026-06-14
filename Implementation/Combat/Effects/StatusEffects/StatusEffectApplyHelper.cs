@@ -19,5 +19,6 @@ public static class StatusEffectApplyHelper
         runner.SpreadConfig = effect.SpreadConfig;
         runner.SourceEffect = effect;
         runner.SpreadGeneration = effect.SpreadGeneration;
+        runner.InjectStreamSeed(effect.NextStreamSeed);
     }
 }

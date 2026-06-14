@@ -29,6 +29,21 @@ public class DamageEffect : ICombatEffect
     public float DamageAmount { get; init; }
     public bool IsCritical { get; init; }
 
+    /// <summary>Resolve crit at assembly (<see cref="CritResolution.Resolved"/>, default — <see cref="IsCritical"/>
+    /// pre-rolled and <see cref="DamageAmount"/> already multiplied) or per-hit at <see cref="Apply"/>
+    /// (<see cref="CritResolution.DeferredPerHit"/> — roll from <c>HitContext.HitSeed</c>, multiply here).</summary>
+    public CritResolution Mode { get; init; } = CritResolution.Resolved;
+
+    /// <summary>Crit chance for the deferred roll (ignored when <see cref="Mode"/> is Resolved).</summary>
+    public float CritChance { get; init; }
+
+    /// <summary>Damage multiplier applied on a deferred crit (ignored when Resolved).</summary>
+    public float CritMultiplier { get; init; } = 1f;
+
+    /// <summary>Per-effect index folded into the deferred crit derivation
+    /// (<c>DeriveChild(hitSeed,"crit",CritEffectIndex)</c>) so multiple damage effects on one hit roll independently.</summary>
+    public int CritEffectIndex { get; init; }
+
     /// <summary>Static force applied regardless of impact speed (units/sec²).</summary>
     public float BaseKnockback { get; init; }
 
@@ -102,7 +117,18 @@ public class DamageEffect : ICombatEffect
             context,
             KnockbackVelocityScaling);
 
-        health.TakeDamage(DamageAmount, context.Attacker, context.Kind);
+        // Resolved: crit was rolled at assembly — IsCritical is set and DamageAmount already includes
+        // the multiplier (behavior-preserving). DeferredPerHit: roll now from this hit's lineage seed so
+        // each tick of a continuous attack crits independently, then apply the multiplier here.
+        bool isCritical = IsCritical;
+        float appliedDamage = DamageAmount;
+        if (Mode == CritResolution.DeferredPerHit)
+        {
+            isCritical = RollDeferredCrit(context);
+            appliedDamage = isCritical ? DamageAmount * CritMultiplier : DamageAmount;
+        }
+
+        health.TakeDamage(appliedDamage, context.Attacker, context.Kind);
 
         return new DamageResult
         {
@@ -110,11 +136,22 @@ public class DamageEffect : ICombatEffect
             Target = target.OwnerNode,
             Tags = Tags,
             OriginalAmount = DamageAmount,
-            FinalAmount = DamageAmount,
+            FinalAmount = appliedDamage,
             Direction = context.HitDirection,
             Force = totalForce,
-            IsCritical = IsCritical,
+            IsCritical = isCritical,
             IsFatal = health.IsDead
         };
+    }
+
+    private bool RollDeferredCrit(HitContext context)
+    {
+        // JmoRng allocates here (apply time, Godot-runtime path) — never on the Resolved branch, so
+        // pure-CLR Resolved-effect tests stay JmoRng-free. Null HitSeed → UnseededByDesign (graceful,
+        // silent; the hurtbox already warned at ResolveHitSeed). Never NonDeterministic (migration-debt marker).
+        float roll = context.HitSeed.HasValue
+            ? new JmoRng(SeedManager.DeriveChild(context.HitSeed.Value, SeedKinds.Crit, CritEffectIndex)).GetRndFloat()
+            : JmoRng.UnseededByDesign().GetRndFloat();
+        return CritResolver.Resolve(roll, CritChance);
     }
 }

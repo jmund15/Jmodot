@@ -146,16 +146,19 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         // 3. Context Creation
         // Maps the Payload Source to the Context so effects know what hit them.
         Vector3 epicenter = GetEpicenterPosition(payload.Source);
+        // Resolve the hit seed once, BEFORE the context — the fallback knockback direction derives from it
+        // and the context carries the same value (no double-resolve / no sequence double-advance).
+        int? hitSeed = ResolveHitSeed(payload);
         HitContext context = new HitContext
         {
             Attacker = payload.Attacker,
             Source = payload.Source,
-            HitDirection = CalculateHitDirection(payload.Source),
+            HitDirection = CalculateHitDirection(payload.Source, hitSeed),
             ImpactVelocity = CalculateImpactVelocity(payload.Source),
             EpicenterPosition = epicenter,
             EpicenterForward = GetEpicenterForward(payload.Source),
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
-            HitSeed = ResolveHitSeed(payload),
+            HitSeed = hitSeed,
         };
 
         // 3.5. Reaction-resolver consultation (A2)
@@ -264,7 +267,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         SetDeferred(PropertyName.Monitorable, false);
         SetPhysicsProcess(false);
     }
-    private Vector3 CalculateHitDirection(Node source)
+    private Vector3 CalculateHitDirection(Node source, int? knockbackSeed)
     {
         // 1. VELOCITY BASED (for projectiles - direction they're traveling)
         if (source is IVelocityProvider3D velocityProvider && velocityProvider.LinearVelocity.LengthSquared() > 0.01f)
@@ -297,8 +300,13 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             }
         }
 
-        // 3. FALLBACK: Random XZ direction (e.g., standing directly on explosion)
-        return JmoRng.NonDeterministic().GetRndVector3ZeroY();
+        // 3. FALLBACK: deterministic random XZ direction when no velocity/position anchor exists
+        // (e.g. standing directly on an explosion). Derived from this hit's lineage seed so the push is
+        // reproducible; UnseededByDesign when the hit has no seed (never NonDeterministic, the debt marker).
+        var fallbackRng = knockbackSeed.HasValue
+            ? new JmoRng(SeedManager.DeriveChild(knockbackSeed.Value, SeedKinds.Knockback))
+            : JmoRng.UnseededByDesign();
+        return fallbackRng.GetRndVector3ZeroY();
     }
 
     private Vector3 CalculateImpactVelocity(Node source)
