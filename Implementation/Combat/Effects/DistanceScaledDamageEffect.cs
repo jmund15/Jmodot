@@ -122,6 +122,8 @@ public struct DistanceScaledDamageEffect : ICombatEffect
 
     private bool RollDeferredCrit(HitContext context)
     {
+        // Null HitSeed → UnseededByDesign (graceful, silent; the hurtbox already warned at ResolveHitSeed).
+        // Never NonDeterministic (the migration-debt marker). Mirrors DamageEffect.RollDeferredCrit.
         float roll = context.HitSeed.HasValue
             ? new JmoRng(SeedManager.DeriveChild(context.HitSeed.Value, SeedKinds.Crit, CritEffectIndex)).GetRndFloat()
             : JmoRng.UnseededByDesign().GetRndFloat();

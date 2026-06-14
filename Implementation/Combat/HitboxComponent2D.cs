@@ -231,13 +231,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     {
         if (IsContinuous)
         {
-            return new EffectCreationSeed(effectIdx, CritResolution.DeferredPerHit);
+            return EffectCreationSeed.ForDeferred(effectIdx);
         }
         if (provenance == SeedProvenance.Seeded && attackSeed.HasValue)
         {
-            return new EffectCreationSeed(
-                Shared.SeedManager.DeriveChild(attackSeed.Value, Shared.SeedKinds.Crit, effectIdx),
-                CritResolution.Resolved);
+            return EffectCreationSeed.ForResolved(
+                Shared.SeedManager.DeriveChild(attackSeed.Value, Shared.SeedKinds.Crit, effectIdx));
         }
         return null;
     }

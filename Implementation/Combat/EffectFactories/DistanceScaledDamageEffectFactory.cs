@@ -90,7 +90,7 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
                 CritResolution.DeferredPerHit,
                 critEnabled ? critChance : 0f,
                 critMultiplier,
-                seed?.Seed ?? 0);
+                seed?.EffectIndex ?? 0);
         }
 
         // Resolved: roll once now from the assembly-derived seed (UnseededByDesign when unseeded;
@@ -100,7 +100,7 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
         if (critEnabled)
         {
             float roll = seed.HasValue
-                ? new JmoRng(seed.Value.Seed).GetRndFloat()
+                ? new JmoRng(seed.Value.CritRollSeed).GetRndFloat()
                 : JmoRng.UnseededByDesign().GetRndFloat();
             isCritical = CritResolver.Resolve(roll, critChance);
             if (isCritical) { finalDamage = baseDamage * critMultiplier; }

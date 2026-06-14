@@ -118,11 +118,18 @@ public abstract partial class StatusRunner : Node
     /// Per-runner roll source for one spread evaluation: draws a fresh seed from this runner's spread
     /// sequence (advancing it) and returns a JmoRng seeded from it — so each evaluation is deterministic
     /// AND disjoint from sibling runners sharing the same <c>StatusSpreadConfig</c> Resource (the
-    /// cross-stomp the old per-config <c>_rng</c> caused). Unseeded runners fall back to UnseededByDesign.
+    /// cross-stomp the old per-config <c>_rng</c> caused). Unseeded runners fall back to UnseededByDesign
+    /// (silent — a hit-applied status is already covered by the hurtbox's ResolveHitSeed warn).
+    /// <c>internal</c> because <c>StatusSpreadConfig.TryEvaluate</c> is the only caller; one call per
+    /// evaluation advances the sequence, so a second call would silently skew the next roll.
     /// </summary>
-    public Shared.JmoRng NextSpreadEvalRng()
+    internal Shared.JmoRng NextSpreadEvalRng()
     {
         if (!StreamSeed.HasValue) { return Shared.JmoRng.UnseededByDesign(); }
+        // Roll stream keyed SeedKinds.StatusSpread — the same key that derives this runner's StreamSeed from
+        // the hit in Start (below). The generation-chain child derivation (StatusEffectComponent.
+        // SpawnSpreadRunner) deliberately uses the DISTINCT SeedKinds.Spread so child stream seeds can't
+        // collide with these roll draws — both hang off the same StreamSeed.
         _spreadRollSeq ??= new Shared.SeedSequence(StreamSeed.Value, Shared.SeedKinds.StatusSpread);
         return new Shared.JmoRng(_spreadRollSeq.Next());
     }

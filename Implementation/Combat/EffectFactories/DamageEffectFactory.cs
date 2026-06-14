@@ -88,7 +88,7 @@ public partial class DamageEffectFactory : CombatEffectFactory
                 Mode = CritResolution.DeferredPerHit,
                 CritChance = critEnabled ? critChance : 0f,
                 CritMultiplier = critMultiplier,
-                CritEffectIndex = seed?.Seed ?? 0,
+                CritEffectIndex = seed?.EffectIndex ?? 0,
                 BaseKnockback = baseKnockback,
                 KnockbackVelocityScaling = KnockbackVelocityScaling,
                 DistanceFalloff = DistanceFalloff,
@@ -106,7 +106,7 @@ public partial class DamageEffectFactory : CombatEffectFactory
         if (critEnabled)
         {
             float roll = seed.HasValue
-                ? new JmoRng(seed.Value.Seed).GetRndFloat()
+                ? new JmoRng(seed.Value.CritRollSeed).GetRndFloat()
                 : JmoRng.UnseededByDesign().GetRndFloat();
             isCritical = CritResolver.Resolve(roll, critChance);
             if (isCritical) { finalDamage = baseDamage * critMultiplier; }

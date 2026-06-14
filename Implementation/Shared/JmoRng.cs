@@ -165,8 +165,16 @@ public sealed class JmoRng : IRng
     /// <c>EntitySeed</c> Blackboard slot is unset. Mechanically identical to
     /// <see cref="NonDeterministic"/> (both Guid-seeded), but kept DISTINCT so the
     /// <c>NonDeterministic(</c> migration backlog is not polluted with sites that are
-    /// deliberately, permanently unseeded. Callers pair this with one
-    /// <see cref="JmoLogger"/> warning (per-instance latch) so the unseeded path stays visible.
+    /// deliberately, permanently unseeded.
+    /// <para>
+    /// To keep the unseeded path visible, the caller pairs this with one <see cref="JmoLogger"/>
+    /// warning — EITHER a per-instance latch at the call site, OR, in a pipeline where one missing
+    /// seed fans out across many draws (combat: the deferred-crit and status-spread fallbacks all
+    /// trace back to one hit), a single warning hoisted to the upstream boundary that resolves the
+    /// seed. The combat hit pipeline takes the latter route: <c>HurtboxComponent3D.ResolveHitSeed</c>
+    /// warns once per receiver, and the downstream deferred-crit / spread fallbacks then stay silent
+    /// by design. A non-hit-pipeline caller with no such upstream boundary must emit its own latched warning.
+    /// </para>
     /// </summary>
     public static JmoRng UnseededByDesign()
         => new JmoRng(Guid.NewGuid().GetHashCode());

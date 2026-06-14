@@ -623,6 +623,9 @@ public partial class StatusEffectComponent : Node, IComponent
         spreadAware.SpreadGeneration = newGeneration;
         // Each spawned child gets its own deterministic stream seed via the generation chain, so its
         // future spread rolls are reproducible and disjoint from its parent's and its siblings'.
+        // Keyed SeedKinds.Spread (NOT StatusSpread): the child derivation hangs off the parent's StreamSeed,
+        // which is also the root of the parent's StatusSpread-keyed roll draws — a distinct key keeps these
+        // child stream seeds from colliding with those rolls.
         spreadAware.NextStreamSeed = sourceRunner.StreamSeed.HasValue
             ? Shared.SeedManager.DeriveChild(sourceRunner.StreamSeed.Value, Shared.SeedKinds.Spread, newGeneration, pickIdx)
             : (int?)null;
