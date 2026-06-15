@@ -25,4 +25,15 @@ public partial class FloorPipelineSettings : Resource
     /// <summary>Stage-2 embedder settings; required — a stripped slot fails loud at Generate entry.</summary>
     [Export, RequiredExport]
     public EmbedderSettings Embedder { get; set; } = null!;
+
+    /// <summary>
+    ///     When true, the pipeline builds the floor through the embedder's PROGRESSIVE session: the
+    ///     generator validates each loop/branch against the real grid as it lays them (only embeddable
+    ///     decorations are committed), then emits the final layout reusing the frozen poses — converting
+    ///     a stage-2 embed miss (the dominant re-roll cause) into a cheap in-generator rejection. False
+    ///     (default) keeps the classic generate-then-embed path. Requires an embedder that supports
+    ///     <see cref="IFloorEmbedder.BeginSession" /> (the built-in grid embedder does).
+    /// </summary>
+    [Export]
+    public bool UseProgressiveEmbed { get; set; }
 }

@@ -181,6 +181,30 @@ internal sealed class PartialGraph
         return true;
     }
 
+    /// <summary>An append-position snapshot for <see cref="RollbackTo" /> — opaque node/edge counts.</summary>
+    internal readonly record struct GraphCheckpoint(int NodeCount, int EdgeCount);
+
+    /// <summary>Captures the current append position so a tentatively-committed decoration (loop/branch)
+    /// can be undone if the embedder rejects it. Source/Sink are committed during the spine — before any
+    /// decoration checkpoint — so rollback never strands a terminal.</summary>
+    internal GraphCheckpoint Checkpoint() => new(this._nodes.Count, this._edges.Count);
+
+    /// <summary>Truncates every node/edge appended since <paramref name="checkpoint" />, restoring the
+    /// builder to that exact state. Edges drop before nodes so no edge ever dangles mid-rollback.</summary>
+    internal void RollbackTo(GraphCheckpoint checkpoint)
+    {
+        if (checkpoint.NodeCount < 0 || checkpoint.NodeCount > this._nodes.Count ||
+            checkpoint.EdgeCount < 0 || checkpoint.EdgeCount > this._edges.Count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(checkpoint), "Checkpoint is not a prefix of the current builder state.");
+        }
+
+        this._edges.RemoveRange(checkpoint.EdgeCount, this._edges.Count - checkpoint.EdgeCount);
+        this._nodes.RemoveRange(checkpoint.NodeCount, this._nodes.Count - checkpoint.NodeCount);
+        this.Invalidate();
+    }
+
     /// <summary>Materializes an immutable <see cref="FloorGraph" /> from the current builder state. Throws
     /// until both endpoints are committed. Copies the internal lists defensively — <see cref="FloorGraph" />
     /// does not copy, so aliasing would let later builder mutation corrupt the produced graph.</summary>

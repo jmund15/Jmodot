@@ -1,5 +1,6 @@
 namespace Jmodot.Core.ProcGen.Spatial;
 
+using Jmodot.Core.ProcGen;
 using Jmodot.Core.ProcGen.Graph;
 
 /// <summary>
@@ -11,4 +12,12 @@ using Jmodot.Core.ProcGen.Graph;
 public interface IFloorEmbedder
 {
     FloorEmbedResult Embed(IFloorGraph topology, GeometryEnvelope envelope, EmbedderSettings settings);
+
+    /// <summary>
+    ///     Opens a PROGRESSIVE embedding session over a committed backbone (its spine is embedded +
+    ///     frozen immediately): the generator validates decorations against the real grid before
+    ///     committing them, then emits the final layout reusing every frozen pose. The seam that lets
+    ///     the generator avoid the re-roll-the-whole-floor cost of a stage-2 embed miss.
+    /// </summary>
+    ILayoutAdvisor BeginSession(IFloorGraph backbone, GeometryEnvelope envelope, EmbedderSettings settings);
 }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Godot;
+using Jmodot.Core.ProcGen;
 using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.ProcGen.Spatial;
 using Jmodot.Implementation.Shared.GodotExceptions;
@@ -25,6 +26,66 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     public FloorEmbedResult Embed(IFloorGraph topology, GeometryEnvelope envelope, EmbedderSettings settings)
     {
+        ValidateEmbedArgs(topology, envelope, settings);
+        var infos = BuildNodeInfos(topology);
+        var state = NewState(topology, envelope, settings);
+        FloorEmbedResult? failure = PlaceAll(topology, infos, state);
+        return Capture(failure ?? EmitResult(topology, infos, state), state);
+    }
+
+    /// <summary>
+    ///     Opens a progressive embedding session: the returned <see cref="ILayoutAdvisor" /> embeds +
+    ///     freezes <paramref name="backbone" /> immediately, then answers geometric queries and
+    ///     trial-commits decorations for the generator. See <see cref="ILayoutAdvisor" />.
+    /// </summary>
+    public ILayoutAdvisor BeginSession(IFloorGraph backbone, GeometryEnvelope envelope, EmbedderSettings settings)
+        => new LayoutSession(this, backbone, envelope, settings);
+
+    /// <summary>
+    ///     Frozen-spine progressive seam (Design A): embeds a backbone sub-graph alone and returns its
+    ///     populated <see cref="SearchState" /> — every backbone node carries a fixed pose + occupancy.
+    ///     Pair with <see cref="Extend" />, which resumes from this state to place loop/branch
+    ///     decorations WITHOUT moving the frozen backbone (the placement order skips nodes already in
+    ///     <c>state.Poses</c>). Lets the generator commit only geometry it has validated against the
+    ///     real grid instead of re-rolling the whole topology on an embed miss.
+    /// </summary>
+    internal SearchState BuildState(IFloorGraph backbone, GeometryEnvelope envelope, EmbedderSettings settings)
+    {
+        ValidateEmbedArgs(backbone, envelope, settings);
+        var infos = BuildNodeInfos(backbone);
+        var state = NewState(backbone, envelope, settings);
+        PlaceAll(backbone, infos, state);
+        return state;
+    }
+
+    /// <summary>
+    ///     Resumes a frozen <paramref name="state" /> (from <see cref="BuildState" />) to embed the
+    ///     FULL graph: backbone poses are reused unchanged (skipped by the placement order), only the
+    ///     decoration nodes are searched, and the budget is re-sized to the full graph. Returns the
+    ///     complete layout, or the typed failure if a decoration cannot be placed on the frozen frame.
+    ///     <paramref name="fullGraph" /> MUST share node/edge INSTANCES with the backbone handed to
+    ///     <see cref="BuildState" /> — edge bindings are identity-keyed, so a freshly-rebuilt graph
+    ///     with equal ids but different instances loses the frozen bindings. The generator satisfies
+    ///     this by construction (both are ToFloorGraph snapshots of the same growing PartialGraph).
+    /// </summary>
+    internal FloorEmbedResult Extend(SearchState state, IFloorGraph fullGraph, GeometryEnvelope envelope, EmbedderSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ValidateEmbedArgs(fullGraph, envelope, settings);
+        var infos = BuildNodeInfos(fullGraph);
+        state.Budget = ResolveEffectiveBudget(fullGraph, settings);
+        state.FrozenNodes.Clear();
+        foreach (StringName placed in state.Poses.Keys)
+        {
+            state.FrozenNodes.Add(placed);
+        }
+
+        FloorEmbedResult? failure = PlaceAll(fullGraph, infos, state);
+        return Capture(failure ?? EmitResult(fullGraph, infos, state), state);
+    }
+
+    private static void ValidateEmbedArgs(IFloorGraph topology, GeometryEnvelope envelope, EmbedderSettings settings)
+    {
         ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(settings);
@@ -35,10 +96,32 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         }
 
         envelope.Validate();
-        var infos = BuildNodeInfos(topology);
+    }
 
+    private static SearchState NewState(IFloorGraph topology, GeometryEnvelope envelope, EmbedderSettings settings)
+        => new SearchState(ResolveEffectiveBudget(topology, settings), envelope.SizeCells);
+
+    private static int ResolveEffectiveBudget(IFloorGraph topology, EmbedderSettings settings)
+    {
+        int loopEdges = 0;
+        foreach (IGraphEdge edge in topology.Edges)
+        {
+            if (edge.Provenance.Kind == EdgeProvenanceKind.Loop)
+            {
+                loopEdges++;
+            }
+        }
+
+        return ResolveBudget(
+            settings.DynamicBudget, settings.RepairBudget, settings.BudgetBase, settings.BudgetPerNode,
+            settings.BudgetPerLoopEdge, settings.MaxBudget, topology.Nodes.Count, loopEdges);
+    }
+
+    // Block pass + remainder over whatever is NOT already placed in `state` — the one shared placement
+    // core behind Embed (fresh state) and Extend (state pre-seeded with frozen backbone poses).
+    private static FloorEmbedResult? PlaceAll(IFloorGraph topology, Dictionary<StringName, NodeInfo> infos, SearchState state)
+    {
         var decomposition = BlockExtractor.Extract(topology);
-        var state = new SearchState(settings.RepairBudget, envelope.SizeCells);
         foreach (IGraphEdge treeEdge in decomposition.TreeEdges)
         {
             state.ReservedPorts.Add((treeEdge.From.Id, treeEdge.FromPort));
@@ -50,23 +133,17 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             FloorEmbedResult? parityFailure = CheckClosureParity(block, infos);
             if (parityFailure != null)
             {
-                return Capture(parityFailure.Value, state);
+                return parityFailure;
             }
 
             FloorEmbedResult? blockFailure = EmbedBlock(block, infos, state);
             if (blockFailure != null)
             {
-                return Capture(blockFailure.Value, state);
+                return blockFailure;
             }
         }
 
-        FloorEmbedResult? remainderFailure = EmbedRemainder(topology, infos, state);
-        if (remainderFailure != null)
-        {
-            return Capture(remainderFailure.Value, state);
-        }
-
-        return Capture(EmitResult(topology, infos, state), state);
+        return EmbedRemainder(topology, infos, state);
     }
 
 #region Test Helpers
@@ -311,7 +388,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     // ---- search state ----
 
-    private sealed class SearchState
+    internal sealed class SearchState
     {
         internal SearchState(int budget, Vector3I envelopeSize)
         {
@@ -321,7 +398,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal Dictionary<StringName, CellPose> Poses { get; } = new();
 
-        internal OccupancyIndex Occupancy { get; } = new();
+        internal OccupancyIndex Occupancy { get; private set; } = new();
 
         internal HashSet<(StringName NodeId, StringName PortName)> BoundPorts { get; } = new();
 
@@ -334,11 +411,41 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal List<StringName> PlacementOrder { get; } = new();
 
+        /// <summary>
+        ///     Nodes already placed when the CURRENT placement pass began (populated by <see cref="Extend" />).
+        ///     Their declared edge ports are HONORED during rebind, so a committed loop/branch cannot
+        ///     cannibalize a spare port that a later sub-graph needs. Empty for the holistic
+        ///     <see cref="Embed" /> and for <see cref="BuildState" /> (full rebind freedom — unchanged behavior).
+        /// </summary>
+        internal HashSet<StringName> FrozenNodes { get; } = new();
+
         internal int Budget { get; set; }
 
         internal Vector3I EnvelopeSize { get; }
 
         internal EmbedFailureCause LastConflictCause { get; set; } = EmbedFailureCause.NoBinding;
+
+        /// <summary>
+        ///     Deep copy for trial placement: a candidate loop/branch is embedded onto the clone, which is
+        ///     ADOPTED only if it succeeds — so a failed trial leaves the committed state pristine (no
+        ///     residual poses, occupancy, bindings, or reserved ports to corrupt later placements).
+        /// </summary>
+        internal SearchState Clone()
+        {
+            var copy = new SearchState(this.Budget, this.EnvelopeSize)
+            {
+                Occupancy = this.Occupancy.Clone(),
+                LastConflictCause = this.LastConflictCause,
+            };
+            foreach (var pose in this.Poses) { copy.Poses[pose.Key] = pose.Value; }
+            foreach (var bound in this.BoundPorts) { copy.BoundPorts.Add(bound); }
+            foreach (var binding in this.EdgeBindings) { copy.EdgeBindings[binding.Key] = binding.Value; }
+            foreach (var reserved in this.ReservedPorts) { copy.ReservedPorts.Add(reserved); }
+            foreach (var frozen in this.FrozenNodes) { copy.FrozenNodes.Add(frozen); }
+            copy.Regions.AddRange(this.Regions);
+            copy.PlacementOrder.AddRange(this.PlacementOrder);
+            return copy;
+        }
     }
 
     private sealed class Candidate
@@ -678,6 +785,21 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     }
 
 
+    // A placed neighbour FROZEN before this pass began must keep the edge's DECLARED port, so a
+    // committed loop/branch cannot consume a spare port that a later sub-graph needs. Neighbours placed
+    // WITHIN this pass (route interiors) keep full rebind freedom; the set is empty for the holistic embed.
+    private static IEnumerable<ISpatialPort> AnchorPortCandidates(
+        IGraphEdge edge, StringName neighborId, NodeInfo neighborInfo, SearchState state)
+    {
+        if (state.FrozenNodes.Contains(neighborId))
+        {
+            StringName declared = edge.From.Id == neighborId ? edge.FromPort : edge.ToPort;
+            return new[] { PortByName(neighborInfo, declared) };
+        }
+
+        return neighborInfo.Ports;
+    }
+
     private static IEnumerable<(ISpatialPort AnchorPort, ISpatialPort MyPort)> PortPairs(
         IGraphEdge anchorEdge,
         StringName anchorId,
@@ -696,7 +818,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             yield break;
         }
 
-        foreach (ISpatialPort anchorPort in anchorInfo.Ports)
+        foreach (ISpatialPort anchorPort in AnchorPortCandidates(anchorEdge, anchorId, anchorInfo, state))
         {
             if (state.BoundPorts.Contains((anchorId, anchorPort.NameOf())) ||
                 state.ReservedPorts.Contains((anchorId, anchorPort.NameOf())))
@@ -787,7 +909,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         }
 
         var myUsed = bindings.Select(b => b.MyPort).ToHashSet();
-        foreach (ISpatialPort otherPort in otherInfo.Ports)
+        foreach (ISpatialPort otherPort in AnchorPortCandidates(edge, otherId, otherInfo, state))
         {
             if (state.BoundPorts.Contains((otherId, otherPort.NameOf())) ||
                 state.ReservedPorts.Contains((otherId, otherPort.NameOf())))
@@ -1024,6 +1146,28 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     }
 
     // ---- shared helpers ----
+
+    /// <summary>
+    ///     Resolves the effective repair budget for a topology. With <paramref name="dynamic" /> off,
+    ///     returns <paramref name="manualBudget" /> verbatim. With it on, scales by the floor's node +
+    ///     loop-edge count (the two drivers of backjump cost — placements and closure constraints),
+    ///     clamped to <c>[manualBudget, maxBudget]</c> and never below 1, so a degenerate (e.g.
+    ///     negative) coefficient can never yield the non-positive budget the embedder rejects at entry.
+    /// </summary>
+    internal static int ResolveBudget(
+        bool dynamic, int manualBudget, int budgetBase, int perNode, int perLoopEdge,
+        int maxBudget, int nodeCount, int loopEdgeCount)
+    {
+        if (!dynamic)
+        {
+            return manualBudget;
+        }
+
+        long computed = (long)budgetBase + ((long)perNode * nodeCount) + ((long)perLoopEdge * loopEdgeCount);
+        int floor = Math.Max(1, manualBudget);
+        int ceiling = Math.Max(floor, maxBudget);
+        return (int)Math.Clamp(computed, floor, ceiling);
+    }
 
     private static StringName OtherEnd(IGraphEdge edge, StringName nodeId)
     {

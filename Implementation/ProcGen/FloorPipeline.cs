@@ -60,10 +60,20 @@ public static class FloorPipeline
             new(ViolationKind.SpineInfeasible, Severity.Fatal, "No floor attempt produced a topology."),
         };
 
+        // Progressive-embed mode: the generator receives a factory that opens an embedder session over
+        // the laid spine, validating each decoration against the grid before commit. The closure hands
+        // the produced session back so this loop can emit the final layout (BuildResult) instead of a
+        // fresh holistic Embed. Reset per attempt so a pre-spine failure never reuses a stale session.
+        ILayoutAdvisor? sessionAdvisor = null;
+        Func<IFloorGraph, ILayoutAdvisor>? advisorFactory = settings.UseProgressiveEmbed
+            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder)
+            : null;
+
         for (int attempt = 0; attempt < settings.MaxFloorAttempts; attempt++)
         {
+            sessionAdvisor = null;
             int floorSeed = SeedManager.DeriveChild(seedRoot, "floor", attempt);
-            var stage1 = GraphGenerator.GenerateSingle(config, floorSeed, rngFactory);
+            var stage1 = GraphGenerator.GenerateSingle(config, floorSeed, rngFactory, advisorFactory);
             if (!stage1.Succeeded)
             {
                 if (stage1.Violations.Any(v => v.Reason == ViolationKind.PinUnsatisfiable))
@@ -82,7 +92,11 @@ public static class FloorPipeline
                 continue;
             }
 
-            FloorEmbedResult embed = embedder.Embed(topology, envelope, settings.Embedder);
+            // Advisor mode emits from the frozen poses it accumulated while the generator validated each
+            // decoration; otherwise run the classic holistic embed. Both yield the same result shape.
+            FloorEmbedResult embed = sessionAdvisor != null
+                ? sessionAdvisor.BuildResult(topology)
+                : embedder.Embed(topology, envelope, settings.Embedder);
             if (!embed.Succeeded)
             {
                 EmbedFailureCause cause = embed.FailureCause!.Value;

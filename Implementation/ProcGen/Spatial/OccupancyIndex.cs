@@ -36,6 +36,15 @@ internal sealed class OccupancyIndex
         this._boxes.RemoveAll(b => b.Id == id);
     }
 
+    /// <summary>Deep copy — independent box list — so a trial placement can mutate a clone and be
+    /// discarded without touching the committed occupancy.</summary>
+    internal OccupancyIndex Clone()
+    {
+        var copy = new OccupancyIndex();
+        copy._boxes.AddRange(this._boxes);
+        return copy;
+    }
+
     private static bool BoxesIntersect(Vector3I aOrigin, Vector3I aSize, Vector3I bOrigin, Vector3I bSize)
     {
         bool xOverlap = aOrigin.X < bOrigin.X + bSize.X && bOrigin.X < aOrigin.X + aSize.X;
