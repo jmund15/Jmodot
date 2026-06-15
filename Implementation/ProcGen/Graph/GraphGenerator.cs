@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Jmodot.Core.ProcGen;
 using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.Shared;
 using Jmodot.Implementation.Shared;
@@ -34,7 +35,8 @@ internal static class GraphGenerator
     private static readonly Func<int, IRng> DefaultRngFactory = seed => new JmoRng(seed);
 
     public static GraphGenerationResult GenerateSingle(
-        ISkeletonConfig config, int floorSeed, Func<int, IRng>? rngFactory = null)
+        ISkeletonConfig config, int floorSeed, Func<int, IRng>? rngFactory = null,
+        Func<IFloorGraph, ILayoutAdvisor>? advisorFactory = null)
     {
         if (config == null)
         {
@@ -43,7 +45,7 @@ internal static class GraphGenerator
 
         config.Validate();
 
-        var state = new GenState(config, floorSeed, rngFactory ?? DefaultRngFactory);
+        var state = new GenState(config, floorSeed, rngFactory ?? DefaultRngFactory, advisorFactory);
         var outcome = state.BuildFloor(out var cause);
         return outcome == FloorOutcome.Ok
             ? state.ToResult(succeeded: true)
@@ -60,6 +62,46 @@ internal static class GraphGenerator
     internal static IReadOnlyList<INodeTemplate> OrderByRolePreference(
         IReadOnlyList<INodeTemplate> templates, TemplateRole preferred)
         => templates.OrderBy(t => t.Role == preferred ? 0 : 1).ToList();
+
+    /// <summary>
+    ///     Whether a divergence/rejoin anchor pair at spine source-distances <paramref name="dx" /> (X)
+    ///     and <paramref name="dy" /> (Y) is an eligible loop anchor. Lower bound: X must precede Y by at
+    ///     least <paramref name="minSep" /> (<c>dx + minSep &lt;= dy</c>, implying X ≺ Y and non-degeneracy).
+    ///     Upper bound: the separation must not exceed <paramref name="maxSep" /> so the route can SPAN the
+    ///     gap and close on the grid — <paramref name="maxSep" /> &lt;= 0 disables the upper bound (unbounded).
+    /// </summary>
+    internal static bool IsAnchorPairEligible(int dx, int dy, int minSep, int maxSep)
+        => dx + minSep <= dy && (maxSep <= 0 || dy - dx <= maxSep);
+
+    /// <summary>
+    ///     Adjusts a drawn route length so the resulting loop CYCLE has an EVEN edge count and can close
+    ///     on the integer grid. A loop's cycle edges = route-side (<c>routeLen + 1</c>) + spine-side
+    ///     (<paramref name="anchorDistance" />); each room step is an odd 3-cell move, so closure requires
+    ///     that sum be even — i.e. <c>routeLen ≡ (1 + anchorDistance) mod 2</c>. An odd cycle is provably
+    ///     un-embeddable (NoBinding every seed), so a route drawn with the wrong parity is nudged to the
+    ///     nearest in-range value of the required parity (+1 then −1). Returns the drawn length unchanged
+    ///     when <paramref name="min" />..<paramref name="max" /> holds no value of that parity.
+    /// </summary>
+    internal static int AdjustRouteLengthForClosure(int drawnLength, int anchorDistance, int min, int max)
+    {
+        int requiredParity = (1 + anchorDistance) % 2;
+        if ((((drawnLength % 2) + 2) % 2) == requiredParity)
+        {
+            return drawnLength;
+        }
+
+        if (drawnLength + 1 <= max)
+        {
+            return drawnLength + 1;
+        }
+
+        if (drawnLength - 1 >= min)
+        {
+            return drawnLength - 1;
+        }
+
+        return drawnLength;
+    }
 
     private enum FloorOutcome
     {
@@ -79,6 +121,13 @@ internal static class GraphGenerator
         private readonly int _floorSeed;
         private readonly Func<int, IRng> _rngFactory;
 
+        // Optional geometry seam (Design B): when present, a freshly-laid loop/branch is trial-embedded
+        // against the FROZEN spine before it is committed, so the generator only ships decorations that
+        // actually close on the grid — turning whole-floor embed re-rolls into cheap local rejections.
+        // Null = graph-only path (heuristics + parity nudge), fully standalone (two-stage decoupling).
+        private readonly Func<IFloorGraph, ILayoutAdvisor>? _advisorFactory;
+        private ILayoutAdvisor? _advisor;
+
         private readonly PartialGraph _g = new();
         private readonly List<Violation> _warnings = new();
         private readonly HashSet<string> _anchorReservedPorts = new();
@@ -97,11 +146,14 @@ internal static class GraphGenerator
         // restart would collide (Loop, 0). Distinct from _ordinal, which counts per-placement attempts.
         private int _routeOrdinal;
 
-        public GenState(ISkeletonConfig config, int floorSeed, Func<int, IRng> rngFactory)
+        public GenState(
+            ISkeletonConfig config, int floorSeed, Func<int, IRng> rngFactory,
+            Func<IFloorGraph, ILayoutAdvisor>? advisorFactory = null)
         {
             this._config = config;
             this._floorSeed = floorSeed;
             this._rngFactory = rngFactory;
+            this._advisorFactory = advisorFactory;
         }
 
         private int BudgetMax => this._config.NodeBudget?.Max ?? int.MaxValue;
@@ -115,6 +167,12 @@ internal static class GraphGenerator
             {
                 return spineOutcome;
             }
+
+            // Spine committed → freeze it in the optional geometry advisor. Every decoration laid below is
+            // now validated against the real grid before commit (Design B); a null factory keeps the
+            // graph-only path. The spine snapshot shares node/edge instances with the graph that grows
+            // beneath it, so the advisor's frozen poses stay valid through to the pipeline's BuildResult.
+            this._advisor = this._advisorFactory?.Invoke(this._g.ToFloorGraph());
 
             if (!this.LayGuaranteedLoops(out cause))
             {
@@ -249,7 +307,16 @@ internal static class GraphGenerator
             }
 
             int minSep = spec.MinAnchorSeparation;
-            List<AnchorPair> pairs = this.PickAnchorPairs("guaranteed", guaranteed, minSep, spec.EffectiveAttachmentWeights);
+
+            // Advisor mode: place each guaranteed loop on the first geometrically-fitting anchor pair,
+            // retrying pairs WITHIN this attempt — a single ill-fitting pair becomes a cheap local
+            // rejection instead of a whole-floor re-roll.
+            if (this._advisor != null)
+            {
+                return this.LayGuaranteedLoopsValidated(spec, guaranteed, minSep, out cause);
+            }
+
+            List<AnchorPair> pairs = this.PickAnchorPairs("guaranteed", guaranteed, minSep, spec.MaxAnchorSeparation, spec.EffectiveAttachmentWeights);
 
             foreach (AnchorPair pair in pairs)
             {
@@ -273,6 +340,65 @@ internal static class GraphGenerator
             }
 
             return true;
+        }
+
+        // Advisor mode: lay each guaranteed loop on the first candidate anchor pair whose route closes
+        // on the FROZEN spine, retrying pairs within this attempt. Only a loop that NO eligible pair can
+        // satisfy forces a re-roll (genuine frozen-spine infeasibility).
+        private bool LayGuaranteedLoopsValidated(AlternateRouteSpec spec, int guaranteed, int minSep, out Violation cause)
+        {
+            cause = default;
+            for (int loop = 0; loop < guaranteed; loop++)
+            {
+                if (!this.TryLayValidatedLoop(spec, minSep, "guaranteed"))
+                {
+                    cause = new Violation(
+                        ViolationKind.SpineInfeasible, Severity.Fatal,
+                        "A guaranteed alternate route could not be laid on the frozen spine.");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Tries eligible anchor pairs GEOMETRY-FIRST (smallest real grid gap first — the pairs a short
+        // route can actually span, including the spine-folds-back-near-itself case the graph-distance
+        // proxy misses) until one yields a grid-closable route. Each failed pair is fully rolled back by
+        // LayRouteBetween and releases its reserved ports, so the retry is side-effect-free.
+        private bool TryLayValidatedLoop(AlternateRouteSpec spec, int minSep, string passKey)
+        {
+            if (this._advisor == null || !this._g.TryGetMetrics(out IGraphMetrics metrics))
+            {
+                return false;
+            }
+
+            List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep, spec.MaxAnchorSeparation)
+                .OrderBy(p => this._advisor.GridStepDistance(p.X.Id, p.Y.Id) ?? int.MaxValue)
+                .ToList();
+
+            foreach ((GraphNode X, GraphNode Y) in eligible)
+            {
+                IGraphPort? xPort = this.SelectAnchorPort(X);
+                IGraphPort? yPort = this.SelectAnchorPort(Y);
+                if (xPort == null || yPort == null)
+                {
+                    continue;
+                }
+
+                this._anchorReservedPorts.Add(PortKey(X.Id, xPort.Name));
+                this._anchorReservedPorts.Add(PortKey(Y.Id, yPort.Name));
+
+                if (this.LayRouteBetween(new AnchorPair(X, xPort, Y, yPort), spec, passKey))
+                {
+                    return true;
+                }
+
+                this._anchorReservedPorts.Remove(PortKey(X.Id, xPort.Name));
+                this._anchorReservedPorts.Remove(PortKey(Y.Id, yPort.Name));
+            }
+
+            return false;
         }
 
         private readonly struct AnchorPair
@@ -300,7 +426,7 @@ internal static class GraphGenerator
         ///     <paramref name="passKey" /> discriminates the RNG sub-stream per calling pass, so the
         ///     guaranteed and opportunistic passes never share a draw stream.
         /// </summary>
-        private List<AnchorPair> PickAnchorPairs(string passKey, int count, int minSep, IReadOnlyList<EndpointWeight> weights)
+        private List<AnchorPair> PickAnchorPairs(string passKey, int count, int minSep, int maxSep, IReadOnlyList<EndpointWeight> weights)
         {
             var result = new List<AnchorPair>();
             if (!this._g.TryGetMetrics(out IGraphMetrics metrics))
@@ -310,7 +436,7 @@ internal static class GraphGenerator
 
             for (int pick = 0; pick < count; pick++)
             {
-                List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep);
+                List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep, maxSep);
                 if (eligible.Count == 0)
                 {
                     break;
@@ -357,7 +483,7 @@ internal static class GraphGenerator
             return Math.Max(1L, w);
         }
 
-        private List<(GraphNode X, GraphNode Y)> EnumerateEligiblePairs(IGraphMetrics metrics, int minSep)
+        private List<(GraphNode X, GraphNode Y)> EnumerateEligiblePairs(IGraphMetrics metrics, int minSep, int maxSep)
         {
             var nodes = this._g.Nodes;
             var withSpare = nodes
@@ -381,7 +507,7 @@ internal static class GraphGenerator
                     }
 
                     int dy = metrics.DistanceFromSource(y);
-                    if (dx + minSep <= dy) // implies X ≺ Y and min-separation
+                    if (IsAnchorPairEligible(dx, dy, minSep, maxSep)) // X ≺ Y, within [minSep, maxSep] separation
                     {
                         pairs.Add((x, y));
                     }
@@ -429,6 +555,17 @@ internal static class GraphGenerator
                 routeLen = 1;
             }
 
+            // Closure-parity: the loop cycle (route-side + spine-side edges) must be EVEN to close on the
+            // grid. Nudge the drawn length to the parity that the anchor spine-distance demands — an odd
+            // cycle is provably un-embeddable, so this is the difference between a closable loop and a
+            // guaranteed re-roll. Spine-distance is exact for the first loop (spine-only metrics); later
+            // loops approximate via the live source-distance, which is acceptable for a parity nudge.
+            if (spec.Length != null && this._g.TryGetMetrics(out IGraphMetrics metrics))
+            {
+                int anchorDistance = metrics.DistanceFromSource(pair.Y) - metrics.DistanceFromSource(pair.X);
+                routeLen = AdjustRouteLengthForClosure(routeLen, anchorDistance, spec.Length.Min, spec.Length.Max);
+            }
+
             var prov = new List<(StringName Id, INodeTemplate Template)>();
             StringName entryType = pair.XPort.Type;
 
@@ -459,7 +596,23 @@ internal static class GraphGenerator
                 return false; // budget left no room for even one routing node
             }
 
-            return this.CommitRoute(pair, prov, routeOrdinal);
+            PartialGraph.GraphCheckpoint cp = this._g.Checkpoint();
+            if (!this.CommitRoute(pair, prov, routeOrdinal))
+            {
+                this._g.RollbackTo(cp);
+                return false;
+            }
+
+            // Geometry gate (advisor mode): commit the route only if it actually closes on the grid.
+            // A rejected route is rolled back so it never ships as an unembeddable loop — which would
+            // otherwise force a whole-floor re-roll at the embed stage. No advisor ⇒ no gate (unchanged).
+            if (this._advisor != null && !this._advisor.TryCommitSubgraph(this._g.ToFloorGraph()))
+            {
+                this._g.RollbackTo(cp);
+                return false;
+            }
+
+            return true;
         }
 
         private bool CommitRoute(AnchorPair pair, List<(StringName Id, INodeTemplate Template)> prov, int routeOrdinal)
@@ -578,7 +731,7 @@ internal static class GraphGenerator
                 return;
             }
 
-            List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, spec.MinAnchorSeparation, spec.EffectiveAttachmentWeights);
+            List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, spec.MinAnchorSeparation, spec.MaxAnchorSeparation, spec.EffectiveAttachmentWeights);
             int laid = 0;
             foreach (AnchorPair pair in pairs)
             {
@@ -625,6 +778,15 @@ internal static class GraphGenerator
             var weights = spec.EffectiveWeights;
             var constraints = spec.EffectiveConstraints;
 
+            // Advisor mode: branches get the same anchor RETRY the geometry-aware loops have — a graph-order
+            // anchor the loops boxed in is excluded and the next distinct anchor is tried, instead of the
+            // stateless picker re-selecting the same doomed node every iteration.
+            if (this._advisor != null)
+            {
+                this.LayBranchesValidated(spec, count, depth, fanout, weights, constraints);
+                return;
+            }
+
             int grown = 0;
             for (int b = 0; b < count; b++)
             {
@@ -639,6 +801,58 @@ internal static class GraphGenerator
                 if (this._g.NodeCount > before)
                 {
                     grown++;
+                }
+            }
+
+            int branchMin = spec.Count?.Min ?? 0;
+            if (grown < branchMin)
+            {
+                this._warnings.Add(new Violation(
+                    ViolationKind.BranchesUnfilled, Severity.Warning,
+                    $"Grew {grown} branches; BranchSpec.Count.Min is {branchMin}."));
+            }
+        }
+
+        // Advisor-mode branch placement: try candidate anchors until one grows >=1 child, EXCLUDING any
+        // anchor whose growth was rolled back (its spare port opens into loop-occupied grid). The
+        // authoritative free-space gate is GrowBranch's per-child TryCommitSubgraph; this supplies only
+        // the retry-across-distinct-anchors the stateless PickBranchAnchor lacked. Candidate order is
+        // graph-insertion (deterministic); a good anchor with spare ports left can host later branches too.
+        private void LayBranchesValidated(
+            BranchSpec spec, int count, int depth, int fanout,
+            IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints)
+        {
+            var candidates = this._g.Nodes
+                .Where(n => this.SelectOpenPort(n, requiredType: default) != null)
+                .ToList();
+            var doomed = new HashSet<StringName>();
+
+            int grown = 0;
+            for (int b = 0; b < count; b++)
+            {
+                bool placed = false;
+                foreach (GraphNode anchor in candidates)
+                {
+                    if (doomed.Contains(anchor.Id) || this.SelectOpenPort(anchor, requiredType: default) == null)
+                    {
+                        continue;
+                    }
+
+                    int before = this._g.NodeCount;
+                    this.GrowBranch(anchor, depth, fanout, weights, constraints, b);
+                    if (this._g.NodeCount > before)
+                    {
+                        grown++;
+                        placed = true;
+                        break;
+                    }
+
+                    doomed.Add(anchor.Id); // grew nothing on the frozen grid — never useful again this floor
+                }
+
+                if (!placed)
+                {
+                    break; // no remaining candidate anchor can host a branch on this floor
                 }
             }
 
@@ -675,6 +889,8 @@ internal static class GraphGenerator
                     return; // parent exhausted its spare ports
                 }
 
+                PartialGraph.GraphCheckpoint cp = this._g.Checkpoint();
+
                 // Free-growth passes (spine + branch) prefer Body — branches dead-end into pocket
                 // rooms; only routing passes prefer Connector (design-se §2).
                 GraphNode? child = this.PlaceNode(
@@ -692,6 +908,16 @@ internal static class GraphGenerator
                 }
 
                 this._g.Connect(parent, exit, child, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Branch, rootOrdinal));
+
+                // Geometry gate (advisor mode): a branch child that cannot be placed on the grid is rolled
+                // back and the next fanout slot is tried, rather than shipping an unembeddable branch. No
+                // advisor ⇒ no gate (unchanged greedy growth).
+                if (this._advisor != null && !this._advisor.TryCommitSubgraph(this._g.ToFloorGraph()))
+                {
+                    this._g.RollbackTo(cp);
+                    continue;
+                }
+
                 this.GrowBranch(child, depth - 1, fanout, weights, constraints, rootOrdinal);
             }
         }

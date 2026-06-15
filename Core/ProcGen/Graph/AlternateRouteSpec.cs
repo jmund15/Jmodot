@@ -31,6 +31,15 @@ public sealed partial class AlternateRouteSpec : Resource
     /// <summary>Minimum spine separation (DistanceFromSource gap) between a guaranteed loop's divergence X and rejoin Y. <c>&gt;= 2</c> keeps the loop non-degenerate (avoids a 1-segment loop). Read by the generator's anchor-pair eligibility and by the consuming profile's backbone-feasibility check (Spine.Length.Min ≥ GuaranteedCount.Min × this + 3).</summary>
     [Export(PropertyHint.Range, "1,16,or_greater")] public int MinAnchorSeparation { get; private set; } = 2;
 
+    /// <summary>
+    ///     MAXIMUM spine separation between a loop's divergence X and rejoin Y. Caps how far apart the
+    ///     anchors can be so the route can actually SPAN the gap and close on the grid — a far-apart
+    ///     anchor pair handed a short route produces a cycle that passes topology but cannot embed
+    ///     (NoBinding), forcing a re-roll. <c>0</c> = unbounded (legacy behavior). Set it near the route
+    ///     <see cref="Length" /> Max so committed loops are always closable.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,16,or_greater")] public int MaxAnchorSeparation { get; private set; }
+
     /// <summary>SOFT biases scoring how attractive a node is as a route ENDPOINT (divergence X / rejoin Y; see <see cref="EndpointWeight" />). A distinct family from <see cref="Weights" /> (room-selection placement scoring). Empty slots dropped by <see cref="EffectiveAttachmentWeights" />.</summary>
     [ExportGroup("Placement Rules")]
     [Export] public Godot.Collections.Array<EndpointWeight?> AttachmentWeights { get; private set; } = new();
@@ -79,6 +88,17 @@ public sealed partial class AlternateRouteSpec : Resource
             throw new ResourceConfigurationException(
                 $"{nameof(AlternateRouteSpec)}.{nameof(this.MinAnchorSeparation)} must be >= 1.", this);
         }
+        if (this.MaxAnchorSeparation < 0)
+        {
+            throw new ResourceConfigurationException(
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} must be >= 0 (0 = unbounded).", this);
+        }
+        if (this.MaxAnchorSeparation > 0 && this.MaxAnchorSeparation < this.MinAnchorSeparation)
+        {
+            throw new ResourceConfigurationException(
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} ({this.MaxAnchorSeparation}) must be >= " +
+                $"{nameof(this.MinAnchorSeparation)} ({this.MinAnchorSeparation}) when bounded.", this);
+        }
         if (this.AttachmentWeights.Any(w => w is null))
         {
             throw new ResourceConfigurationException(
@@ -102,6 +122,7 @@ public sealed partial class AlternateRouteSpec : Resource
     internal void SetOpportunisticCount(IntRange? value) => this.OpportunisticCount = value;
     internal void SetLength(IntRange? value) => this.Length = value;
     internal void SetMinAnchorSeparation(int value) => this.MinAnchorSeparation = value;
+    internal void SetMaxAnchorSeparation(int value) => this.MaxAnchorSeparation = value;
     internal void SetAttachmentWeights(Godot.Collections.Array<EndpointWeight?> value) => this.AttachmentWeights = value;
     internal void SetConstraints(Godot.Collections.Array<SlotConstraint?> value) => this.Constraints = value;
     internal void SetWeights(Godot.Collections.Array<SlotWeight?> value) => this.Weights = value;
