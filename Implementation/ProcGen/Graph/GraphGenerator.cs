@@ -185,7 +185,7 @@ internal static class GraphGenerator
             int budgetMin = this._config.NodeBudget?.Min ?? 0;
             if (this._g.NodeCount < budgetMin)
             {
-                this._warnings.Add(new Violation(
+                this.Warn(new Violation(
                     ViolationKind.BudgetUnfilled, Severity.Warning,
                     $"Floor laid {this._g.NodeCount} nodes, under NodeBudget.Min ({budgetMin})."));
             }
@@ -334,7 +334,7 @@ internal static class GraphGenerator
                 // Fewer eligible anchor pairs than requested — surfaced as a soft warning (the floor is
                 // still a valid connected topology; the backbone-feasibility Validate gate guards the
                 // authored config, but a sampled short or spare-port-poor spine can still under-fill).
-                this._warnings.Add(new Violation(
+                this.Warn(new Violation(
                     ViolationKind.AlternateRoutesUnfilled, Severity.Warning,
                     $"Laid {pairs.Count} guaranteed loops; {guaranteed} requested."));
             }
@@ -751,7 +751,7 @@ internal static class GraphGenerator
             int requestedMin = spec.OpportunisticCount?.Min ?? 0;
             if (laid < requestedMin)
             {
-                this._warnings.Add(new Violation(
+                this.Warn(new Violation(
                     ViolationKind.AlternateRoutesUnfilled, Severity.Warning,
                     $"Laid {laid} opportunistic routes; {requestedMin} requested."));
             }
@@ -774,7 +774,13 @@ internal static class GraphGenerator
             }
 
             int depth = this.DrawCount(spec.Depth, fallback: 1, "branch", "depth");
-            int fanout = this.DrawCount(spec.FanOut, fallback: 1, "branch", "fanout");
+
+            // A branch with fanout 0 grows no children — a degenerate "branch" that silently breaks
+            // Count.Min's promise of at least one branch. FanOut.Min defaults to 0 (an unset IntRange),
+            // so this single per-floor draw can roll 0 and zero EVERY branch on the floor. Floor the
+            // branching factor at 1 whenever branching is requested (guard at the consumption site, per
+            // the inspector-driven-range rule), so no profile can void Count.Min via an orthogonal knob.
+            int fanout = Math.Max(1, this.DrawCount(spec.FanOut, fallback: 1, "branch", "fanout"));
             var weights = spec.EffectiveWeights;
             var constraints = spec.EffectiveConstraints;
 
@@ -807,7 +813,7 @@ internal static class GraphGenerator
             int branchMin = spec.Count?.Min ?? 0;
             if (grown < branchMin)
             {
-                this._warnings.Add(new Violation(
+                this.Warn(new Violation(
                     ViolationKind.BranchesUnfilled, Severity.Warning,
                     $"Grew {grown} branches; BranchSpec.Count.Min is {branchMin}."));
             }
@@ -859,7 +865,7 @@ internal static class GraphGenerator
             int branchMin = spec.Count?.Min ?? 0;
             if (grown < branchMin)
             {
-                this._warnings.Add(new Violation(
+                this.Warn(new Violation(
                     ViolationKind.BranchesUnfilled, Severity.Warning,
                     $"Grew {grown} branches; BranchSpec.Count.Min is {branchMin}."));
             }
@@ -1108,6 +1114,16 @@ internal static class GraphGenerator
             }
 
             return true;
+        }
+
+        // Records a non-fatal advisory and mirrors it to the log, so silent soft-degradations
+        // (under-filled branches / routes / budget) surface in the post-run godot.log for debugging —
+        // not only in the returned result's warning list. Warning level never fails a test (only Error
+        // does), so this is safe on every generator path (all of which run under the Godot runtime).
+        private void Warn(Violation v)
+        {
+            this._warnings.Add(v);
+            JmoLogger.Warning(this, $"[ProcGen] {v.Reason}: {v.Detail}");
         }
 
         // ── Counts + seeds ──────────────────────────────────────────────────
