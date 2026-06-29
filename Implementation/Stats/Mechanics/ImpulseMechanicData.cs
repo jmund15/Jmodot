@@ -7,7 +7,7 @@ using Core.Stats.Mechanics;
 /// Defines the contract for a simple, instantaneous physics impulse like a jump or dodge.
 /// It requires one Attribute to define its strength.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ImpulseMechanicData : MechanicData
 {
     [ExportGroup("Attribute Contract")]

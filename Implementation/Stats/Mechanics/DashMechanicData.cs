@@ -6,7 +6,7 @@ using Jmodot.Core.Shared.Attributes;
 /// <summary>
 ///     Defines the data for a continuous dash or lunge mechanic.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DashMechanicData : MechanicData // Also inherits from the base class
 {
     [Export] public float Speed { get; private set; } = 50.0f;

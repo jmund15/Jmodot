@@ -6,7 +6,7 @@ namespace Jmodot.Core.Stats.Mechanics;
 ///     Concrete implementations (e.g., ImpulseMechanicData, DashMechanicData) will
 ///     define the specific properties for each action.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class MechanicData : Resource
 {
     // This class is intentionally empty. It's a "marker" base class.
