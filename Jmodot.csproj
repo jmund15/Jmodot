@@ -12,6 +12,8 @@
 		<PackageReference Include="Godot.SourceGenerators" Version="4.6.2" />
         <PackageReference Include="GodotSharp" Version="4.6.2" />
         <PackageReference Include="GodotSharpEditor" Version="4.6.2" />
+        <!-- Tracy profiler C# client — so Jmodot compiles standalone and the dep travels to other consumers. -->
+        <PackageReference Include="Tracy-CSharp" Version="0.11.1" />
     </ItemGroup>
 
     <ItemGroup>
