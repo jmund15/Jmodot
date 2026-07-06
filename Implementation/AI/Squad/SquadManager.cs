@@ -1,5 +1,5 @@
 // --- SquadManager.cs ---
-namespace Jmodot.Implementation.AI.UtilityAI;
+namespace Jmodot.Implementation.AI.Squad;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +8,6 @@ using BB;
 using Core.AI.BB;
 using Core.AI.Squad;
 using Shared;
-using Squad;
 
 /// <summary>
 /// Manages a squad of AI agents, updating shared state on a squad-level blackboard.
