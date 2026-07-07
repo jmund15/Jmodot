@@ -25,4 +25,11 @@ public enum EdgeProvenanceKind
 
     /// <summary>Laid by a branch pass (a dead-end growth tree).</summary>
     Branch,
+
+    /// <summary>
+    ///     Laid by the pinned-neighbor pass: a REQUIRED room a <see cref="PinnedPlacement" />
+    ///     demands directly adjacent to its pinned node (set-piece flanks). Appended last to
+    ///     preserve the append-only ordinal contract.
+    /// </summary>
+    PinnedNeighbor,
 }

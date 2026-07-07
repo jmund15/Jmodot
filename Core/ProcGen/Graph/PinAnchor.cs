@@ -19,8 +19,15 @@ public abstract partial class PinAnchor : Resource
 {
     /// <summary>
     ///     Pure projection to the spine index this anchor targets, resolved against the full config
-    ///     context. Side-effect-free; the index is range-checked by the consuming
-    ///     <see cref="ISkeletonConfig.Validate" />, not here.
+    ///     context plus the spine length actually in play. Side-effect-free; the index is
+    ///     range-checked by the consuming <see cref="ISkeletonConfig.Validate" /> (which passes the
+    ///     authored <c>Length.Max</c> as the length bound) and re-resolved by the generator against
+    ///     the drawn length, not here.
     /// </summary>
-    public abstract int ResolveSpineIndex(ISkeletonConfig config);
+    /// <param name="drawnSpineLength">
+    ///     The spine length the caller is resolving against: the seed-drawn length inside the
+    ///     generator, or the authored maximum during config validation. Positional anchors
+    ///     (<see cref="SpineIndexAnchor" />) ignore it; relative anchors (fraction/geometry) scale by it.
+    /// </param>
+    public abstract int ResolveSpineIndex(ISkeletonConfig config, int drawnSpineLength);
 }

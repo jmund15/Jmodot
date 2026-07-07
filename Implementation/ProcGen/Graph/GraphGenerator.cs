@@ -136,6 +136,11 @@ internal static class GraphGenerator
         // the non-Loop skeleton must connect every pair of route anchors).
         private readonly HashSet<StringName> _spineNodeIds = new();
 
+        // Spine nodes in placement order + the drawn pin map, kept for the pinned-neighbor pass
+        // (it must re-address "the node at pin index i" after LaySpine returns).
+        private readonly List<GraphNode> _spineNodes = new();
+        private Dictionary<int, PinnedPlacement> _pinsByIndex = new();
+
         // Monotonic node-id ordinal — advances on every placement, guaranteeing globally-unique,
         // deterministic ids.
         private int _ordinal;
@@ -174,6 +179,13 @@ internal static class GraphGenerator
             // beneath it, so the advisor's frozen poses stay valid through to the pipeline's BuildResult.
             this._advisor = this._advisorFactory?.Invoke(this._g.ToFloorGraph());
 
+            // Required set-piece flanks attach before any decoration pass can consume the pinned
+            // node's spare ports — loops and branches then plan around the committed neighbors.
+            if (!this.AttachPinnedNeighbors(out cause))
+            {
+                return FloorOutcome.PinUnsatisfiable;
+            }
+
             if (!this.LayGuaranteedLoops(out cause))
             {
                 return FloorOutcome.SpineInfeasible; // a guaranteed loop could not be laid — re-roll
@@ -208,9 +220,10 @@ internal static class GraphGenerator
 
             var weights = this._config.Spine?.EffectiveWeights ?? (IReadOnlyList<SlotWeight>)Array.Empty<SlotWeight>();
             var constraints = this._config.Spine?.EffectiveConstraints ?? (IReadOnlyList<SlotConstraint>)Array.Empty<SlotConstraint>();
-            Dictionary<int, INodeTemplate> forcedByIndex = this.ResolveForcedTemplates(length);
+            Dictionary<int, PinnedPlacement> forcedByIndex = this.ResolvePins(length);
+            this._pinsByIndex = forcedByIndex;
 
-            INodeTemplate? forcedFirst = forcedByIndex.GetValueOrDefault(0);
+            INodeTemplate? forcedFirst = forcedByIndex.GetValueOrDefault(0)?.AsNodeTemplate;
             GraphNode? first = this.PlaceNode("spine", requiredType: default, anchor: null, weights, constraints, forcedFirst);
             if (first == null)
             {
@@ -222,6 +235,7 @@ internal static class GraphGenerator
 
             this._g.SetSource(first);
             this._spineNodeIds.Add(first.Id);
+            this._spineNodes.Add(first);
             GraphNode prev = first;
             int placed = 1;
 
@@ -240,7 +254,7 @@ internal static class GraphGenerator
 
                 // Interior nodes need an entry AND an exit port; only the tail may be a dead-end cap.
                 int minPorts = i < length - 1 ? 2 : 1;
-                INodeTemplate? forced = forcedByIndex.GetValueOrDefault(i);
+                INodeTemplate? forced = forcedByIndex.GetValueOrDefault(i)?.AsNodeTemplate;
                 GraphNode? node = this.PlaceNode(
                     "spine", requiredType: exit.Type,
                     anchor: new PortSlot(prev, exit), weights, constraints, forced, minPorts: minPorts);
@@ -259,8 +273,12 @@ internal static class GraphGenerator
                     return FloorOutcome.SpineInfeasible;
                 }
 
-                this._g.Connect(prev, exit, node, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Spine, 0));
+                // A pin may gate its own exit: the edge leaving the pinned node (From = index i-1)
+                // ships gated, blocking progression past the set-piece until its door opens.
+                bool gated = forcedByIndex.GetValueOrDefault(i - 1)?.GateExitEdge == true;
+                this._g.Connect(prev, exit, node, entry, gated: gated, provenance: new EdgeProvenance(EdgeProvenanceKind.Spine, 0));
                 this._spineNodeIds.Add(node.Id);
+                this._spineNodes.Add(node);
                 prev = node;
                 placed++;
             }
@@ -684,18 +702,18 @@ internal static class GraphGenerator
             return null;
         }
 
-        private Dictionary<int, INodeTemplate> ResolveForcedTemplates(int length)
+        private Dictionary<int, PinnedPlacement> ResolvePins(int length)
         {
-            var map = new Dictionary<int, INodeTemplate>();
+            var map = new Dictionary<int, PinnedPlacement>();
             SpineSpec? spine = this._config.Spine;
-            if (spine?.SourcePin?.AsNodeTemplate is INodeTemplate src)
+            if (spine?.SourcePin?.AsNodeTemplate != null)
             {
-                map[0] = src;
+                map[0] = spine.SourcePin;
             }
 
-            if (length > 0 && spine?.SinkPin?.AsNodeTemplate is INodeTemplate snk)
+            if (length > 0 && spine?.SinkPin?.AsNodeTemplate != null)
             {
-                map[length - 1] = snk;
+                map[length - 1] = spine.SinkPin;
             }
 
             foreach (PinnedPlacement pin in this._config.Pins)
@@ -705,14 +723,84 @@ internal static class GraphGenerator
                     continue;
                 }
 
-                int idx = pin.Anchor.ResolveSpineIndex(this._config);
-                if (idx >= 0 && idx < length && pin.AsNodeTemplate is INodeTemplate t)
+                int idx = pin.Anchor.ResolveSpineIndex(this._config, length);
+                if (idx >= 0 && idx < length && pin.AsNodeTemplate != null)
                 {
-                    map[idx] = t; // interior pins win over the endpoint defaults at a shared index
+                    map[idx] = pin; // interior pins win over the endpoint defaults at a shared index
                 }
             }
 
             return map;
+        }
+
+        // ── Pinned neighbors (required set-piece flanks) ────────────────────
+
+        /// <summary>
+        ///     Attaches every pin's <see cref="PinnedPlacement.RequiredNeighbors" /> directly to its
+        ///     pinned spine node as dead-end pockets (<see cref="EdgeProvenanceKind.PinnedNeighbor" />).
+        ///     Runs immediately after the spine commits, so the required rooms claim the pinned node's
+        ///     spare ports before any decoration pass can. Any failure — port exhaustion, budget
+        ///     ceiling, or a geometry rejection in advisor mode — is PinUnsatisfiable: required
+        ///     content, consistent with every other pin path (a mid-spine forced-placement failure is
+        ///     already PinUnsatisfiable even in advisor mode).
+        /// </summary>
+        private bool AttachPinnedNeighbors(out Violation cause)
+        {
+            cause = default;
+            foreach (int idx in this._pinsByIndex.Keys.OrderBy(k => k))
+            {
+                PinnedPlacement pin = this._pinsByIndex[idx];
+                foreach (INodeTemplate neighbor in pin.RequiredNeighborTemplates)
+                {
+                    if (this._g.NodeCount >= this.BudgetMax)
+                    {
+                        cause = PinUnsatisfiable(
+                            $"the pin at spine index {idx} requires neighbor '{neighbor.TemplateId}' but NodeBudget.Max ({this.BudgetMax}) is already reached.");
+                        return false;
+                    }
+
+                    GraphNode host = this._spineNodes[idx];
+                    IGraphPort? exit = this.SelectOpenPort(host, requiredType: default);
+                    if (exit == null)
+                    {
+                        cause = PinUnsatisfiable(
+                            $"the pin at spine index {idx} has no spare port for required neighbor '{neighbor.TemplateId}'.");
+                        return false;
+                    }
+
+                    PartialGraph.GraphCheckpoint cp = this._g.Checkpoint();
+                    GraphNode? child = this.PlaceNode(
+                        "pinned", requiredType: exit.Type,
+                        anchor: new PortSlot(host, exit),
+                        Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), forced: neighbor);
+                    if (child == null)
+                    {
+                        cause = PinUnsatisfiable(
+                            $"required neighbor '{neighbor.TemplateId}' at spine index {idx} exposes no port compatible with its host.");
+                        return false;
+                    }
+
+                    IGraphPort? entry = this.SelectOpenPort(child, exit.Type);
+                    if (entry == null)
+                    {
+                        cause = PinUnsatisfiable(
+                            $"required neighbor '{neighbor.TemplateId}' at spine index {idx} exposes no entry port.");
+                        return false;
+                    }
+
+                    this._g.Connect(host, exit, child, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.PinnedNeighbor, idx));
+
+                    if (this._advisor != null && !this._advisor.TryCommitSubgraph(this._g.ToFloorGraph()))
+                    {
+                        this._g.RollbackTo(cp);
+                        cause = PinUnsatisfiable(
+                            $"required neighbor '{neighbor.TemplateId}' at spine index {idx} cannot be embedded beside its host.");
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         // ── Opportunistic routes (best-effort decoration) ───────────────────
