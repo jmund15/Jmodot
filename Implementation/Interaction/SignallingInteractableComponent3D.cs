@@ -33,7 +33,13 @@ public partial class SignallingInteractableComponent3D : Area3D, IInteractable3D
 
     public bool CanInteract(Node3D interactor) => Enabled;
 
-    public void Interact(Node3D interactor) => Fired.Invoke(InteractionId, interactor);
+    public void Interact(Node3D interactor)
+    {
+        // Self-gate on Enabled: consumers relay Fired unconditionally (e.g. onto an encounter
+        // graph), so a CanInteract-skipping caller must not be able to fire a disabled target.
+        if (!Enabled) { return; }
+        Fired.Invoke(InteractionId, interactor);
+    }
 
     #region Test Helpers
 #if TOOLS
