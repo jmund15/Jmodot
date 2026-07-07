@@ -8,7 +8,7 @@ using Godot.Collections;
 /// A general-purpose modifier that directly overrides the value of any Variant stat.
 /// Its effect is determined by its Priority relative to other override modifiers.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VariantOverrideModifier : Resource, IVariantModifier, ITaggableModifier
 {
     [Export] public VariantModifierStageRule StageRule { get; private set; }

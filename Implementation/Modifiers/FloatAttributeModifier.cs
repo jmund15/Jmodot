@@ -10,7 +10,7 @@ using Jmodot.Core.Shared.Attributes;
 ///     a designer will use to create all standard buffs, debuffs, and equipment bonuses in the editor.
 ///     It implements the IModifier contract: a raw Value, a data-driven StageRule, priority, and tags.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class FloatAttributeModifier : Resource, IFloatModifier, ITaggableModifier
 {
     /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>

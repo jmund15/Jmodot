@@ -6,7 +6,7 @@ using Jmodot.Core.Modifiers.StageRules;
 /// <summary>
 ///     Resource for modifying a bool value. Defaults to an override fold (highest-priority value wins).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class BoolAttributeModifier : Resource, IBoolModifier, ITaggableModifier
 {
     [Export] public BoolModifierStageRule StageRule { get; private set; }

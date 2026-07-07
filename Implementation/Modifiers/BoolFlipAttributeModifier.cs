@@ -7,7 +7,7 @@ using Jmodot.Core.Modifiers.StageRules;
 ///     Resource for flipping an attribute's bool value. Folds via a flip stage (toggles once per modifier);
 ///     <see cref="Value" /> is unused by the flip rule but present to satisfy the IBoolModifier contract.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class BoolFlipAttributeModifier : Resource, IBoolModifier, ITaggableModifier
 {
     [Export] public BoolModifierStageRule StageRule { get; private set; }
