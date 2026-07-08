@@ -25,4 +25,11 @@ public enum EdgeProvenanceKind
 
     /// <summary>Laid by a branch pass (a dead-end growth tree).</summary>
     Branch,
+
+    /// <summary>
+    ///     Laid by a hand-authored floor definition rather than a generation pass — the generic,
+    ///     boundary-clean provenance for adapting an authored topology into an <c>IFloorGraph</c>.
+    ///     Passes the <c>FloorGraph</c> build gate, which rejects only <see cref="Unset" />.
+    /// </summary>
+    Authored,
 }
