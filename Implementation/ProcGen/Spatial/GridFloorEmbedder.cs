@@ -8,6 +8,7 @@ using Godot;
 using Jmodot.Core.ProcGen;
 using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.ProcGen.Spatial;
+using Jmodot.Implementation.ProcGen.Graph;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 /// <summary>
@@ -1169,10 +1170,11 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         return (int)Math.Clamp(computed, floor, ceiling);
     }
 
+    // Endpoint-resolution now lives once, on the shared FloorGraphExtensions.NodeAcrossEdge query.
+    // Every call site here passes a nodeId that is an endpoint of the edge (edges come from that
+    // node's adjacency), so the non-null result is guaranteed.
     private static StringName OtherEnd(IGraphEdge edge, StringName nodeId)
-    {
-        return edge.From.Id == nodeId ? edge.To.Id : edge.From.Id;
-    }
+        => edge.NodeAcrossEdge(nodeId)!.Id;
 
     private static ISpatialPort PortByName(NodeInfo info, StringName portName)
     {
