@@ -32,4 +32,11 @@ public enum EdgeProvenanceKind
     ///     Passes the <c>FloorGraph</c> build gate, which rejects only <see cref="Unset" />.
     /// </summary>
     Authored,
+
+    /// <summary>
+    ///     Laid by the pinned-neighbor pass: a REQUIRED room a <see cref="PinnedPlacement" />
+    ///     demands directly adjacent to its pinned node (set-piece flanks). Appended last to
+    ///     preserve the append-only ordinal contract.
+    /// </summary>
+    PinnedNeighbor,
 }
