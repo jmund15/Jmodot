@@ -135,11 +135,13 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
-        var zeroScores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
+        // Lazy: this runs per-frame per-agent, and in the common has-targets case the zero
+        // dictionary would be allocated only to be discarded in favor of AggregateScores.
+        Dictionary<Vector3, float> ZeroScores() => directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        if (_targetCategory == null) { return zeroScores; }
+        if (_targetCategory == null) { return ZeroScores(); }
 
-        if (IsSuppressedByZone(blackboard)) { return zeroScores; }
+        if (IsSuppressedByZone(blackboard)) { return ZeroScores(); }
 
         if (context3D.Memory == null)
         {
@@ -150,7 +152,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
                     "but the steering context has no Memory. This consideration will have no effect.");
                 _missingMemoryLogged = true;
             }
-            return zeroScores;
+            return ZeroScores();
         }
 
         var targets = context3D.Memory.GetSensedByCategory(_targetCategory);
@@ -183,7 +185,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
             _targetDataCache.Add(new TargetData(responseDir, weight));
         }
 
-        if (_targetDataCache.Count == 0) { return zeroScores; }
+        if (_targetDataCache.Count == 0) { return ZeroScores(); }
 
         // Pass 2: Aggregate using _threatResolution blend
         return AggregateScores(directions, effectiveFocus, effectiveResolution,
