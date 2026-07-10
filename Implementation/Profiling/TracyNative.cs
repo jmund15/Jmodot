@@ -28,8 +28,24 @@ public sealed class TracyNative : ITracyNative
     private readonly NativeStringInterner<CString> _nameInterner = new(CString.FromString);
     private readonly object _internGate = new();
     private long _nextHandle;
+    private volatile bool _degraded;
 
     public bool IsAvailable { get; }
+
+    // Version-skew guard: the ctor probe proves only ONE symbol resolves (TracyConnected); the
+    // runtime methods bind different natives, so a skewed client throws EntryPointNotFoundException
+    // mid-gameplay. First throw latches _degraded (all four methods no-op from then on) — degrade,
+    // never crash. Used as an exception FILTER so ZoneBegin's CString-disposal finally still runs.
+    private bool LatchDegraded(Exception ex, string method)
+    {
+        if (!this._degraded)
+        {
+            this._degraded = true;
+            JmoLogger.Warning(typeof(TracyNative),
+                $"Tracy native call {method} failed ({ex.GetType().Name}); profiler degraded to no-op.");
+        }
+        return true;
+    }
 
     public TracyNative()
     {
@@ -55,6 +71,8 @@ public sealed class TracyNative : ITracyNative
 
     public ulong ZoneBegin(string zone, int line, string member, string file)
     {
+        if (this._degraded) { return 0; }
+
         // Transient: Tracy copies srcloc strings into its own storage, so these are freed post-alloc.
         CString source = CString.FromString(file);
         CString function = CString.FromString(member);
@@ -73,6 +91,10 @@ public sealed class TracyNative : ITracyNative
             this._activeZones[handle] = ctx;
             return handle;
         }
+        catch (Exception ex) when (this.LatchDegraded(ex, nameof(ZoneBegin)))
+        {
+            return 0;
+        }
         finally
         {
             source.Dispose();
@@ -83,27 +105,51 @@ public sealed class TracyNative : ITracyNative
 
     public void ZoneEnd(ulong ctxHandle)
     {
-        if (this._activeZones.TryRemove(ctxHandle, out var ctx))
+        if (this._degraded) { return; }
+
+        try
         {
-            PInvoke.TracyEmitZoneEnd(ctx);
+            if (this._activeZones.TryRemove(ctxHandle, out var ctx))
+            {
+                PInvoke.TracyEmitZoneEnd(ctx);
+            }
+        }
+        catch (Exception ex) when (this.LatchDegraded(ex, nameof(ZoneEnd)))
+        {
         }
     }
 
     public void Plot(string name, double value)
     {
+        if (this._degraded) { return; }
+
         // Stored by pointer → must persist; the interner allocs once and never frees. OnPlot carries
         // no per-thread serialization (unlike zones), so guard the plain-Dictionary interner.
-        CString interned;
-        lock (this._internGate)
+        try
         {
-            interned = this._nameInterner.Intern(name);
+            CString interned;
+            lock (this._internGate)
+            {
+                interned = this._nameInterner.Intern(name);
+            }
+            PInvoke.TracyEmitPlot(interned, value);
         }
-        PInvoke.TracyEmitPlot(interned, value);
+        catch (Exception ex) when (this.LatchDegraded(ex, nameof(Plot)))
+        {
+        }
     }
 
     public void FrameMark()
     {
-        // default(CString) is a null name → Tracy's default unnamed frame.
-        PInvoke.TracyEmitFrameMark(default);
+        if (this._degraded) { return; }
+
+        try
+        {
+            // default(CString) is a null name → Tracy's default unnamed frame.
+            PInvoke.TracyEmitFrameMark(default);
+        }
+        catch (Exception ex) when (this.LatchDegraded(ex, nameof(FrameMark)))
+        {
+        }
     }
 }

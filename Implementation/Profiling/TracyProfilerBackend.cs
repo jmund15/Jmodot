@@ -35,6 +35,14 @@ public sealed class TracyProfilerBackend : IProfilerBackend
         this._available = this._native.IsAvailable;
     }
 
+    /// <summary>
+    /// Probe-time availability of the native Tracy client — the boot gate for
+    /// <c>JmoProfiler.Enabled</c> (a disabled profiler skips zone bookkeeping entirely instead of
+    /// feeding a backend that can only no-op). Runtime version-skew failures after a successful
+    /// probe degrade inside <see cref="TracyNative"/> rather than flipping this.
+    /// </summary>
+    public bool IsBackendAvailable => this._available;
+
     private static Stack<ulong> ZoneStack => _zoneStack ??= new Stack<ulong>();
 
     public void OnZoneBegin(string zone)
@@ -111,9 +119,6 @@ public sealed class TracyProfilerBackend : IProfilerBackend
 #if TOOLS
     /// <summary>Clears the calling thread's zone stack so mapping tests start from a known state.</summary>
     internal static void ClearThreadZoneStackForTesting() => _zoneStack?.Clear();
-
-    /// <summary>Clears the cached ProjectSettings value so a future test re-reads it fresh.</summary>
-    internal static void ResetEnabledCacheForTesting() => _enabledCache = null;
 #endif
     #endregion
 }

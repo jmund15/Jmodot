@@ -13,6 +13,10 @@ using System.Collections.Generic;
 /// allocated handle must outlive every event that uses it. This interner never evicts — each
 /// unique string allocates exactly once and is retained for the process lifetime, which is the
 /// correct behavior for that pointer-retention contract.</para>
+///
+/// <para><b>Caller contract:</b> intern only a BOUNDED name set (compile-time literals or stable
+/// identifiers). Never-evict means per-instance / per-frame dynamic names (interpolated ids,
+/// counters) grow the table and its native allocations without bound for the process lifetime.</para>
 /// </summary>
 public sealed class NativeStringInterner<T>
 {
