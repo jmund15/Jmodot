@@ -44,6 +44,15 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     /// </summary>
     [Export, RequiredExport] private Category _targetCategory = null!;
 
+    /// <summary>
+    /// Optional BB key holding a Vector4 zone (center xyz + radius in W). While that zone is active
+    /// (radius W &gt; 0) this consideration is fully suppressed (contributes zero scores), letting a
+    /// project spatially gate a chase/avoid without the framework knowing the gate's meaning. Unset
+    /// (default) = never suppressed. Mirrors <c>ZoneBoundaryConsideration3D._boundaryZoneKey</c>'s
+    /// Vector4-BB convention.
+    /// </summary>
+    [Export] private StringName? _suppressWhileZoneKey;
+
     [ExportGroup("Threat Processing")]
 
     /// <summary>
@@ -130,6 +139,8 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 
         if (_targetCategory == null) { return zeroScores; }
 
+        if (IsSuppressedByZone(blackboard)) { return zeroScores; }
+
         if (context3D.Memory == null)
         {
             if (!_missingMemoryLogged)
@@ -180,6 +191,14 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     }
 
     #region Core Computation
+
+    /// <summary>
+    /// True when a suppression zone key is configured and its BB Vector4 has a positive radius (W).
+    /// </summary>
+    private bool IsSuppressedByZone(IBlackboard blackboard)
+        => !string.IsNullOrEmpty(_suppressWhileZoneKey)
+           && blackboard.TryGet<Vector4>(_suppressWhileZoneKey!, out var zone)
+           && zone.W > 0f;
 
     /// <summary>
     /// Gets the effective position for a target, using velocity projection scaled by influence.
@@ -308,6 +327,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     #region Test Helpers
 #if TOOLS
     internal void SetTargetCategory(Category category) => _targetCategory = category;
+    internal void SetSuppressWhileZoneKey(StringName key) => _suppressWhileZoneKey = key;
     internal void SetConsiderationWeight(float value) => _considerationWeight = value;
     internal void SetThreatResolution(float value) => _threatResolution = value;
     internal void SetThreatFocus(float value) => _threatFocus = value;
