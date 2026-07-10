@@ -54,7 +54,27 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     [Export(PropertyHint.Range, "0.05, 1.0, 0.05")]
     private float _pollInterval = 0.25f;
 
+    [ExportGroup("Line of Sight")]
+    /// <summary>
+    /// When enabled, overlap alone is not detection: a body only produces percepts while an
+    /// occlusion ray from this sensor to it is clear. Blocked bodies stay tracked and re-check
+    /// every physics frame, so a target stepping out of cover (or a wall being broken through)
+    /// is picked up the moment the sightline opens; losing sight emits one confidence-0 percept,
+    /// mirroring body-exit. Applies to the signal/tracking path only, not StaticBodyPolling
+    /// (obstacle sensors sense the occluders themselves).
+    /// </summary>
+    [Export] private bool _requireLineOfSight;
+
+    /// <summary>Physics layers that BLOCK sight (walls, closed doors). The ray excludes this
+    /// sensor's parent body and the target, so layers shared with either are safe to include.</summary>
+    [Export(PropertyHint.Layers3DPhysics)] private uint _occlusionMask = 3;
+
+    /// <summary>Vertical offset applied to both ray endpoints — sight runs eye-to-eye, not
+    /// feet-to-feet (a ground-level ray would clip floor geometry).</summary>
+    [Export] private float _sightHeightOffset = 1.0f;
+
     private readonly HashSet<Node3D> _trackedBodies = new();
+    private readonly HashSet<Node3D> _visibleBodies = new();
     private readonly HashSet<Node3D> _polledBodies = new();
     private float _pollTimer;
     private CollisionShape3D? _cachedCollisionShape;
@@ -75,6 +95,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
         BodyEntered -= OnBodyEntered;
         BodyExited -= OnBodyExited;
         _trackedBodies.Clear();
+        _visibleBodies.Clear();
         _polledBodies.Clear();
     }
 
@@ -91,7 +112,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
             }
         }
 
-        if (!_continuousTracking || _trackedBodies.Count == 0) { return; }
+        if ((!_continuousTracking && !_requireLineOfSight) || _trackedBodies.Count == 0) { return; }
 
         // Re-poll all tracked bodies to update their positions
         // Use a snapshot to avoid collection modification during iteration
@@ -101,10 +122,48 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
             if (!body.IsValid())
             {
                 _trackedBodies.Remove(body);
+                _visibleBodies.Remove(body);
                 continue;
             }
+            if (_requireLineOfSight)
+            {
+                ProcessSighted(body);
+            }
+            else
+            {
+                ProcessDetection(body, 1.0f);
+            }
+        }
+    }
+
+    // LOS-gated per-frame detection: emit while visible; on visible→blocked emit one
+    // confidence-0 percept (mirrors body-exit); while blocked stay silent.
+    private void ProcessSighted(Node3D body)
+    {
+        if (HasLineOfSight(body))
+        {
+            _visibleBodies.Add(body);
             ProcessDetection(body, 1.0f);
         }
+        else if (_visibleBodies.Remove(body))
+        {
+            ProcessDetection(body, 0.0f);
+        }
+    }
+
+    private bool HasLineOfSight(Node3D body)
+    {
+        var spaceState = GetWorld3D()?.DirectSpaceState;
+        if (spaceState == null) { return true; }
+
+        var offset = Vector3.Up * _sightHeightOffset;
+        var query = PhysicsRayQueryParameters3D.Create(
+            GlobalPosition + offset, body.GlobalPosition + offset, _occlusionMask);
+        var exclude = new Godot.Collections.Array<Rid>();
+        if (GetParent() is CollisionObject3D self) { exclude.Add(self.GetRid()); }
+        if (body is CollisionObject3D target) { exclude.Add(target.GetRid()); }
+        query.Exclude = exclude;
+        return spaceState.IntersectRay(query).Count == 0;
     }
 
     public Node GetUnderlyingNode() => this;
@@ -181,6 +240,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     internal void SetCategoryFilter(Godot.Collections.Array<Category> filter) => _categoryFilter = filter;
     internal void SetContinuousTracking(bool enabled) => _continuousTracking = enabled;
     internal void SetStaticBodyPolling(bool enabled) => _staticBodyPolling = enabled;
+    internal void SetRequireLineOfSight(bool enabled) => _requireLineOfSight = enabled;
+    internal void SetOcclusionMask(uint mask) => _occlusionMask = mask;
+    internal int VisibleBodyCount => _visibleBodies.Count;
     internal int TrackedBodyCount => _trackedBodies.Count;
     internal int PolledBodyCount => _polledBodies.Count;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
@@ -197,13 +259,25 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 
     private void OnBodyEntered(Node3D body)
     {
-        if (_continuousTracking) { _trackedBodies.Add(body); }
+        if (_continuousTracking || _requireLineOfSight) { _trackedBodies.Add(body); }
+        if (_requireLineOfSight)
+        {
+            // No immediate emit: the space state may be locked during signal flush, and the body
+            // may be occluded anyway. The next _PhysicsProcess pass announces it if sighted.
+            return;
+        }
         ProcessDetection(body, 1.0f);
     }
 
     private void OnBodyExited(Node3D body)
     {
         _trackedBodies.Remove(body);
+        if (_requireLineOfSight)
+        {
+            // Only announce the exit of a body that was ever announced as sighted.
+            if (_visibleBodies.Remove(body)) { ProcessDetection(body, 0.0f); }
+            return;
+        }
         ProcessDetection(body, 0.0f);
     }
 
