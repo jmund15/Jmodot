@@ -31,7 +31,13 @@ using AI.BB;
 public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider, IPoolResetable
 {
     #region IBlackboardProvider Implementation
-    public (StringName Key, object Value)? Provision => (BBDataSig.HitboxComponent, this);
+    /// <summary>
+    /// Suppressed when <see cref="RegisterOnBlackboard"/> is false so an entity can carry a SECOND
+    /// hitbox referenced by explicit node reference without clobbering the primary hitbox on the
+    /// shared <see cref="BBDataSig.HitboxComponent"/> key.
+    /// </summary>
+    public (StringName Key, object Value)? Provision
+        => RegisterOnBlackboard ? (BBDataSig.HitboxComponent, this) : null;
     #endregion
 
     #region Events
@@ -46,6 +52,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     [Export] public float ContinuousTickInterval { get; set; } = 0.1f;
     [Export] public GCol.Array<CombatEffectFactory> DefaultEffects { get; set; } = new();
     [Export] public bool AutoStartWithDefault { get; set; } = false;
+
+    /// <summary>
+    /// When true (default), this hitbox registers on the shared <see cref="BBDataSig.HitboxComponent"/>
+    /// key. Set false for a secondary hitbox reached by explicit node reference (mirrors 3D).
+    /// </summary>
+    [Export] public bool RegisterOnBlackboard { get; set; } = true;
     #endregion
 
     #region Public State

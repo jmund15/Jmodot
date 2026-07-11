@@ -31,8 +31,12 @@ using AI.BB;
         #region IBlackboardProvider Implementation
         /// <summary>
         /// Auto-registers this component with the blackboard during EntityNodeComponentsInitializer.
+        /// Suppressed when <see cref="RegisterOnBlackboard"/> is false so an entity can carry a
+        /// SECOND hitbox (e.g. a large AoE slam volume) referenced by explicit node reference
+        /// without clobbering the primary hitbox on the shared <see cref="BBDataSig.HitboxComponent"/> key.
         /// </summary>
-        public (StringName Key, object Value)? Provision => (BBDataSig.HitboxComponent, this);
+        public (StringName Key, object Value)? Provision
+            => RegisterOnBlackboard ? (BBDataSig.HitboxComponent, this) : null;
         #endregion
 
         #region Events
@@ -64,6 +68,15 @@ using AI.BB;
         /// If true, the hitbox will automatically start an attack using its DefaultEffects on Ready.
         /// </summary>
         [Export] public bool AutoStartWithDefault { get; set; } = false;
+
+        /// <summary>
+        /// When true (default), this hitbox registers itself on the shared
+        /// <see cref="BBDataSig.HitboxComponent"/> blackboard key. Set false for a SECONDARY hitbox
+        /// on an entity that already has a primary one (e.g. a boss's large slam AoE volume), so the
+        /// two don't overwrite each other on the single-slot key — the secondary is then reached by
+        /// explicit node reference instead.
+        /// </summary>
+        [Export] public bool RegisterOnBlackboard { get; set; } = true;
 
         /// <summary>
         /// Optional cap-rule providers. Every provider must return <c>true</c> for a hit to be
