@@ -254,7 +254,9 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
 
         JmoLogger.Warning(this,
             $"Animation not found on target animator: tried '{finalName}' (directional) and '{baseName}' (base). "
-            + "State machine may stall waiting for AnimFinished. Check the animation library or the state's AnimationName export.");
+            + "A zero-length AnimFinished is synthesized so AnimFinished-gated states complete instantly "
+            + "(no stall), but the sprite freezes on its previous clip. Author the clip or retune the "
+            + "state's AnimationName export.");
     }
 
     public bool HasAnimationBase(StringName baseName)

@@ -24,9 +24,12 @@ using Shared;
 /// <remarks>
 /// <para>
 /// Pure function of physics + a data profile + a source lookup. No regime flags, no
-/// "is launched" / "is captured" gates — <c>ImpactDamageProfile.VelocityThreshold</c> is
-/// the only gate, and it lives in data. HSM/BT consumers inherit damage for free; adding
-/// a new movement-control concept is purely a state-side change.
+/// "is launched" / "is captured" gates — the gates are <c>ImpactDamageProfile.VelocityThreshold</c>
+/// (severity, in data) and <see cref="RequireExternalCause"/> (attribution evidence, in data).
+/// The attribution gate reuses the source lookup: an impact with no recent knockback and no
+/// dominant sustained force was self-propelled, so it is not a force-driven impact. HSM/BT
+/// consumers inherit damage for free; adding a new movement-control concept is purely a
+/// state-side change.
 /// </para>
 /// <para>
 /// Also applies a post-damage velocity-loss step (<c>ImpactVelocityLoss</c>): the launcher
@@ -50,6 +53,15 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
     /// force or the collider itself. Tunable per actor.
     /// </summary>
     [Export] public float SourceAttributionWindowSeconds { get; private set; } = 2.0f;
+
+    /// <summary>
+    /// When true (default), damage applies only to impacts with an attributable external
+    /// cause — a recent knockback or a dominant sustained force. Self-propelled collisions
+    /// (attack lunges, leap landings, voluntary falls) resolve to the collider fallback and
+    /// are skipped, so an actor never damages itself with its own movement. Disable for
+    /// actors that should take raw kinetic collision damage regardless of cause.
+    /// </summary>
+    [Export] public bool RequireExternalCause { get; private set; } = true;
 
     [ExportGroup("Velocity Loss")]
     /// <summary>Launcher mass used to convert N·s → Δv. Null → 1.0 (preserves pre-mass-aware feel).</summary>
@@ -128,25 +140,29 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         var damage = DamageProfile.CalculateDamage(info.Speed);
         if (damage <= 0f)
         {
-            // VelocityThreshold inside the profile IS the gate — no regime flag needed.
+            // VelocityThreshold inside the profile gates severity; the attribution gate
+            // below decides whether the impact counts as force-driven at all.
             return;
         }
 
-        var source = ResolveSource(info);
+        // Three-step attribution chain: most-recent KnockbackResult in CombatLog →
+        // dominant force from receiver → collider fallback. Extracted as a pure static
+        // (SourceAttributionResolver) so chain ordering, window expiry, and
+        // null-degradation paths are unit-tested independently of this Node's lifecycle.
+        var (source, cause) = SourceAttributionResolver.ResolveWithCause(
+            info, _combatLog, _forceReceiver, _self, SourceAttributionWindowSeconds);
+
+        if (RequireExternalCause && cause == ImpactCause.ColliderFallback)
+        {
+            // No external evidence — the actor's own movement caused this collision
+            // (attack lunge, leap landing, voluntary fall). Not a force-driven impact.
+            return;
+        }
+
         _health.TakeDamage(damage, source);
 
         ApplyVelocityLoss(damage, info.Collider);
     }
-
-    /// <summary>
-    /// Delegates to <see cref="SourceAttributionResolver.Resolve"/> — three-step chain:
-    /// most-recent KnockbackResult in CombatLog → dominant force from receiver → collider.
-    /// Extracted as a pure static so chain ordering, window expiry, and null-degradation
-    /// paths are unit-tested independently of this Node's lifecycle.
-    /// </summary>
-    private Node? ResolveSource(ImpactInfo info)
-        => SourceAttributionResolver.Resolve(
-            info, _combatLog, _forceReceiver, _self, SourceAttributionWindowSeconds);
 
     private void ApplyVelocityLoss(float damage, Node3D target)
     {
@@ -203,4 +219,10 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         }
         return null;
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetRequireExternalCauseForTesting(bool value) => RequireExternalCause = value;
+#endif
+    #endregion
 }

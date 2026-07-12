@@ -36,13 +36,28 @@ public static class SourceAttributionResolver
         ExternalForceReceiver3D? forceReceiver,
         Node3D? self,
         float windowSeconds)
+        => ResolveWithCause(info, combatLog, forceReceiver, self, windowSeconds).Source;
+
+    /// <summary>
+    /// Same chain as <see cref="Resolve"/>, additionally classifying WHICH step attributed
+    /// the impact. <see cref="ImpactCause.ColliderFallback"/> means no external evidence was
+    /// found — the impact was caused by the actor's own movement (attack lunge, leap landing,
+    /// voluntary fall), which consumers like <c>ForceImpactDamageApplier</c> use to gate
+    /// self-damage out of force-driven damage application.
+    /// </summary>
+    public static (Node? Source, ImpactCause Cause) ResolveWithCause(
+        ImpactInfo info,
+        CombatLog? combatLog,
+        ExternalForceReceiver3D? forceReceiver,
+        Node3D? self,
+        float windowSeconds)
     {
         if (combatLog != null)
         {
             var latest = combatLog.GetMostRecent<KnockbackResult>(windowSeconds);
             if (latest?.Source != null)
             {
-                return latest.Source;
+                return (latest.Source, ImpactCause.Knockback);
             }
         }
 
@@ -52,10 +67,21 @@ public static class SourceAttributionResolver
             var (dominant, _) = forceReceiver.GetDominantForceSource(self);
             if (dominant != null)
             {
-                return dominant;
+                return (dominant, ImpactCause.SustainedForce);
             }
         }
 
-        return info.Collider;
+        return (info.Collider, ImpactCause.ColliderFallback);
     }
+}
+
+/// <summary>
+/// Which attribution step credited an impact. <see cref="ColliderFallback"/> is the
+/// no-external-evidence case: the actor's own movement produced the collision.
+/// </summary>
+public enum ImpactCause
+{
+    Knockback,
+    SustainedForce,
+    ColliderFallback,
 }
