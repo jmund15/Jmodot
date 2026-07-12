@@ -16,8 +16,9 @@ using Core.Movement;
 /// - Attraction (pull): positive scores for inward-facing directions.
 ///   Ensures the agent always has a viable direction, preventing stalls.
 ///
-/// Both modes are independently configurable with weight, ramp range, and optional curve.
-/// Default config (attraction weight = 0) is fully backward compatible.
+/// Both modes are independently configurable with ramp range and optional curve; the
+/// base Weight knob scales the combined normalized output. The default attraction ramp
+/// (start = 1.0) keeps attraction inert inside the zone.
 ///
 /// Two zone sourcing modes:
 ///
@@ -59,14 +60,6 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     [ExportGroup("Penalty (Away-From-Center Repulsion)")]
 
     /// <summary>
-    /// Maximum penalty score magnitude at full ramp strength and perfect alignment.
-    /// Score = alignment × rampStrength × penaltyMaxWeight (always negative).
-    /// 0 disables penalty entirely.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.0, 5.0, 0.1")]
-    private float _penaltyMaxWeight = 1.0f;
-
-    /// <summary>
     /// Normalized distance where the penalty ramp begins.
     /// 0.7 means penalty starts at 70% of the way from center to edge.
     /// </summary>
@@ -88,14 +81,6 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     private Curve? _penaltyCurve;
 
     [ExportGroup("Attraction (Toward-Center Pull)")]
-
-    /// <summary>
-    /// Maximum positive score for inward-facing directions at full ramp strength.
-    /// Score = alignment × rampStrength × attractionMaxWeight (always positive).
-    /// 0 disables attraction (backward compatible default).
-    /// </summary>
-    [Export(PropertyHint.Range, "0.0, 5.0, 0.1")]
-    private float _attractionMaxWeight = 1.0f;
 
     /// <summary>
     /// Normalized distance where attraction begins.
@@ -272,20 +257,21 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
             }
             flatDir = flatDir.Normalized();
 
-            // Penalty pass: outward directions get negative scores
+            // Penalty pass: outward directions get negative scores.
+            // Clamp the normalized penalty to >= -1 so the base pipeline never warn-clamps.
             if (penaltyStrength > 0f)
             {
-                scores[dir] += CalculateDirectionPenalty(
-                    flatDir, towardInterior, penaltyStrength, _penaltyMaxWeight, normalizedDistance);
+                scores[dir] += Mathf.Max(-1f, CalculateDirectionPenalty(
+                    flatDir, towardInterior, penaltyStrength, 1.0f, normalizedDistance));
             }
 
             // Attraction pass: inward directions get positive scores
-            if (attractionStrength > 0f && _attractionMaxWeight > 0f)
+            if (attractionStrength > 0f)
             {
                 float alignment = flatDir.Dot(towardInterior);
                 if (alignment > 0f)
                 {
-                    scores[dir] += alignment * attractionStrength * _attractionMaxWeight;
+                    scores[dir] += alignment * attractionStrength;
                 }
             }
         }
@@ -408,13 +394,10 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     #region Test Helpers
 #if TOOLS
     internal void SetBoundaryZoneKey(StringName key) => _boundaryZoneKey = key;
-    internal void SetPenaltyMaxWeight(float value) => _penaltyMaxWeight = value;
     internal void SetPenaltyRampStart(float value) => _penaltyRampStart = value;
     internal void SetPenaltyRampEnd(float value) => _penaltyRampEnd = value;
     internal void SetPenaltyCurve(Curve? curve) => _penaltyCurve = curve;
     internal void SetZoneShape(ZoneShape3D? shape) => _zoneShape = shape;
-    internal float GetAttractionMaxWeight() => _attractionMaxWeight;
-    internal void SetAttractionMaxWeight(float value) => _attractionMaxWeight = value;
     internal void SetAttractionRampStart(float value) => _attractionRampStart = value;
     internal void SetAttractionRampEnd(float value) => _attractionRampEnd = value;
     internal void SetAttractionCurve(Curve? curve) => _attractionCurve = curve;

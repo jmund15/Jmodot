@@ -38,12 +38,6 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
     [ExportGroup("Steering Behavior")]
 
     /// <summary>
-    /// Weight multiplier for the steering scores.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
-    private float _weight = 1.0f;
-
-    /// <summary>
     /// Distance at which the agent is considered "arrived" at target.
     /// Within this radius, no steering force is applied.
     /// </summary>
@@ -99,10 +93,10 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
         // 6. Calculate ideal direction
         Vector3 idealDirection = toTarget.Normalized();
 
-        // 7. Calculate score magnitude based on distance
-        // Closer to target = lower urgency (softer approach)
+        // 7. Calculate normalized [0,1] score magnitude based on distance (base Weight owns the
+        // cross-consideration magnitude). Closer to target = lower urgency (softer approach).
         float distanceFactor = Mathf.Clamp(distanceToTarget / influenceRange, 0f, 1f);
-        float scoreBase = _weight * distanceFactor;
+        float scoreBase = distanceFactor;
 
         // 8. Score each direction based on alignment with ideal direction
         foreach (var availableDir in directions.Directions)

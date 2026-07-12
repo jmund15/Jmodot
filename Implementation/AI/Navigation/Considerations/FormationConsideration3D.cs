@@ -21,13 +21,6 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
     [ExportGroup("Formation Behavior")]
 
     /// <summary>
-    /// The weight multiplier for formation scores.
-    /// Higher values make formation-keeping more important relative to other considerations.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
-    private float _formationWeight = 1.0f;
-
-    /// <summary>
     /// If true, members in slot 0 (the leader) will not be affected by this consideration.
     /// Leaders typically drive the formation position, not follow it.
     /// </summary>
@@ -126,11 +119,10 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
         // 8. Calculate ideal direction
         Vector3 idealDirection = toSlot.Normalized();
 
-        // 9. Calculate score magnitude based on distance
-        // Further from slot = higher urgency (stronger pull)
-        // Use a simple linear scaling: score = weight * (distance / maxDistance)
+        // 9. Calculate normalized [0,1] score magnitude based on distance (base Weight owns
+        // the cross-consideration magnitude). Further from slot = higher urgency (stronger pull).
         float distanceFactor = distanceToSlot / _maxInfluenceDistance;
-        float scoreBase = _formationWeight * distanceFactor;
+        float scoreBase = distanceFactor;
 
         // 10. Score each direction based on alignment with ideal direction
         foreach (var availableDir in directions.Directions)

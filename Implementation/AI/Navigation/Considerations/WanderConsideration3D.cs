@@ -30,15 +30,6 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     [Export]
     private FastNoiseLite? _noise;
 
-    [ExportGroup("Steering Behavior")]
-
-    /// <summary>
-    /// Base weight of the wander consideration. Determines how strongly wander
-    /// competes with other considerations (wall avoidance, flee, formation).
-    /// </summary>
-    [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
-    private float _wanderWeight = 0.8f;
-
     #endregion
 
     private sealed class WanderRuntime
@@ -100,7 +91,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 
             if (alignment > 0)
             {
-                scores[dir] = alignment * _wanderWeight;
+                scores[dir] = alignment;
             }
         }
 
@@ -147,7 +138,6 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 
     #region Test Helpers
 #if TOOLS
-    internal void SetWanderWeight(float value) => _wanderWeight = value;
     internal void SetNoise(FastNoiseLite? noise) => _noise = noise;
     internal void SetOffsetForTest(int entitySeed, float offset)
         => _runtimeByEntity[entitySeed] = new WanderRuntime { Offset = offset, AccumulatedTime = 0f };

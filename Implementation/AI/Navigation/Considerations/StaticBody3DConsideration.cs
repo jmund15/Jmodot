@@ -19,16 +19,18 @@ using Shared;
 /// Note: propagation now bleeds symmetrically in sign, so attaching a SteeringPropagationConfig makes
 /// negative avoidance scores spread a danger gradient to neighboring directions for smoother steering.
 /// </summary>
-[GlobalClass]
+/// <summary>Whether proximity to the target category repels (Avoid → danger) or attracts (Attract → interest).</summary>
+public enum StaticBodyResponseMode { Avoid, Attract }
+
+[GlobalClass, Tool]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
 {
     [ExportGroup("Behavior Tuning")]
     /// <summary>
-    /// The core weight of this consideration. Negative values create avoidance (danger),
-    /// while positive values create attraction (interest).
+    /// Whether proximity to the target category repels (Avoid → danger) or attracts (Attract → interest).
+    /// Contribution magnitude is owned by the base <see cref="BaseAIConsideration3D.Weight"/>.
     /// </summary>
-    [Export(PropertyHint.Range, "-5.0, 5.0, 0.1")]
-    private float _considerationWeight = -1.0f; // Default to avoidance
+    [Export] public StaticBodyResponseMode Mode { get; private set; } = StaticBodyResponseMode.Avoid;
 
     /// <summary>
     /// The consideration will only react to perceived objects whose Identity belongs to this Category.
@@ -89,7 +91,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
             float distanceWeight = GetDistanceConsideration(distance);
             if (distanceWeight <= 0f) { continue; }
 
-            float scoreAmount = _considerationWeight * distanceWeight;
+            float scoreAmount = (Mode == StaticBodyResponseMode.Avoid ? -1f : 1f) * distanceWeight;
 
             // Size-aware scoring: score all directions within the obstacle's angular footprint.
             // Falls back to single-direction scoring when shape data is unavailable.
@@ -140,7 +142,7 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
 #if TOOLS
     internal void SetTargetCategory(Category category) => _targetCategory = category;
     internal void SetDistanceDiminishRange(Vector2 range) => _distanceDiminishRange = range;
-    internal void SetConsiderationWeight(float weight) => _considerationWeight = weight;
+    internal void SetMode(StaticBodyResponseMode mode) => Mode = mode;
 #endif
     #endregion
 

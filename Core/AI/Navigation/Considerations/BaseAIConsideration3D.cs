@@ -148,9 +148,21 @@ public abstract partial class BaseAIConsideration3D : Resource
         }
     }
 
-    // TRANSITIONAL (deleted in P5 consideration sweep): flattens the channel map to the legacy
-    // signed dict so un-migrated considerations + direct callers stay green.
-    public void Evaluate(SteeringDecisionContext3D context3D, IBlackboard blackboard,
+    /// <summary>
+    /// Child classes MUST implement this method. It contains the core logic for calculating
+    /// the raw directional scores before any personality-driven modifications are applied.
+    /// Scores MUST be signed and bounded to [-1,1] (positive = interest, negative = danger).
+    /// </summary>
+    protected abstract Dictionary<Vector3, float> CalculateBaseScores(
+        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard);
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    /// Test-only flatten: evaluates into a fresh map and folds Interest−Danger into a legacy signed
+    /// dict so contract tests can assert on a per-bin net score. Not a production path.
+    /// </summary>
+    internal void Evaluate(SteeringDecisionContext3D context3D, IBlackboard blackboard,
         DirectionSet3D directions, ref Dictionary<Vector3, float> scores)
     {
         var map = new SteeringContextMap(directions.OrderedDirections);
@@ -165,16 +177,6 @@ public abstract partial class BaseAIConsideration3D : Resource
         }
     }
 
-    /// <summary>
-    /// Child classes MUST implement this method. It contains the core logic for calculating
-    /// the raw directional scores before any personality-driven modifications are applied.
-    /// Scores MUST be signed and bounded to [-1,1] (positive = interest, negative = danger).
-    /// </summary>
-    protected abstract Dictionary<Vector3, float> CalculateBaseScores(
-        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard);
-
-    #region Test Helpers
-#if TOOLS
     internal void SetPropagation(SteeringPropagationConfig? config) => _propagation = config;
     internal void SetWeight(float weight) => Weight = weight;
     internal void SetConstraintMode(SteeringConstraintMode mode) => ConstraintMode = mode;

@@ -30,14 +30,6 @@ using Core.Movement;
 [GlobalClass, Tool]
 public partial class NavigationPath3DConsideration : BaseAIConsideration3D
 {
-    /// <summary>
-    /// The weight multiplier for this consideration. A higher value will make the agent
-    /// prioritize following the path above all other considerations. A lower value will
-    /// allow it to be more easily distracted or influenced by its environment.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.0, 10.0, 0.1")]
-    private float _pathWeight = 1.0f;
-
     protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
@@ -57,7 +49,7 @@ public partial class NavigationPath3DConsideration : BaseAIConsideration3D
             // We only care about directions that move us generally towards the goal.
             if (alignment > 0)
             {
-                scores[dir] = alignment * _pathWeight;
+                scores[dir] = alignment;
             }
         }
 
