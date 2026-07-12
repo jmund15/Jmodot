@@ -41,6 +41,13 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
     /// <summary>How this slot's animator participates in composite timing.</summary>
     [Export] public AnimationSyncMode SyncMode { get; set; } = AnimationSyncMode.Slave;
 
+    /// <summary>
+    /// How this slot degrades when its animator lacks the exact directional clip requested.
+    /// NearestDirectional serves an 8-direction request from a 4-directional art set;
+    /// HideSlot hides rather than showing a mismatched facing (only exact/base play).
+    /// </summary>
+    [Export] public SlotFallbackPolicy FallbackPolicy { get; set; } = SlotFallbackPolicy.NearestDirectional;
+
     [ExportGroup("Slot Behavior")]
     /// <summary>If false, <see cref="Unequip"/> reverts to <see cref="DefaultItem"/> (or no-ops).</summary>
     [Export] public bool IsOptional { get; set; } = true;
@@ -61,6 +68,10 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
     private CompositeAnimatorComponent? _composite;
     private IVisualEffectService? _effects;
     private bool _initialized;
+    private bool _suppressed;
+
+    /// <summary>True while the slot's visuals are non-destructively suppressed (animator unregistered, instance intact).</summary>
+    public bool IsSuppressed => _suppressed;
 
     private readonly Stack<(VisualItemData? item, PushOptions options)> _stack = new();
     private PushOptions _currentOptions = PushOptions.None;
@@ -220,7 +231,7 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
         Animator = GetAnimComponent(CurrentInstance);
         if (Animator != null && ShouldRegisterWithComposite())
         {
-            _composite?.RegisterAnimator(Animator, isMaster: SyncMode == AnimationSyncMode.Master);
+            _composite?.RegisterAnimator(Animator, isMaster: SyncMode == AnimationSyncMode.Master, policy: FallbackPolicy);
         }
 
         // Fire NodeAdded after handles are populated so subscribers see the full set.
@@ -273,9 +284,44 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
 
     private bool ShouldRegisterWithComposite()
     {
+        // Suppression is non-destructive: the instance stays installed but its animator is kept
+        // out of the composite. Independent slots and pushes never register regardless.
+        if (_suppressed) { return false; }
+        return IsCompositeSyncEligible();
+    }
+
+    // Registration eligibility ignoring suppression — the SyncMode/push contract alone. Used by
+    // SetSuppressed, which must reason about "would this slot normally register" while it flips
+    // the suppression flag (which ShouldRegisterWithComposite already reflects).
+    private bool IsCompositeSyncEligible()
+    {
         if (SyncMode == AnimationSyncMode.Independent) { return false; }
         if (_currentOptions.HasFlag(PushOptions.AsAnimationIndependent)) { return false; }
         return true;
+    }
+
+    /// <summary>
+    /// Non-destructively hides/shows the slot's visuals without touching the equipped instance.
+    /// Idempotent. Suppressing unregisters the animator from the composite (stopFirst: true so
+    /// AnimationVisibilityCoordinator scenes hide) and blocks re-registration by subsequent
+    /// Equip/Push flows. Unsuppressing re-registers the current animator; the composite's
+    /// catch-up replays the current directional request so the slot pops back in time-synced.
+    /// Independent slots never register, so this is a no-op for them.
+    /// </summary>
+    public void SetSuppressed(bool suppressed)
+    {
+        if (_suppressed == suppressed) { return; }
+        _suppressed = suppressed;
+
+        if (Animator == null || !IsCompositeSyncEligible()) { return; }
+
+        if (suppressed)
+        {
+            _composite?.UnregisterAnimator(Animator, stopFirst: true, warnOnMasterLoss: false);
+            return;
+        }
+
+        _composite?.RegisterAnimator(Animator, isMaster: SyncMode == AnimationSyncMode.Master, policy: FallbackPolicy);
     }
 
     private VisualEquipResult CurrentResult(bool success)
