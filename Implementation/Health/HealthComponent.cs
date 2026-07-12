@@ -447,4 +447,10 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     {
         return this;
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetMaxHealthDefinitionForTesting(BaseFloatValueDefinition value) => _maxHealthDefinition = value;
+#endif
+    #endregion
 }

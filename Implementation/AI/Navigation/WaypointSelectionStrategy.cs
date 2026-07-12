@@ -27,6 +27,7 @@ public abstract partial class WaypointSelectionStrategy : Resource
     /// Optional zone shape for constraining candidate waypoints.
     /// When null, <see cref="SampleCandidate"/> falls back to random nav mesh points.
     /// </summary>
+    [ExportGroup("Authored Zone")]
     [Export] private ZoneShape3D? _zone;
 
     /// <summary>
@@ -42,11 +43,12 @@ public abstract partial class WaypointSelectionStrategy : Resource
     private int _maxAttempts = 10;
 
     /// <summary>
-    /// Optional BB key holding a Vector4 dynamic zone (XYZ = center, W = radius). When set and the
-    /// key resolves with W &gt; 0, candidate sampling uses this disc INSTEAD of the exported
-    /// zone/fallback — lets a strategy honor a runtime zone (e.g. room leash) without hard-coding
-    /// game keys.
+    /// Optional BB key holding a Vector4 dynamic zone (XYZ = center, W = radius). Whenever it resolves
+    /// with W &gt; 0 it OVERRIDES the authored zone above — candidate sampling uses this disc and the
+    /// authored zone/random-fallback is used only when the key is unset or resolves with W &lt;= 0.
+    /// Lets a strategy honor a runtime zone (e.g. room leash) without hard-coding game keys.
     /// </summary>
+    [ExportGroup("Blackboard Zone Override")]
     [Export] private StringName _zoneBlackboardKey = new("");
 
     /// <summary>

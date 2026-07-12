@@ -52,7 +52,7 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
     /// an impact. Outside this window, attribution falls back to the dominant sustained
     /// force or the collider itself. Tunable per actor.
     /// </summary>
-    [Export] public float SourceAttributionWindowSeconds { get; private set; } = 2.0f;
+    [Export(PropertyHint.Range, "0.1,10.0,0.1,suffix:s")] public float SourceAttributionWindowSeconds { get; private set; } = 2.0f;
 
     /// <summary>
     /// When true (default), damage applies only to impacts with an attributable external
