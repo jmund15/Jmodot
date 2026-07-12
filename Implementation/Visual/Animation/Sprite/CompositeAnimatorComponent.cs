@@ -12,7 +12,7 @@ using Shared;
 /// Handles time synchronization, ensuring "Slave" animators match the "Master" (Body).
 /// </summary>
 [GlobalClass, Tool]
-public partial class CompositeAnimatorComponent : Node, IAnimComponent
+public partial class CompositeAnimatorComponent : Node, IAnimComponent, IDirectionalAnimTarget
 {
     /// <summary>
     /// If true, automatically finds and registers all IAnimComponent children on _Ready.
@@ -38,12 +38,32 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     private readonly Dictionary<IAnimComponent, Action<StringName>> _childStartHandlers = new();
     private readonly Dictionary<IAnimComponent, Action<StringName>> _childFinishHandlers = new();
 
+    // Per-animator directional fallback policy. Absent entry (or a legacy StartAnim caller)
+    // defaults to NearestDirectional.
+    private readonly Dictionary<IAnimComponent, SlotFallbackPolicy> _policies = new();
+
     private StringName _lastRequestedAnim = "";
+
+    // The last DIRECTIONAL request, retained so a late-registering slave can re-resolve it under
+    // its own policy and pop in mid-animation. Null after a legacy StartAnim/UpdateAnim, which
+    // supersedes any directional request and falls back to exact-name catch-up.
+    private DirectionalAnimRequest? _lastDirectionalRequest;
+
     private float _currentSpeedScale = 1.0f;
 
     public event Action<StringName> AnimStarted = delegate { };
     public event Action<StringName> AnimFinished = delegate { };
     public event Action<StringName> AnimStopped = delegate { };
+
+    /// <summary>
+    /// Fired once per registered animator on every directional fan-out (including
+    /// late-registration catch-up). <c>resolvedName</c> is the clip the animator was
+    /// told to play, or null when nothing resolved (the animator was stopped/hidden).
+    /// Consumers can compare <c>resolvedName</c> against <c>request.BaseName</c> to
+    /// distinguish undirected-base art (single-direction, facing-flippable) from
+    /// directional art (facing-correct) — see FacingFlipController.
+    /// </summary>
+    public event Action<IAnimComponent, StringName?, DirectionalAnimRequest> DirectionalResolutionApplied = delegate { };
     public override void _PhysicsProcess(double delta)
     {
         base._PhysicsProcess(delta);
@@ -88,7 +108,8 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     /// </summary>
     /// <param name="animator">The component to control.</param>
     /// <param name="isMaster">If true, this animator dictates timing (duration/seek).</param>
-    public void RegisterAnimator(IAnimComponent animator, bool isMaster = false)
+    /// <param name="policy">How this animator degrades when it lacks the exact directional clip.</param>
+    public void RegisterAnimator(IAnimComponent animator, bool isMaster = false, SlotFallbackPolicy policy = SlotFallbackPolicy.NearestDirectional)
     {
         // Prevent self-registration which causes infinite recursion loops
         if (ReferenceEquals(animator, this))
@@ -104,10 +125,12 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
             {
                 _masterAnimator = animator;
             }
+            _policies[animator] = policy;
             return;
         }
 
         _activeAnimators.Add(animator);
+        _policies[animator] = policy;
         HookChildEvents(animator);
 
         if (isMaster)
@@ -132,8 +155,32 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
         // Apply current state to new child
         animator.SetSpeedScale(_currentSpeedScale);
 
-        // If playing, catch up immediately
-        if (!string.IsNullOrEmpty(_lastRequestedAnim) && animator.HasAnimation(_lastRequestedAnim))
+        // Catch up the late-registering child. Prefer re-resolving the last directional request
+        // under THIS animator's policy (so a hand equipped mid-run pops in time-synced, or hides
+        // if its art can't serve the facing); fall back to the legacy exact-name catch-up when the
+        // last request was a plain StartAnim.
+        if (_lastDirectionalRequest.HasValue)
+        {
+            var resolved = DirectionalClipResolver.Resolve(
+                animator.HasAnimation,
+                _lastDirectionalRequest.Value.BaseName,
+                _lastDirectionalRequest.Value.DirectionLabel,
+                _lastDirectionalRequest.Value.Direction,
+                _lastDirectionalRequest.Value.DirectionLabels,
+                _lastDirectionalRequest.Value.Separator,
+                policy);
+            if (resolved != null)
+            {
+                animator.StartAnim(resolved);
+                SyncChildToMaster(animator);
+            }
+            else if (animator.IsPlaying())
+            {
+                animator.StopAnim();
+            }
+            DirectionalResolutionApplied.Invoke(animator, resolved, _lastDirectionalRequest.Value);
+        }
+        else if (!string.IsNullOrEmpty(_lastRequestedAnim) && animator.HasAnimation(_lastRequestedAnim))
         {
             animator.StartAnim(_lastRequestedAnim);
             SyncChildToMaster(animator);
@@ -162,6 +209,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
     {
         if (!_activeAnimators.Remove(animator)) { return; }
 
+        _policies.Remove(animator);
         UnhookChildEvents(animator);
 
         if (stopFirst) { animator.StopAnim(); }
@@ -237,6 +285,9 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     public void StartAnim(StringName animName)
     {
+        // A plain (pre-resolved) call supersedes any directional request; clear it so late
+        // registrations use exact-name catch-up rather than re-resolving a stale request.
+        _lastDirectionalRequest = null;
         _lastRequestedAnim = animName;
 
         foreach (var anim in _activeAnimators)
@@ -252,6 +303,7 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
 
     public void UpdateAnim(StringName animName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
+        _lastDirectionalRequest = null;
         _lastRequestedAnim = animName;
 
         foreach (var anim in _activeAnimators)
@@ -261,6 +313,58 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent
                 anim.UpdateAnim(animName, mode);
             }
         }
+    }
+
+    // --- IDirectionalAnimTarget Implementation ---
+
+    public bool StartAnimDirectional(DirectionalAnimRequest request) => FanOutDirectional(request, isUpdate: false, AnimUpdateMode.Reset);
+
+    public bool UpdateAnimDirectional(DirectionalAnimRequest request, AnimUpdateMode mode) => FanOutDirectional(request, isUpdate: true, mode);
+
+    /// <summary>
+    /// Resolves the request per-animator under each one's <see cref="SlotFallbackPolicy"/> and
+    /// plays the resolved clip (or hides the animator via StopAnim when nothing resolves — but
+    /// only if it IsPlaying, to avoid AnimStopped spam). Returns whether the MASTER resolved
+    /// (false also when there is no master). Keeps <c>_lastRequestedAnim</c> coherent for legacy
+    /// readers: the master's resolved name, or the built final name if the master didn't resolve.
+    /// </summary>
+    private bool FanOutDirectional(DirectionalAnimRequest request, bool isUpdate, AnimUpdateMode mode)
+    {
+        _lastDirectionalRequest = request;
+
+        StringName? masterResolvedName = null;
+        foreach (var anim in _activeAnimators)
+        {
+            var policy = _policies.TryGetValue(anim, out var p) ? p : SlotFallbackPolicy.NearestDirectional;
+            var resolved = DirectionalClipResolver.Resolve(
+                anim.HasAnimation, request.BaseName, request.DirectionLabel,
+                request.Direction, request.DirectionLabels, request.Separator, policy);
+
+            if (resolved == null)
+            {
+                if (anim.IsPlaying()) { anim.StopAnim(); }
+            }
+            else
+            {
+                if (ReferenceEquals(anim, _masterAnimator)) { masterResolvedName = resolved; }
+
+                if (isUpdate) { anim.UpdateAnim(resolved, mode); }
+                else { anim.StartAnim(resolved); }
+            }
+            DirectionalResolutionApplied.Invoke(anim, resolved, request);
+        }
+
+        _lastRequestedAnim = masterResolvedName ?? BuildDirectionalFinalName(request);
+        return masterResolvedName != null;
+    }
+
+    private static StringName BuildDirectionalFinalName(DirectionalAnimRequest request)
+    {
+        if (string.IsNullOrEmpty(request.DirectionLabel))
+        {
+            return request.BaseName;
+        }
+        return new StringName($"{request.BaseName}{request.Separator}{request.DirectionLabel}");
     }
 
     private void SyncChildToMaster(IAnimComponent child)

@@ -152,7 +152,22 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
         BaseAnimName = baseName;
         var finalName = BuildFinalName();
 
-        var playable = ResolvePlayableAnimation(finalName);
+        // Composite targets resolve per-slave (each slave degrades under its own policy), so
+        // delegate the fan-out rather than pushing one pre-resolved name through partial-match.
+        if (_targetAnimator is IDirectionalAnimTarget directional)
+        {
+            var request = BuildDirectionalRequest();
+            bool masterResolved = (mode == AnimUpdateMode.Reset || !IsPlaying())
+                ? directional.StartAnimDirectional(request)
+                : directional.UpdateAnimDirectional(request, mode);
+            if (!masterResolved)
+            {
+                HandleMissingAnimation(finalName);
+            }
+            return;
+        }
+
+        var playable = ResolvePlayableAnimation();
         if (playable == null)
         {
             HandleMissingAnimation(finalName);
@@ -170,67 +185,38 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
     }
 
     /// <summary>
-    /// Resolves which clip the target animator should play for <paramref name="finalName"/>,
-    /// degrading through three tiers: (1) the exact directional clip; (2) the nearest available
-    /// directional clip by angular proximity to the current facing — lets a 4-directional art set
-    /// serve an 8-direction request (e.g. "downLeft" → "left"); (3) the undirected base clip.
+    /// Resolves which clip a non-directional leaf target should play, degrading through the shared
+    /// three-tier <see cref="DirectionalClipResolver"/> rule at <see cref="SlotFallbackPolicy.NearestDirectional"/>:
+    /// (1) exact directional clip; (2) nearest available directional clip by angular proximity —
+    /// lets a 4-directional art set serve an 8-direction request; (3) the undirected base clip.
     /// Returns null when no clip exists for this base name at all.
     /// </summary>
-    private StringName? ResolvePlayableAnimation(StringName finalName)
+    private StringName? ResolvePlayableAnimation()
     {
-        if (_targetAnimator.HasAnimation(finalName))
-        {
-            return finalName;
-        }
-
-        var closestDirectional = FindClosestAvailableDirectional();
-        if (closestDirectional != null)
-        {
-            return closestDirectional;
-        }
-
-        if (_targetAnimator.HasAnimation(BaseAnimName))
-        {
-            return BaseAnimName;
-        }
-
-        return null;
+        return DirectionalClipResolver.Resolve(
+            _targetAnimator.HasAnimation,
+            BaseAnimName,
+            ActiveDirectionLabel(),
+            ActiveDirection(),
+            DirectionLabels,
+            DirectionSuffixSeparator,
+            SlotFallbackPolicy.NearestDirectional);
     }
 
-    /// <summary>
-    /// Among the directional variants of <see cref="BaseAnimName"/> that actually exist on the
-    /// target animator, returns the one whose direction is closest (max dot product) to the
-    /// current facing. Returns null if direction logic is disabled or no directional clip exists.
-    /// Equidistant ties resolve to the first match in DirectionLabels insertion order (strict
-    /// greater-than) — deterministic, and the choice between two equidistant directions is cosmetic.
-    /// </summary>
-    private StringName? FindClosestAvailableDirectional()
+    private DirectionalAnimRequest BuildDirectionalRequest()
     {
-        if (DirectionSet == null || CurrentAnimationDirection.IsZeroApprox())
-        {
-            return null;
-        }
-
-        StringName? best = null;
-        var bestDot = float.MinValue;
-        foreach (var kvp in DirectionLabels)
-        {
-            var candidate = new StringName($"{BaseAnimName}{DirectionSuffixSeparator}{kvp.Value}");
-            if (!_targetAnimator.HasAnimation(candidate))
-            {
-                continue;
-            }
-
-            var dot = kvp.Key.Dot(CurrentAnimationDirection);
-            if (dot > bestDot)
-            {
-                bestDot = dot;
-                best = candidate;
-            }
-        }
-
-        return best;
+        return new DirectionalAnimRequest(
+            BaseAnimName,
+            ActiveDirectionLabel(),
+            ActiveDirection(),
+            DirectionLabels,
+            DirectionSuffixSeparator);
     }
+
+    // When DirectionSet is null the orchestrator plays undirected: no label, and a zero facing so
+    // the resolver's nearest-directional tier is skipped — mirroring the old BuildFinalName gate.
+    private string ActiveDirectionLabel() => DirectionSet == null ? string.Empty : CurrentDirectionLabel;
+    private Vector3 ActiveDirection() => DirectionSet == null ? Vector3.Zero : CurrentAnimationDirection;
 
     /// <summary>
     /// Last-resort handling when no clip resolves for the request. Warns once, then synthesizes a
