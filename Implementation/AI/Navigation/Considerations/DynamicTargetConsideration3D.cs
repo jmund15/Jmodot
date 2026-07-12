@@ -25,6 +25,12 @@ using Shared;
 ///
 /// All parameters are accessed via Effective*() methods for future BaseParameterDefinition support.
 /// </summary>
+public enum TargetResponseMode
+{
+    Chase,
+    Avoid,
+}
+
 [GlobalClass, Tool]
 public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 {
@@ -33,11 +39,10 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     [ExportGroup("Behavior")]
 
     /// <summary>
-    /// Positive values activate Chase mode, negative values activate Avoid mode.
-    /// Magnitude determines the strength of the consideration.
+    /// Chase steers toward perceived targets; Avoid steers away (directions mirrored).
+    /// Contribution magnitude is owned by the base Weight, not by this mode.
     /// </summary>
-    [Export(PropertyHint.Range, "-5.0, 5.0, 0.1")]
-    private float _considerationWeight = -1.0f;
+    [Export] public TargetResponseMode Mode { get; private set; } = TargetResponseMode.Chase;
 
     /// <summary>
     /// Category filter for which perceived targets this consideration reacts to.
@@ -161,8 +166,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
         float effectiveApproach = EffectiveApproachSpeedWeight(blackboard);
         float effectiveFocus = EffectiveThreatFocus(blackboard);
         float effectiveResolution = EffectiveThreatResolution(blackboard);
-        bool isChase = _considerationWeight > 0;
-        float weightMagnitude = Mathf.Abs(_considerationWeight);
+        bool isChase = Mode == TargetResponseMode.Chase;
 
         // Pass 1: Compute per-target response direction and raw weight
         _targetDataCache.Clear();
@@ -188,8 +192,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
         if (_targetDataCache.Count == 0) { return ZeroScores(); }
 
         // Pass 2: Aggregate using _threatResolution blend
-        return AggregateScores(directions, effectiveFocus, effectiveResolution,
-            weightMagnitude, maxWeight);
+        return AggregateScores(directions, effectiveFocus, effectiveResolution, maxWeight);
     }
 
     #region Core Computation
@@ -246,39 +249,51 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 
     /// <summary>
     /// Blends CombineFirst and PerTarget aggregation strategies based on threat resolution.
+    /// Both strategies normalize by total focused weight so output stays in [0,1] — the base
+    /// Weight is the sole magnitude knob; focused weight only shapes RELATIVE per-threat pull.
     /// </summary>
     private Dictionary<Vector3, float> AggregateScores(DirectionSet3D directions,
-        float effectiveFocus, float effectiveResolution, float weightMagnitude, float maxWeight)
+        float effectiveFocus, float effectiveResolution, float maxWeight)
     {
-        // CombineFirst: sum all weighted response vectors, then score directions
+        // CombineFirst: weighted average of unit response vectors (|avgResponse| ≤ 1), then score.
         var combinedDirection = Vector3.Zero;
+        float totalFocusedWeight = 0f;
         foreach (var td in _targetDataCache)
         {
             float focusedWeight = ApplyFocusWeight(td.Weight, maxWeight, effectiveFocus);
             combinedDirection += td.ResponseDirection * focusedWeight;
+            totalFocusedWeight += focusedWeight;
         }
-        var combineFirstScores = ScoreByAlignment(directions, combinedDirection, weightMagnitude);
+
+        if (totalFocusedWeight < Epsilon)
+        {
+            return directions.Directions.ToDictionary(d => d, _ => 0f);
+        }
+
+        Vector3 avgResponse = combinedDirection / totalFocusedWeight;
+        var combineFirstScores = ScoreByAlignment(directions, avgResponse);
 
         // Optimization: skip PerTarget if resolution is 0
         if (effectiveResolution < Epsilon) { return combineFirstScores; }
 
-        // PerTarget: score each target independently, then sum
+        // PerTarget: score each target independently, weighted by its NORMALIZED focused weight,
+        // so the summed map is a convex blend of [0,1] alignments and stays in [0,1].
         var perTargetScores = directions.Directions.ToDictionary(d => d, _ => 0f);
         foreach (var td in _targetDataCache)
         {
             float focusedWeight = ApplyFocusWeight(td.Weight, maxWeight, effectiveFocus);
-            var targetScores = ScoreByAlignment(directions, td.ResponseDirection,
-                weightMagnitude * focusedWeight);
+            float normalizedWeight = focusedWeight / totalFocusedWeight;
+            var targetScores = ScoreByAlignment(directions, td.ResponseDirection);
             foreach (var dir in directions.Directions)
             {
-                perTargetScores[dir] += targetScores[dir];
+                perTargetScores[dir] += targetScores[dir] * normalizedWeight;
             }
         }
 
         // Optimization: skip blend if resolution is 1
         if (effectiveResolution > 1f - Epsilon) { return perTargetScores; }
 
-        // Blend CombineFirst and PerTarget
+        // Blend CombineFirst and PerTarget (Lerp of two [0,1] maps stays [0,1]).
         var blended = new Dictionary<Vector3, float>();
         foreach (var dir in directions.Directions)
         {
@@ -290,19 +305,13 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     }
 
     /// <summary>
-    /// Scores each direction by alignment with a target direction vector.
-    /// Preserves the magnitude of the target direction in the score (encodes urgency).
+    /// Scores each direction by its positive alignment with a response vector whose magnitude
+    /// already encodes relative pull (≤ 1). Output ∈ [0, |responseVector|] ⊆ [0,1].
     /// </summary>
     private Dictionary<Vector3, float> ScoreByAlignment(DirectionSet3D directions,
-        Vector3 targetDirection, float scaleFactor)
+        Vector3 responseVector)
     {
         var scores = directions.Directions.ToDictionary(d => d, _ => 0f);
-
-        float magnitude = targetDirection.Length();
-        if (magnitude < Epsilon) { return scores; }
-
-        Vector3 normalizedDir = targetDirection / magnitude;
-        float combinedScale = magnitude * scaleFactor;
 
         foreach (var dir in directions.Directions)
         {
@@ -314,10 +323,10 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
                 flatDir = flatDir.Normalized();
             }
 
-            float alignment = flatDir.Dot(normalizedDir);
+            float alignment = flatDir.Dot(responseVector);
             if (alignment > 0f)
             {
-                scores[dir] = alignment * combinedScale;
+                scores[dir] = alignment;
             }
         }
 
@@ -330,7 +339,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 #if TOOLS
     internal void SetTargetCategory(Category category) => _targetCategory = category;
     internal void SetSuppressWhileZoneKey(StringName key) => _suppressWhileZoneKey = key;
-    internal void SetConsiderationWeight(float value) => _considerationWeight = value;
+    internal void SetMode(TargetResponseMode mode) => Mode = mode;
     internal void SetThreatResolution(float value) => _threatResolution = value;
     internal void SetThreatFocus(float value) => _threatFocus = value;
     internal void SetVelocityInfluence(float value) => _velocityInfluence = value;
