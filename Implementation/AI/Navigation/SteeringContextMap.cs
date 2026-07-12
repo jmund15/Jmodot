@@ -20,12 +20,22 @@ public sealed class SteeringContextMap
     public float[] Danger { get; }
     public bool[] HardMask { get; }
 
-    public SteeringContextMap(IReadOnlyList<Vector3> bins)
+    /// <summary>Mirrors the owning <c>DirectionSet3D.HasCircularOrder</c> the bins were built from —
+    /// synthesis strategies gate neighbor interpolation on it (a non-planar/short ring degrades to
+    /// raw-winner selection). The strategy only receives the map, so the flag rides on the map.</summary>
+    public bool HasCircularOrder { get; }
+
+    /// <summary>Bare-bins constructor; assumes a circular ring (the common case for the built-in
+    /// Dir4/8/16 sets). The processor uses the two-arg form with the set's actual flag.</summary>
+    public SteeringContextMap(IReadOnlyList<Vector3> bins) : this(bins, true) { }
+
+    public SteeringContextMap(IReadOnlyList<Vector3> bins, bool hasCircularOrder)
     {
         this.Bins = bins;
         this.Interest = new float[bins.Count];
         this.Danger = new float[bins.Count];
         this.HardMask = new bool[bins.Count];
+        this.HasCircularOrder = hasCircularOrder;
     }
 
     /// <summary>Zeroes every channel — the per-frame reset before considerations re-populate.</summary>

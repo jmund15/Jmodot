@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="BlendSynthesisStrategy3D" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://06k2vsro21s3" path="res://Jmodot/Implementation/AI/Navigation/Synthesis/BlendSynthesisStrategy3D.cs" id="1_blend"]
+
+[resource]
+script = ExtResource("1_blend")
+DangerScale = 1.0
+metadata/_custom_type_script = "uid://06k2vsro21s3"

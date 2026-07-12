@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ArgmaxSynthesisStrategy3D" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://cjrwl68fakopi" path="res://Jmodot/Implementation/AI/Navigation/Synthesis/ArgmaxSynthesisStrategy3D.cs" id="1_argmax"]
+
+[resource]
+script = ExtResource("1_argmax")
+DangerScale = 1.0
+_commitMargin = 0.1
+_interpolateWithNeighbors = true
+metadata/_custom_type_script = "uid://cjrwl68fakopi"
