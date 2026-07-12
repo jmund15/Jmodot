@@ -11,6 +11,9 @@ using Jmodot.Core.Shared.Attributes;
 using Physics;
 using Shared;
 
+/// <summary>Whether proximity to the target category repels (Avoid → danger) or attracts (Attract → interest).</summary>
+public enum StaticBodyResponseMode { Avoid, Attract }
+
 /// <summary>
 /// A consideration that scores directions based on proximity to static bodies of a specific Category.
 /// It is used to create avoidance or attraction behaviors towards environmental objects like walls,
@@ -19,9 +22,6 @@ using Shared;
 /// Note: propagation now bleeds symmetrically in sign, so attaching a SteeringPropagationConfig makes
 /// negative avoidance scores spread a danger gradient to neighboring directions for smoother steering.
 /// </summary>
-/// <summary>Whether proximity to the target category repels (Avoid → danger) or attracts (Attract → interest).</summary>
-public enum StaticBodyResponseMode { Avoid, Attract }
-
 [GlobalClass, Tool]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
 {
