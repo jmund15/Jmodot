@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
 using Core.AI;
+using Core.AI.Navigation;
 using Core.AI.Navigation.Considerations;
 using Jmodot.AI.Navigation;
 using Navigation.Considerations;
@@ -22,6 +23,11 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     [ExportGroup("Navigation Path Override")]
     [Export] private NavigationPath3DConsideration? _navPathOverride;
+
+    [ExportGroup("Synthesis Override")]
+    /// <summary>Optional per-action synthesis strategy claimed on enter (owned-slot, owner = task Name)
+    /// and released on exit. A conflicting concurrent claim is rejected+warned by the processor.</summary>
+    [Export] private SteeringSynthesisStrategy3D? _synthesisOverride;
 
     private AISteeringProcessor3D? _cachedSteering;
 
@@ -45,6 +51,11 @@ public partial class SteeringBehaviorAction : BehaviorAction
         {
             steering.OverrideNavPathConsideration(_navPathOverride);
         }
+
+        if (_synthesisOverride != null)
+        {
+            steering.TrySetSynthesisOverride(Name, _synthesisOverride);
+        }
     }
 
     protected override void OnExit()
@@ -61,6 +72,11 @@ public partial class SteeringBehaviorAction : BehaviorAction
         if (_navPathOverride != null)
         {
             steering.ClearNavPathOverride();
+        }
+
+        if (_synthesisOverride != null)
+        {
+            steering.ClearSynthesisOverride(Name);
         }
     }
 
@@ -87,6 +103,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
 #if TOOLS
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
+    internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
 #endif
     #endregion
 }

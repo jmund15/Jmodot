@@ -3,10 +3,12 @@ namespace Jmodot.AI.Navigation;
 using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
+using Core.AI.Navigation;
 using Core.AI.Navigation.Considerations;
 using Core.Movement;
 using Implementation.AI.Navigation;
 using Implementation.AI.Navigation.Considerations;
+using Implementation.AI.Navigation.Synthesis;
 using Implementation.Shared;
 using GColl = Godot.Collections;
 
@@ -104,6 +106,70 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     public void ClearDirectionOverride() => DirectionOverride = null;
 
+    [ExportGroup("Synthesis")]
+    /// <summary>
+    /// The strategy that collapses the per-frame context map into a desired direction. Optional —
+    /// null falls back to a lazily-created shared default <see cref="ArgmaxSynthesisStrategy3D"/>
+    /// (one-time Info log). Deliberately NOT [RequiredExport]: this lands before the .tres is assigned
+    /// on npc_template, and a required export would throw at _Ready for every existing NPC in that gap.
+    /// </summary>
+    [Export] private SteeringSynthesisStrategy3D? _synthesisStrategy;
+
+    private StringName? _synthesisOverrideOwner;
+    private SteeringSynthesisStrategy3D? _synthesisOverride;
+    private SteeringSynthesisState _synthesisState = SteeringSynthesisState.Empty;
+
+    // Lazily created; static so all unassigned processors share one instance. NEVER an eager field
+    // initializer — Resource allocation at type-load would SIGSEGV pure-CLR tests.
+    private static SteeringSynthesisStrategy3D? s_defaultStrategy;
+    private static bool s_defaultLogged;
+
+    /// <summary>
+    /// Sets a BT-moment synthesis override under owned-slot discipline (reject-second-claimant).
+    /// Returns false + warns when another owner holds the slot; on success resets synthesis state
+    /// so the new strategy commits fresh.
+    /// </summary>
+    public bool TrySetSynthesisOverride(StringName owner, SteeringSynthesisStrategy3D strategy)
+    {
+        if (_synthesisOverrideOwner != null && _synthesisOverrideOwner != owner)
+        {
+            JmoLogger.Warning(this, $"[Steering] Synthesis override already held by '{_synthesisOverrideOwner}'; '{owner}' rejected.");
+            return false;
+        }
+        _synthesisOverrideOwner = owner;
+        _synthesisOverride = strategy;
+        _synthesisState = SteeringSynthesisState.Empty;
+        return true;
+    }
+
+    /// <summary>
+    /// Clears the synthesis override. Owner-checked — a non-owner clear is a warned no-op. Resets
+    /// synthesis state so the restored strategy commits fresh.
+    /// </summary>
+    public void ClearSynthesisOverride(StringName owner)
+    {
+        if (_synthesisOverrideOwner != owner)
+        {
+            JmoLogger.Warning(this, $"[Steering] '{owner}' tried to clear synthesis override held by '{_synthesisOverrideOwner}'.");
+            return;
+        }
+        _synthesisOverrideOwner = null;
+        _synthesisOverride = null;
+        _synthesisState = SteeringSynthesisState.Empty;
+    }
+
+    private SteeringSynthesisStrategy3D GetOrCreateDefaultStrategy()
+    {
+        if (_synthesisStrategy != null) { return _synthesisStrategy; }
+        s_defaultStrategy ??= new ArgmaxSynthesisStrategy3D();
+        if (!s_defaultLogged)
+        {
+            JmoLogger.Info(this, "[Steering] No synthesis strategy assigned; using shared default ArgmaxSynthesisStrategy3D.");
+            s_defaultLogged = true;
+        }
+        return s_defaultStrategy;
+    }
+
     [ExportGroup("Debug")]
     [Export] private bool _showNavigationDebugArrows;
 
@@ -130,8 +196,9 @@ public partial class AISteeringProcessor3D : Node
             return;
         }
 
-        // Build the per-frame steering map over the ordered bin ring.
-        _map = new SteeringContextMap(MovementDirections.OrderedDirections);
+        // Build the per-frame steering map over the ordered bin ring; carry the ring's circular-order
+        // flag so synthesis strategies can gate neighbor interpolation on it.
+        _map = new SteeringContextMap(MovementDirections.OrderedDirections, MovementDirections.HasCircularOrder);
 
         // Initialize each consideration, allowing them to perform setup tasks (e.g., caching data).
         foreach (var consideration in _considerations)
@@ -143,6 +210,16 @@ public partial class AISteeringProcessor3D : Node
         _navPathConsideration?.Initialize(MovementDirections);
 
         RebuildActiveConsiderations();
+
+        // Reset hardening for pool reuse — a recycled processor must not carry a prior life's
+        // committed bin, override slot, or bypass flags. (Part 4 replaces the legacy
+        // DirectionOverride/NavigationOnlyMode reset lines with a control-claim-slot reset.)
+        _synthesisState = SteeringSynthesisState.Empty;
+        _synthesisOverrideOwner = null;
+        _synthesisOverride = null;
+        _navPathOverride = null;
+        DirectionOverride = null;
+        NavigationOnlyMode = false;
     }
 
     /// <summary>
@@ -199,6 +276,10 @@ public partial class AISteeringProcessor3D : Node
     internal void SetMovementDirections(DirectionSet3D directions) => MovementDirections = directions;
     internal void SetNavPathConsideration(NavigationPath3DConsideration? consideration) => _navPathConsideration = consideration;
     internal NavigationPath3DConsideration? GetActiveNavPathConsideration() => _navPathOverride ?? _navPathConsideration;
+    internal void SetSynthesisStrategy(SteeringSynthesisStrategy3D? strategy) => _synthesisStrategy = strategy;
+    internal SteeringSynthesisStrategy3D GetActiveSynthesisStrategyForTest() => _synthesisOverride ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
+    internal int GetCommittedBinForTest() => _synthesisState.CommittedBin;
+    internal StringName? GetSynthesisOverrideOwnerForTest() => _synthesisOverrideOwner;
 #endif
     #endregion
 
@@ -286,25 +367,21 @@ public partial class AISteeringProcessor3D : Node
         var activeNavPath = _navPathOverride ?? _navPathConsideration;
         activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, _map);
 
-        // --- 3. Synthesize the final direction ---
-        // Interim blend bridge (deleted when P3's synthesis strategy slot lands): interest minus
-        // danger, clamped at 0. Negative net (danger) cancels interest but creates no desire to move
-        // the opposite way; HardMask is ignored for now — avoidance is the absence of interest.
-        Vector3 finalDirection = Vector3.Zero;
-        for (int i = 0; i < _map.Bins.Count; i++)
-        {
-            finalDirection += _map.Bins[i] * Mathf.Max(0f, _map.Interest[i] - _map.Danger[i]);
-        }
+        // --- 3. Synthesize the final direction via the active strategy ---
+        // Precedence: BT-moment override > Inspector-assigned strategy > lazily-created shared default.
+        var strategy = _synthesisOverride ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
+        var (direction, newState) = strategy.Synthesize(_map, _synthesisState);
+        _synthesisState = newState;
 
-        if (finalDirection.IsZeroApprox())
+        if (direction.IsZeroApprox())
         {
             DesiredDirection = Vector3.Zero;
         }
         else
         {
             DesiredDirection = _snapToDirectionSet
-                ? MovementDirections.GetClosestDirection(finalDirection.Normalized())
-                : finalDirection.Normalized();
+                ? MovementDirections.GetClosestDirection(direction.Normalized())
+                : direction.Normalized();
         }
 
         return DesiredDirection;
