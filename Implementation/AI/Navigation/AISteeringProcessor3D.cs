@@ -13,6 +13,22 @@ using Implementation.Shared;
 using GColl = Godot.Collections;
 
 /// <summary>
+/// The active steering control-claim mode. Precedence when consumed: DirectionOverride beats
+/// NavigationOnly beats Full. Full (the unclaimed default) runs the normal pipeline.
+/// </summary>
+public enum SteeringControlMode
+{
+    /// <summary>Normal steering: considerations + nav path + synthesis.</summary>
+    Full,
+
+    /// <summary>Skip consideration scoring; keep nav-path evaluation (navmesh-driven movement).</summary>
+    NavigationOnly,
+
+    /// <summary>Bypass all steering; return the claimed raw direction (scripted/knockback movement).</summary>
+    DirectionOverride,
+}
+
+/// <summary>
 ///     The AI's tactical brainstem responsible for moment-to-moment steering. It synthesizes a
 ///     high-level goal (from a Behavior Tree) with a set of environmental considerations,
 ///     to produce a final, desired movement direction.
@@ -84,27 +100,51 @@ public partial class AISteeringProcessor3D : Node
     public Vector3 DesiredDirection { get; private set; }
 
     /// <summary>
-    /// Layer 1 override: When true, skips all consideration scoring (flee, wander, obstacle
-    /// avoidance) but keeps nav path evaluation. The critter follows the nav agent's path
-    /// to its target position. Navmesh geometry naturally handles obstacle avoidance.
-    /// Use case: CorneredAction shuttle between close navmesh-valid waypoints.
-    /// Single-owner: Only one BT action should set this at a time. Last writer wins —
-    /// if multiple consumers are needed, replace with a push/pop counter.
+    /// The active control-claim mode: DirectionOverride > NavigationOnly > Full (unclaimed default).
+    /// Full runs the normal consideration + nav-path + synthesis pipeline; NavigationOnly skips
+    /// consideration scoring but keeps nav-path evaluation; DirectionOverride bypasses all steering
+    /// and returns the claimed raw direction. Claimed via <see cref="TryClaimControl"/> (reject-second-
+    /// claimant), released via <see cref="ReleaseControl"/>.
     /// </summary>
-    public bool NavigationOnlyMode { get; set; }
+    public SteeringControlMode ControlMode =>
+        _controlSlot.IsClaimed ? _controlSlot.Value.Mode : SteeringControlMode.Full;
+
+    /// <summary>The current control-claim owner, or null when unclaimed.</summary>
+    public StringName? ControlOwner => _controlSlot.Owner;
+
+    private readonly OwnedSlot<ControlClaim> _controlSlot = new();
 
     /// <summary>
-    /// Layer 2 override: When set, bypasses ALL steering computation (considerations, nav path,
-    /// synthesis). Returns this raw direction as DesiredDirection. Strongest override.
-    /// Priority: DirectionOverride > NavigationOnlyMode > Normal.
-    /// Use case: Forced/scripted movement, cutscene movement, knockback effects.
+    /// Claims the control slot under reject-second-claimant discipline: unclaimed or same-owner reclaim
+    /// succeeds (mode updated); a different owner is rejected (returns false + warns). DirectionOverride
+    /// requires a non-null direction — a null-direction DirectionOverride claim is rejected.
+    /// Use cases: NavigationOnly for navmesh-only shuttle (CorneredAction, NavPursueAction);
+    /// DirectionOverride for scripted/knockback movement.
     /// </summary>
-    public Vector3? DirectionOverride { get; set; }
+    public bool TryClaimControl(StringName owner, SteeringControlMode mode, Vector3? direction = null)
+    {
+        if (mode == SteeringControlMode.DirectionOverride && direction == null)
+        {
+            JmoLogger.Warning(this, $"[Steering] '{owner}' claimed DirectionOverride with no direction; rejected.");
+            return false;
+        }
+        return _controlSlot.TryClaim(owner, new ControlClaim(mode, direction), this, "Control");
+    }
 
-    /// <summary>
-    /// Clears any active direction override, reverting to normal steering or NavigationOnlyMode.
-    /// </summary>
-    public void ClearDirectionOverride() => DirectionOverride = null;
+    /// <summary>Releases the control slot. Owner-checked — a non-owner release is a warned no-op.</summary>
+    public void ReleaseControl(StringName owner) => _controlSlot.TryRelease(owner, this, "Control");
+
+    /// <summary>The control slot's payload: the claimed mode and (for DirectionOverride) the raw direction.</summary>
+    private readonly struct ControlClaim
+    {
+        public readonly SteeringControlMode Mode;
+        public readonly Vector3? Direction;
+        public ControlClaim(SteeringControlMode mode, Vector3? direction)
+        {
+            Mode = mode;
+            Direction = direction;
+        }
+    }
 
     [ExportGroup("Synthesis")]
     /// <summary>
@@ -115,8 +155,7 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     [Export] private SteeringSynthesisStrategy3D? _synthesisStrategy;
 
-    private StringName? _synthesisOverrideOwner;
-    private SteeringSynthesisStrategy3D? _synthesisOverride;
+    private readonly OwnedSlot<SteeringSynthesisStrategy3D> _synthesisSlot = new();
     private SteeringSynthesisState _synthesisState = SteeringSynthesisState.Empty;
 
     // Lazily created; static so all unassigned processors share one instance. NEVER an eager field
@@ -125,21 +164,15 @@ public partial class AISteeringProcessor3D : Node
     private static bool s_defaultLogged;
 
     /// <summary>
-    /// Sets a BT-moment synthesis override under owned-slot discipline (reject-second-claimant).
+    /// Sets a BT-moment synthesis override under the shared owned-slot discipline (reject-second-claimant).
     /// Returns false + warns when another owner holds the slot; on success resets synthesis state
     /// so the new strategy commits fresh.
     /// </summary>
     public bool TrySetSynthesisOverride(StringName owner, SteeringSynthesisStrategy3D strategy)
     {
-        if (_synthesisOverrideOwner != null && _synthesisOverrideOwner != owner)
-        {
-            JmoLogger.Warning(this, $"[Steering] Synthesis override already held by '{_synthesisOverrideOwner}'; '{owner}' rejected.");
-            return false;
-        }
-        _synthesisOverrideOwner = owner;
-        _synthesisOverride = strategy;
-        _synthesisState = SteeringSynthesisState.Empty;
-        return true;
+        bool claimed = _synthesisSlot.TryClaim(owner, strategy, this, "Synthesis override");
+        if (claimed) { _synthesisState = SteeringSynthesisState.Empty; }
+        return claimed;
     }
 
     /// <summary>
@@ -148,14 +181,10 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     public void ClearSynthesisOverride(StringName owner)
     {
-        if (_synthesisOverrideOwner != owner)
+        if (_synthesisSlot.TryRelease(owner, this, "Synthesis override"))
         {
-            JmoLogger.Warning(this, $"[Steering] '{owner}' tried to clear synthesis override held by '{_synthesisOverrideOwner}'.");
-            return;
+            _synthesisState = SteeringSynthesisState.Empty;
         }
-        _synthesisOverrideOwner = null;
-        _synthesisOverride = null;
-        _synthesisState = SteeringSynthesisState.Empty;
     }
 
     private SteeringSynthesisStrategy3D GetOrCreateDefaultStrategy()
@@ -168,6 +197,48 @@ public partial class AISteeringProcessor3D : Node
             s_defaultLogged = true;
         }
         return s_defaultStrategy;
+    }
+
+    /// <summary>
+    /// One reject-second-claimant discipline, reused by the control slot and the synthesis-override
+    /// slot: the first owner keeps the slot; a conflicting owner is rejected (returns false + warns);
+    /// the owner (or a reset) releases it. Per-agent state lives here as a private field on the Node,
+    /// never on a shared Resource.
+    /// </summary>
+    private sealed class OwnedSlot<T>
+    {
+        public StringName? Owner { get; private set; }
+        public T? Value { get; private set; }
+        public bool IsClaimed => Owner != null;
+
+        public bool TryClaim(StringName owner, T value, Node context, string slotName)
+        {
+            if (Owner != null && Owner != owner)
+            {
+                JmoLogger.Warning(context, $"[Steering] {slotName} claim held by '{Owner}'; '{owner}' rejected.");
+                return false;
+            }
+            Owner = owner;
+            Value = value;
+            return true;
+        }
+
+        public bool TryRelease(StringName owner, Node context, string slotName)
+        {
+            if (Owner != owner)
+            {
+                JmoLogger.Warning(context, $"[Steering] '{owner}' tried to release {slotName} held by '{Owner?.ToString() ?? "no one"}'.");
+                return false;
+            }
+            Clear();
+            return true;
+        }
+
+        public void Clear()
+        {
+            Owner = null;
+            Value = default;
+        }
     }
 
     [ExportGroup("Debug")]
@@ -212,14 +283,11 @@ public partial class AISteeringProcessor3D : Node
         RebuildActiveConsiderations();
 
         // Reset hardening for pool reuse — a recycled processor must not carry a prior life's
-        // committed bin, override slot, or bypass flags. (Part 4 replaces the legacy
-        // DirectionOverride/NavigationOnlyMode reset lines with a control-claim-slot reset.)
+        // committed bin, synthesis override, control claim, or nav-path override.
         _synthesisState = SteeringSynthesisState.Empty;
-        _synthesisOverrideOwner = null;
-        _synthesisOverride = null;
+        _synthesisSlot.Clear();
+        _controlSlot.Clear();
         _navPathOverride = null;
-        DirectionOverride = null;
-        NavigationOnlyMode = false;
     }
 
     /// <summary>
@@ -277,9 +345,9 @@ public partial class AISteeringProcessor3D : Node
     internal void SetNavPathConsideration(NavigationPath3DConsideration? consideration) => _navPathConsideration = consideration;
     internal NavigationPath3DConsideration? GetActiveNavPathConsideration() => _navPathOverride ?? _navPathConsideration;
     internal void SetSynthesisStrategy(SteeringSynthesisStrategy3D? strategy) => _synthesisStrategy = strategy;
-    internal SteeringSynthesisStrategy3D GetActiveSynthesisStrategyForTest() => _synthesisOverride ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
+    internal SteeringSynthesisStrategy3D GetActiveSynthesisStrategyForTest() => _synthesisSlot.Value ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
     internal int GetCommittedBinForTest() => _synthesisState.CommittedBin;
-    internal StringName? GetSynthesisOverrideOwnerForTest() => _synthesisOverrideOwner;
+    internal StringName? GetSynthesisOverrideOwnerForTest() => _synthesisSlot.Owner;
 #endif
     #endregion
 
@@ -342,10 +410,12 @@ public partial class AISteeringProcessor3D : Node
     /// </summary>
     public Vector3 CalculateSteering(SteeringDecisionContext3D context3D, IBlackboard blackboard)
     {
-        // --- Layer 2: DirectionOverride — complete bypass ---
-        if (DirectionOverride.HasValue)
+        var mode = ControlMode;
+
+        // --- DirectionOverride claim: complete bypass (direction guaranteed non-null by the claim guard) ---
+        if (mode == SteeringControlMode.DirectionOverride)
         {
-            DesiredDirection = DirectionOverride.Value;
+            DesiredDirection = _controlSlot.Value.Direction ?? Vector3.Zero;
             return DesiredDirection;
         }
 
@@ -353,8 +423,8 @@ public partial class AISteeringProcessor3D : Node
         _map.Clear();
 
         // --- 2. Evaluate all environmental considerations ---
-        // Layer 1: NavigationOnlyMode skips consideration scoring entirely.
-        if (!NavigationOnlyMode)
+        // NavigationOnly claim skips consideration scoring entirely.
+        if (mode != SteeringControlMode.NavigationOnly)
         {
             foreach (var consideration in ActiveConsiderations)
             {
@@ -363,13 +433,13 @@ public partial class AISteeringProcessor3D : Node
         }
 
         // --- 2b. Evaluate the dedicated nav path consideration ---
-        // Evaluated in both normal and NavigationOnlyMode — nav path always active.
+        // Evaluated in both Full and NavigationOnly modes — nav path always active.
         var activeNavPath = _navPathOverride ?? _navPathConsideration;
         activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, _map);
 
         // --- 3. Synthesize the final direction via the active strategy ---
         // Precedence: BT-moment override > Inspector-assigned strategy > lazily-created shared default.
-        var strategy = _synthesisOverride ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
+        var strategy = _synthesisSlot.Value ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
         var (direction, newState) = strategy.Synthesize(_map, _synthesisState);
         _synthesisState = newState;
 
