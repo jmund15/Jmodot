@@ -13,25 +13,22 @@ using Core.Movement;
 public static class SteeringPropagation
 {
     /// <summary>
-    /// Propagates positive scores from each direction to its neighbors with diminishing weight.
-    /// Scores accumulate additively — a direction that receives bleed from multiple sources
-    /// gets the sum of all contributions.
+    /// Propagates non-zero scores from each direction to its neighbors with diminishing weight.
+    /// Bleed is symmetric in sign — positives spread interest, negatives spread danger gradient —
+    /// so channel routing downstream stays consistent. Scores accumulate additively: a direction
+    /// that receives bleed from multiple sources gets the sum of all contributions.
     /// </summary>
     /// <param name="scores">Direction → score map. Modified in-place.</param>
     /// <param name="directions">Ordered list of directions (circular — last wraps to first).</param>
     /// <param name="neighborCount">How many neighbors on each side receive bleed.</param>
     /// <param name="diminishWeight">Multiplier per step (0 = no spread, 1 = no falloff).</param>
-    /// <param name="propagateNegative">When true, negative scores also bleed to neighbors
-    /// (used by avoidance considerations like StaticBody3DConsideration). Default false
-    /// preserves original behavior of only propagating positive scores.</param>
     public static void PropagateScores(
         Dictionary<Vector3, float> scores,
         List<Vector3> directions,
         int neighborCount,
-        float diminishWeight,
-        bool propagateNegative = false)
+        float diminishWeight)
     {
-        PropagateScoresCore(scores, directions, neighborCount, diminishWeight, propagateNegative);
+        PropagateScoresCore(scores, directions, neighborCount, diminishWeight);
     }
 
     /// <summary>
@@ -44,23 +41,21 @@ public static class SteeringPropagation
         Dictionary<Vector3, float> scores,
         DirectionSet3D directions,
         int neighborCount,
-        float diminishWeight,
-        bool propagateNegative = false)
+        float diminishWeight)
     {
         if (directions == null || !directions.HasCircularOrder)
         {
             return;
         }
 
-        PropagateScoresCore(scores, directions.OrderedDirections, neighborCount, diminishWeight, propagateNegative);
+        PropagateScoresCore(scores, directions.OrderedDirections, neighborCount, diminishWeight);
     }
 
     private static void PropagateScoresCore(
         Dictionary<Vector3, float> scores,
         IReadOnlyList<Vector3> directions,
         int neighborCount,
-        float diminishWeight,
-        bool propagateNegative)
+        float diminishWeight)
     {
         if (directions == null || directions.Count == 0)
         {
@@ -79,7 +74,7 @@ public static class SteeringPropagation
         // For each direction with a non-zero score, bleed to neighbors
         for (int i = 0; i < count; i++)
         {
-            if (propagateNegative ? original[i] == 0f : original[i] <= 0f)
+            if (original[i] == 0f)
             {
                 continue;
             }

@@ -29,7 +29,8 @@ public partial class AISteeringProcessor3D : Node
 
     /// <summary>
     /// The collection of all environmental considerations the AI will use to make decisions.
-    /// The order in the array does not matter; they will be sorted by their internal Priority property.
+    /// Order is insertion order; the channel sum is order-independent so array order does not
+    /// change the outcome, only the debug/eval evaluation order.
     /// </summary>
     [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
 
@@ -57,10 +58,10 @@ public partial class AISteeringProcessor3D : Node
     [Export] private bool _snapToDirectionSet = false;
 
     /// <summary>
-    /// Considerations are sorted by priority to ensure a deterministic evaluation order, though
-    /// in practice the order of addition does not change the final sum.
+    /// Static (Inspector-authored) considerations concatenated with runtime-registered ones in
+    /// insertion order. Order is deterministic for debug/eval; the channel sum is order-independent.
     /// </summary>
-    public IReadOnlyList<BaseAIConsideration3D> SortedConsiderations { get; private set; }
+    public IReadOnlyList<BaseAIConsideration3D> ActiveConsiderations { get; private set; }
 
     /// <summary>
     /// Runtime considerations registered dynamically by BT actions.
@@ -69,9 +70,10 @@ public partial class AISteeringProcessor3D : Node
     private readonly List<BaseAIConsideration3D> _runtimeConsiderations = new();
 
     /// <summary>
-    /// A dictionary to hold the aggregated scores for each direction during a single frame's calculation.
+    /// The per-frame dual-channel steering map. Built from MovementDirections.OrderedDirections in
+    /// Initialize; reset and re-populated each frame in CalculateSteering.
     /// </summary>
-    private Dictionary<Vector3, float> _scores = new();
+    private SteeringContextMap _map = null!;
 
     /// <summary>
     /// The final, normalized direction vector calculated in the last frame. This can be used
@@ -128,8 +130,8 @@ public partial class AISteeringProcessor3D : Node
             return;
         }
 
-        // Initialize the scores dictionary with a key for each available direction.
-        _scores = MovementDirections.Directions.ToDictionary(dir => dir, dir => 0f);
+        // Build the per-frame steering map over the ordered bin ring.
+        _map = new SteeringContextMap(MovementDirections.OrderedDirections);
 
         // Initialize each consideration, allowing them to perform setup tasks (e.g., caching data).
         foreach (var consideration in _considerations)
@@ -140,7 +142,7 @@ public partial class AISteeringProcessor3D : Node
         // Initialize the dedicated nav path consideration if configured.
         _navPathConsideration?.Initialize(MovementDirections);
 
-        RebuildSortedConsiderations();
+        RebuildActiveConsiderations();
     }
 
     /// <summary>
@@ -152,7 +154,7 @@ public partial class AISteeringProcessor3D : Node
         if (_runtimeConsiderations.Contains(consideration)) { return; }
         _runtimeConsiderations.Add(consideration);
         consideration.Initialize(MovementDirections);
-        RebuildSortedConsiderations();
+        RebuildActiveConsiderations();
     }
 
     /// <summary>
@@ -162,14 +164,13 @@ public partial class AISteeringProcessor3D : Node
     public void UnregisterConsideration(BaseAIConsideration3D consideration)
     {
         if (!_runtimeConsiderations.Remove(consideration)) { return; }
-        RebuildSortedConsiderations();
+        RebuildActiveConsiderations();
     }
 
-    private void RebuildSortedConsiderations()
+    private void RebuildActiveConsiderations()
     {
-        SortedConsiderations = _considerations
+        ActiveConsiderations = _considerations
             .Concat(_runtimeConsiderations)
-            .OrderBy(c => c.Priority)
             .ToList();
     }
 
@@ -217,9 +218,9 @@ public partial class AISteeringProcessor3D : Node
         var arrowheadSize = 0.1f;
 
 
-        foreach (var dirWeight in this._scores)
+        for (int i = 0; i < this._map.Bins.Count; i++)
         {
-            var weight = dirWeight.Value;
+            var weight = this._map.Interest[i] - this._map.Danger[i];
             var arrowColor = Colors.Yellow;
             if (weight < 0.2f)
             {
@@ -233,7 +234,7 @@ public partial class AISteeringProcessor3D : Node
             arrowColor.A = 0.5f;
             var arrowPosition = new Vector3(_ownerAgent.GlobalPosition.X, _ownerAgent.GlobalPosition.Y + 1f, _ownerAgent.GlobalPosition.Z);
 
-            var dirArrow = dirWeight.Key * weight * arrowSize;
+            var dirArrow = this._map.Bins[i] * weight * arrowSize;
             DebugDraw3D.DrawArrow(arrowPosition, arrowPosition + dirArrow,
                 arrowColor,
                 arrowheadSize,
@@ -267,34 +268,32 @@ public partial class AISteeringProcessor3D : Node
             return DesiredDirection;
         }
 
-        // --- 1. Reset scores for this frame's calculation ---
-        var keys = _scores.Keys.ToList();
-        foreach (var key in keys) { _scores[key] = 0f; }
+        // --- 1. Reset the steering map for this frame's calculation ---
+        _map.Clear();
 
         // --- 2. Evaluate all environmental considerations ---
         // Layer 1: NavigationOnlyMode skips consideration scoring entirely.
         if (!NavigationOnlyMode)
         {
-            foreach (var consideration in SortedConsiderations)
+            foreach (var consideration in ActiveConsiderations)
             {
-                consideration.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
+                consideration.Evaluate(context3D, blackboard, MovementDirections, _map);
             }
         }
 
         // --- 2b. Evaluate the dedicated nav path consideration ---
         // Evaluated in both normal and NavigationOnlyMode — nav path always active.
         var activeNavPath = _navPathOverride ?? _navPathConsideration;
-        activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, ref _scores);
+        activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, _map);
 
         // --- 3. Synthesize the final direction ---
-        // Combine all scored directions into a single resultant vector.
+        // Interim blend bridge (deleted when P3's synthesis strategy slot lands): interest minus
+        // danger, clamped at 0. Negative net (danger) cancels interest but creates no desire to move
+        // the opposite way; HardMask is ignored for now — avoidance is the absence of interest.
         Vector3 finalDirection = Vector3.Zero;
-        foreach (var score in _scores)
+        for (int i = 0; i < _map.Bins.Count; i++)
         {
-            // A direction's final score is clamped at 0. Negative scores (danger) cancel out
-            // interest, but do not create a "desire" to move in the opposite direction.
-            // Avoidance is simply the absence of interest in a given direction.
-            finalDirection += score.Key * Mathf.Max(0, score.Value);
+            finalDirection += _map.Bins[i] * Mathf.Max(0f, _map.Interest[i] - _map.Danger[i]);
         }
 
         if (finalDirection.IsZeroApprox())

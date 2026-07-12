@@ -16,8 +16,8 @@ using Shared;
 /// It is used to create avoidance or attraction behaviors towards environmental objects like walls,
 /// cover points, or hazards.
 ///
-/// Note: This consideration requires PropagateNegative=true on its SteeringPropagationConfig
-/// so that negative avoidance scores bleed to neighboring directions for smoother steering.
+/// Note: propagation now bleeds symmetrically in sign, so attaching a SteeringPropagationConfig makes
+/// negative avoidance scores spread a danger gradient to neighboring directions for smoother steering.
 /// </summary>
 [GlobalClass]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D

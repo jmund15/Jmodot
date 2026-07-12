@@ -1,0 +1,67 @@
+namespace Jmodot.Implementation.AI.Navigation;
+
+using System;
+using System.Collections.Generic;
+using Godot;
+
+/// <summary>
+/// Per-frame dual-channel steering container. Considerations route their bounded [-1,1]
+/// scores into three bin-indexed channels: <see cref="Interest"/> (≥0, additive),
+/// <see cref="Danger"/> (≥0, additive), and <see cref="HardMask"/> (OR of Hard-constraint
+/// exclusions — a bool channel that never travels in float space). <see cref="Bins"/> is the
+/// owning set's ordered ring (<c>DirectionSet3D.OrderedDirections</c>), so channel index i
+/// corresponds to bin i. Aggregate flags are computed on read (O(bins) scan — provably correct
+/// beats incremental bookkeeping). Processor-owned; reset each frame via <see cref="Clear"/>.
+/// </summary>
+public sealed class SteeringContextMap
+{
+    public IReadOnlyList<Vector3> Bins { get; }
+    public float[] Interest { get; }
+    public float[] Danger { get; }
+    public bool[] HardMask { get; }
+
+    public SteeringContextMap(IReadOnlyList<Vector3> bins)
+    {
+        this.Bins = bins;
+        this.Interest = new float[bins.Count];
+        this.Danger = new float[bins.Count];
+        this.HardMask = new bool[bins.Count];
+    }
+
+    /// <summary>Zeroes every channel — the per-frame reset before considerations re-populate.</summary>
+    public void Clear()
+    {
+        Array.Clear(this.Interest, 0, this.Interest.Length);
+        Array.Clear(this.Danger, 0, this.Danger.Length);
+        Array.Clear(this.HardMask, 0, this.HardMask.Length);
+    }
+
+    public float EffectiveScore(int bin, float dangerScale)
+        => this.Interest[bin] - dangerScale * this.Danger[bin];
+
+    /// <summary>True when every bin is Hard-masked (synthesis must fall back to least-danger).</summary>
+    public bool AllMasked
+    {
+        get
+        {
+            for (int i = 0; i < this.HardMask.Length; i++)
+            {
+                if (!this.HardMask[i]) { return false; }
+            }
+            return true;
+        }
+    }
+
+    /// <summary>True when any bin carries positive interest (else synthesis yields Vector3.Zero).</summary>
+    public bool HasAnyInterest
+    {
+        get
+        {
+            for (int i = 0; i < this.Interest.Length; i++)
+            {
+                if (this.Interest[i] > 0f) { return true; }
+            }
+            return false;
+        }
+    }
+}
