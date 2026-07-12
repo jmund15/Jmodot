@@ -1,7 +1,6 @@
 namespace Jmodot.Core.AI.Navigation.Considerations;
 
 using System.Collections.Generic;
-using System.Linq;
 using BB;
 using Implementation.AI.Navigation;
 using Implementation.AI.Navigation.Considerations;
@@ -43,19 +42,14 @@ public abstract partial class BaseAIConsideration3D : Resource
     private SteeringPropagationConfig? _propagation;
 
     /// <summary>
-    /// Cached ordered direction list for propagation. Populated in Initialize().
-    /// </summary>
-    private List<Vector3>? _cachedOrderedDirections;
-
-    /// <summary>
-    /// Called once by the AISteeringProcessor during initialization. This allows the
-    /// consideration to perform any necessary setup or caching. Derived classes that
-    /// override this MUST call base.Initialize(directions) for propagation to work.
+    /// Called once by the AISteeringProcessor during initialization, letting a consideration
+    /// perform optional setup. The base implementation is a no-op — propagation derives its
+    /// ordered ring directly from the DirectionSet3D at evaluation time. The virtual is retained
+    /// as the processor's per-consideration setup seam; overrides need not call base.
     /// </summary>
     /// <param name="directions">The DirectionSet3D used by the agent.</param>
     public virtual void Initialize(DirectionSet3D directions)
     {
-        _cachedOrderedDirections = directions.Directions.ToList();
     }
 
     /// <summary>
@@ -68,11 +62,11 @@ public abstract partial class BaseAIConsideration3D : Resource
         // 1. Calculate the raw, objective scores for this consideration.
         var baseScores = CalculateBaseScores(directions, context3D, blackboard);
 
-        // 2. Apply propagation smoothing (neighbor bleed-over).
-        if (_propagation != null && _cachedOrderedDirections != null)
+        // 2. Apply propagation smoothing (neighbor bleed-over) along the set's ordered ring.
+        if (_propagation != null)
         {
             SteeringPropagation.PropagateScores(
-                baseScores, _cachedOrderedDirections,
+                baseScores, directions,
                 _propagation.NeighborCount, _propagation.DiminishWeight,
                 _propagation.PropagateNegative);
         }

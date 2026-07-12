@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.Navigation.Considerations;
 using System;
 using System.Collections.Generic;
 using Godot;
+using Core.Movement;
 
 /// <summary>
 /// Static utility for bleeding steering scores to neighboring directions.
@@ -29,6 +30,37 @@ public static class SteeringPropagation
         int neighborCount,
         float diminishWeight,
         bool propagateNegative = false)
+    {
+        PropagateScoresCore(scores, directions, neighborCount, diminishWeight, propagateNegative);
+    }
+
+    /// <summary>
+    /// Propagates scores along a DirectionSet3D's ordered circular ring
+    /// (<see cref="DirectionSet3D.OrderedDirections"/>). No-ops when the set is null or
+    /// <see cref="DirectionSet3D.HasCircularOrder"/> is false — non-planar / sub-three sets have no
+    /// well-defined neighbor topology, so bleeding along an arbitrary order would corrupt scores.
+    /// </summary>
+    public static void PropagateScores(
+        Dictionary<Vector3, float> scores,
+        DirectionSet3D directions,
+        int neighborCount,
+        float diminishWeight,
+        bool propagateNegative = false)
+    {
+        if (directions == null || !directions.HasCircularOrder)
+        {
+            return;
+        }
+
+        PropagateScoresCore(scores, directions.OrderedDirections, neighborCount, diminishWeight, propagateNegative);
+    }
+
+    private static void PropagateScoresCore(
+        Dictionary<Vector3, float> scores,
+        IReadOnlyList<Vector3> directions,
+        int neighborCount,
+        float diminishWeight,
+        bool propagateNegative)
     {
         if (directions == null || directions.Count == 0)
         {
