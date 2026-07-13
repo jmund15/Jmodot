@@ -286,8 +286,9 @@ public sealed class CollisionResponderCore : ICollisionResponder
             }
 
             // 11. APPLY SELF-DAMAGE — health-less hosts no-op via IDamageable, matching the
-            //     legacy "host.Health != null" gate's observable behavior.
-            float selfDamage = ResolveSelfDamage(impactSpeed, durable);
+            //     legacy "host.Health != null" gate's observable behavior. The collided node
+            //     rides along so target-stat-scaled strategies (mass-scaled pierce) can read it.
+            float selfDamage = ResolveSelfDamage(impactSpeed, durable, contact.Collider);
             if (selfDamage > 0)
             {
                 host.TakeDamage(selfDamage, this);
@@ -432,11 +433,11 @@ public sealed class CollisionResponderCore : ICollisionResponder
 
     // ─── Self-Damage Resolution ─────────────────────
 
-    private float ResolveSelfDamage(float impactSpeed, DurableCollisionResponse response)
+    private float ResolveSelfDamage(float impactSpeed, DurableCollisionResponse response, Node? target)
     {
         if (response.SelfDamageDefinition == null) { return 0f; }
 
-        return response.SelfDamageDefinition.ResolveCollisionDamage(impactSpeed, GetStatProvider());
+        return response.SelfDamageDefinition.ResolveCollisionDamage(impactSpeed, GetStatProvider(), target);
     }
 
     /// <summary>
