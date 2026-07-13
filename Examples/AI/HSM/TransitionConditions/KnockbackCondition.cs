@@ -41,6 +41,16 @@ public partial class KnockbackCondition : CombatLogCondition
     /// </summary>
     [Export] public Godot.Collections.Array<CombatTag> RequiredTags { get; set; } = [];
 
+    /// <summary>
+    /// Evidence window in combat-time seconds. 0 (default) = current physics frame only
+    /// (<see cref="CombatLog.HasEvent{T}"/>). Set &gt; 0 when this condition is ANDed with a
+    /// persistent physics observation (e.g. VerticalVelocityCondition): the impulse an event
+    /// delivers only becomes observable velocity on LATER frames, so a same-frame AND of
+    /// event + velocity can never both pass — the window is what makes the composition satisfiable.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0,2.0,0.05,suffix:s")]
+    public float WithinSeconds { get; set; }
+
     protected override bool CheckEvent(CombatLog log)
     {
         // OR-combine across both force-bearing CombatResult subtypes. Damaging hits route
@@ -52,14 +62,20 @@ public partial class KnockbackCondition : CombatLogCondition
 
     private bool MatchesForceCarrier<T>(CombatLog log) where T : CombatResult, IForceCarrier
     {
-        return log.HasEvent<T>(r =>
+        if (WithinSeconds > 0f)
         {
-            if (r.Force < MinForce || r.Force > MaxForce)
-            {
-                return false;
-            }
+            return log.AnyWithinCombatTime<T>(WithinSeconds, MatchesEntry);
+        }
+        return log.HasEvent<T>(MatchesEntry);
+    }
 
-            return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
-        });
+    private bool MatchesEntry<T>(T r) where T : CombatResult, IForceCarrier
+    {
+        if (r.Force < MinForce || r.Force > MaxForce)
+        {
+            return false;
+        }
+
+        return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
     }
 }
