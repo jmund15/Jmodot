@@ -400,6 +400,9 @@ public partial class AISteeringProcessor3D : Node
         // --- DirectionOverride claim: complete bypass (direction guaranteed non-null by the claim guard) ---
         if (mode == SteeringControlMode.DirectionOverride)
         {
+            // A DirectionOverride bypass produces no attribution; clear last frame's so the overlay/log
+            // don't misrepresent a bypassed frame as live steering.
+            _recorder?.BeginFrame(_map);
             DesiredDirection = _controlSlot.Value.Direction ?? Vector3.Zero;
             return DesiredDirection;
         }
@@ -435,7 +438,7 @@ public partial class AISteeringProcessor3D : Node
         var strategy = _synthesisSlot.Value ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
         var (direction, newState) = strategy.Synthesize(_map, _synthesisState);
         _synthesisState = newState;
-        _recorder?.RecordDecision(_map, newState.CommittedBin);
+        _recorder?.RecordDecision(_map, newState.CommittedBin, strategy.DangerScale);
 
         if (direction.IsZeroApprox())
         {

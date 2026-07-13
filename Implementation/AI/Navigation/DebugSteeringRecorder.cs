@@ -27,9 +27,12 @@ public sealed class DebugSteeringRecorder
     private int _count;
 
     private SteeringContextMap? _lastMap;
+    private float _dangerScale = 1.0f;
     private readonly ContributionView _view;
 
-    /// <summary>The raw per-frame winner: argmax of Interest−Danger over non-masked bins (-1 if all masked).</summary>
+    /// <summary>The raw per-frame winner: argmax of EffectiveScore (Interest − DangerScale·Danger) over
+    /// non-masked bins, -1 if all masked. Computed via the same SteeringContextMap.ArgmaxUnmasked as live
+    /// synthesis, so it never diverges under a tuned DangerScale.</summary>
     public int ChosenBin { get; private set; } = -1;
 
     /// <summary>The synthesis-committed bin (may differ from <see cref="ChosenBin"/> under hysteresis).</summary>
@@ -77,43 +80,22 @@ public sealed class DebugSteeringRecorder
         }
     }
 
-    /// <summary>Records the frame's decision: chosen bin (computed from the final map) + the committed bin.</summary>
-    public void RecordDecision(SteeringContextMap map, int committedBin)
+    /// <summary>Records the frame's decision: the raw chosen bin (argmax by the strategy's DangerScale
+    /// weighting, so it matches live synthesis) + the synthesis-committed bin.</summary>
+    public void RecordDecision(SteeringContextMap map, int committedBin, float dangerScale)
     {
         _lastMap = map;
+        _dangerScale = dangerScale;
         CommittedBin = committedBin;
-        ChosenBin = ArgmaxNonMasked(map);
+        ChosenBin = map.ArgmaxUnmasked(dangerScale);
     }
 
-    /// <summary>Non-masked bin indices ranked by Interest−Danger, highest first, capped at <paramref name="n"/>.</summary>
+    /// <summary>Non-masked bin indices ranked by EffectiveScore (the last RecordDecision's DangerScale),
+    /// highest first, capped at <paramref name="n"/>.</summary>
     public IReadOnlyList<int> GetTopBins(int n)
     {
         var map = _lastMap;
-        if (map == null || n <= 0) { return Array.Empty<int>(); }
-
-        int binCount = map.Bins.Count;
-        var indices = new List<int>(binCount);
-        for (int i = 0; i < binCount; i++)
-        {
-            if (!map.HardMask[i]) { indices.Add(i); }
-        }
-        indices.Sort((a, b) =>
-            (map.Interest[b] - map.Danger[b]).CompareTo(map.Interest[a] - map.Danger[a]));
-        if (indices.Count > n) { indices.RemoveRange(n, indices.Count - n); }
-        return indices;
-    }
-
-    private static int ArgmaxNonMasked(SteeringContextMap map)
-    {
-        int best = -1;
-        float bestScore = float.NegativeInfinity;
-        for (int i = 0; i < map.Bins.Count; i++)
-        {
-            if (map.HardMask[i]) { continue; }
-            float score = map.Interest[i] - map.Danger[i];
-            if (score > bestScore) { bestScore = score; best = i; }
-        }
-        return best;
+        return map == null ? Array.Empty<int>() : map.RankUnmasked(_dangerScale, n);
     }
 
     private void EnsureSized(int n)
@@ -154,9 +136,11 @@ public sealed class DebugSteeringRecorder
         return string.IsNullOrEmpty(name) ? consideration.GetType().Name : name;
     }
 
+    #region Test Helpers
 #if TOOLS
     internal bool _TestBuffersAllocated => _interestBefore != null;
 #endif
+    #endregion
 
     /// <summary>Zero-alloc read-only window over the first <c>_count</c> pooled contributions.</summary>
     private sealed class ContributionView : IReadOnlyList<ConsiderationContribution>
