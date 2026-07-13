@@ -147,4 +147,34 @@ public static class JmoMath
         var closest = a + ab * t;
         return p.DistanceTo(closest);
     }
+
+    /// <summary>
+    /// In-plane facing angle (local-Y rotation, radians) for single-direction art living under
+    /// the project's iso-tilted sprite basis. Projects <paramref name="worldDir"/> to the screen
+    /// plane — horizontal = X, depth = Z, optionally folding vertical velocity into depth so a
+    /// gravity-arcing body noses down under the iso camera. Returns <c>null</c> when the projected
+    /// direction is ~zero, signalling the caller to leave the current rotation unchanged.
+    /// This is the single source for the convention formerly hand-rolled across every facing site.
+    /// </summary>
+    /// <param name="worldDir">World-space direction (need not be normalized).</param>
+    /// <param name="artBaseAngleOffsetDegrees">Degrees added when the art's neutral heading isn't +X.</param>
+    /// <param name="includeVertical">Fold the vertical (Y) component into the depth axis (gravity dip).</param>
+    public static float? IsoPlaneFacingAngle(Vector3 worldDir, float artBaseAngleOffsetDegrees, bool includeVertical)
+    {
+        float xl = worldDir.X;
+        float zl = worldDir.Z - (includeVertical ? worldDir.Y : 0f);
+        if (Mathf.IsZeroApprox(xl) && Mathf.IsZeroApprox(zl)) { return null; }
+        return Mathf.Atan2(-zl, xl) + Mathf.DegToRad(artBaseAngleOffsetDegrees);
+    }
+
+    /// <summary>
+    /// In-plane facing angle (local-Y rotation, radians) for a planar aim vector — X horizontal,
+    /// Y screen-depth (e.g. a right-stick aim). Equivalent to the <see cref="IsoPlaneFacingAngle(Vector3, float, bool)"/>
+    /// world form with the aim lifted to (X, 0, Y) and no vertical fold. Returns <c>null</c> on a zero aim.
+    /// </summary>
+    public static float? IsoPlaneFacingAngle(Vector2 planarAim, float artBaseAngleOffsetDegrees)
+    {
+        if (Mathf.IsZeroApprox(planarAim.X) && Mathf.IsZeroApprox(planarAim.Y)) { return null; }
+        return Mathf.Atan2(-planarAim.Y, planarAim.X) + Mathf.DegToRad(artBaseAngleOffsetDegrees);
+    }
 }

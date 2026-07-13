@@ -3,7 +3,6 @@ namespace Jmodot.Core.Combat.EffectDefinitions;
 using Godot;
 using Jmodot.Implementation.Shared;
 using Stats;
-using GCol = Godot.Collections;
 
 /// <summary>
 /// Decorator self-damage strategy: resolves an inner definition's damage, then scales it
@@ -18,33 +17,29 @@ using GCol = Godot.Collections;
 [GlobalClass, Tool]
 public partial class TargetStatScaledSelfDamageDefinition : BaseSelfDamageDefinition
 {
-    private BaseSelfDamageDefinition? _inner;
-
     /// <summary>
-    /// The wrapped strategy providing the base damage (e.g. fraction-of-max-health).
-    /// Null = 0 damage.
-    /// NOT [Export] — serialization handled via _Set/_Get/_GetPropertyList to avoid
-    /// InvalidCastException in the generated setter during [Tool] deserialization.
+    /// The wrapped strategy providing the base damage (e.g. fraction-of-max-health). Null = 0 damage.
+    /// A plain typed [Export] — the whole self-damage family is [Tool], so the generated setter's
+    /// cast resolves without the manual _Set/_Get serialization the cascade used to require.
     /// </summary>
-    public BaseSelfDamageDefinition? Inner
-    {
-        get => _inner;
-        set => _inner = value;
-    }
+    [Export] public BaseSelfDamageDefinition? Inner { get; set; }
 
-    /// <summary>Stat read from the COLLIDED entity (e.g. mass). Null = always TargetStatDefault.</summary>
+    /// <summary>Stat read from the COLLIDED entity (e.g. mass) that scales the cost UP. Null = always TargetStatDefault.</summary>
+    [ExportGroup("Target Stat (numerator)")]
     [Export] public Attribute? TargetStatAttr { get; set; }
 
     /// <summary>Target stat value when the target has no stats or the attribute is unwired.</summary>
     [Export] public float TargetStatDefault { get; set; } = 1f;
 
-    /// <summary>Stat read from the HOST's own stats dividing the scale (e.g. pierce_power). Null = always DivisorStatDefault.</summary>
+    /// <summary>Stat read from the HOST's own stats that scales the cost DOWN (e.g. pierce_power). Null = always DivisorStatDefault.</summary>
+    [ExportGroup("Divisor Stat (denominator)")]
     [Export] public Attribute? DivisorStatAttr { get; set; }
 
     /// <summary>Divisor value when the host stat is unwired or absent.</summary>
     [Export] public float DivisorStatDefault { get; set; } = 1f;
 
     /// <summary>Upper clamp on the scale multiplier (also used when the divisor is ≤ 0).</summary>
+    [ExportGroup("Clamp")]
     [Export] public float MaxMultiplier { get; set; } = 10f;
 
     /// <summary>
@@ -65,7 +60,7 @@ public partial class TargetStatScaledSelfDamageDefinition : BaseSelfDamageDefini
 
     public override float ResolveCollisionDamage(float impactVelocity, IStatProvider? stats, Node? target)
     {
-        float baseDamage = _inner?.ResolveCollisionDamage(impactVelocity, stats, target) ?? 0f;
+        float baseDamage = Inner?.ResolveCollisionDamage(impactVelocity, stats, target) ?? 0f;
         if (baseDamage <= 0f) { return 0f; }
 
         float targetStat = ResolveTargetStat(target);
@@ -88,43 +83,5 @@ public partial class TargetStatScaledSelfDamageDefinition : BaseSelfDamageDefini
         }
 
         return provider.GetStatValue<float>(TargetStatAttr, TargetStatDefault);
-    }
-
-    // ─── Manual Serialization ───────────────────────────
-    // Required for the polymorphic BaseSelfDamageDefinition field to avoid
-    // InvalidCastException during [Tool] deserialization.
-
-    public override Variant _Get(StringName property)
-    {
-        if (property == "Inner")
-        {
-            return _inner != null ? Variant.From((Resource)_inner) : default;
-        }
-        return default;
-    }
-
-    public override bool _Set(StringName property, Variant value)
-    {
-        if (property == "Inner")
-        {
-            _inner = value.AsGodotObject() as BaseSelfDamageDefinition;
-            return true;
-        }
-        return false;
-    }
-
-    public override GCol.Array<GCol.Dictionary> _GetPropertyList()
-    {
-        return new GCol.Array<GCol.Dictionary>
-        {
-            new GCol.Dictionary
-            {
-                { "name", "Inner" },
-                { "type", (int)Variant.Type.Object },
-                { "hint", (int)PropertyHint.ResourceType },
-                { "hint_string", "BaseSelfDamageDefinition" },
-                { "usage", (int)(PropertyUsageFlags.Default | PropertyUsageFlags.Storage) }
-            }
-        };
     }
 }

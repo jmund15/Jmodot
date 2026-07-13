@@ -7,7 +7,7 @@ using Stats;
 /// Each concrete strategy receives impact velocity and stats uniformly —
 /// the runner never type-checks. Strategies decide internally what to use.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class BaseSelfDamageDefinition : Resource
 {
     /// <summary>
