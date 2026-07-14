@@ -88,6 +88,18 @@ public class MovementProcessor3D : IMovementProcessor3D
     ///     which provides all necessary contextual information.
     /// </summary>
     public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection, float delta)
+        => ProcessMovement(strategy3D, desiredDirection, delta, 1f, 1f);
+
+    /// <summary>
+    ///     Movement update with a cast-phase speed scale + amplified friction.
+    ///     <paramref name="speedScale"/> scales the strategy's character-driven horizontal velocity
+    ///     (0..1 = slow walk); <paramref name="frictionMultiplier"/> (&gt;=1) bleeds extra horizontal
+    ///     velocity each tick so accumulated impulses (e.g. cast recoil) decay faster than free
+    ///     locomotion. <c>speedScale=1</c> + <c>frictionMultiplier=1</c> reproduces the base
+    ///     <see cref="ProcessMovement(IMovementStrategy3D,Vector3,float)"/> exactly.
+    /// </summary>
+    public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection, float delta,
+        float speedScale, float frictionMultiplier)
     {
         // --- 0. Pre-process Turn Rate (if strategy has a composable TurnProfile) ---
         var inputVelocity = this._controller.Velocity;
@@ -107,6 +119,12 @@ public class MovementProcessor3D : IMovementProcessor3D
         var characterVelocity =
             strategy3D.CalculateVelocity(inputVelocity, desiredDirection, _previousDirection, this._stats, delta);
 
+        // Cast-walk: scale the character-driven horizontal drive. Y is owned by gravity/impulses.
+        if (speedScale != 1f)
+        {
+            characterVelocity = new Vector3(characterVelocity.X * speedScale, characterVelocity.Y, characterVelocity.Z * speedScale);
+        }
+
         // Update previous direction from strategy output (reflects any turn rate clamping)
         var flatVel = new Vector3(characterVelocity.X, 0, characterVelocity.Z);
         if (!flatVel.IsZeroApprox()) { _previousDirection = flatVel.Normalized(); }
@@ -116,6 +134,16 @@ public class MovementProcessor3D : IMovementProcessor3D
         // --- 2. Apply Impulses (stored in velocity) ---
         _controller.AddVelocity(_frameImpulses);
         _frameImpulses = Vector3.Zero;
+
+        // --- 2b. Amplified friction: bleed extra horizontal velocity so the folded-in impulses
+        // (cast recoil) decay faster than free locomotion. Y untouched. No-op at multiplier <= 1;
+        // bleed is clamped to [0,1] so a large multiplier*delta can't flip velocity sign.
+        if (frictionMultiplier > 1f)
+        {
+            var v = _controller.Velocity;
+            var bleed = Mathf.Clamp((frictionMultiplier - 1f) * delta, 0f, 1f);
+            _controller.SetVelocity(new Vector3(v.X - v.X * bleed, v.Y, v.Z - v.Z * bleed));
+        }
 
         // --- 3. Apply External Forces (stored - will be affected by friction next frame) ---
         ApplyExternalForces(delta);

@@ -5,6 +5,17 @@ using Movement.Strategies;
 public interface IMovementProcessor3D
 {
     void ProcessMovement(IMovementStrategy3D strategy, Vector3 desiredDirection, float delta);
+
+    /// <summary>
+    /// Movement update with a cast-phase speed scale + amplified friction. <paramref name="speedScale"/>
+    /// scales the strategy's character-driven horizontal velocity (0..1 = slow walk);
+    /// <paramref name="frictionMultiplier"/> (&gt;=1) bleeds extra horizontal velocity each tick so
+    /// accumulated impulses (e.g. cast recoil) decay faster than free locomotion. speedScale=1 +
+    /// frictionMultiplier=1 reproduces the 3-arg overload exactly.
+    /// </summary>
+    void ProcessMovement(IMovementStrategy3D strategy, Vector3 desiredDirection, float delta,
+        float speedScale, float frictionMultiplier);
+
     void ProcessExternalForcesOnly(float delta);
 
     /// <summary>
