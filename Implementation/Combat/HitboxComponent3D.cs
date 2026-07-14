@@ -114,7 +114,8 @@ using AI.BB;
 
         private HurtboxComponent3D? _selfHurtbox = null;
         // Tracks targets hit during the current session/tick to prevent duplicates.
-        private readonly HashSet<HurtboxComponent3D> _hitHurtboxes = new();
+        // NOT readonly: UseSharedHitRegistry swaps in a group-shared set for cross-hitbox dedup.
+        private HashSet<HurtboxComponent3D> _hitHurtboxes = new();
         private double _tickTimer = 0.0;
 
         // Cap-rule state. _acceptedHits is the count consulted by CapacityProviders and
@@ -227,6 +228,25 @@ using AI.BB;
         #endregion
 
         #region Public API
+
+        /// <summary>
+        /// Replaces this hitbox's private per-instance hit-debounce set with a SHARED registry, so a
+        /// GROUP of hitboxes deduplicates hits ACROSS the group: at most one hit per target across every
+        /// hitbox sharing the registry (instead of one-per-hitbox). Intended for multi-piece effects
+        /// (e.g. a launch row where each art piece carries its own hitbox) that must not multi-hit a
+        /// single target.
+        /// </summary>
+        /// <remarks>
+        /// Call BEFORE activation (<see cref="StartAttack"/> / <see cref="StartDefaultAttack"/>).
+        /// StartAttack clears the set on entry, so injecting the shared set into every group member and
+        /// activating them all in the same frame is safe — each member clears the shared set before any
+        /// hit is processed (hits resolve on the next physics frame via deferred Monitoring).
+        /// </remarks>
+        public void UseSharedHitRegistry(HashSet<HurtboxComponent3D> registry)
+        {
+            if (registry == null) { return; }
+            _hitHurtboxes = registry;
+        }
 
         public void StartAttack(IAttackPayload payload)
         {
