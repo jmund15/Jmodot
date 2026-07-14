@@ -14,7 +14,7 @@ public abstract partial class SteeringSynthesisStrategy3D : Resource
 {
     /// <summary>Interest-vs-danger trade-off shared by every strategy (feeds
     /// <see cref="SteeringContextMap.EffectiveScore"/>). One knob on the base — no per-subclass duplication.</summary>
-    [Export(PropertyHint.Range, "0.0, 3.0, 0.05")] protected float DangerScale { get; private set; } = 1.0f;
+    [Export(PropertyHint.Range, "0.0, 3.0, 0.05")] public float DangerScale { get; private set; } = 1.0f;
 
     /// <summary>Pure: previous state in (readonly), new state out. Implementations hold zero mutable
     /// fields beyond their exports.</summary>

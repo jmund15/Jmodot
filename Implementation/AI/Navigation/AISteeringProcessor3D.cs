@@ -94,6 +94,13 @@ public partial class AISteeringProcessor3D : Node
     private SteeringContextMap _map = null!;
 
     /// <summary>
+    /// Optional per-consideration attribution recorder. Null until <see cref="EnableAttributionRecording"/>
+    /// is called (by the debug overlay or the log dump). When non-null, CalculateSteering snapshots the
+    /// map around each Evaluate call so each consideration's channel contribution is attributable.
+    /// </summary>
+    private DebugSteeringRecorder? _recorder;
+
+    /// <summary>
     /// The final, normalized direction vector calculated in the last frame. This can be used
     /// for debugging or for other systems to know the AI's current intent.
     /// </summary>
@@ -200,6 +207,17 @@ public partial class AISteeringProcessor3D : Node
     }
 
     /// <summary>
+    /// Lazily creates (idempotent) and returns the shared per-consideration attribution recorder.
+    /// Called by DebugSteeringComponent when its overlay toggle is on, and by Initialize when the
+    /// log dump is enabled — both consumers read the same Contributions off one recorder.
+    /// </summary>
+    public DebugSteeringRecorder EnableAttributionRecording()
+    {
+        _recorder ??= new DebugSteeringRecorder();
+        return _recorder;
+    }
+
+    /// <summary>
     /// One reject-second-claimant discipline, reused by the control slot and the synthesis-override
     /// slot: the first owner keeps the slot; a conflicting owner is rejected (returns false + warns);
     /// the owner (or a reset) releases it. Per-agent state lives here as a private field on the Node,
@@ -242,7 +260,18 @@ public partial class AISteeringProcessor3D : Node
     }
 
     [ExportGroup("Debug")]
-    [Export] private bool _showNavigationDebugArrows;
+
+    /// <summary>
+    /// When true, emits a standing per-N-frame <c>[Steering]</c> attribution line via
+    /// <see cref="JmoLogger.Debug"/> (chosen/committed bins + top-3 bins with the dominant
+    /// contributor each). A permanent gate — NOT an ephemeral <c>[DIAG-*]</c> diagnostic.
+    /// </summary>
+    [Export] private bool _logSteeringAttribution;
+
+    /// <summary>Frame interval between attribution log lines while <see cref="_logSteeringAttribution"/> is on.</summary>
+    [Export(PropertyHint.Range, "1, 600, 1")] private int _logAttributionEveryNFrames = 30;
+
+    private int _attributionFrameCounter;
 
     public override string[] _GetConfigurationWarnings()
     {
@@ -288,6 +317,9 @@ public partial class AISteeringProcessor3D : Node
         _synthesisSlot.Clear();
         _controlSlot.Clear();
         _navPathOverride = null;
+
+        // The standing log dump needs the recorder capturing; the overlay enables it independently.
+        if (_logSteeringAttribution) { EnableAttributionRecording(); }
     }
 
     /// <summary>
@@ -348,61 +380,14 @@ public partial class AISteeringProcessor3D : Node
     internal SteeringSynthesisStrategy3D GetActiveSynthesisStrategyForTest() => _synthesisSlot.Value ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
     internal int GetCommittedBinForTest() => _synthesisState.CommittedBin;
     internal StringName? GetSynthesisOverrideOwnerForTest() => _synthesisSlot.Owner;
+    internal DebugSteeringRecorder? _TestRecorder => _recorder;
+    internal void SetLogAttributionForTest(bool enabled, int everyN)
+    {
+        _logSteeringAttribution = enabled;
+        _logAttributionEveryNFrames = everyN;
+    }
 #endif
     #endregion
-
-    public override void _PhysicsProcess(double delta)
-    {
-        base._PhysicsProcess(delta);
-
-        if (!this._showNavigationDebugArrows)
-        {
-            return;
-        }
-
-        // HACK: change later?
-        var _ownerAgent = GetOwner<Node3D>();
-        var _time = Time.GetTicksMsec() / 1000.0f;
-        var arrowSize = 4f;
-        var arrowheadSize = 0.1f;
-
-
-        for (int i = 0; i < this._map.Bins.Count; i++)
-        {
-            var weight = this._map.Interest[i] - this._map.Danger[i];
-            var arrowColor = Colors.Yellow;
-            if (weight < 0.2f)
-            {
-                weight = 0.2f;
-                arrowColor = Colors.Red;
-            }
-            else if (weight > 0.5f)
-            {
-                arrowColor = Colors.Green;
-            }
-            arrowColor.A = 0.5f;
-            var arrowPosition = new Vector3(_ownerAgent.GlobalPosition.X, _ownerAgent.GlobalPosition.Y + 1f, _ownerAgent.GlobalPosition.Z);
-
-            var dirArrow = this._map.Bins[i] * weight * arrowSize;
-            DebugDraw3D.DrawArrow(arrowPosition, arrowPosition + dirArrow,
-                arrowColor,
-                arrowheadSize,
-                true);
-        }
-
-        var chosenDirArrow = this.DesiredDirection * 0.1f * arrowSize;
-        chosenDirArrow.Y = 0;
-        DebugDraw3D.DrawArrow(_ownerAgent.GlobalPosition, _ownerAgent.GlobalPosition + chosenDirArrow,
-            Colors.Black,
-            arrowheadSize,
-            true);
-
-        //DebugDraw3D.DrawLine(line_begin, line_end, new Color(1, 1, 0));
-        DebugDraw2D.SetText("Time", _time);
-        DebugDraw2D.SetText("Frames drawn", Engine.GetFramesDrawn());
-        DebugDraw2D.SetText("FPS", Engine.GetFramesPerSecond());
-        DebugDraw2D.SetText("delta", delta);
-    }
 
     /// <summary>
     /// The main calculation method. It evaluates all considerations and combines them
@@ -415,12 +400,16 @@ public partial class AISteeringProcessor3D : Node
         // --- DirectionOverride claim: complete bypass (direction guaranteed non-null by the claim guard) ---
         if (mode == SteeringControlMode.DirectionOverride)
         {
+            // A DirectionOverride bypass produces no attribution; clear last frame's so the overlay/log
+            // don't misrepresent a bypassed frame as live steering.
+            _recorder?.BeginFrame(_map);
             DesiredDirection = _controlSlot.Value.Direction ?? Vector3.Zero;
             return DesiredDirection;
         }
 
         // --- 1. Reset the steering map for this frame's calculation ---
         _map.Clear();
+        _recorder?.BeginFrame(_map);
 
         // --- 2. Evaluate all environmental considerations ---
         // NavigationOnly claim skips consideration scoring entirely.
@@ -428,20 +417,28 @@ public partial class AISteeringProcessor3D : Node
         {
             foreach (var consideration in ActiveConsiderations)
             {
+                _recorder?.CaptureBefore(_map);
                 consideration.Evaluate(context3D, blackboard, MovementDirections, _map);
+                _recorder?.CaptureAfter(consideration, _map);
             }
         }
 
         // --- 2b. Evaluate the dedicated nav path consideration ---
         // Evaluated in both Full and NavigationOnly modes — nav path always active.
         var activeNavPath = _navPathOverride ?? _navPathConsideration;
-        activeNavPath?.Evaluate(context3D, blackboard, MovementDirections, _map);
+        if (activeNavPath != null)
+        {
+            _recorder?.CaptureBefore(_map);
+            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map);
+            _recorder?.CaptureAfter(activeNavPath, _map);
+        }
 
         // --- 3. Synthesize the final direction via the active strategy ---
         // Precedence: BT-moment override > Inspector-assigned strategy > lazily-created shared default.
         var strategy = _synthesisSlot.Value ?? _synthesisStrategy ?? GetOrCreateDefaultStrategy();
         var (direction, newState) = strategy.Synthesize(_map, _synthesisState);
         _synthesisState = newState;
+        _recorder?.RecordDecision(_map, newState.CommittedBin, strategy.DangerScale);
 
         if (direction.IsZeroApprox())
         {
@@ -454,7 +451,45 @@ public partial class AISteeringProcessor3D : Node
                 : direction.Normalized();
         }
 
+        LogAttributionIfDue();
         return DesiredDirection;
+    }
+
+    /// <summary>
+    /// Standing per-N-frame attribution dump. No-op unless <see cref="_logSteeringAttribution"/> is on
+    /// and a recorder is active. Reads the recorder populated during this frame's CalculateSteering.
+    /// </summary>
+    private void LogAttributionIfDue()
+    {
+        if (!_logSteeringAttribution || _recorder == null) { return; }
+        if (++_attributionFrameCounter < _logAttributionEveryNFrames) { return; }
+        _attributionFrameCounter = 0;
+
+        var top = _recorder.GetTopBins(3);
+        var sb = new System.Text.StringBuilder();
+        sb.Append("[Steering] chosen=").Append(_recorder.ChosenBin)
+          .Append(" committed=").Append(_recorder.CommittedBin).Append(" top=[");
+        for (int t = 0; t < top.Count; t++)
+        {
+            if (t > 0) { sb.Append(", "); }
+            int bin = top[t];
+            sb.Append(bin).Append(':').Append(DominantContributor(bin));
+        }
+        sb.Append(']');
+        JmoLogger.Debug(this, sb.ToString());
+    }
+
+    /// <summary>The consideration with the largest net (interest−danger) magnitude at a bin, for the log dump.</summary>
+    private string DominantContributor(int bin)
+    {
+        string best = "-";
+        float bestMag = 0f;
+        foreach (var c in _recorder!.Contributions)
+        {
+            float mag = c.InterestDelta[bin] - c.DangerDelta[bin];
+            if (Mathf.Abs(mag) > Mathf.Abs(bestMag)) { bestMag = mag; best = c.Source; }
+        }
+        return best;
     }
 
     /// <summary>
