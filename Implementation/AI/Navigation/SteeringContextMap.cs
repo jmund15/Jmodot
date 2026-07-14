@@ -49,6 +49,37 @@ public sealed class SteeringContextMap
     public float EffectiveScore(int bin, float dangerScale)
         => this.Interest[bin] - dangerScale * this.Danger[bin];
 
+    /// <summary>Index of the highest-<see cref="EffectiveScore"/> non-masked bin, or -1 when every bin
+    /// is Hard-masked. The single source of unmasked-argmax ranking — live synthesis and debug
+    /// attribution both call this so their chosen-bin readouts never diverge under a tuned DangerScale.</summary>
+    public int ArgmaxUnmasked(float dangerScale)
+    {
+        int best = -1;
+        float bestScore = float.NegativeInfinity;
+        for (int i = 0; i < this.HardMask.Length; i++)
+        {
+            if (this.HardMask[i]) { continue; }
+            float score = EffectiveScore(i, dangerScale);
+            if (score > bestScore) { bestScore = score; best = i; }
+        }
+        return best;
+    }
+
+    /// <summary>Up to <paramref name="n"/> non-masked bin indices ranked by <see cref="EffectiveScore"/>,
+    /// highest first. Empty when <paramref name="n"/> ≤ 0 or every bin is masked.</summary>
+    public IReadOnlyList<int> RankUnmasked(float dangerScale, int n)
+    {
+        if (n <= 0) { return Array.Empty<int>(); }
+        var indices = new List<int>(this.HardMask.Length);
+        for (int i = 0; i < this.HardMask.Length; i++)
+        {
+            if (!this.HardMask[i]) { indices.Add(i); }
+        }
+        indices.Sort((a, b) => EffectiveScore(b, dangerScale).CompareTo(EffectiveScore(a, dangerScale)));
+        if (indices.Count > n) { indices.RemoveRange(n, indices.Count - n); }
+        return indices;
+    }
+
     /// <summary>True when every bin is Hard-masked (synthesis must fall back to least-danger).</summary>
     public bool AllMasked
     {

@@ -275,7 +275,7 @@ public partial class AINavigator3D : NavigationAgent3D
         foreach (var target in targets)
         {
             // Use the NavigationServer directly for a synchronous path query.
-            Vector3[] path = NavigationServer3D.MapGetPath(map, _ownerAgent.GlobalPosition, target.GlobalPosition, optimize, _activeProfile.NavigationLayers);
+            Vector3[] path = NavigationServer3D.MapGetPath(map, _ownerAgent.GlobalPosition, target.GlobalPosition, optimize, _activeProfile?.NavigationLayers ?? 1);
 
             if (path.Length > 0)
             {
@@ -302,7 +302,7 @@ public partial class AINavigator3D : NavigationAgent3D
             if (cancellationToken.IsCancellationRequested) { return null; }
 
             //NavigationServer3D.QueryPath // TODO: look into using this instead
-            Vector3[] path = NavigationServer3D.MapGetPath(map, _ownerAgent.GlobalPosition, target.GlobalPosition, optimize, _activeProfile.NavigationLayers);
+            Vector3[] path = NavigationServer3D.MapGetPath(map, _ownerAgent.GlobalPosition, target.GlobalPosition, optimize, _activeProfile?.NavigationLayers ?? 1);
 
             if (path.Length > 0)
             {

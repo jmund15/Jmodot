@@ -40,14 +40,9 @@ public sealed partial class ArgmaxSynthesisStrategy3D : SteeringSynthesisStrateg
         }
 
         // Argmax over UNMASKED bins by effective score (>= 1 unmasked guaranteed after step 1).
-        int best = -1;
-        float bestScore = float.NegativeInfinity;
-        for (int i = 0; i < n; i++)
-        {
-            if (map.HardMask[i]) { continue; }
-            float s = map.EffectiveScore(i, DangerScale);
-            if (s > bestScore) { bestScore = s; best = i; }
-        }
+        // Shared with the debug recorder via SteeringContextMap so both rank bins identically.
+        int best = map.ArgmaxUnmasked(DangerScale);
+        float bestScore = map.EffectiveScore(best, DangerScale);
 
         // 3. Commitment: hold the committed bin unless a challenger clears committed*(1 + margin).
         int committed = state.CommittedBin;
