@@ -134,6 +134,30 @@ public static class NodeExts
         }
     }
 
+    /// <summary>
+    /// Orphan-safety net for self-freeing transients: after <paramref name="seconds"/>, if the
+    /// node is still valid and <paramref name="unless"/> (when supplied) does not report true,
+    /// queue-frees it. Pairs with — never replaces — the node's primary completion path (e.g. an
+    /// event-driven finish); this is the fallback for when that path never fires.
+    /// </summary>
+    public static void FreeAfterTimeout(this Node node, float seconds, Func<bool>? unless = null)
+    {
+        node.GetTree().CreateTimer(seconds).Timeout += () =>
+        {
+            if (!node.IsValid())
+            {
+                return;
+            }
+
+            if (unless != null && unless())
+            {
+                return;
+            }
+
+            node.QueueFree();
+        };
+    }
+
     #endregion
 
     #region SEARCH_EXTENSIONS

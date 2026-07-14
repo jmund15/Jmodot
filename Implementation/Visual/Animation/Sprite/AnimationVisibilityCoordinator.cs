@@ -27,9 +27,18 @@ public partial class AnimationVisibilityCoordinator : Node
         set { _autoRegisterNodes = value; UpdateConfigurationWarnings(); }
     }
     /// <summary>
-    /// MANUALLY Maps an Animation Name (Base or Full) to a list of Nodes that should be VISIBLE when that animation plays.
+    /// Maps an animation base name to the nodes that should be VISIBLE while that animation plays.
+    /// The key is the animation's BASE name WITHOUT any directional suffix (e.g. "spawn", not
+    /// "spawn_left"), matched case-insensitively — the coordinator lower-cases and strips the
+    /// directional suffix off the live animation name before lookup, exactly as it does for
+    /// auto-registered nodes. NodePaths resolve relative to this coordinator's PARENT (the same node
+    /// the auto-registered "Vis_"-prefixed children live under), so a sibling sprite is just its node
+    /// name (e.g. "Vis_Travel"). Entries merge ADDITIVELY with auto-registration: a node may be BOTH
+    /// auto-registered (via its "Vis_" name) and listed here under a different key, letting one body
+    /// sprite serve several animations (e.g. a projectile whose single sprite plays both "spawn" and
+    /// "travel") without a per-scene AutoRegisterNodes override. Manually-mapped nodes need no "Vis_"
+    /// prefix.
     /// </summary>
-    // TODO: implement manual map if needed
     [Export] public GCol.Dictionary<StringName, GCol.Array<NodePath>> ManualVisibilityMap { get; set; } = new();
 
     private string _nodePrefix = "Vis_";
@@ -132,6 +141,10 @@ public partial class AnimationVisibilityCoordinator : Node
             }
         }
 
+        // Resolved AFTER auto-registration so a dual auto+manual node is already in the managed set
+        // (and already force-hidden) — RegisterManualNode then only adds it to the extra key(s).
+        RegisterManualVisibilityMap();
+
         SetupAnimatorConnection();
     }
 
@@ -232,6 +245,80 @@ public partial class AnimationVisibilityCoordinator : Node
             SetNodeVisible(node, false);
             VisualNodesChanged.Invoke();
         }
+    }
+
+    /// <summary>
+    /// Resolves <see cref="ManualVisibilityMap"/> at ready-time, merging each entry's nodes into the
+    /// runtime caches additively. Paths resolve relative to the coordinator's parent. A node already
+    /// picked up by auto-registration keeps its existing registration and its already-applied initial
+    /// hide; a node reached ONLY through the manual map is added to the managed set and force-hidden
+    /// like any auto-registered node.
+    /// </summary>
+    private void RegisterManualVisibilityMap()
+    {
+        if (ManualVisibilityMap.Count == 0) { return; }
+
+        var parent = GetParent();
+        if (parent == null)
+        {
+            JmoLogger.Warning(this, "ManualVisibilityMap is set but the coordinator has no parent; skipping manual registration.");
+            return;
+        }
+
+        foreach (var (rawKey, paths) in ManualVisibilityMap)
+        {
+            StringName animKey = rawKey.ToString().ToLower();
+            foreach (var path in paths)
+            {
+                if (path == null || path.IsEmpty)
+                {
+                    JmoLogger.Warning(this, $"ManualVisibilityMap key '{rawKey}' has a null/empty NodePath; skipping entry.");
+                    continue;
+                }
+
+                var node = parent.GetNodeOrNull(path);
+                if (node == null)
+                {
+                    JmoLogger.Warning(this, $"ManualVisibilityMap key '{rawKey}' path '{path}' did not resolve to a node under '{parent.Name}'; skipping entry.");
+                    continue;
+                }
+
+                if (node is not CanvasItem && node is not Node3D)
+                {
+                    JmoLogger.Warning(this, $"ManualVisibilityMap key '{rawKey}' path '{path}' resolved to non-visual node '{node.Name}'; skipping entry.");
+                    continue;
+                }
+
+                RegisterManualNode(animKey, node);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds a manually-mapped node under <paramref name="animKey"/>. Additive: the node may already be
+    /// present under other keys. Only nodes not yet in the managed set get the initial force-hide, so a
+    /// dual auto+manual node is never re-hidden after auto-registration configured it.
+    /// </summary>
+    private void RegisterManualNode(StringName animKey, Node node)
+    {
+        bool alreadyManaged = _allManagedNodes.Contains(node);
+
+        if (!_visibilityCache.TryGetValue(animKey, out var nodes))
+        {
+            nodes = new List<Node>();
+            _visibilityCache[animKey] = nodes;
+        }
+
+        if (!nodes.Contains(node))
+        {
+            nodes.Add(node);
+        }
+
+        if (alreadyManaged) { return; }
+
+        _allManagedNodes.Add(node);
+        SetNodeVisible(node, false);
+        VisualNodesChanged.Invoke();
     }
 
     private void SetupAnimatorConnection()
@@ -397,14 +484,58 @@ public partial class AnimationVisibilityCoordinator : Node
                         }
                     }
 
+                    // Config-warning surface only (scene-dock triangle) — an ERROR log here fires
+                    // on every editor import for every scene with an intentionally-unused Vis_ node
+                    // (e.g. a template Vis_Hit with no hit clip authored yet).
                     if (!matchFound)
                     {
                         warnings.Add($"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
-                        JmoLogger.Error(this, $"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
+                    }
+                }
+            }
+        }
+
+        if (ManualVisibilityMap.Count > 0)
+        {
+            var manualParent = GetParent();
+            foreach (var (rawKey, paths) in ManualVisibilityMap)
+            {
+                string expectedKey = rawKey.ToString().ToLower();
+
+                if (availableAnims.Length > 0 && !ManualKeyMatchesAnyAnim(expectedKey, availableAnims))
+                {
+                    warnings.Add($"ManualVisibilityMap key '{rawKey}' expects animation base '{expectedKey}', but the target IAnimComponent has no matching animation.");
+                }
+
+                if (manualParent == null) { continue; }
+                foreach (var path in paths)
+                {
+                    if (path == null || path.IsEmpty || manualParent.GetNodeOrNull(path) == null)
+                    {
+                        warnings.Add($"ManualVisibilityMap key '{rawKey}' has an unresolvable NodePath '{path}'.");
                     }
                 }
             }
         }
         return warnings.ToArray();
+    }
+
+    /// <summary>
+    /// Matches a manual-map key (already lower-cased, suffix-free) against the animator's clip list,
+    /// applying the same lower-case + directional-suffix strip the auto-key check uses.
+    /// </summary>
+    private bool ManualKeyMatchesAnyAnim(string expectedKey, string[] availableAnims)
+    {
+        foreach (var anim in availableAnims)
+        {
+            string processedAnim = anim.ToLower();
+            if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
+            {
+                int idx = processedAnim.LastIndexOf(AnimNameSuffixSeparator);
+                if (idx > 0) { processedAnim = processedAnim.Substring(0, idx); }
+            }
+            if (processedAnim == expectedKey) { return true; }
+        }
+        return false;
     }
 }

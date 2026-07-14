@@ -75,7 +75,8 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
     #region Private State
     private HurtboxComponent2D? _selfHurtbox = null;
-    private readonly HashSet<HurtboxComponent2D> _hitHurtboxes = new();
+    // NOT readonly: UseSharedHitRegistry swaps in a group-shared set for cross-hitbox dedup.
+    private HashSet<HurtboxComponent2D> _hitHurtboxes = new();
     private double _tickTimer = 0.0;
 
     /// <summary>
@@ -153,6 +154,19 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     #endregion
 
     #region Public API
+
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.UseSharedHitRegistry"/>. Replaces the private per-instance
+    /// hit-debounce set with a SHARED registry so a GROUP of hitboxes deduplicates hits across the group:
+    /// at most one hit per target across every hitbox sharing the registry. Call BEFORE activation
+    /// (StartAttack clears the set on entry, so injecting the shared set into every group member and
+    /// activating them all in the same frame is safe).
+    /// </summary>
+    public void UseSharedHitRegistry(HashSet<HurtboxComponent2D> registry)
+    {
+        if (registry == null) { return; }
+        _hitHurtboxes = registry;
+    }
 
     public void StartAttack(IAttackPayload payload)
     {
