@@ -243,10 +243,24 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
             + "State machine may stall waiting for AnimFinished. Check the animation library or the state's AnimationName export.");
     }
 
+    /// <summary>
+    /// True if <see cref="UpdateAnim"/>/<see cref="StartAnim"/> would resolve a playable clip for
+    /// <paramref name="baseName"/> — i.e. the SAME <see cref="DirectionalClipResolver"/> three-tier
+    /// degradation the play path uses (exact directional → nearest directional → bare base name),
+    /// not just the exact directional name. A stricter gate here would report "no animation" for a
+    /// bare-named clip the play path would happily start, wrongly skipping it (e.g. a spell body's
+    /// "spawn" clip authored without directional variants).
+    /// </summary>
     public bool HasAnimationBase(StringName baseName)
     {
-        var checkName = CheckFinalName(baseName);
-        return HasAnimation(checkName);
+        return DirectionalClipResolver.Resolve(
+            HasAnimation,
+            baseName,
+            ActiveDirectionLabel(),
+            ActiveDirection(),
+            DirectionLabels,
+            DirectionSuffixSeparator,
+            SlotFallbackPolicy.NearestDirectional) != null;
     }
 
     private StringName CheckFinalName(StringName baseName)
