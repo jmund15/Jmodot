@@ -46,17 +46,6 @@ public class MovementProcessor2D : IMovementProcessor2D
     ///     which provides all necessary contextual information.
     /// </summary>
     public void ProcessMovement(IMovementStrategy2D strategy2D, Vector2 desiredDirection, float delta)
-        => ProcessMovement(strategy2D, desiredDirection, delta, 1f, 1f);
-
-    /// <summary>
-    ///     Movement update with a cast-phase speed scale + amplified friction.
-    ///     <paramref name="speedScale"/> scales the strategy's character-driven velocity (0..1 = slow
-    ///     walk); <paramref name="frictionMultiplier"/> (&gt;=1) bleeds extra velocity each tick so
-    ///     accumulated impulses (e.g. cast recoil) decay faster than free locomotion.
-    ///     <c>speedScale=1</c> + <c>frictionMultiplier=1</c> reproduces the base overload exactly.
-    /// </summary>
-    public void ProcessMovement(IMovementStrategy2D strategy2D, Vector2 desiredDirection, float delta,
-        float speedScale, float frictionMultiplier)
     {
         // --- 0. Pre-process Turn Rate (if strategy has a composable TurnProfile) ---
         var inputVelocity = this._controller.Velocity;
@@ -77,12 +66,6 @@ public class MovementProcessor2D : IMovementProcessor2D
             strategy2D.CalculateVelocity(
                 inputVelocity, desiredDirection, _previousDirection, _stats, delta);
 
-        // Cast-walk: scale the character-driven velocity (2D plane has no gravity axis to preserve).
-        if (speedScale != 1f)
-        {
-            characterVelocity *= speedScale;
-        }
-
         // Update previous direction from strategy output (reflects any turn rate clamping)
         if (!characterVelocity.IsZeroApprox()) { _previousDirection = characterVelocity.Normalized(); }
 
@@ -91,15 +74,6 @@ public class MovementProcessor2D : IMovementProcessor2D
         // --- 2. Apply Impulses (stored in velocity) ---
         _controller.AddVelocity(_frameImpulses);
         _frameImpulses = Vector2.Zero;
-
-        // --- 2b. Amplified friction: bleed extra velocity so folded-in impulses (cast recoil) decay
-        // faster than free locomotion. No-op at multiplier <= 1; bleed clamped to [0,1] so a large
-        // multiplier*delta can't flip velocity sign.
-        if (frictionMultiplier > 1f)
-        {
-            var bleed = Mathf.Clamp((frictionMultiplier - 1f) * delta, 0f, 1f);
-            _controller.SetVelocity(_controller.Velocity * (1f - bleed));
-        }
 
         // --- 3. Apply External Forces (stored - will be affected by friction next frame) ---
         ApplyExternalForces(delta);
