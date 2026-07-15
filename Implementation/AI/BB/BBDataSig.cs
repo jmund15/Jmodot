@@ -123,6 +123,13 @@ public static partial class BBDataSig
     /// </summary>
     public static readonly StringName VelocityGatedPayload = new("VelocityGatedPayload");
 
+    /// <summary>
+    /// Component resolving an aim direction to the caster's hand-ring world position —
+    /// the default spell spawn origin. Published by casters whose hand visual rides an
+    /// aim ring; absent on casters without one (they fall back to node position).
+    /// </summary>
+    public static readonly StringName AimRingPositioner = new("AimRingPositioner");
+
     #endregion
 
     #region FORMATION_PROPERTIES
