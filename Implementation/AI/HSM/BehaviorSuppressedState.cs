@@ -63,6 +63,14 @@ public partial class BehaviorSuppressedState : State
     /// </summary>
     [Export] public BehaviorAlterationProfile? DefaultProfile { get; set; }
 
+    /// <summary>
+    /// Shared, project-authored tag→profile defaults. Consulted only when the active
+    /// trigger tag has NO entry in this entity's own <see cref="ProfileMap"/>, so a new
+    /// suppressing status can be added for every entity at once via a single data edit
+    /// on the shared set rather than a per-entity ProfileMap entry.
+    /// </summary>
+    [Export] public SuppressionProfileSet? SharedDefaults { get; set; }
+
     private BehaviorAlterationProfile? _activeProfile;
     private bool _movementOverridePushed;
     private IMovementProcessor3D? _pushedProcessor;
@@ -117,7 +125,23 @@ public partial class BehaviorSuppressedState : State
         {
             if (kvp.Key != null && statusComp.HasTag(kvp.Key))
             {
+                // Per-entity author intent wins first — including an explicit null value,
+                // which deliberately resolves to DefaultProfile, NOT the shared set.
                 return kvp.Value ?? DefaultProfile;
+            }
+        }
+
+        // No per-entity ProfileMap entry for the active tag — consult the shared
+        // tag→profile defaults so a new suppressing status is one edit on the shared
+        // set instead of a per-entity ProfileMap addition on every entity.
+        if (SharedDefaults != null)
+        {
+            foreach (var kvp in SharedDefaults.Defaults)
+            {
+                if (kvp.Key != null && statusComp.HasTag(kvp.Key))
+                {
+                    return kvp.Value ?? DefaultProfile;
+                }
             }
         }
 
