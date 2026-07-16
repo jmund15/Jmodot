@@ -9,6 +9,7 @@ using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Identification;
 using Jmodot.Implementation.Combat.Status;
+using GCol = Godot.Collections;
 
 namespace Jmodot.Implementation.Combat;
 
@@ -44,6 +45,12 @@ public partial class StatusEffectComponent : Node, IComponent
     /// If null, no category interactions are processed.
     /// </summary>
     [Export] public CategoryInteractionRegistry? InteractionRegistry { get; set; }
+
+    /// <summary>
+    /// Categories this entity is immune to. An incoming runner whose tags are-or-descend-from any
+    /// of these is rejected at acceptance (before stack policies). Empty = accept everything.
+    /// </summary>
+    [Export] public GCol.Array<Category> ImmuneCategories { get; set; } = new();
 
     #endregion
 
@@ -106,6 +113,15 @@ public partial class StatusEffectComponent : Node, IComponent
     {
         if (!IsInitialized)
         {
+            return false;
+        }
+
+        // Immunity gate (before stack policies): reject a runner whose any tag is-or-descends-from
+        // any immune category. Generic — the consuming game wires the categories (e.g. freeze).
+        if (ImmuneCategories.Count > 0 && runner.Tags.Any(t => t != null &&
+            ImmuneCategories.Any(c => c != null && t.IsOrDescendsFrom(c))))
+        {
+            JmoLogger.Info(this, $"[Status] Rejected by immunity: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
             return false;
         }
 
