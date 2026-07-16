@@ -335,7 +335,9 @@ public partial class StatusEffectComponent : Node, IComponent
     /// </summary>
     private bool ProcessCategoryInteractions(StatusRunner incomingRunner)
     {
-        if (InteractionRegistry == null)
+        // Per-entity export wins; fall back to the project-wide seam (wired from the consuming game's autoload).
+        var registry = InteractionRegistry ?? StatusDefaults.InteractionRegistry;
+        if (registry == null)
         {
             return true;
         }
@@ -364,7 +366,7 @@ public partial class StatusEffectComponent : Node, IComponent
                         continue;
                     }
 
-                    var interaction = InteractionRegistry.GetInteraction(incomingTag, activeTag);
+                    var interaction = registry.GetInteraction(incomingTag, activeTag);
                     if (interaction == null)
                     {
                         continue;
