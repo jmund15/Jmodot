@@ -185,4 +185,28 @@ public static class JmoMath
         return Mathf.Atan2(-planarAim.Y * depthForeshorten, planarAim.X)
             + Mathf.DegToRad(artBaseAngleOffsetDegrees);
     }
+
+    /// <summary>
+    /// Single source of truth for the horizontal-mirror convention shared by the wizard's
+    /// <c>FacingFlipController</c> and the spell facing stack: whether single-direction art authored
+    /// facing <paramref name="artFacesRight"/> should be H-mirrored to match an aim whose horizontal
+    /// (screen-X) component is <paramref name="dirX"/>. Returns <c>null</c> when the aim is ~pure-vertical
+    /// (|dirX| &lt; <paramref name="epsilon"/>), signalling the caller to HOLD its current mirror rather
+    /// than thrash it straight up/down. Orthogonal to <see cref="MirroredInPlaneRotation"/>: decide the
+    /// mirror here, then ask that for the matching rotation.
+    /// </summary>
+    public static bool? ShouldMirrorHorizontal(float dirX, bool artFacesRight, float epsilon = 0.01f)
+        => Mathf.Abs(dirX) < epsilon ? null : (dirX < 0f) == artFacesRight;
+
+    /// <summary>
+    /// In-plane rotation (radians) for single-direction art that rotates to face travel while being
+    /// H-mirrored. When <paramref name="flip"/> is false this is <paramref name="baseAngle"/> unchanged;
+    /// when true it is <c>baseAngle − π</c>, because mirroring negates the sprite's local X and
+    /// <c>reflect∘rotate(baseAngle − π)</c> lands the nose back on the travel direction with the art's
+    /// top kept in the upper screen half. The <paramref name="flip"/> dependency is geometric, not a
+    /// coupling smell — the rotation and the mirror are applied to independent sprite channels (node
+    /// basis vs FlipH); only the rotation VALUE must account for the mirror.
+    /// </summary>
+    public static float MirroredInPlaneRotation(float baseAngle, bool flip)
+        => flip ? baseAngle - Mathf.Pi : baseAngle;
 }

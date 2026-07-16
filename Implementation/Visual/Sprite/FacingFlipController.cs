@@ -60,9 +60,10 @@ public partial class FacingFlipController : Node
         bool isBaseClip = resolvedName == request.BaseName;
         if (isBaseClip)
         {
-            float x = request.Direction.X;
-            if (Mathf.Abs(x) < 0.01f) { return; }
-            ApplyToAnimatorSlot(animator, (x < 0f) == ArtFacesRight);
+            // Shared mirror convention (single source in JmoMath): null == pure-vertical → hold current.
+            var mirror = JmoMath.ShouldMirrorHorizontal(request.Direction.X, ArtFacesRight);
+            if (mirror == null) { return; }
+            ApplyToAnimatorSlot(animator, mirror.Value);
             return;
         }
 
