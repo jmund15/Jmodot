@@ -159,12 +159,18 @@ public static class JmoMath
     /// <param name="worldDir">World-space direction (need not be normalized).</param>
     /// <param name="artBaseAngleOffsetDegrees">Degrees added when the art's neutral heading isn't +X.</param>
     /// <param name="includeVertical">Fold the vertical (Y) component into the depth axis (gravity dip).</param>
-    public static float? IsoPlaneFacingAngle(Vector3 worldDir, float artBaseAngleOffsetDegrees, bool includeVertical)
+    /// <param name="depthForeshorten">
+    /// Screen foreshortening of the depth axis relative to horizontal (= sin(camera pitch)); the depth
+    /// term is scaled by it so the facing matches the on-screen travel angle under a tilted ortho camera.
+    /// <c>1f</c> = no foreshortening (top-down). Supply <c>VisualProjectionDefaults.DepthForeshorten</c>.
+    /// </param>
+    public static float? IsoPlaneFacingAngle(Vector3 worldDir, float artBaseAngleOffsetDegrees,
+        bool includeVertical, float depthForeshorten = 1f)
     {
         float xl = worldDir.X;
-        float zl = worldDir.Z - (includeVertical ? worldDir.Y : 0f);
-        if (Mathf.IsZeroApprox(xl) && Mathf.IsZeroApprox(zl)) { return null; }
-        return Mathf.Atan2(-zl, xl) + Mathf.DegToRad(artBaseAngleOffsetDegrees);
+        float depth = worldDir.Z - (includeVertical ? worldDir.Y : 0f);
+        if (Mathf.IsZeroApprox(xl) && Mathf.IsZeroApprox(depth)) { return null; }
+        return Mathf.Atan2(-depth * depthForeshorten, xl) + Mathf.DegToRad(artBaseAngleOffsetDegrees);
     }
 
     /// <summary>
@@ -172,9 +178,11 @@ public static class JmoMath
     /// Y screen-depth (e.g. a right-stick aim). Equivalent to the <see cref="IsoPlaneFacingAngle(Vector3, float, bool)"/>
     /// world form with the aim lifted to (X, 0, Y) and no vertical fold. Returns <c>null</c> on a zero aim.
     /// </summary>
-    public static float? IsoPlaneFacingAngle(Vector2 planarAim, float artBaseAngleOffsetDegrees)
+    public static float? IsoPlaneFacingAngle(Vector2 planarAim, float artBaseAngleOffsetDegrees,
+        float depthForeshorten = 1f)
     {
         if (Mathf.IsZeroApprox(planarAim.X) && Mathf.IsZeroApprox(planarAim.Y)) { return null; }
-        return Mathf.Atan2(-planarAim.Y, planarAim.X) + Mathf.DegToRad(artBaseAngleOffsetDegrees);
+        return Mathf.Atan2(-planarAim.Y * depthForeshorten, planarAim.X)
+            + Mathf.DegToRad(artBaseAngleOffsetDegrees);
     }
 }
