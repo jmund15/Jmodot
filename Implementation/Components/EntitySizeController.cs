@@ -148,6 +148,12 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     // --- Runtime Scale Multiplier ---
 
     /// <summary>
+    /// Current runtime scale multiplier (composes with the stat-driven base size). Read by
+    /// external visuals that must scale in lockstep with the entity (e.g. status overlays).
+    /// </summary>
+    public float RuntimeScaleMultiplier => _runtimeScaleMultiplier;
+
+    /// <summary>
     /// Sets a runtime scale multiplier that composes with the stat-driven base size.
     /// Used by external systems (e.g., health-driven scaling) without modifying the stat.
     /// Final size = statSize × runtimeScaleMultiplier, clamped to [MinSize, MaxSize].
