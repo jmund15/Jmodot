@@ -23,6 +23,14 @@ public partial class ImpactDetector : Node, IPoolResetable
     [Export(PropertyHint.Range, "0.1,100,0.1")]
     public float MinImpactSpeed { get; set; } = 6f;
 
+    /// <summary>
+    /// Physics-process priority. The detector reads slide collisions produced by the LAST
+    /// <c>MoveAndSlide</c>, so it must run AFTER the movement pump within the same physics
+    /// frame — a higher priority runs later (Godot 4.3+). Default sits above the priority-0
+    /// movement pumps.
+    /// </summary>
+    [Export] private int _physicsPriority = 10;
+
     public event Action<ImpactInfo> Impacted = delegate { };
 
     private ICharacterController3D? _controller;
@@ -58,6 +66,12 @@ public partial class ImpactDetector : Node, IPoolResetable
     {
         _inContactLastFrame.Clear();
         _newContactsThisFrame.Clear();
+    }
+
+    public override void _Ready()
+    {
+        // Runs-after-movement ordering contract (see _physicsPriority).
+        ProcessPhysicsPriority = _physicsPriority;
     }
 
     public override void _PhysicsProcess(double delta)
