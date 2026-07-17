@@ -54,6 +54,31 @@ public partial class Identity : Resource
         return null;
     }
 
+    /// <summary>
+    /// Returns a NEW <see cref="Identity"/> carrying this identity's name and a FRESH
+    /// <see cref="Categories"/> array containing this identity's categories plus <paramref name="extra"/>.
+    /// The <see cref="Category"/> elements are shared (they are immutable, value-equal atoms), so the
+    /// clone is safe to mutate at the array level without touching the template. Use this for
+    /// per-instance identity stamping (e.g. a summoner's faction on a summoned entity) instead of
+    /// <c>Resource.Duplicate()</c>, whose container-sharing semantics are version-fragile.
+    /// </summary>
+    /// <param name="extra">Additional categories to append; null or empty is tolerated.</param>
+    public Identity CloneWithCategories(System.Collections.Generic.IEnumerable<Category>? extra)
+    {
+        var clone = new Identity { IdentityName = this.IdentityName };
+        var newCategories = new Array<Category>();
+        if (this.Categories != null)
+        {
+            foreach (var c in this.Categories) { newCategories.Add(c); }
+        }
+        if (extra != null)
+        {
+            foreach (var c in extra) { newCategories.Add(c); }
+        }
+        clone.Categories = newCategories;
+        return clone;
+    }
+
     #region Test Helpers
 
     /// <summary>Sets IdentityName for testing purposes.</summary>
