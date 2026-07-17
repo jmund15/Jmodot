@@ -196,7 +196,9 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     #region IDurationRefreshable Implementation
 
     /// <inheritdoc />
-    public void RefreshDuration(StatusRunner source)
+    /// <remarks>Virtual so subclasses can rescale the refreshed duration (the incoming runner has
+    /// never started, so its Duration carries no target-side scaling).</remarks>
+    public virtual void RefreshDuration(StatusRunner source)
     {
         if (source is TickStatusRunner tickSource)
         {
