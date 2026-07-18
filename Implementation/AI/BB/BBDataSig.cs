@@ -124,6 +124,17 @@ public static partial class BBDataSig
 
     #endregion
 
+    #region SQUAD_PROPERTIES
+
+    /// <summary>
+    /// The squad's current directive (a <c>SquadDirectiveDefinition</c>), published on the squad
+    /// blackboard graph by <c>SquadDirectiveBrain</c>. Members read it via <c>TryGetUp</c>; HSM
+    /// conditions match it hierarchically. Stored directly (no wrapper) — a Category-derived Resource.
+    /// </summary>
+    public static readonly StringName SquadDirective = new("SquadDirective");
+
+    #endregion
+
     #region FORMATION_PROPERTIES
 
     /// <summary>
