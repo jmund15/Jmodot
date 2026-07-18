@@ -8,8 +8,8 @@ using Shared;
 
 /// <summary>
 /// Debug visualization component for squad formations.
-/// Attach as a child of SquadManager to visualize slot positions and member assignments.
-/// Uses DebugDraw3D for runtime visualization.
+/// Attach as a child of the squad stack (alongside the SquadRoster) to visualize slot positions and
+/// member assignments. Uses DebugDraw3D for runtime visualization.
 /// </summary>
 [GlobalClass]
 public partial class DebugFormationComponent : Node
@@ -63,11 +63,11 @@ public partial class DebugFormationComponent : Node
     [ExportGroup("References")]
 
     /// <summary>
-    /// Optional direct reference to the SquadManager.
-    /// If not set, will try to find parent SquadManager.
+    /// Optional direct reference to the SquadRoster.
+    /// If not set, will try to find the parent SquadRoster.
     /// </summary>
     [Export]
-    private SquadManager? _squadManager;
+    private SquadRoster? _roster;
 
     #endregion
 
@@ -75,20 +75,20 @@ public partial class DebugFormationComponent : Node
 
     public override void _Ready()
     {
-        // Try to find SquadManager if not explicitly set
-        if (_squadManager == null)
+        // Try to find the SquadRoster if not explicitly set
+        if (_roster == null)
         {
-            _squadManager = GetParentOrNull<SquadManager>();
+            _roster = GetParentOrNull<SquadRoster>();
         }
 
-        if (_squadManager == null)
+        if (_roster == null)
         {
-            JmoLogger.Warning(this, "DebugFormationComponent: No SquadManager found. Attach as child of SquadManager or set reference manually.");
+            JmoLogger.Warning(this, "DebugFormationComponent: No SquadRoster found. Attach as a child of the squad stack or set the reference manually.");
             return;
         }
 
-        // Try to get the squad blackboard
-        _squadBlackboard = _squadManager.GetFirstChildOfInterface<IBlackboard>();
+        // Resolve the squad blackboard from the roster's squad graph (null-tolerant).
+        _squadBlackboard = _roster.SquadGraph?.Local;
     }
 
     public override void _Process(double delta)
@@ -126,7 +126,7 @@ public partial class DebugFormationComponent : Node
         var occupiedSlots = new HashSet<int>();
 
         // Draw connections from members to their slots
-        if (_squadManager != null)
+        if (_roster != null)
         {
             DrawMemberConnections(slotPositions, occupiedSlots);
         }
@@ -166,17 +166,20 @@ public partial class DebugFormationComponent : Node
     /// </summary>
     private void DrawMemberConnections(Dictionary<int, Vector3> slotPositions, HashSet<int> occupiedSlots)
     {
-        // Access members through reflection or exposed property if available
-        // For now, iterate through children of squad manager looking for agents with blackboards
-        foreach (var child in GetTree().GetNodesInGroup("SquadMembers"))
+        if (_roster == null)
         {
-            if (child is not Node3D member3D)
+            return;
+        }
+
+        foreach (var member3D in _roster.Members)
+        {
+            if (!GodotObject.IsInstanceValid(member3D))
             {
                 continue;
             }
 
-            // Try to get the member's blackboard
-            var memberBB = member3D.GetFirstChildOfInterface<IBlackboard>();
+            // Read the member's slot assignment from its own blackboard graph.
+            var memberBB = member3D.GetGraph()?.Local;
             if (memberBB == null)
             {
                 continue;

@@ -88,14 +88,6 @@ public static partial class BBDataSig
 
     #endregion
 
-    #region SQUAD_PROPERTIES
-
-    public static readonly StringName ActiveSquadTag = new("ActiveSquadTag");
-    public static readonly StringName HasSquadTag = new("HasSquadTag");
-    public static readonly StringName SquadAverageHealth = new("SquadAverageHealth");
-
-    #endregion
-
     #region SPELL_PROPERTIES
 
     /// <summary>

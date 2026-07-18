@@ -10,6 +10,7 @@ using Godot;
 /// - Slot 0 is conventionally the leader position
 /// </summary>
 [GlobalClass]
+[Tool]
 public partial class FormationDefinition : Resource
 {
     /// <summary>
