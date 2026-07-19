@@ -3,6 +3,7 @@ using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Status;
 using Jmodot.Core.Visual.Effects;
+using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat.Status;
 
@@ -196,18 +197,54 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     #region IDurationRefreshable Implementation
 
     /// <inheritdoc />
-    /// <remarks>Virtual so subclasses can rescale the refreshed duration (the incoming runner has
-    /// never started, so its Duration carries no target-side scaling).</remarks>
+    /// <remarks>
+    /// <para>Virtual so subclasses can rescale the refreshed duration (the incoming runner has
+    /// never started, so its Duration carries no target-side scaling).</para>
+    /// <para>
+    /// OVERRIDE CONTRACT: the refresh is conditional even though <see cref="IDurationRefreshable"/>
+    /// does not say so — only a source that carries a duration concept may drive
+    /// <see cref="SetDuration"/>. An override MUST route through
+    /// <see cref="TryGetSourceDuration"/> (or reproduce it exactly) and MUST leave the current
+    /// duration untouched when it returns false; silently extending on an unhandled source shape
+    /// is a behavior change, not a rescale. Overrides are expected to transform the resolved
+    /// duration, not to change which sources are honored.
+    /// </para>
+    /// </remarks>
     public virtual void RefreshDuration(StatusRunner source)
+    {
+        if (TryGetSourceDuration(source, out var duration))
+        {
+            SetDuration(duration);
+        }
+        else
+        {
+            // The caller (StatusEffectComponent.RefreshOldestMatchingRunner → AddStatus) reports
+            // success regardless, so an unhandled shape silently drops the incoming status.
+            JmoLogger.Warning(this, $"[Status] RefreshDuration ignored source without a duration concept: {source?.GetType().Name ?? "null"}");
+        }
+    }
+
+    /// <summary>
+    /// Resolves the duration carried by a refresh source. Returns false when the source carries
+    /// no duration concept — callers, including <see cref="RefreshDuration"/> overrides, must then
+    /// leave the current duration untouched.
+    /// </summary>
+    protected static bool TryGetSourceDuration(StatusRunner source, out float duration)
     {
         if (source is TickStatusRunner tickSource)
         {
-            SetDuration(tickSource.Duration);
+            duration = tickSource.Duration;
+            return true;
         }
-        else if (source is DurationStatusRunner durationSource)
+
+        if (source is DurationStatusRunner durationSource)
         {
-            SetDuration(durationSource.Duration);
+            duration = durationSource.Duration;
+            return true;
         }
+
+        duration = 0f;
+        return false;
     }
 
     #endregion

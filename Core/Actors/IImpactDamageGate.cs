@@ -6,8 +6,8 @@ using Jmodot.Implementation.Actors;
 /// Capability query a sibling component exposes to veto force-driven impact damage for a
 /// single <see cref="ImpactInfo"/>. <see cref="ForceImpactDamageApplier"/> resolves all
 /// gate siblings at init and skips both damage and velocity-loss when any gate denies.
-/// Generic — carries no project-specific semantics (a frozen-body component, an
-/// invulnerability window, etc. all implement it the same way).
+/// Generic — carries no project-specific semantics (an invulnerability window, a
+/// damage-absorption shield, a phased/intangible state, etc. all implement it the same way).
 /// </summary>
 public interface IImpactDamageGate
 {

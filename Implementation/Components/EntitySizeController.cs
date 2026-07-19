@@ -74,6 +74,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     private List<ScalableShapeEntry> _scalableShapes = new();
     private Vector3 _baseVisualScale = Vector3.One;
     private float _runtimeScaleMultiplier = 1f;
+    private float _appliedScale = 1f;
 
     /// <summary>
     /// Represents a collision shape and its cached base scale for efficient scaling operations.
@@ -148,10 +149,21 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     // --- Runtime Scale Multiplier ---
 
     /// <summary>
-    /// Current runtime scale multiplier (composes with the stat-driven base size). Read by
-    /// external visuals that must scale in lockstep with the entity (e.g. status overlays).
+    /// Current runtime scale multiplier — ONE factor of the composed size, pre-clamp. Useful for
+    /// inspecting or re-applying the runtime factor itself. NOT the value to scale an external
+    /// visual by: it excludes the stat-driven base size and the [MinSize, MaxSize] clamp, so a
+    /// consumer multiplying its own base by this diverges silently whenever the product clamps or
+    /// the size stat is not 1.0. Use <see cref="AppliedScale"/> for lockstep scaling.
     /// </summary>
     public float RuntimeScaleMultiplier => _runtimeScaleMultiplier;
+
+    /// <summary>
+    /// The composed, post-clamp scale factor actually written to the collision shapes and the
+    /// visual root on the last <c>ApplyScale</c> — statSize × runtimeScaleMultiplier, clamped to
+    /// [MinSize, MaxSize]. This is the value external visuals (status overlays, attached VFX) must
+    /// multiply their own base scale by to stay in lockstep with the entity.
+    /// </summary>
+    public float AppliedScale => _appliedScale;
 
     /// <summary>
     /// Sets a runtime scale multiplier that composes with the stat-driven base size.
@@ -184,6 +196,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     {
         var clampedSize = SizeScalingUtils.ClampSize(
             sizeMultiplier * _runtimeScaleMultiplier, MinSize, MaxSize);
+        _appliedScale = clampedSize;
 
         // Scale all discovered collision shapes (skip invalid/dying shapes as defense-in-depth)
         foreach (var entry in _scalableShapes)

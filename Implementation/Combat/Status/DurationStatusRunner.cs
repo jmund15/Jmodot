@@ -134,6 +134,12 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
     #region IDurationRefreshable Implementation
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The refresh is conditional even though <see cref="IDurationRefreshable"/> does not say so:
+    /// only a <see cref="DurationStatusRunner"/> source carries a duration this runner can adopt.
+    /// Any other shape leaves the current duration untouched — note this is narrower than
+    /// <c>TickStatusRunner.RefreshDuration</c>, which also accepts a tick source.
+    /// </remarks>
     public void RefreshDuration(StatusRunner source)
     {
         if (source is DurationStatusRunner durationSource)

@@ -117,9 +117,10 @@ public partial class StatusEffectComponent : Node, IComponent
         }
 
         // Immunity gate (before stack policies): reject a runner whose any tag is-or-descends-from
-        // any immune category. Generic — the consuming game wires the categories (e.g. freeze).
-        if (ImmuneCategories.Count > 0 && runner.Tags.Any(t => t != null &&
-            ImmuneCategories.Any(c => c != null && t.IsOrDescendsFrom(c))))
+        // any immune category. Generic — the consuming game wires the categories
+        // (e.g. an invulnerability window, or a phased/intangible state).
+        if (ImmuneCategories is { Count: > 0 } immune && runner.Tags.Any(t => t != null &&
+            immune.Any(c => c != null && t.IsOrDescendsFrom(c))))
         {
             JmoLogger.Info(this, $"[Status] Rejected by immunity: {string.Join(", ", runner.Tags.Select(t => t?.TagId ?? "null"))}");
             return false;

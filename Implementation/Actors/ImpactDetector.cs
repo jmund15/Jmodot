@@ -16,6 +16,15 @@ using Implementation.AI.BB;
 /// query <see cref="ImpactInfo"/>'s normal-math helpers (geometry) or the project
 /// Category system on <see cref="ImpactInfo.Collider"/> (identity).
 /// </summary>
+/// <remarks>
+/// ORDERING CONTRACT: detection reads the slide collisions left behind by the movement
+/// pump's <c>MoveAndSlide</c>, so this node's <c>_PhysicsProcess</c> must run AFTER the
+/// movement pump in the same physics frame. Godot 4.3+ runs HIGHER
+/// <c>ProcessPhysicsPriority</c> later, and the movement pumps sit at the default 0, so
+/// <see cref="_physicsPriority"/> defaults to 10 to land safely after them. A scene that
+/// explicitly authors a non-zero <c>ProcessPhysicsPriority</c> wins — the export is only
+/// the fallback, so an author who has reasoned about frame ordering is never clobbered.
+/// </remarks>
 [GlobalClass]
 public partial class ImpactDetector : Node, IPoolResetable
 {
@@ -70,8 +79,13 @@ public partial class ImpactDetector : Node, IPoolResetable
 
     public override void _Ready()
     {
-        // Runs-after-movement ordering contract (see _physicsPriority).
-        ProcessPhysicsPriority = _physicsPriority;
+        // Runs-after-movement ordering contract (see class remarks). Only supply the
+        // fallback — a scene-authored non-zero value is a deliberate ordering decision.
+        if (ProcessPhysicsPriority == 0)
+        {
+            ProcessPhysicsPriority = _physicsPriority;
+        }
+        base._Ready();
     }
 
     public override void _PhysicsProcess(double delta)

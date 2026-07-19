@@ -134,7 +134,7 @@ public partial class BehaviorSuppressedState : State
         // No per-entity ProfileMap entry for the active tag — consult the shared
         // tag→profile defaults so a new suppressing status is one edit on the shared
         // set instead of a per-entity ProfileMap addition on every entity.
-        if (SharedDefaults != null)
+        if (SharedDefaults?.Defaults != null)
         {
             foreach (var kvp in SharedDefaults.Defaults)
             {

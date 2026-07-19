@@ -105,9 +105,11 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         bb.TryGet<CombatLog>(BBDataSig.CombatLog, out _combatLog);
         bb.TryGet<ExternalForceReceiver3D>(BBDataSig.ExternalForceReceiver, out _forceReceiver);
 
-        // Capability gates (invulnerability, frozen-body absorption, …) veto impact damage
-        // per-impact. Re-resolved on every Initialize to honor the pool-reuse/rebind contract.
-        _gates = self.GetChildrenOfInterface<IImpactDamageGate>().ToList();
+        // Capability gates (invulnerability window, damage-absorption shield, …) veto impact
+        // damage per-impact. Direct siblings only — a gate is a peer component, not something
+        // inherited from a nested subtree. Re-resolved on every Initialize to honor the
+        // pool-reuse/rebind contract.
+        _gates = self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: false).ToList();
 
         _detector.Impacted += OnImpacted;
     }
