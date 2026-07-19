@@ -15,11 +15,17 @@ using Core.Shared.Attributes;
 [GlobalClass]
 public partial class SquadDirectiveBrain : Node
 {
+    /// <summary>The roster this brain reads squad state from. Required — assign the sibling SquadRoster.</summary>
     [Export, RequiredExport] private SquadRoster _roster = null!;
+
+    /// <summary>Ordered policy chain. The first non-null result wins; an all-abstain chain retains the current directive, so a chain of only threshold policies is a one-way latch.</summary>
     [Export] private Godot.Collections.Array<SquadPolicy> _policies = new();
 
+    /// <summary>Seconds between policy-chain evaluations. Lower = more responsive, more per-frame cost.</summary>
     [ExportGroup("Evaluation")]
     [Export(PropertyHint.Range, "0.05,10.0,0.05")] private float _evaluateIntervalSeconds = 0.5f;
+
+    /// <summary>Minimum seconds a directive must hold before it may be replaced. Flap protection — raise it if the squad oscillates between directives.</summary>
     [Export(PropertyHint.Range, "0.0,30.0,0.1")] private float _minDirectiveHoldSeconds = 1.0f;
 
     private float _intervalAccumulator;

@@ -16,6 +16,7 @@ using Shared;
 [GlobalClass]
 public partial class SquadRoster : Node
 {
+    /// <summary>When true, a member that reports death via IHealth is removed from the roster automatically. Disable to keep downed members enrolled (e.g. revive mechanics).</summary>
     [Export] private bool _removeMembersOnDeath = true;
 
     private readonly List<Node3D> _members = new();

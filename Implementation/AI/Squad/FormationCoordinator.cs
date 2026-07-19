@@ -18,8 +18,13 @@ using Shared;
 [GlobalClass]
 public partial class FormationCoordinator : Node
 {
+    /// <summary>The roster whose membership drives this coordinator. Required — assign the sibling SquadRoster.</summary>
     [Export, RequiredExport] private SquadRoster _roster = null!;
+
+    /// <summary>Formation applied automatically at _Ready. Leave null to stay inert until a caller invokes SetFormation.</summary>
     [Export] private FormationDefinition? _defaultFormation;
+
+    /// <summary>How the formation is anchored (Leader/Centroid/Static). Applies to the default formation and to SetFormation calls that pass it through.</summary>
     [Export] private FormationAnchorMode _anchorMode = FormationAnchorMode.Leader;
 
     private FormationDefinition? _currentFormation;

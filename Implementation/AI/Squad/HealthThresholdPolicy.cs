@@ -12,9 +12,11 @@ using Core.Shared.Attributes;
 [GlobalClass, Tool]
 public partial class HealthThresholdPolicy : SquadPolicy
 {
+    /// <summary>Mean squad health fraction below which this policy fires. At or above it, the policy abstains and the next policy in the chain is consulted.</summary>
     [Export(PropertyHint.Range, "0.0,1.0,0.05")]
     private float _belowFraction = 0.25f;
 
+    /// <summary>Directive prescribed while the squad is below the threshold. Required — a chain with no always-fires tail policy never leaves this directive once entered.</summary>
     [Export, RequiredExport]
     private SquadDirectiveDefinition _directiveWhenBelow = null!;
 
