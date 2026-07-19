@@ -18,10 +18,22 @@ public partial class HealthThresholdPolicy : SquadPolicy
     [Export, RequiredExport]
     private SquadDirectiveDefinition _directiveWhenBelow = null!;
 
+    // Validation-latch: idempotent one-time-per-instance flag, not cross-squad state — see the
+    // authoring-guard carve-out in StatelessStrategyAuthoringGuardTest.
+    [System.NonSerialized] private bool _validated;
+
     public override SquadDirectiveDefinition? Evaluate(in SquadSnapshot snapshot)
     {
-        // Resources have no _Ready — fail fast at entry on a mis-authored / cloned .tres.
-        this.ValidateRequiredExports();
+        // Resources have no _Ready — fail fast at entry on a mis-authored / cloned .tres. Only
+        // needs to run once per instance: the export values don't change at runtime, so a pass on
+        // the first Evaluate() is valid for every subsequent one (including from other squads
+        // sharing this instance).
+        if (!_validated)
+        {
+            this.ValidateRequiredExports();
+            _validated = true;
+        }
+
         return snapshot.AverageHealthFraction < _belowFraction ? _directiveWhenBelow : null;
     }
 }

@@ -73,6 +73,9 @@ public partial class DebugFormationComponent : Node
 
     private IBlackboard? _squadBlackboard;
 
+    /// <summary>Reused across frames to avoid a per-<see cref="_Process"/> allocation; cleared before each draw.</summary>
+    private readonly HashSet<int> _occupiedSlots = new();
+
     public override void _Ready()
     {
         // Try to find the SquadRoster if not explicitly set
@@ -123,12 +126,12 @@ public partial class DebugFormationComponent : Node
         _squadBlackboard.TryGet<Node3D>(BBDataSig.FormationLeader, out var leader);
 
         // Track which slots are occupied
-        var occupiedSlots = new HashSet<int>();
+        _occupiedSlots.Clear();
 
         // Draw connections from members to their slots
         if (_roster != null)
         {
-            DrawMemberConnections(slotPositions, occupiedSlots);
+            DrawMemberConnections(slotPositions, _occupiedSlots);
         }
 
         // Draw slot positions
@@ -144,7 +147,7 @@ public partial class DebugFormationComponent : Node
             {
                 slotColor = _leaderSlotColor;
             }
-            else if (occupiedSlots.Contains(slotIndex))
+            else if (_occupiedSlots.Contains(slotIndex))
             {
                 slotColor = _occupiedSlotColor;
             }
@@ -171,19 +174,19 @@ public partial class DebugFormationComponent : Node
             return;
         }
 
-        foreach (var member3D in _roster.Members)
+        var members = _roster.Members;
+        var graphs = _roster.MemberGraphs;
+        for (int i = 0; i < members.Count && i < graphs.Count; i++)
         {
+            var member3D = members[i];
             if (!GodotObject.IsInstanceValid(member3D))
             {
                 continue;
             }
 
-            // Read the member's slot assignment from its own blackboard graph.
-            var memberBB = member3D.GetGraph()?.Local;
-            if (memberBB == null)
-            {
-                continue;
-            }
+            // Read the member's slot assignment via the roster's index-aligned graph list — avoids
+            // a per-frame child-tree traversal (member3D.GetGraph()) for every member every frame.
+            var memberBB = graphs[i].Local;
 
             // Get their assigned slot
             if (!memberBB.TryGet<int>(BBDataSig.FormationSlotIndex, out var slotIndex) || slotIndex < 0)

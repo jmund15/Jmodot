@@ -17,8 +17,10 @@ public partial class SquadDirectiveBrain : Node
 {
     [Export, RequiredExport] private SquadRoster _roster = null!;
     [Export] private Godot.Collections.Array<SquadPolicy> _policies = new();
-    [Export] private float _evaluateIntervalSeconds = 0.5f;
-    [Export] private float _minDirectiveHoldSeconds = 1.0f;
+
+    [ExportGroup("Evaluation")]
+    [Export(PropertyHint.Range, "0.05,10.0,0.05")] private float _evaluateIntervalSeconds = 0.5f;
+    [Export(PropertyHint.Range, "0.0,30.0,0.1")] private float _minDirectiveHoldSeconds = 1.0f;
 
     private float _intervalAccumulator;
     private float _timeSinceDirectiveChangeSeconds;
@@ -48,6 +50,11 @@ public partial class SquadDirectiveBrain : Node
         if (graph == null)
         {
             // Disbanded roster — never re-create the graph, never publish into a zombie scope.
+            return;
+        }
+
+        if (_policies == null)
+        {
             return;
         }
 

@@ -139,6 +139,14 @@ public partial class SquadRoster : Node
         MemberAdded(member);
     }
 
+    /// <summary>
+    /// Removes <paramref name="member"/> from the squad: detaches its blackboard graph from the
+    /// squad graph and unsubscribes exactly the health-death and tree-exiting handlers that
+    /// AddMember registered for it. Silent no-op when the member is not currently in the roster, or
+    /// when the roster has been disbanded (terminal) — never raises a duplicate
+    /// <see cref="MemberRemoved"/>. Removing the current <see cref="Leader"/> clears it and raises
+    /// <see cref="LeaderChanged"/> with <c>null</c>.
+    /// </summary>
     public void RemoveMember(Node3D member)
     {
         if (_disbanded)

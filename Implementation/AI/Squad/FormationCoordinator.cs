@@ -124,7 +124,32 @@ public partial class FormationCoordinator : Node
             .Select(n => IsInstanceValid(n) ? n.GlobalPosition : Vector3.Zero)
             .ToList();
 
-        // Zero anchor for relative assignment — world positions come from UpdateFormationPositions.
+        // Coordinate-space fix: memberPositions above are world-space (GlobalPosition), but the
+        // slot set below is computed at anchor Vector3.Zero — comparing the two directly makes
+        // NearestSlotStrategy's distances meaningless once the squad is far from the world origin.
+        // Relativize member positions against their own centroid (Vector3.Zero when none are
+        // valid) so both sides of the comparison live in the same zero-anchored frame.
+        Vector3 centroid = Vector3.Zero;
+        int validCount = 0;
+        foreach (var n in _roster.Members)
+        {
+            if (IsInstanceValid(n))
+            {
+                centroid += n.GlobalPosition;
+                validCount++;
+            }
+        }
+
+        if (validCount > 0)
+        {
+            centroid /= validCount;
+        }
+
+        var relativeMemberPositions = memberPositions.Select(p => p - centroid).ToList();
+
+        // Relative frame, centroid-origin: FormationAnchorMode.Leader here selects the local slot
+        // layout basis (zero anchor, Vector3.Forward) for the relative-assignment slot set — it is
+        // NOT the live formation's anchor mode, and is anchor-agnostic by design.
         var slotPositions = FormationController.CalculateSlotPositions(
             _currentFormation,
             FormationAnchorMode.Leader,
@@ -132,7 +157,7 @@ public partial class FormationCoordinator : Node
             Vector3.Forward);
 
         int leaderIndex = ResolveLeaderIndex();
-        var assignments = _slotStrategy.AssignSlots(memberPositions, slotPositions, leaderIndex);
+        var assignments = _slotStrategy.AssignSlots(relativeMemberPositions, slotPositions, leaderIndex);
 
         foreach (var assignment in assignments)
         {
@@ -169,8 +194,15 @@ public partial class FormationCoordinator : Node
 
     private void OnMemberRemoved(Node3D member)
     {
-        // The member graph is already detached from the squad graph; the local write is still valid.
-        member.GetGraph()?.Local.Set(BBDataSig.FormationSlotIndex, -1);
+        // A freed-member removal (roster's deferred TreeExiting-check path) reaches here with an
+        // already-disposed member — GetGraph() would throw ObjectDisposedException and abort
+        // before ReassignSlots() runs. Guard so the removal still triggers reassignment.
+        if (GodotObject.IsInstanceValid(member))
+        {
+            // The member graph is already detached from the squad graph; the local write is still valid.
+            member.GetGraph()?.Local.Set(BBDataSig.FormationSlotIndex, -1);
+        }
+
         ReassignSlots();
     }
 
