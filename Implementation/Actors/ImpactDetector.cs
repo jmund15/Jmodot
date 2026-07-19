@@ -16,12 +16,29 @@ using Implementation.AI.BB;
 /// query <see cref="ImpactInfo"/>'s normal-math helpers (geometry) or the project
 /// Category system on <see cref="ImpactInfo.Collider"/> (identity).
 /// </summary>
+/// <remarks>
+/// ORDERING CONTRACT: detection reads the slide collisions left behind by the movement
+/// pump's <c>MoveAndSlide</c>, so this node's <c>_PhysicsProcess</c> must run AFTER the
+/// movement pump in the same physics frame. Godot 4.3+ runs HIGHER
+/// <c>ProcessPhysicsPriority</c> later, and the movement pumps sit at the default 0, so
+/// <see cref="_physicsPriority"/> defaults to 10 to land safely after them. A scene that
+/// explicitly authors a non-zero <c>ProcessPhysicsPriority</c> wins — the export is only
+/// the fallback, so an author who has reasoned about frame ordering is never clobbered.
+/// </remarks>
 [GlobalClass]
 public partial class ImpactDetector : Node, IPoolResetable
 {
     /// <summary>Pre-move velocity magnitude required for a contact to count as an impact.</summary>
     [Export(PropertyHint.Range, "0.1,100,0.1")]
     public float MinImpactSpeed { get; set; } = 6f;
+
+    /// <summary>
+    /// Physics-process priority. The detector reads slide collisions produced by the LAST
+    /// <c>MoveAndSlide</c>, so it must run AFTER the movement pump within the same physics
+    /// frame — a higher priority runs later (Godot 4.3+). Default sits above the priority-0
+    /// movement pumps.
+    /// </summary>
+    [Export] private int _physicsPriority = 10;
 
     public event Action<ImpactInfo> Impacted = delegate { };
 
@@ -58,6 +75,17 @@ public partial class ImpactDetector : Node, IPoolResetable
     {
         _inContactLastFrame.Clear();
         _newContactsThisFrame.Clear();
+    }
+
+    public override void _Ready()
+    {
+        // Runs-after-movement ordering contract (see class remarks). Only supply the
+        // fallback — a scene-authored non-zero value is a deliberate ordering decision.
+        if (ProcessPhysicsPriority == 0)
+        {
+            ProcessPhysicsPriority = _physicsPriority;
+        }
+        base._Ready();
     }
 
     public override void _PhysicsProcess(double delta)

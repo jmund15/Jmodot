@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.Actors;
 
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Core.Actors;
 using Core.AI.BB;
@@ -74,6 +76,7 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
     private Node3D? _self;
     private CombatLog? _combatLog;
     private ExternalForceReceiver3D? _forceReceiver;
+    private IReadOnlyList<IImpactDamageGate> _gates = new List<IImpactDamageGate>();
 
     private IStatProvider? _launcherStatProvider;
     private bool _launcherStatProviderResolved;
@@ -101,6 +104,12 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         // Optional siblings: degrade gracefully when not BB-published.
         bb.TryGet<CombatLog>(BBDataSig.CombatLog, out _combatLog);
         bb.TryGet<ExternalForceReceiver3D>(BBDataSig.ExternalForceReceiver, out _forceReceiver);
+
+        // Capability gates (invulnerability window, damage-absorption shield, …) veto impact
+        // damage per-impact. Direct siblings only — a gate is a peer component, not something
+        // inherited from a nested subtree. Re-resolved on every Initialize to honor the
+        // pool-reuse/rebind contract.
+        _gates = self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: false).ToList();
 
         _detector.Impacted += OnImpacted;
     }
@@ -130,6 +139,15 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         if (_self != null && info.Collider == _self)
         {
             return;
+        }
+
+        // A denying gate absorbs the whole impact — skip both damage and the velocity-loss step.
+        foreach (var gate in _gates)
+        {
+            if (!gate.AllowImpactDamage(info))
+            {
+                return;
+            }
         }
 
         if (_health == null || DamageProfile == null)
