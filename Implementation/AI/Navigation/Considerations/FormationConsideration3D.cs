@@ -13,7 +13,7 @@ using BB;
 /// Members read their slot index from their own blackboard and slot positions from the
 /// squad blackboard (via parent chain). The leader (slot 0) can be optionally excluded.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class FormationConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
