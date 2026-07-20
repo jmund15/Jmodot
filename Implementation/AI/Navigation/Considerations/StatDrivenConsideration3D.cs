@@ -15,7 +15,7 @@ using Shared;
 /// The primary use case is using a SightRange stat to determine how far the agent
 /// can perceive targets, making AI perception stat-driven and modifiable by buffs/debuffs.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatDrivenConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
