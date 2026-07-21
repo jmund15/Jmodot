@@ -28,10 +28,15 @@ using Shared.GodotExceptions;
 /// <para>Scene tree expects:</para>
 /// <code>
 ///   CharacterBody3D
-///   ├── Blackboard (or any IBlackboard implementation) — sibling
+///   ├── BlackboardGraph
+///   │   └── Blackboard (or any IBlackboard implementation)
 ///   └── ExternalForceReceiver3D (Area3D)
 ///       └── GravityForceProvider3D (this node)
 /// </code>
+/// <para>The IBlackboard is resolved by a RECURSIVE search of the body's subtree, so its exact
+/// depth is not load-bearing — a direct child of the body also works. Do not narrow this to a
+/// direct-children scan: npc_template nests the Blackboard under a BlackboardGraph, and a
+/// non-recursive lookup disables stat-driven gravity on every NPC with only a warning.</para>
 ///
 /// <para><b>Composition with status effects:</b> the gravity_scale stat is a regular
 /// <see cref="IStatProvider"/> stat, so future Heavy/Levitate status effects can apply
@@ -73,24 +78,21 @@ public partial class GravityForceProvider3D : Node, IForceProvider3D
 
         receiver.RegisterInternalProvider(this);
 
-        // v6.2: optional BB resolution for stat-driven gravity scale. Walk the body's
-        // direct children to find any IBlackboard sibling — Blackboard.cs is the typical
-        // implementation but any IBlackboard-implementing Node qualifies. Logged once at
-        // _Ready so misconfiguration surfaces at scene-load.
+        // v6.2: optional BB resolution for stat-driven gravity scale. Searches the body's
+        // subtree RECURSIVELY — Blackboard.cs is the typical implementation but any
+        // IBlackboard-implementing Node qualifies, and it is not necessarily a direct child:
+        // npc_template nests it under a BlackboardGraph so cross-scope reads resolve. Uses the
+        // NodeExts helper (recursive by default) rather than a hand-rolled GetChildren() scan,
+        // which is what every other IBlackboard consumer does and what kept them working when
+        // the Blackboard was reparented. Logged once at _Ready so misconfiguration surfaces
+        // at scene-load.
         if (GravityScaleAttribute != null)
         {
-            foreach (var child in _body.GetChildren())
-            {
-                if (child is IBlackboard bb)
-                {
-                    _bb = bb;
-                    break;
-                }
-            }
+            _body.TryGetFirstChildOfInterface<IBlackboard>(out _bb);
             if (_bb == null)
             {
                 JmoLogger.Warning(this,
-                    "GravityScaleAttribute is set but no IBlackboard sibling was found on the "
+                    "GravityScaleAttribute is set but no IBlackboard was found anywhere under the "
                     + "parent CharacterBody3D. Stat-driven gravity scaling disabled — falling "
                     + "back to raw GetGravity().");
             }
@@ -141,6 +143,8 @@ public partial class GravityForceProvider3D : Node, IForceProvider3D
     }
     internal void SetGravityScaleAttributeForTesting(Core.Stats.Attribute attr)
         => this.GravityScaleAttribute = attr;
+    /// <summary>Whether _Ready resolved an IBlackboard from the owning body's subtree.</summary>
+    internal bool _TestResolvedBlackboard => _bb != null;
 #endif
     #endregion
 }
