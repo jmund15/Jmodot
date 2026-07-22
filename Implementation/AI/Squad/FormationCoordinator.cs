@@ -41,6 +41,14 @@ public partial class FormationCoordinator : Node
         _roster.MemberAdded += OnMemberAdded;
         _roster.MemberRemoved += OnMemberRemoved;
         _roster.LeaderChanged += OnLeaderChanged;
+
+        // A leader assigned before this coordinator entered the tree (programmatic construction,
+        // or the coordinator added after the roster) raised LeaderChanged before this subscription
+        // existed — seed the current value so the blackboard key isn't left unwritten.
+        if (_roster.Leader != null)
+        {
+            OnLeaderChanged(_roster.Leader);
+        }
     }
 
     public override void _ExitTree()
