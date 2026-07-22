@@ -21,8 +21,18 @@ using Shared;
 /// Acts as a container for StatusRunner nodes and a registry for active Tags.
 /// </summary>
 [GlobalClass]
-public partial class StatusEffectComponent : Node, IComponent
+public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvider
 {
+    #region IBlackboardProvider Implementation
+    /// <summary>
+    /// Auto-registers this component under <see cref="BBDataSig.StatusEffects"/> during
+    /// EntityNodeComponentsInitializer Phase 0, so every init path (stat-full and stat-less)
+    /// exposes it to blackboard-resolving effects (TickEffect / FreezeEffect / Duration / Delay).
+    /// Mirrors <see cref="CombatantComponent.Provision"/>.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.StatusEffects, this);
+    #endregion
+
     #region Events
     public event Action<StatusRunner> StatusAdded = delegate { };
     public event Action<StatusRunner, bool> StatusRemoved = delegate { };
