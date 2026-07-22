@@ -140,12 +140,34 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     {
         if (_rangeDefinition == null) { return; }
 
-        if (_statProvider != null)
+        var shapeNode = ResolveCollisionShape();
+        if (shapeNode?.Shape is not SphereShape3D)
         {
-            _statProvider.OnStatChanged += OnStatProviderStatChanged;
+            JmoLogger.Warning(this,
+                "authored _rangeDefinition will never project — no SphereShape3D on this sensor. The range gate is inert.");
+            return;
         }
 
+        SubscribeStatProvider();
+
         ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+    }
+
+    // Idempotent: unsubscribe-then-subscribe so _EnterTree resubscribes and OnPostInitialize's
+    // first-entry subscribe never double-register.
+    private void SubscribeStatProvider()
+    {
+        if (_statProvider == null) { return; }
+        _statProvider.OnStatChanged -= OnStatProviderStatChanged;
+        _statProvider.OnStatChanged += OnStatProviderStatChanged;
+    }
+
+    private void SubscribeBodySignals()
+    {
+        BodyEntered -= OnBodyEntered;
+        BodyEntered += OnBodyEntered;
+        BodyExited -= OnBodyExited;
+        BodyExited += OnBodyExited;
     }
 
     private void OnStatProviderStatChanged(Core.Stats.Attribute attribute, Variant newValue)
@@ -158,6 +180,12 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     {
         var shapeNode = ResolveCollisionShape();
         if (shapeNode?.Shape is not SphereShape3D sphere) { return; }
+        if (range <= 0f)
+        {
+            JmoLogger.Warning(this,
+                $"Sensor range resolved to non-positive value ({range}); keeping previous radius {sphere.Radius}. Check the sight_range stat / modifiers.");
+            return;
+        }
         // OnStatChanged is coarse — it fires for every attribute, so most calls land here unchanged.
         if (Mathf.IsEqualApprox(sphere.Radius, range)) { return; }
 
@@ -182,7 +210,15 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
         foreach (var body in new List<Node3D>(_knownOverlaps))
         {
-            if (!current.Contains(body)) { OnBodyExited(body); }
+            if (current.Contains(body)) { continue; }
+            if (!body.IsValid())
+            {
+                _knownOverlaps.Remove(body);
+                _trackedBodies.Remove(body);
+                _visibleBodies.Remove(body);
+                continue;
+            }
+            OnBodyExited(body);
         }
 
         foreach (var body in current)
@@ -209,11 +245,19 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     #endregion
 
+    // Signal + stat-provider subscription lives here (not _Ready) so it is symmetric with
+    // _ExitTree — a reparent re-enters the tree without re-running _Ready. _EnterTree fires
+    // before _Ready on first entry; the subscribe helpers are idempotent so the pair never
+    // double-registers. On first entry IsInitialized is still false and _statProvider null, so
+    // OnPostInitialize owns the initial stat subscribe; on reparent this restores it.
+    public override void _EnterTree()
+    {
+        SubscribeBodySignals();
+        if (IsInitialized) { SubscribeStatProvider(); }
+    }
+
     public override void _Ready()
     {
-        BodyEntered += OnBodyEntered;
-        BodyExited += OnBodyExited;
-
         // By type, not by name — turret.tscn names this child "ThreatShape" and
         // npc_template.tscn names it "AllySensorShape", both of which cached null.
         ResolveCollisionShape();
@@ -400,7 +444,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     private void OnBodyEntered(Node3D body)
     {
-        _knownOverlaps.Add(body);
+        if (!_knownOverlaps.Add(body)) { return; }
         if (_continuousTracking || _requireLineOfSight) { _trackedBodies.Add(body); }
         if (_requireLineOfSight)
         {
