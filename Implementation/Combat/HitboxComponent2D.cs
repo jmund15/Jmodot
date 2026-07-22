@@ -229,12 +229,17 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         DeactivateImmediate();
     }
 
-    public void StartDefaultAttack(Node? attacker = null, Node? source = null, IStatProvider? stats = null)
+    /// <summary>Mirrors HitboxComponent3D. <paramref name="lineageOverride"/>, when supplied, makes the
+    /// attack ADOPT that (seed, provenance) lineage instead of deriving one from this hitbox's blackboard —
+    /// for detached hitboxes (e.g. one-shot spell VFX) that carry no blackboard and must inherit their
+    /// origin's lineage rather than manufacture a Missing token.</summary>
+    public void StartDefaultAttack(Node? attacker = null, Node? source = null, IStatProvider? stats = null,
+        (int? Seed, SeedProvenance Provenance)? lineageOverride = null)
     {
         attacker ??= Owner ?? this;
         source ??= this;
 
-        var (attackSeed, provenance) = NextAttackSeed();
+        var (attackSeed, provenance) = lineageOverride ?? NextAttackSeed();
         var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
         // Mirrors HitboxComponent3D: effectIdx (per slot) selects the crit seed/mode per effect.

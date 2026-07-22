@@ -351,12 +351,17 @@ using AI.BB;
         /// <param name="attacker">The node responsible for the attack (defaults to Owner).</param>
         /// <param name="source">The specific object representing the attack (defaults to this Hitbox or Owner).</param>
         /// <param name="stats">The stat provider used to scale effect values (optional).</param>
-        public void StartDefaultAttack(Node? attacker = null, Node? source = null, IStatProvider? stats = null)
+        /// <param name="lineageOverride">When supplied, the attack ADOPTS this (seed, provenance) lineage
+        /// instead of deriving one from this hitbox's own blackboard. Detached hitboxes that carry no
+        /// blackboard (e.g. one-shot spell VFX) pass their origin's lineage here so the receiver derives a
+        /// deterministic hit seed rather than warning on a manufactured Missing token.</param>
+        public void StartDefaultAttack(Node? attacker = null, Node? source = null, IStatProvider? stats = null,
+            (int? Seed, SeedProvenance Provenance)? lineageOverride = null)
         {
             attacker ??= Owner ?? this;
             source ??= this;
 
-            var (attackSeed, provenance) = NextAttackSeed();
+            var (attackSeed, provenance) = lineageOverride ?? NextAttackSeed();
             var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
             // effectIdx advances per slot (including nulls) for index-stability against editor reordering;
