@@ -2,7 +2,6 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
 using Godot;
 using System.Collections.Generic;
-using System.Linq;
 using System;
 using Core.Visual.Animation.Sprite;
 using Shared;
@@ -223,17 +222,17 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent, IDirecti
         // the prior master's), and any in-flight slave sync would compute wrong.
         if (ReferenceEquals(_masterAnimator, animator))
         {
-            _masterAnimator = _activeAnimators.FirstOrDefault();
-            if (_masterAnimator == null)
+            // Master removed → stay masterless. Do NOT adopt a surviving slave via
+            // FirstOrDefault(): that is the same "adopt-first-arrival as placeholder
+            // master" anti-pattern removed on the RegisterAnimator side. A slave silently
+            // promoted to master trips the "second master claimed" warning when the real
+            // Master slot re-registers after an item swap (Push/Equip on the master slot),
+            // and makes composite timing scene-order dependent. All reads are null-guarded
+            // (_masterAnimator?.X ?? default), so null is safe until a genuine Master claims.
+            _masterAnimator = null;
+            if (warnOnMasterLoss)
             {
-                if (warnOnMasterLoss)
-                {
-                    JmoLogger.Warning(this, "All animators unregistered; composite has no master. IsPlaying/HasAnimation/etc will return defaults until a new animator registers.");
-                }
-            }
-            else if (!string.IsNullOrEmpty(_lastRequestedAnim) && _masterAnimator.HasAnimation(_lastRequestedAnim))
-            {
-                _masterAnimator.StartAnim(_lastRequestedAnim);
+                JmoLogger.Warning(this, "Master animator unregistered; composite has no master. IsPlaying/HasAnimation/etc will return defaults until a Master registers.");
             }
         }
     }

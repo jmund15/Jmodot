@@ -133,7 +133,7 @@ public partial class VisualComposer : Node3D, IVisualNodeProvider
         if (Effects == null) { warnings.Add("Effects (VisualEffectService) export is required."); }
 
         var seenKeys = new HashSet<StringName>();
-        bool hasMaster = false;
+        int masterCount = 0;
         foreach (var child in GetChildren())
         {
             if (child is VisualSlotNode slot)
@@ -143,12 +143,16 @@ public partial class VisualComposer : Node3D, IVisualNodeProvider
                 {
                     warnings.Add($"Duplicate SlotKey.Id '{slot.Key.Id}' on slot '{slot.Name}'.");
                 }
-                if (slot.SyncMode == AnimationSyncMode.Master) { hasMaster = true; }
+                if (slot.SyncMode == AnimationSyncMode.Master) { masterCount++; }
             }
         }
-        if (seenKeys.Count > 0 && !hasMaster)
+        if (seenKeys.Count > 0 && masterCount == 0)
         {
             warnings.Add("No slot has SyncMode=Master. CompositeAnimator will run masterless — IsPlaying/HasAnimation/etc. return defaults until a Master slot is added. Mark exactly one slot as Master.");
+        }
+        if (masterCount > 1)
+        {
+            warnings.Add("Multiple slots authored SyncMode=Master; exactly one is allowed — animation sync will be scene-order dependent.");
         }
         return warnings.ToArray();
     }
