@@ -2,8 +2,13 @@ namespace Jmodot.Implementation.AI.Perception;
 
 using System;
 using System.Collections.Generic;
+using AI.BB;
+using Core.AI.BB;
 using Core.AI.Perception;
+using Core.Combat.EffectDefinitions;
+using Core.Components;
 using Core.Identification;
+using Core.Stats;
 using Shared;
 using Strategies;
 
@@ -26,7 +31,7 @@ using Strategies;
 /// </list>
 /// </summary>
 [GlobalClass]
-public partial class Area3DSensor3D : Area3D, IAISensor3D
+public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 {
     [Export] private MemoryDecayStrategy? _defaultDecayStrategy;
 
@@ -73,34 +78,213 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     /// feet-to-feet (a ground-level ray would clip floor geometry).</summary>
     [Export] private float _sightHeightOffset = 1.0f;
 
+    /// <summary>Projects a resolved value onto the sensor's SphereShape3D radius, so the physical
+    /// detection gate and any stat-reading selection gate are two readings of one authored number.
+    /// Leave null to opt out — the authored radius then remains the gate. When an
+    /// AttributeFloatDefinition is used, its DefaultValue should equal the authored radius, and the
+    /// radius re-projects live whenever the backing stat changes (buffs, run modifiers).</summary>
+    [ExportGroup("Range")]
+    [Export] private BaseFloatValueDefinition? _rangeDefinition;
+
     private readonly HashSet<Node3D> _trackedBodies = new();
     private readonly HashSet<Node3D> _visibleBodies = new();
     private readonly HashSet<Node3D> _polledBodies = new();
     private float _pollTimer;
     private CollisionShape3D? _cachedCollisionShape;
+    private IStatProvider? _statProvider;
+    private bool _resyncPending;
+    /// <summary>Every overlapping body, regardless of detection mode. Distinct from _trackedBodies,
+    /// which stays empty unless ContinuousTracking or RequireLineOfSight is on — diffing a resize
+    /// against that would re-announce every body on a plain sensor.</summary>
+    private readonly HashSet<Node3D> _knownOverlaps = new();
 
     public event Action<IAISensor3D, Percept3D>? PerceptUpdated;
 
+    #region IComponent Implementation
+
+    public bool IsInitialized { get; private set; }
+
+    /// <summary>
+    /// Always returns true. A sensor on a stat-less entity (spell body, practice dummy) is valid
+    /// configuration, not a failure — returning false would make EntityNodeComponentsInitializer
+    /// log an error and skip the component.
+    /// </summary>
+    public bool Initialize(IBlackboard bb)
+    {
+        if (_rangeDefinition == null)
+        {
+            IsInitialized = true;
+            Initialized();
+            OnPostInitialize();
+            return true;
+        }
+
+        var shapeNode = ResolveCollisionShape();
+        if (shapeNode?.Shape is SphereShape3D sphere)
+        {
+            // CombatSpawnHelper instantiates N enemies from one cached PackedScene, so Godot
+            // hands every instance the SAME inline shape — writing Radius on one would write it
+            // for all of them.
+            shapeNode.Shape = (Shape3D)sphere.Duplicate(true);
+        }
+
+        bb.TryGet(BBDataSig.Stats, out _statProvider);
+
+        IsInitialized = true;
+        Initialized();
+        OnPostInitialize();
+        return true;
+    }
+
+    public void OnPostInitialize()
+    {
+        if (_rangeDefinition == null) { return; }
+
+        var shapeNode = ResolveCollisionShape();
+        if (shapeNode?.Shape is not SphereShape3D)
+        {
+            JmoLogger.Warning(this,
+                "authored _rangeDefinition will never project — no SphereShape3D on this sensor. The range gate is inert.");
+            return;
+        }
+
+        SubscribeStatProvider();
+
+        ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+    }
+
+    // Idempotent: unsubscribe-then-subscribe so _EnterTree resubscribes and OnPostInitialize's
+    // first-entry subscribe never double-register.
+    private void SubscribeStatProvider()
+    {
+        if (_statProvider == null) { return; }
+        _statProvider.OnStatChanged -= OnStatProviderStatChanged;
+        _statProvider.OnStatChanged += OnStatProviderStatChanged;
+    }
+
+    private void SubscribeBodySignals()
+    {
+        BodyEntered -= OnBodyEntered;
+        BodyEntered += OnBodyEntered;
+        BodyExited -= OnBodyExited;
+        BodyExited += OnBodyExited;
+    }
+
+    private void OnStatProviderStatChanged(Core.Stats.Attribute attribute, Variant newValue)
+    {
+        if (!IsInitialized || _rangeDefinition == null) { return; }
+        ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+    }
+
+    private void ApplyRange(float range)
+    {
+        var shapeNode = ResolveCollisionShape();
+        if (shapeNode?.Shape is not SphereShape3D sphere) { return; }
+        if (range <= 0f)
+        {
+            JmoLogger.Warning(this,
+                $"Sensor range resolved to non-positive value ({range}); keeping previous radius {sphere.Radius}. Check the sight_range stat / modifiers.");
+            return;
+        }
+        // OnStatChanged is coarse — it fires for every attribute, so most calls land here unchanged.
+        if (Mathf.IsEqualApprox(sphere.Radius, range)) { return; }
+
+        sphere.Radius = range;
+        // Deferred to a physics frame, not CallDeferred: the physics server only reflects the
+        // resized shape after it ticks, so an idle-frame resync reads stale overlaps.
+        _resyncPending = true;
+    }
+
+    /// <summary>
+    /// Replays the enter/exit delta after a resize. Whether Godot re-fires body_entered/body_exited
+    /// for a resized shape is unverified, and this codebase does not trust engine overlap signals
+    /// across state changes — the diff against _knownOverlaps makes this idempotent either way.
+    /// </summary>
+    private void ResyncOverlaps()
+    {
+        var current = new HashSet<Node3D>();
+        foreach (var body in GetOverlappingBodies())
+        {
+            current.Add(body);
+        }
+
+        foreach (var body in new List<Node3D>(_knownOverlaps))
+        {
+            if (current.Contains(body)) { continue; }
+            if (!body.IsValid())
+            {
+                _knownOverlaps.Remove(body);
+                _trackedBodies.Remove(body);
+                _visibleBodies.Remove(body);
+                continue;
+            }
+            OnBodyExited(body);
+        }
+
+        foreach (var body in current)
+        {
+            if (!_knownOverlaps.Contains(body)) { OnBodyEntered(body); }
+        }
+    }
+
+    /// <summary>
+    /// By type, not by name — turret.tscn names this child "ThreatShape" and npc_template.tscn
+    /// "AllySensorShape", both of which the old name-based lookup cached null. Absence is a
+    /// supported shape (sensors may carry no shape at all), so this must not use the throwing
+    /// GetFirstChildOfType variant.
+    /// </summary>
+    private CollisionShape3D? ResolveCollisionShape()
+    {
+        if (_cachedCollisionShape != null) { return _cachedCollisionShape; }
+        this.TryGetFirstChildOfType(out CollisionShape3D? found);
+        _cachedCollisionShape = found;
+        return _cachedCollisionShape;
+    }
+
+    public event Action Initialized = delegate { };
+
+    #endregion
+
+    // Signal + stat-provider subscription lives here (not _Ready) so it is symmetric with
+    // _ExitTree — a reparent re-enters the tree without re-running _Ready. _EnterTree fires
+    // before _Ready on first entry; the subscribe helpers are idempotent so the pair never
+    // double-registers. On first entry IsInitialized is still false and _statProvider null, so
+    // OnPostInitialize owns the initial stat subscribe; on reparent this restores it.
+    public override void _EnterTree()
+    {
+        SubscribeBodySignals();
+        if (IsInitialized) { SubscribeStatProvider(); }
+    }
+
     public override void _Ready()
     {
-        BodyEntered += OnBodyEntered;
-        BodyExited += OnBodyExited;
-
-        // Cache the collision shape for IntersectShape polling
-        _cachedCollisionShape = GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
+        // By type, not by name — turret.tscn names this child "ThreatShape" and
+        // npc_template.tscn names it "AllySensorShape", both of which cached null.
+        ResolveCollisionShape();
     }
 
     public override void _ExitTree()
     {
         BodyEntered -= OnBodyEntered;
         BodyExited -= OnBodyExited;
+        if (_statProvider != null)
+        {
+            _statProvider.OnStatChanged -= OnStatProviderStatChanged;
+        }
         _trackedBodies.Clear();
         _visibleBodies.Clear();
         _polledBodies.Clear();
+        _knownOverlaps.Clear();
     }
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_resyncPending)
+        {
+            _resyncPending = false;
+            ResyncOverlaps();
+        }
+
         // Static body polling via IntersectShape (replaces body_entered for static bodies)
         if (_staticBodyPolling)
         {
@@ -242,6 +426,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
     internal void SetStaticBodyPolling(bool enabled) => _staticBodyPolling = enabled;
     internal void SetRequireLineOfSight(bool enabled) => _requireLineOfSight = enabled;
     internal void SetOcclusionMask(uint mask) => _occlusionMask = mask;
+    internal void SetRangeDefinitionForTesting(BaseFloatValueDefinition? definition) => _rangeDefinition = definition;
     internal int VisibleBodyCount => _visibleBodies.Count;
     internal int TrackedBodyCount => _trackedBodies.Count;
     internal int PolledBodyCount => _polledBodies.Count;
@@ -259,6 +444,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 
     private void OnBodyEntered(Node3D body)
     {
+        if (!_knownOverlaps.Add(body)) { return; }
         if (_continuousTracking || _requireLineOfSight) { _trackedBodies.Add(body); }
         if (_requireLineOfSight)
         {
@@ -271,6 +457,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D
 
     private void OnBodyExited(Node3D body)
     {
+        _knownOverlaps.Remove(body);
         _trackedBodies.Remove(body);
         if (_requireLineOfSight)
         {
