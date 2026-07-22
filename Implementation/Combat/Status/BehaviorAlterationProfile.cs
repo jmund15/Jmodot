@@ -28,7 +28,7 @@ using Jmodot.Core.Visual.Effects;
 /// in its hooks and may read/write its fields if needed.
 /// </para>
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class BehaviorAlterationProfile : Resource
 {
     /// <summary>
