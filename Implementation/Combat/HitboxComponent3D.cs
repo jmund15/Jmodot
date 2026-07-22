@@ -6,6 +6,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
 using Jmodot.Implementation.Combat.CapacityProviders;
+using Jmodot.Implementation.Physics.Collision;
 using GCol = Godot.Collections;
 using Godot;
 
@@ -636,7 +637,7 @@ using AI.BB;
         ///
         /// Checks two sources:
         /// 1. ICombatExceptionProvider.CombatExceptionIds - explicit combat-level exceptions (sibling spells)
-        /// 2. PhysicsBody3D.GetCollisionExceptions() - physics-level exceptions (fallback)
+        /// 2. PhysicsCollisionExceptionRegistry - managed mirror of physics exceptions (pierce pass-through)
         /// </remarks>
         private bool HasCollisionExceptionWith(Node? target)
         {
@@ -672,21 +673,9 @@ using AI.BB;
                 return false;
             }
 
-            // Defensive: see B3 reconciliation 2026-04-26 — ICombatExceptionProvider.CombatExceptionIds
-            // is checked above (line 431) and is the authoritative path. This try/catch is a
-            // belt-and-suspenders fallback for any code path that adds an exception without
-            // going through the provider. Retained intentionally, not pending refactor.
-            try
-            {
-                var exceptions = ownerBody.GetCollisionExceptions();
-                return exceptions.Contains(targetBody);
-            }
-            catch
-            {
-                // GetCollisionExceptions() can throw if a body in the list was freed (Godot bug #77793)
-                Shared.JmoLogger.Warning(this, "GetCollisionExceptions failed (Godot #77793 - freed body in exceptions list)");
-                return false;
-            }
+            // Consult the managed mirror instead of ownerBody.GetCollisionExceptions() — the engine
+            // query enumerates stored RIDs and spams under Jolt when any paired body was freed.
+            return PhysicsCollisionExceptionRegistry.HasException(ownerBody, targetBody);
         }
         #endregion
     }

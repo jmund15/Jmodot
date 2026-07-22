@@ -23,11 +23,13 @@ public partial class PiercePhysicsStrategy : CollisionPhysicsStrategy
 
     public override PhysicsApplyResult Apply(ICollisionHost host, CollisionContact contact, float velocityRetention)
     {
-        // Add collision exception so the entity doesn't physically collide with target again
+        // Add collision exception so the entity doesn't physically collide with target again.
+        // Routed through the managed registry so the destroy-time read sites never enumerate the
+        // engine list (which spams under Jolt when a paired RID has been freed).
         if (host.GetUnderlyingNode() is PhysicsBody3D body &&
             contact.Collider is PhysicsBody3D target)
         {
-            body.AddCollisionExceptionWith(target);
+            PhysicsCollisionExceptionRegistry.Add(body, target);
         }
 
         // Apply velocity retention (speed loss per pierce)
