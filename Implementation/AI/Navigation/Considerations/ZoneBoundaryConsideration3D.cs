@@ -271,7 +271,8 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
                 float alignment = flatDir.Dot(towardInterior);
                 if (alignment > 0f)
                 {
-                    scores[dir] += alignment * attractionStrength;
+                    // Clamp the normalized attraction to <= 1 so the base pipeline never warn-clamps.
+                    scores[dir] += Mathf.Min(1f, alignment * attractionStrength);
                 }
             }
         }
@@ -401,6 +402,14 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     internal void SetAttractionRampStart(float value) => _attractionRampStart = value;
     internal void SetAttractionRampEnd(float value) => _attractionRampEnd = value;
     internal void SetAttractionCurve(Curve? curve) => _attractionCurve = curve;
+
+    /// <summary>
+    /// Bypasses the base pipeline's contract clamp so tests can observe the raw,
+    /// pre-clamp scores this class produces.
+    /// </summary>
+    internal Dictionary<Vector3, float> CalculateBaseScoresForTest(
+        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard) =>
+        CalculateBaseScores(directions, context3D, blackboard);
 #endif
     #endregion
 }
