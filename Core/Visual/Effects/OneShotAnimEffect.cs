@@ -15,9 +15,10 @@ using Jmodot.Implementation.Shared;
 public partial class OneShotAnimEffect : Node3D
 {
     /// <summary>
-    /// Fired when the animation finishes and the effect is about to be freed.
+    /// Fired exactly once when the effect's lifecycle has completed — after
+    /// <see cref="OnFinishDestroyStrategy"/> has run, or immediately on the fallback path.
     /// </summary>
-    public event Action<OneShotAnimEffect> EffectFinished = delegate { };
+    public event Action EffectFinished = delegate { };
 
     /// <summary>
     /// When true (default), automatically handles cleanup after the animation finishes.
@@ -34,17 +35,23 @@ public partial class OneShotAnimEffect : Node3D
     [Export]
     public DestroyStrategy? OnFinishDestroyStrategy { get; set; }
 
-    private IAnimComponent? _animComponent;
+    /// <summary>
+    /// The animation component discovered in <see cref="_Ready"/> — this node itself when it
+    /// implements <see cref="IAnimComponent"/>, otherwise the first such child. Null for
+    /// effects with no art to animate.
+    /// </summary>
+    protected IAnimComponent? AnimComponent { get; private set; }
+
     private bool _hasFinished;
 
     public override void _Ready()
     {
-        _animComponent = this as IAnimComponent;
-        _animComponent ??= this.GetFirstChildOfInterface<IAnimComponent>();
+        AnimComponent = this as IAnimComponent;
+        AnimComponent ??= this.GetFirstChildOfInterface<IAnimComponent>();
 
-        if (_animComponent != null)
+        if (AnimComponent != null)
         {
-            _animComponent.AnimFinished += OnAnimFinished;
+            AnimComponent.AnimFinished += OnAnimFinished;
         }
     }
 
@@ -53,7 +60,7 @@ public partial class OneShotAnimEffect : Node3D
     /// </summary>
     public void Play(StringName animName)
     {
-        _animComponent?.StartAnim(animName);
+        AnimComponent?.StartAnim(animName);
     }
 
     /// <summary>
@@ -62,10 +69,10 @@ public partial class OneShotAnimEffect : Node3D
     /// </summary>
     public void PlayRandom(Random rng)
     {
-        var anims = _animComponent?.GetAnimationList();
+        var anims = AnimComponent?.GetAnimationList();
         if (anims == null || anims.Length == 0)
         {
-            OnAnimFinished("");
+            MarkFinished();
             return;
         }
 
@@ -83,29 +90,44 @@ public partial class OneShotAnimEffect : Node3D
     }
 
     /// <summary>
-    /// Called when the effect finishes. Override to add custom cleanup behavior.
-    /// Base implementation fires EffectFinished and calls QueueFree.
+    /// Marks the effect complete and dispatches <see cref="OnEffectFinished"/>, at most once.
+    /// Call from any non-animation completion trigger (duration timer, degenerate fallback).
     /// </summary>
-    protected virtual void OnEffectFinished()
-    {
-        EffectFinished.Invoke(this);
-        if (AutoFree)
-        {
-            if (OnFinishDestroyStrategy != null)
-            {
-                OnFinishDestroyStrategy.Destroy(this, () => { });
-            }
-            else
-            {
-                QueueFree();
-            }
-        }
-    }
-
-    private void OnAnimFinished(StringName _)
+    protected void MarkFinished()
     {
         if (_hasFinished) { return; }
         _hasFinished = true;
         OnEffectFinished();
+    }
+
+    /// <summary>
+    /// Called when the effect finishes. Override to add custom cleanup behavior.
+    /// Base implementation runs the destroy strategy (or QueueFree) and fires EffectFinished
+    /// once destruction has completed.
+    /// </summary>
+    protected virtual void OnEffectFinished()
+    {
+        if (AutoFree && OnFinishDestroyStrategy != null)
+        {
+            OnFinishDestroyStrategy.Destroy(this, RaiseEffectFinished);
+            return;
+        }
+
+        RaiseEffectFinished();
+        if (AutoFree)
+        {
+            QueueFree();
+        }
+    }
+
+    /// <summary>Raises <see cref="EffectFinished"/> — C# forbids derived types from invoking a base-declared event.</summary>
+    protected void RaiseEffectFinished()
+    {
+        EffectFinished.Invoke();
+    }
+
+    private void OnAnimFinished(StringName _)
+    {
+        MarkFinished();
     }
 }
