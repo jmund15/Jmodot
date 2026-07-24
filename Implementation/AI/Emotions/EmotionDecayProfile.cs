@@ -12,7 +12,7 @@ using Godot;
 ///     <b>CurveInfluence</b> blends between linear decay (CI=0) and full curve shape (CI=1):
 ///     <c>multiplier = Lerp(linearDecay, curveValue, CurveInfluence)</c>
 ///
-///     Pattern inspired by the trail system's DecayCurvePreset/DecayCurveFactory, adapted for
+///     Pattern inspired by CurveShapePreset/CurveShapeFactory, adapted for
 ///     emotion-native semantics with decay-specific preset names and 1->0 direction.
 /// </summary>
 [Tool]
