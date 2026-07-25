@@ -289,7 +289,12 @@ public static class FlowFieldMath
         return segment.Direction.Normalized() * speed * falloff;
     }
 
-    private static float SampleTable01(float[] table, float t01)
+    /// <summary>
+    ///     THE canonical baked-table sampler: linear interpolation of <paramref name="table" /> over a
+    ///     normalized [0, 1] domain. Every consumer of a baked Curve table samples through here so the
+    ///     interpolation is defined in exactly one place.
+    /// </summary>
+    public static float SampleTable01(float[] table, float t01)
     {
         if (table.Length == 0)
         {
@@ -311,7 +316,11 @@ public static class FlowFieldMath
         return table[lower] + ((table[lower + 1] - table[lower]) * (scaled - lower));
     }
 
-    private static float Volume(Aabb box)
+    /// <summary>
+    ///     THE canonical AABB volume: the product of the box's extents, each floored at zero so a
+    ///     degenerate or inverted box reads as zero volume rather than a negative one.
+    /// </summary>
+    public static float Volume(Aabb box)
     {
         return MathF.Max(box.Size.X, 0f) * MathF.Max(box.Size.Y, 0f) * MathF.Max(box.Size.Z, 0f);
     }
