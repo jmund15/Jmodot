@@ -13,6 +13,13 @@ namespace Jmodot.Core.Environment.FlowField;
 /// </remarks>
 public interface IFlowFieldProfile
 {
+    /// <summary>
+    ///     Energy cap per segment — the normalizer every table lookup divides by. Carried here rather than
+    ///     passed alongside the entity so <see cref="FlowFieldMath.SampleVelocity" /> and the owning force
+    ///     area cannot be handed a different cap than accumulation used.
+    /// </summary>
+    float MaxEnergyPerSegment { get; }
+
     /// <summary>Baked from the authored falloff Curve: normalized distance-from-spine to influence weight.</summary>
     float[] RadialFalloff01 { get; }
 
