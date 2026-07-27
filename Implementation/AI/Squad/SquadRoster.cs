@@ -19,11 +19,20 @@ public partial class SquadRoster : Node
     /// <summary>When true, a member that reports death via IHealth is removed from the roster automatically. Disable to keep downed members enrolled (e.g. revive mechanics).</summary>
     [Export] private bool _removeMembersOnDeath = true;
 
+    /// <summary>
+    /// Everything AddMember registered for one member, mutated and torn down as a unit. Carries the same
+    /// graph reference held positionally in <see cref="_memberGraphs"/> — that list stays separate because
+    /// its index alignment with <see cref="_members"/> is a published contract.
+    /// </summary>
+    private sealed record MemberRecord(
+        IBlackboardGraph Graph,
+        IHealth? Health,
+        Action<HealthChangeEventArgs>? DiedHandler,
+        Callable TreeExitingHandler);
+
     private readonly List<Node3D> _members = new();
     private readonly List<IBlackboardGraph> _memberGraphs = new();
-    private readonly Dictionary<Node3D, IHealth> _memberHealth = new();
-    private readonly Dictionary<Node3D, Action<HealthChangeEventArgs>> _diedHandlers = new();
-    private readonly Dictionary<Node3D, Callable> _treeExitingHandlers = new();
+    private readonly Dictionary<Node3D, MemberRecord> _records = new();
     private Node3D? _leader;
     private int _peakMemberCount;
     private BlackboardGraph? _squadGraph;
@@ -44,7 +53,16 @@ public partial class SquadRoster : Node
     public BlackboardGraph? SquadGraph => EnsureGraph();
 
     public event Action<Node3D> MemberAdded = delegate { };
-    public event Action<Node3D> MemberRemoved = delegate { };
+
+    /// <summary>
+    /// Raised after a member leaves the roster, carrying the graph the roster registered for that member at
+    /// enrolment — not one re-derived by walking the member's children, which finds nothing for members
+    /// enrolled through the explicit-graph <see cref="AddMember(Node3D, IBlackboardGraph, bool)"/> overload.
+    /// The graph reference is not validity-checked: a member owning its graph as a child frees the graph
+    /// along with itself, so a subscriber that may run after a free must check the graph, not the member.
+    /// </summary>
+    public event Action<Node3D, IBlackboardGraph> MemberRemoved = delegate { };
+
     public event Action<Node3D?> LeaderChanged = delegate { };
 
     /// <summary>Adds a member, resolving its <see cref="BlackboardGraph"/> via the child-discovery path.</summary>
@@ -104,12 +122,13 @@ public partial class SquadRoster : Node
         _memberGraphs.Add(graph);
 
         // Death integration: resolve IHealth via the member graph and subscribe OnDied.
+        IHealth? memberHealth = null;
+        Action<HealthChangeEventArgs>? diedHandler = null;
         if (graph.Local.TryGet<IHealth>(BBDataSig.HealthComponent, out var health) && health != null)
         {
-            Action<HealthChangeEventArgs> diedHandler = _ => OnMemberDied(member);
+            diedHandler = _ => OnMemberDied(member);
             health.OnDied += diedHandler;
-            _memberHealth[member] = health;
-            _diedHandlers[member] = diedHandler;
+            memberHealth = health;
         }
         else
         {
@@ -119,7 +138,8 @@ public partial class SquadRoster : Node
         // Always subscribe TreeExiting as a reparent-filtered safety net (QueueFree bypasses domain events).
         var treeExitingHandler = Callable.From(() => OnMemberTreeExiting(member));
         member.Connect(Node.SignalName.TreeExiting, treeExitingHandler);
-        _treeExitingHandlers[member] = treeExitingHandler;
+
+        _records[member] = new MemberRecord(graph, memberHealth, diedHandler, treeExitingHandler);
 
         if (_members.Count > _peakMemberCount)
         {
@@ -174,7 +194,7 @@ public partial class SquadRoster : Node
             LeaderChanged(null);
         }
 
-        MemberRemoved(member);
+        MemberRemoved(member, graph);
     }
 
     /// <summary>
@@ -205,6 +225,7 @@ public partial class SquadRoster : Node
 
         _members.Clear();
         _memberGraphs.Clear();
+        _records.Clear();
         _leader = null;
 
         // Dispose via the private backing field only — never the getter (which would mint a fresh graph).
@@ -260,24 +281,22 @@ public partial class SquadRoster : Node
 
     private void UnsubscribeMember(Node3D member)
     {
-        if (_diedHandlers.TryGetValue(member, out var diedHandler)
-            && _memberHealth.TryGetValue(member, out var health) && health != null)
+        if (!_records.TryGetValue(member, out var record))
         {
-            health.OnDied -= diedHandler;
+            return;
         }
 
-        _diedHandlers.Remove(member);
-        _memberHealth.Remove(member);
-
-        if (_treeExitingHandlers.TryGetValue(member, out var treeExitingHandler))
+        if (record.Health != null && record.DiedHandler != null)
         {
-            if (GodotObject.IsInstanceValid(member))
-            {
-                member.Disconnect(Node.SignalName.TreeExiting, treeExitingHandler);
-            }
-
-            _treeExitingHandlers.Remove(member);
+            record.Health.OnDied -= record.DiedHandler;
         }
+
+        if (GodotObject.IsInstanceValid(member))
+        {
+            member.Disconnect(Node.SignalName.TreeExiting, record.TreeExitingHandler);
+        }
+
+        _records.Remove(member);
     }
 
     private bool AncestorQueuedForDeletion()

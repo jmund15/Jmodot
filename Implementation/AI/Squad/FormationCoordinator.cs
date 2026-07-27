@@ -205,15 +205,16 @@ public partial class FormationCoordinator : Node
 
     private void OnMemberAdded(Node3D member) => ReassignSlots();
 
-    private void OnMemberRemoved(Node3D member)
+    private void OnMemberRemoved(Node3D member, IBlackboardGraph graph)
     {
         // A freed-member removal (roster's deferred TreeExiting-check path) reaches here with an
-        // already-disposed member — GetGraph() would throw ObjectDisposedException and abort
-        // before ReassignSlots() runs. Guard so the removal still triggers reassignment.
-        if (GodotObject.IsInstanceValid(member))
+        // already-disposed member, and a member that owned its graph as a child took the graph down with
+        // it — so the validity check belongs on the graph, which is what is actually written through.
+        // Guard rather than skip, so the removal still triggers reassignment either way.
+        if (graph is GodotObject graphObject && GodotObject.IsInstanceValid(graphObject))
         {
             // The member graph is already detached from the squad graph; the local write is still valid.
-            member.GetGraph()?.Local.Set(BBDataSig.FormationSlotIndex, -1);
+            graph.Local.Set(BBDataSig.FormationSlotIndex, -1);
         }
 
         ReassignSlots();
