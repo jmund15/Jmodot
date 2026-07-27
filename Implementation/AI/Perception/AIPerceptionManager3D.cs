@@ -32,6 +32,23 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
     /// <summary>How multiple sensor contributions are combined into a single fused confidence value.</summary>
     [Export] private FusionMode _fusionMode = FusionMode.Additive;
 
+    /// <summary>
+    ///     Decay applied to an exit percept when the target's own categories resolve none.
+    ///     Leave unset for a default <see cref="LinearMemoryDecay"/>.
+    /// </summary>
+    [Export] private MemoryDecayStrategy? _defaultDecayStrategy;
+
+    private MemoryDecayStrategy? _builtInDecayStrategy;
+
+    /// <summary>
+    ///     Decay applied to an exit percept when neither the target's identity nor its categories
+    ///     resolve one. The built-in default is built once and shared: decay strategies are
+    ///     immutable at runtime, and allocating a Resource per target-loss churns the native heap
+    ///     for no benefit.
+    /// </summary>
+    private MemoryDecayStrategy FallbackDecayStrategy
+        => this._defaultDecayStrategy ?? (this._builtInDecayStrategy ??= new LinearMemoryDecay());
+
     public event EventHandler<Perception3DInfo> MemoryAddedEventHandler = delegate { };
     public event EventHandler<Perception3DInfo> MemoryUpdatedEventHandler = delegate { };
     public event EventHandler<Perception3DInfo> MemoryForgottenEventHandler = delegate { };
@@ -180,7 +197,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
                     velocity: Vector3.Zero,
                     identity: identity,
                     confidence: 0f,
-                    decayStrategy: info.Identity?.ResolvePerceptionDecay() ?? new LinearMemoryDecay()
+                    decayStrategy: info.Identity?.ResolvePerceptionDecay() ?? this.FallbackDecayStrategy
                 );
                 info.Update(exitPercept);
                 this.AddToCategoryCache(info);
@@ -336,6 +353,8 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
 #if TOOLS
     internal void SetSensors(Array<Node> sensors) => _sensors = sensors;
     internal void SetFusionMode(FusionMode mode) => _fusionMode = mode;
+    internal void SetDefaultDecayStrategy(MemoryDecayStrategy? strategy) => _defaultDecayStrategy = strategy;
+    internal MemoryDecayStrategy _TestResolveFallbackDecay() => FallbackDecayStrategy;
 
     /// <summary>
     /// Injects a percept directly into the perception pipeline, bypassing sensor physics.
