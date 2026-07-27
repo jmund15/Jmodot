@@ -22,9 +22,10 @@ public partial class FormationDefinition : Resource
     public Vector3[] SlotOffsets { get; set; } = System.Array.Empty<Vector3>();
 
     /// <summary>
-    /// Minimum spacing between members in meters.
-    /// Used by slot assignment strategies to ensure comfortable spacing.
-    /// Designer-intuitive: 1.5 = 1.5 meters between members.
+    /// Authoring metadata in meters: records the spacing already baked into <see cref="SlotOffsets"/>.
+    /// NOT read by any runtime code path — slot assignment receives precomputed slot positions and never
+    /// sees this definition, so it cannot enforce spacing without relocating authored slots. Exists as the
+    /// input a future slot GENERATOR would consume; keep it in sync with SlotOffsets by hand.
     /// </summary>
     [Export]
     public float MinSpacing { get; set; } = 1.5f;
