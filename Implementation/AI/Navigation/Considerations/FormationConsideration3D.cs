@@ -21,8 +21,9 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
     [ExportGroup("Formation Behavior")]
 
     /// <summary>
-    /// If true, members in slot 0 (the leader) will not be affected by this consideration.
-    /// Leaders typically drive the formation position, not follow it.
+    /// If true, the member occupying slot 0 is not affected by this consideration — but only while the
+    /// squad actually has a designated leader. Leaders drive the formation position rather than follow it;
+    /// in a leaderless squad slot 0 is just the centre of the formation and its occupant must still steer.
     /// </summary>
     [Export]
     private bool _excludeLeader = true;
@@ -35,8 +36,17 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
     private float _arrivalRadius = 1.5f;
 
     /// <summary>
-    /// Maximum distance at which the formation still exerts influence.
-    /// Beyond this, the agent may be considered "lost" from formation.
+    /// Distance at which the pull saturates: at or beyond this the aligned direction scores the full
+    /// [0,1] scale, so Weight alone decides how loud this consideration is against its peers. Between
+    /// the arrival radius and here the score ramps linearly from 0 to 1.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.5, 20.0, 0.1")]
+    private float _fullPullDistance = 4.0f;
+
+    /// <summary>
+    /// Hard cutoff: past this distance the agent is considered lost from formation and this
+    /// consideration contributes nothing at all, leaving its steering entirely to its other
+    /// considerations (chase, navigation, avoidance).
     /// </summary>
     [Export(PropertyHint.Range, "5.0, 50.0, 1.0")]
     private float _maxInfluenceDistance = 20.0f;
@@ -76,7 +86,7 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
             return scores;
         }
 
-        if (_excludeLeader && slotIndex == 0)
+        if (_excludeLeader && slotIndex == 0 && HasDesignatedLeader(blackboard, graph))
         {
             return scores;
         }
@@ -110,19 +120,21 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
             return scores;
         }
 
-        // 7. Check max influence - don't steer if too far (optional clamping)
+        // 7. Past the influence cutoff the member is lost from formation - contribute nothing.
         if (distanceToSlot > _maxInfluenceDistance)
         {
-            distanceToSlot = _maxInfluenceDistance;
+            return scores;
         }
 
         // 8. Calculate ideal direction
         Vector3 idealDirection = toSlot.Normalized();
 
-        // 9. Calculate normalized [0,1] score magnitude based on distance (base Weight owns
-        // the cross-consideration magnitude). Further from slot = higher urgency (stronger pull).
-        float distanceFactor = distanceToSlot / _maxInfluenceDistance;
-        float scoreBase = distanceFactor;
+        // 9. Band-relative [0,1] ramp: zero at the arrival radius, saturating at _fullPullDistance.
+        // Normalising against the influence CEILING instead would fold an absolute distance scale into
+        // the magnitude, leaving Weight only nominally in charge of cross-consideration loudness.
+        float scoreBase = Mathf.Clamp(
+            (distanceToSlot - _arrivalRadius) / Mathf.Max(Epsilon, _fullPullDistance - _arrivalRadius),
+            0f, 1f);
 
         // 10. Score each direction based on alignment with ideal direction
         foreach (var availableDir in directions.Directions)
@@ -146,5 +158,21 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
         }
 
         return scores;
+    }
+
+    /// <summary>
+    /// True only when the squad scope holds a live leader reference. A leader that was removed is
+    /// written back as null, which the Blackboard stores as Variant.Nil and TryGet reports as a MISS —
+    /// so both "never designated" and "designated then lost" correctly fall through to false here, and
+    /// the leader exclusion cannot re-enable itself on a squad that no longer has a leader.
+    /// </summary>
+    private static bool HasDesignatedLeader(IBlackboard blackboard, IBlackboardGraph? graph)
+    {
+        if (graph != null)
+        {
+            return graph.TryGetUp<Node3D>(BBDataSig.FormationLeader, out var chainLeader) && chainLeader != null;
+        }
+
+        return blackboard.TryGet<Node3D>(BBDataSig.FormationLeader, out var localLeader) && localLeader != null;
     }
 }
