@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Identification;
 
+using System.Collections.Generic;
 using System.Linq;
 using Godot.Collections;
 using Implementation.AI.Perception.Strategies;
@@ -41,17 +42,57 @@ public partial class Identity : Resource
     }
 
     /// <summary>
-    /// Resolves the perception decay strategy from this identity's categories.
-    /// Returns the PerceptionDecay from the first category that has one, or null if none do.
+    /// Resolves the perception decay strategy for this identity. Candidates are gathered from every
+    /// category this identity carries AND each of their ancestors, then ranked by
+    /// <see cref="Category.DecayPriority"/>: the highest priority wins. Candidates tied at the top
+    /// priority are FOLDED (the memory decays as slowly as its most persistent contributor) rather
+    /// than arbitrated, so the result never depends on authoring array order. Returns null when no
+    /// reachable category declares a strategy, leaving the sensor's own default in force.
     /// </summary>
+    /// <remarks>
+    /// Memoized: this runs per-percept on the perception hot path, and the answer is a pure function
+    /// of <see cref="Categories"/> and their (immutable) parent chains.
+    /// </remarks>
     public MemoryDecayStrategy? ResolvePerceptionDecay()
     {
+        if (_decayResolved) { return _resolvedDecay; }
+
+        _resolvedDecay = ComputePerceptionDecay();
+        _decayResolved = true;
+        return _resolvedDecay;
+    }
+
+    private MemoryDecayStrategy? _resolvedDecay;
+    private bool _decayResolved;
+
+    private MemoryDecayStrategy? ComputePerceptionDecay()
+    {
         if (Categories == null) { return null; }
+
+        var reachable = new HashSet<Category>();
         foreach (var category in Categories)
         {
-            if (category?.PerceptionDecay != null) { return category.PerceptionDecay; }
+            category?.CollectSelfAndAncestors(reachable);
         }
-        return null;
+
+        var topPriority = int.MinValue;
+        var winners = new List<MemoryDecayStrategy>();
+        foreach (var category in reachable)
+        {
+            if (category.PerceptionDecay == null) { continue; }
+            if (category.DecayPriority < topPriority) { continue; }
+
+            if (category.DecayPriority > topPriority)
+            {
+                topPriority = category.DecayPriority;
+                winners.Clear();
+            }
+            winners.Add(category.PerceptionDecay);
+        }
+
+        if (winners.Count == 0) { return null; }
+        if (winners.Count == 1) { return winners[0]; }
+        return MaxConfidenceDecay.Over(winners);
     }
 
     /// <summary>
@@ -84,8 +125,13 @@ public partial class Identity : Resource
     /// <summary>Sets IdentityName for testing purposes.</summary>
     internal void SetIdentityName(string value) => IdentityName = value;
 
-    /// <summary>Sets Categories for testing purposes.</summary>
-    internal void SetCategories(Array<Category> categories) => Categories = categories;
+    /// <summary>Sets Categories for testing purposes. Drops the memoized decay resolution.</summary>
+    internal void SetCategories(Array<Category> categories)
+    {
+        Categories = categories;
+        _resolvedDecay = null;
+        _decayResolved = false;
+    }
 
     #endregion
 }

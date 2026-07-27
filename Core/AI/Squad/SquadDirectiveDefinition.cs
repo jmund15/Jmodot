@@ -10,7 +10,8 @@ using Jmodot.Core.Identification;
 /// directive family or an exact leaf.
 /// </summary>
 /// <remarks>
-/// The inherited <see cref="Category.PerceptionDecay"/> is INERT for directives — do not populate it.
+/// The inherited AI / Perception group (<see cref="Category.PerceptionDecay"/> and
+/// <see cref="Category.DecayPriority"/>) is INERT for directives — do not populate it.
 /// Directive instances are consumed ONLY via the <c>BBDataSig.SquadDirective</c> blackboard channel and
 /// are NEVER added to an entity's <c>Identity.Categories</c> list.
 /// </remarks>

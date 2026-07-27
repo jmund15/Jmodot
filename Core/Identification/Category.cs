@@ -51,17 +51,10 @@ public partial class Category : Resource
     }
 
     /// <summary>
-    ///     Optional decay strategy override for perception. When set, sensors will use this
-    ///     strategy instead of their default for entities belonging to this category.
-    /// </summary>
-    [ExportGroup("AI / Perception")]
-    [Export]
-    public MemoryDecayStrategy? PerceptionDecay { get; private set; }
-
-    /// <summary>
     ///     Optional parent categories forming a hierarchy. A category descends from all its parents
     ///     and their ancestors transitively (e.g., Burn → Fire → Elemental).
     /// </summary>
+    [ExportGroup("Hierarchy")]
     [Export]
     public Array<Category> ParentCategories { get; private set; } = new();
 
@@ -87,6 +80,42 @@ public partial class Category : Resource
         return ParentCategories.Any(p => p?.IsOrDescendsFrom(target, visited) == true);
     }
 
+    /// <summary>
+    ///     Adds this category and every ancestor reachable through <see cref="ParentCategories"/>
+    ///     into <paramref name="accumulator"/>. The accumulator doubles as the cycle guard, so
+    ///     self-referencing chains (a designer error) terminate instead of recursing forever.
+    ///     Membership is CategoryName-keyed via the Equals/GetHashCode override.
+    /// </summary>
+    public void CollectSelfAndAncestors(HashSet<Category> accumulator)
+    {
+        if (!accumulator.Add(this)) { return; }
+        if (ParentCategories == null) { return; }
+
+        foreach (var parent in ParentCategories)
+        {
+            parent?.CollectSelfAndAncestors(accumulator);
+        }
+    }
+
+    /// <summary>
+    ///     Optional decay strategy override for perception. When set, sensors will use this
+    ///     strategy instead of their default for entities belonging to this category.
+    ///     An entity inherits candidates from every category it carries AND those categories'
+    ///     ancestors — see <see cref="Identity.ResolvePerceptionDecay"/> for how competing
+    ///     candidates are resolved.
+    /// </summary>
+    [ExportGroup("AI / Perception")]
+    [Export]
+    public MemoryDecayStrategy? PerceptionDecay { get; private set; }
+
+    /// <summary>
+    ///     Ranks this category's <see cref="PerceptionDecay"/> against the other categories an
+    ///     entity carries. Highest wins; equal-priority candidates are folded rather than
+    ///     arbitrated. Inert when <see cref="PerceptionDecay"/> is null.
+    /// </summary>
+    [Export]
+    public int DecayPriority { get; private set; }
+
     #region Test Helpers
 #if TOOLS
 
@@ -95,6 +124,9 @@ public partial class Category : Resource
 
     /// <summary>Sets PerceptionDecay for testing purposes.</summary>
     internal void SetPerceptionDecay(MemoryDecayStrategy? value) => PerceptionDecay = value;
+
+    /// <summary>Sets DecayPriority for testing purposes.</summary>
+    internal void SetDecayPriority(int value) => DecayPriority = value;
 
     /// <summary>Sets ParentCategories for testing purposes.</summary>
     internal void SetParentCategories(Array<Category> value) => ParentCategories = value;
