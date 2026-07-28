@@ -18,7 +18,8 @@ using Status;
 [GlobalClass]
 public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 {
-    [Export] public CombatantComponent Combatant { get; private set; }
+    private CombatantComponent? _combatant;
+
     /// <summary>
     /// Set to true to enable verbose logging of combat events to the Godot console.
     /// Toggle this during debugging/testing sessions.
@@ -36,29 +37,14 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 
     public bool Initialize(IBlackboard bb)
     {
-        // 1. Adopt an externally-supplied log if one is on the board; otherwise keep ours.
-        if (bb.TryGet<CombatLog>(BBDataSig.CombatLog, out var existing) && existing != null)
-        {
-            _log = existing;
-        }
-        else
-        {
-            _log ??= new CombatLog();
-            bb.Set(BBDataSig.CombatLog, _log);
-        }
+        Teardown();
 
-        // 2. Resolve Dependency
-        if (!bb.TryGet<CombatantComponent>(BBDataSig.CombatantComponent, out var c))
+        if (!bb.TryGet<CombatantComponent>(BBDataSig.CombatantComponent, out var c) || c == null)
         {
-            JmoLogger.Error(this, $"CombatLogger must have a Combatant Component to operate!");
+            JmoLogger.Debug(this, "[Combat] Required dependency BBDataSig.CombatantComponent not found");
             return false;
         }
-        if (c == null)
-        {
-            JmoLogger.Error(this, "CombatantComponent resolved to null from Blackboard!");
-            return false;
-        }
-        Combatant = c;
+        _combatant = c;
 
         IsInitialized = true;
         Initialized?.Invoke();
@@ -67,7 +53,8 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 
     public void OnPostInitialize()
     {
-        Combatant.CombatResultEvent += HandleCombatResultEvent;
+        if (_combatant == null) { return; }
+        _combatant.CombatResultEvent += HandleCombatResultEvent;
     }
 
     private void HandleCombatResultEvent(CombatResult result)
@@ -88,9 +75,20 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 
     public override void _ExitTree()
     {
-        if (Combatant != null)
+        Teardown();
+        base._ExitTree();
+    }
+
+    /// <summary>
+    /// Teardown-first in <see cref="Initialize"/> is what makes a second entity-init pass safe:
+    /// the driver runs Phase 2 unconditionally for every component that returned true, so without
+    /// this a pool-reuse or rebind pass would log every combat result twice.
+    /// </summary>
+    private void Teardown()
+    {
+        if (_combatant != null)
         {
-            Combatant.CombatResultEvent -= HandleCombatResultEvent;
+            _combatant.CombatResultEvent -= HandleCombatResultEvent;
         }
     }
 

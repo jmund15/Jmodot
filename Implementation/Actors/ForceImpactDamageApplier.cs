@@ -75,7 +75,7 @@ public partial class ForceImpactDamageApplier : Node, IComponent
     private HealthComponent? _health;
     private Node3D? _self;
     private CombatLog? _combatLog;
-    private ExternalForceReceiver3D? _forceReceiver;
+    private IExternalForceReceiver? _forceReceiver;
     private IReadOnlyList<IImpactDamageGate> _gates = new List<IImpactDamageGate>();
     private IStatProvider? _launcherStats;
 
@@ -108,19 +108,19 @@ public partial class ForceImpactDamageApplier : Node, IComponent
 
         if (!bb.TryGet(BBDataSig.ImpactDetector, out _detector) || _detector == null)
         {
-            JmoLogger.Error(this, "Required dependency BBDataSig.ImpactDetector not found");
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.ImpactDetector not found");
             return false;
         }
 
         if (!bb.TryGet(BBDataSig.HealthComponent, out _health) || _health == null)
         {
-            JmoLogger.Error(this, "Required dependency BBDataSig.HealthComponent not found");
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.HealthComponent not found");
             return false;
         }
 
         if (!bb.TryGet(BBDataSig.Agent, out Node3D? self) || self == null)
         {
-            JmoLogger.Error(this, "Required dependency BBDataSig.Agent not found, or not a Node3D");
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.Agent not found, or not a Node3D");
             return false;
         }
 
@@ -240,10 +240,19 @@ public partial class ForceImpactDamageApplier : Node, IComponent
     /// ancestor that owns a blackboard publishing <see cref="BBDataSig.Stats"/>. The climb is
     /// required because a collider is typically a physics-body descendant, not the entity root.
     /// Returns null when the target carries no stats (walls, static geometry).
+    /// <para>
+    /// The climb is capped because the dominant impact collider is static geometry with no
+    /// blackboard anywhere in its ancestry: uncapped, every such impact runs a child scan at
+    /// every ancestor up to the scene root, whose child count scales with level population.
+    /// Colliders sit 2-3 levels below their entity root, so 4 leaves a level of slack.
+    /// </para>
     /// </summary>
+    private const int TargetStatProviderMaxClimb = 4;
+
     private static IStatProvider? ResolveTargetStatProvider(Node? collider)
     {
-        for (var n = collider; n != null; n = n.GetParent())
+        var climbsLeft = TargetStatProviderMaxClimb;
+        for (var n = collider; n != null && climbsLeft-- > 0; n = n.GetParent())
         {
             if (!n.TryGetFirstChildOfInterface<IBlackboard>(out var bb, includeSubChildren: false) || bb == null)
             {
@@ -263,11 +272,11 @@ public partial class ForceImpactDamageApplier : Node, IComponent
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-        var parent = GetParent();
-        if (parent == null || !parent.TryGetFirstChildOfType<ImpactDetector>(out _))
+        var missingDetector = ConfigWarnings.RequireEntitySibling<ImpactDetector>(this,
+            "No ImpactDetector sibling — this node has no damage trigger and will fail to initialize.");
+        if (missingDetector != null)
         {
-            warnings.Add(
-                "No ImpactDetector sibling — this node has no damage trigger and will fail to initialize.");
+            warnings.Add(missingDetector);
         }
 
         return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();

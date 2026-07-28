@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Combat;
 
+using Core.Actors;
 using Core.Combat;
 using Core.Combat.Reactions;
 using Godot;
@@ -33,7 +34,7 @@ public static class SourceAttributionResolver
     public static Node? Resolve(
         ImpactInfo info,
         CombatLog? combatLog,
-        ExternalForceReceiver3D? forceReceiver,
+        IExternalForceReceiver? forceReceiver,
         Node3D? self,
         float windowSeconds)
         => ResolveWithCause(info, combatLog, forceReceiver, self, windowSeconds).Source;
@@ -48,7 +49,7 @@ public static class SourceAttributionResolver
     public static (Node? Source, ImpactCause Cause) ResolveWithCause(
         ImpactInfo info,
         CombatLog? combatLog,
-        ExternalForceReceiver3D? forceReceiver,
+        IExternalForceReceiver? forceReceiver,
         Node3D? self,
         float windowSeconds)
     {
@@ -62,9 +63,9 @@ public static class SourceAttributionResolver
         }
 
         if (forceReceiver != null && self != null
-            && GodotObject.IsInstanceValid(forceReceiver))
+            && (forceReceiver is not GodotObject receiverObj || GodotObject.IsInstanceValid(receiverObj)))
         {
-            var (dominant, _) = forceReceiver.GetDominantForceSource(self);
+            var dominant = forceReceiver.GetDominantForceSourceNode(self);
             if (dominant != null)
             {
                 return (dominant, ImpactCause.SustainedForce);

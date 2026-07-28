@@ -3,6 +3,8 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 using System;
 using System.Collections.Generic;
 using Godot;
+using Jmodot.Core.AI.BB;
+using Jmodot.Implementation.AI.BB;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Visual;
 using Jmodot.Core.Visual.Animation.Sprite;
@@ -38,8 +40,14 @@ using Shared;
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
-public partial class VisualComposer : Node3D, IVisualNodeProvider
+public partial class VisualComposer : Node3D, IVisualNodeProvider, IBlackboardProvider
 {
+    /// <summary>
+    /// Published in Phase 0 so visual consumers resolve the composer without the entity root
+    /// republishing it by hand.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.VisualComposer, this);
+
     [Export, RequiredExport] public CompositeAnimatorComponent CompositeAnimator { get; set; } = null!;
 
     /// <summary>

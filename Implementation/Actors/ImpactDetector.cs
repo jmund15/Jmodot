@@ -67,14 +67,14 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
     {
         if (!bb.TryGet(BBDataSig.CharacterController, out _controller) || _controller == null)
         {
-            JmoLogger.Error(this, "Required dependency BBDataSig.CharacterController not found");
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.CharacterController not found");
             return false;
         }
 
         if (_controller.GetUnderlyingNode() is not CharacterBody3D body)
         {
-            JmoLogger.Error(this,
-                "Registered CharacterController is not backed by a CharacterBody3D — slide-collision "
+            JmoLogger.Debug(this,
+                "[Impact] Registered CharacterController is not backed by a CharacterBody3D — slide-collision "
                 + "detection has no input.");
             _controller = null;
             return false;

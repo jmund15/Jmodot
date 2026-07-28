@@ -82,18 +82,36 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
             return;
         }
 
-        if (Composer != null)
-        {
-            Composer.NodeAdded += OnNodeAdded;
-            Composer.NodeRemoved += OnNodeRemoved;
-            _subscribedService = Composer.Effects;
-            if (_subscribedService != null)
-            {
-                _subscribedService.TintChanged += OnTintChanged;
-            }
-        }
-
+        SubscribeToComposer();
         RefreshVisualNodes();
+    }
+
+    /// <summary>
+    /// Re-attaches composer/service subscriptions after a reparent: _ExitTree tears them down and
+    /// _Ready does not run a second time, so _EnterTree is the only hook that fires again.
+    /// </summary>
+    public override void _EnterTree()
+    {
+        base._EnterTree();
+        if (Engine.IsEditorHint() || !IsNodeReady()) { return; }
+        SubscribeToComposer();
+    }
+
+    private void SubscribeToComposer()
+    {
+        if (Composer == null) { return; }
+
+        Composer.NodeAdded -= OnNodeAdded;
+        Composer.NodeAdded += OnNodeAdded;
+        Composer.NodeRemoved -= OnNodeRemoved;
+        Composer.NodeRemoved += OnNodeRemoved;
+
+        if (_subscribedService != null) { _subscribedService.TintChanged -= OnTintChanged; }
+        _subscribedService = Composer.Effects;
+        if (_subscribedService != null)
+        {
+            _subscribedService.TintChanged += OnTintChanged;
+        }
     }
 
     /// <summary>
@@ -349,7 +367,7 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         {
             warnings.Add("Set either Composer (for entities) or Root (for single-sprite props).");
         }
-        return warnings.ToArray();
+        return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
     }
 
     public Node GetUnderlyingNode() => this;

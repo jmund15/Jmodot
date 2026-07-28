@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
 using System;
+using Core.AI.BB;
 using Core.Movement;
 using Core.Visual.Animation.Sprite;
 using Godot;
@@ -13,8 +14,14 @@ using Jmodot.Core.Shared.Attributes;
 /// Combines a Base Name (State) with a Direction Suffix.
 /// </summary>
 [GlobalClass, Tool]
-public partial class AnimationOrchestrator : Node, IAnimationOrchestrator
+public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlackboardProvider
 {
+    /// <summary>
+    /// Published in Phase 0 so states resolving the orchestrator through its interface do not
+    /// depend on the entity root republishing it by hand.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (AI.BB.BBDataSig.AnimationOrchestrator, this);
+
     [Export, RequiredExport] private Node _targetAnimatorNode = null!;
     [Export] public string DirectionSuffixSeparator { get; set; } = "_";
 
