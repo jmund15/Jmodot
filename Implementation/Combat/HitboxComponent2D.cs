@@ -168,6 +168,24 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         _hitHurtboxes = registry;
     }
 
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.TryHitNode"/>. Resolves a hit against a target
+    /// discovered by a channel OTHER than the Area2D broadphase — typically a swept physics contact,
+    /// whose detection geometry is continuous while this component's is a discrete end-of-step
+    /// sample. Routes through the same guards as an <see cref="OnAreaEntered"/> hit (self-hit,
+    /// collision exceptions, capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a
+    /// target already hit during this attack is a no-op regardless of which channel saw it first.
+    /// </summary>
+    /// <param name="collider">The contacted node; its <see cref="HurtboxComponent2D"/> child is
+    /// resolved by type. A collider carrying no hurtbox is a no-op.</param>
+    public void TryHitNode(Node2D collider)
+    {
+        if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox) && hurtbox != null)
+        {
+            TryHitHurtbox(hurtbox);
+        }
+    }
+
     public void StartAttack(IAttackPayload payload)
     {
         if (!IsInitialized)

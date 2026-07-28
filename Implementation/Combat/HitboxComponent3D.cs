@@ -249,6 +249,24 @@ using AI.BB;
             _hitHurtboxes = registry;
         }
 
+        /// <summary>
+        /// Resolves a hit against a target discovered by a channel OTHER than the Area3D broadphase
+        /// — typically a swept physics contact (<c>MoveAndSlide</c>), whose detection geometry is
+        /// continuous while this component's is a discrete end-of-step sample. Routes through the
+        /// same guards as an <see cref="OnAreaEntered"/> hit (self-hit, collision exceptions,
+        /// capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a target already hit
+        /// during this attack is a no-op regardless of which channel saw it first.
+        /// </summary>
+        /// <param name="collider">The contacted node; its <see cref="HurtboxComponent3D"/> child is
+        /// resolved by type. A collider carrying no hurtbox is a no-op.</param>
+        public void TryHitNode(Node3D collider)
+        {
+            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox) && hurtbox != null)
+            {
+                TryHitHurtbox(hurtbox);
+            }
+        }
+
         public void StartAttack(IAttackPayload payload)
         {
             if (!IsInitialized)
