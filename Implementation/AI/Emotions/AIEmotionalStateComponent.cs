@@ -53,7 +53,6 @@ public partial class AIEmotionalStateComponent : Node, IComponent, IBlackboardPr
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

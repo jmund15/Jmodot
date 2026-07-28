@@ -223,7 +223,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		IsInitialized = true;
 		Initialized();
-		OnPostInitialize();
 		return true;
 	}
 

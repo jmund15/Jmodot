@@ -16,7 +16,7 @@ using Status;
 /// Listens to the Combatant and pushes results into the Blackboard's Event Log.
 /// </summary>
 [GlobalClass]
-public partial class CombatLogger : Node, IComponent
+public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 {
     [Export] public CombatantComponent Combatant { get; private set; }
     /// <summary>
@@ -27,12 +27,23 @@ public partial class CombatLogger : Node, IComponent
 
     private CombatLog _log;
 
+    /// <summary>
+    /// The log is published in Phase 0 so consumers whose own Initialize reads
+    /// <see cref="BBDataSig.CombatLog"/> cannot lose a scene-order race against this
+    /// component's Phase-1 creation of it.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.CombatLog, _log ??= new CombatLog());
+
     public bool Initialize(IBlackboard bb)
     {
-        // 1. Create or Retrieve the Log
-        if (!bb.TryGet(BBDataSig.CombatLog, out _log))
+        // 1. Adopt an externally-supplied log if one is on the board; otherwise keep ours.
+        if (bb.TryGet<CombatLog>(BBDataSig.CombatLog, out var existing) && existing != null)
         {
-            _log = new CombatLog();
+            _log = existing;
+        }
+        else
+        {
+            _log ??= new CombatLog();
             bb.Set(BBDataSig.CombatLog, _log);
         }
 
@@ -51,7 +62,6 @@ public partial class CombatLogger : Node, IComponent
 
         IsInitialized = true;
         Initialized?.Invoke();
-        OnPostInitialize();
         return true;
     }
 

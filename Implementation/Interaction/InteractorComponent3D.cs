@@ -162,7 +162,6 @@ public partial class InteractorComponent3D : Area3D, IComponent
 
         IsInitialized = true;
         Initialized.Invoke();
-        OnPostInitialize();
         return true;
     }
 

@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Visual.Effects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AI.BB;
 using Core.AI.BB;
 using Core.Visual;
 using Core.Visual.Effects;
@@ -19,8 +20,10 @@ using Shared;
 /// <remarks>
 /// <para>
 /// Wired via explicit <see cref="Composer"/> export (replaces the legacy Blackboard
-/// auto-wire of <c>BaseModulationTracker</c>; fixes the layering violation where
-/// Implementation.Visual.Effects reached into Implementation.AI.BB.BBDataSig).
+/// auto-wire of <c>BaseModulationTracker</c> for the composer dependency). The
+/// <see cref="Provision"/> below re-references <c>BBDataSig</c> deliberately: publishing
+/// self under a key is the framework-wide IBlackboardProvider contract every component
+/// shares — distinct from the retired pattern of PULLING wiring dependencies off the BB.
 /// </para>
 /// <para>
 /// When a composer is set: subscribes to its <see cref="IVisualNodeProvider.NodeAdded"/>
@@ -37,8 +40,10 @@ using Shared;
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
-public partial class VisualEffectController : Node, IComponent
+public partial class VisualEffectController : Node, IComponent, IBlackboardProvider
 {
+    public (StringName Key, object Value)? Provision => (BBDataSig.VisualEffectController, this);
+
     /// <summary>
     /// Primary source of visual nodes and base colors. When set, the controller
     /// queries the composer for nodes and uses its <see cref="VisualEffectService"/>
@@ -101,7 +106,6 @@ public partial class VisualEffectController : Node, IComponent
         RefreshVisualNodes();
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

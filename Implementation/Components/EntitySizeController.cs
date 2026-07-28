@@ -138,7 +138,6 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

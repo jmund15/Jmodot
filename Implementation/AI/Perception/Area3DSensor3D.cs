@@ -115,7 +115,6 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         {
             IsInitialized = true;
             Initialized();
-            OnPostInitialize();
             return true;
         }
 
@@ -132,7 +131,6 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

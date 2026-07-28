@@ -158,7 +158,6 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

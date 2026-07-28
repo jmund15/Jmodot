@@ -1,6 +1,8 @@
 namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
+using AI.BB;
+using Core.AI.BB;
 using Core.Environment;
 using Core.Pooling;
 
@@ -11,8 +13,14 @@ using Core.Pooling;
 ///     clean vectors that the MovementProcessor can query.
 /// </summary>
 [GlobalClass]
-public partial class ExternalForceReceiver3D : Area3D, IPoolResetable
+public partial class ExternalForceReceiver3D : Area3D, IPoolResetable, IBlackboardProvider
 {
+    /// <summary>
+    /// Shares <see cref="BBDataSig.ExternalForceReceiver"/> with the 2D receiver: consumers
+    /// address the concept, not the dimension, so a 2D/3D swap stays transparent to them.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.ExternalForceReceiver, this);
+
     // Using HashSets provides efficient add/remove operations and prevents duplicates.
     private readonly HashSet<IForceProvider3D> _activeAreaProviders = new();
     private readonly HashSet<IForceProvider3D> _internalProviders = new();
