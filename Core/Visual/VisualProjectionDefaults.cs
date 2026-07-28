@@ -7,20 +7,36 @@ using Jmodot.Implementation.Shared;
 /// Project-wide 2.5D projection constants for tilted-camera sprite facing. A consuming game's
 /// active camera pushes its derived values here at startup (framework-agnostic seam; mirrors
 /// <c>CombatFactoryDefaults</c> / <c>CollisionDefaults</c> — Jmodot never learns what a camera is).
-/// The active camera <see cref="Retract"/>s on exit, so a scene transition away from the publishing
-/// camera restores the unpublished identity rather than leaving stale tilt live for the next scene.
+/// The seam is owner-scoped: a camera <see cref="Publish(object, float)"/>es itself as the publisher
+/// and only that same owner's <see cref="Retract(object)"/> un-publishes.
 /// </summary>
+/// <remarks>
+/// Owner-scoping is load-bearing, not defensive. A scene swap adds the incoming scene (and its
+/// camera publishes) BEFORE the outgoing scene's deferred free fires its camera's exit — so an
+/// ownerless retract un-publishes a projection a LIVE camera owns, and nothing republishes for the
+/// rest of the session. Every <see cref="IsPublished"/>-gated consumer then silently falls back to
+/// its authored basis with no error raised.
+/// </remarks>
 public static class VisualProjectionDefaults
 {
     private static float _depthForeshorten = 1f;
+
+    // Identity of the camera that published the live projection; null when unpublished. The
+    // ownerless DepthForeshorten setter has no camera to name, so it claims this stand-in.
+    private static readonly object LegacyPublisher = new();
+    private static object? _publisher;
 
     /// <summary>
     /// Screen foreshortening of world depth (Z) relative to world horizontal (X):
     /// = sin(camera pitch from horizontal). <c>1.0</c> = top-down / no foreshortening (the identity
     /// default, so an unconfigured consumer keeps pre-seam behavior — no silent regression).
-    /// Writing this publishes; a write of a DIFFERENT value while already published warns, because
-    /// that means two active cameras disagree and the seam is single-writer by contract.
     /// </summary>
+    /// <remarks>
+    /// Ownerless legacy path: it publishes, but its writer cannot be identified, so the projection
+    /// it leaves can only be withdrawn by the ownerless <see cref="Retract()"/>. Cameras must use
+    /// <see cref="Publish(object, float)"/>. Retained for test setup and any consumer that has no
+    /// stable identity to offer.
+    /// </remarks>
     public static float DepthForeshorten
     {
         get => _depthForeshorten;
@@ -35,6 +51,7 @@ public static class VisualProjectionDefaults
             }
 
             _depthForeshorten = value;
+            _publisher = LegacyPublisher;
             IsPublished = true;
         }
     }
@@ -48,15 +65,51 @@ public static class VisualProjectionDefaults
     public static bool IsPublished { get; private set; }
 
     /// <summary>
-    /// Un-publish, restoring the identity default. The active camera calls this on exit (its
-    /// <c>_ExitTree</c>) so a scene transition doesn't leave the departed camera's tilt live for a
-    /// scene whose own camera hasn't published yet — the unpublished state re-gates consumers back
-    /// onto their authored basis until the next camera publishes.
+    /// Un-publish unconditionally, restoring the identity default. Ownerless counterpart to the
+    /// <see cref="DepthForeshorten"/> setter; cameras must use <see cref="Retract(object)"/>.
     /// </summary>
     public static void Retract()
     {
         _depthForeshorten = 1f;
+        _publisher = null;
         IsPublished = false;
+    }
+
+    /// <summary>
+    /// Publish <paramref name="depthForeshorten"/> and claim the seam for <paramref name="owner"/>.
+    /// Warns when a DIFFERENT owner is already publishing — two live cameras is a contract
+    /// violation regardless of whether their tilts happen to agree, and same-tilt overlap is
+    /// exactly the case a value comparison cannot see.
+    /// </summary>
+    public static void Publish(object owner, float depthForeshorten)
+    {
+        if (IsPublished && !ReferenceEquals(owner, _publisher))
+        {
+            JmoLogger.Warning(nameof(VisualProjectionDefaults),
+                $"Projection foreshorten {_depthForeshorten:F4} is already published by another " +
+                $"active camera; {owner.GetType().Name} is claiming the seam with " +
+                $"{depthForeshorten:F4}. Last publisher wins — iso sprite facing follows it. " +
+                "Expected one active camera per scene.");
+        }
+
+        _depthForeshorten = depthForeshorten;
+        _publisher = owner;
+        IsPublished = true;
+    }
+
+    /// <summary>
+    /// Un-publish on behalf of <paramref name="owner"/> — a no-op unless it is the current
+    /// publisher, so a camera that has already been superseded cannot withdraw the live projection
+    /// on its way out of the tree.
+    /// </summary>
+    public static void Retract(object owner)
+    {
+        if (!ReferenceEquals(owner, _publisher))
+        {
+            return;
+        }
+
+        Retract();
     }
 
     /// <summary>Restore the identity default. Call in test teardown to avoid cross-suite leakage.</summary>
