@@ -162,11 +162,12 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         _statProvider.OnStatChanged += OnStatProviderStatChanged;
     }
 
+    // No unsubscribe-first guard: a C# `signal -= handler` compiles to GodotObject.Disconnect,
+    // which raises an engine ERROR when no connection exists. _EnterTree/_ExitTree are paired by
+    // the engine and this is their only call site, so the pair is already symmetric.
     private void SubscribeBodySignals()
     {
-        BodyEntered -= OnBodyEntered;
         BodyEntered += OnBodyEntered;
-        BodyExited -= OnBodyExited;
         BodyExited += OnBodyExited;
     }
 
@@ -247,8 +248,8 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     // Signal + stat-provider subscription lives here (not _Ready) so it is symmetric with
     // _ExitTree — a reparent re-enters the tree without re-running _Ready. _EnterTree fires
-    // before _Ready on first entry; the subscribe helpers are idempotent so the pair never
-    // double-registers. On first entry IsInitialized is still false and _statProvider null, so
+    // before _Ready on first entry; SubscribeStatProvider is idempotent so the stat subscribe
+    // never double-registers. On first entry IsInitialized is still false and _statProvider null, so
     // OnPostInitialize owns the initial stat subscribe; on reparent this restores it.
     public override void _EnterTree()
     {
