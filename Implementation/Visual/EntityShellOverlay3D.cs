@@ -5,8 +5,29 @@ using Jmodot.Core.Visual;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
+/// Which measured extent a shell sizes itself against.
+/// </summary>
+/// <remarks>
+/// There is deliberately no Depth member. Every sprite measured today is planar, so it would be a
+/// selectable Inspector option that leaves the art silently unscaled.
+/// <see cref="VisualBounds3D.Largest"/> already folds the depth extent in the moment non-planar art
+/// is measured, so adding the member then is a one-line change with real behaviour behind it.
+/// </remarks>
+public enum ShellFitAxis
+{
+    /// <summary>The body's dominant extent — covers it whichever way it is proportioned.</summary>
+    Largest = 0,
+
+    /// <summary>Always the vertical extent, letting a wide body overflow the shell sideways.</summary>
+    Height = 1,
+
+    /// <summary>Always the horizontal extent, letting a tall body overflow the shell vertically.</summary>
+    Width = 2,
+}
+
+/// <summary>
 /// Art that encases the entity it is parented to — a freeze block, a shield bubble, a stone
-/// casing, a web cocoon. Measures the body once, sizes its own art in units of that body's height,
+/// casing, a web cocoon. Measures the body once, sizes its own art in units of that body's extent,
 /// and keeps it centred on the silhouette. The ratio driving the size is pushed in by whatever owns
 /// the depleting resource; this node never subscribes to anything.
 /// </summary>
@@ -21,27 +42,6 @@ using Jmodot.Implementation.Shared;
 /// composition surface.
 /// </para>
 /// </remarks>
-/// <summary>
-/// Which measured extent a shell sizes itself against.
-/// </summary>
-public enum ShellFitAxis
-{
-    /// <summary>The body's dominant extent — covers it whichever way it is proportioned.</summary>
-    Largest = 0,
-
-    /// <summary>Always the vertical extent, letting a wide body overflow the shell sideways.</summary>
-    Height = 1,
-
-    /// <summary>Always the horizontal extent, letting a tall body overflow the shell vertically.</summary>
-    Width = 2,
-
-    /// <summary>
-    /// Always the view-axis extent. Reserved: every sprite measured today is planar, so this
-    /// currently resolves to zero and leaves the art unscaled.
-    /// </summary>
-    Depth = 3,
-}
-
 [GlobalClass]
 public partial class EntityShellOverlay3D : Node3D
 {
@@ -80,12 +80,28 @@ public partial class EntityShellOverlay3D : Node3D
 
         // Measured once rather than per frame: the walk is a hot-path cost, and a composer-driven
         // entity would pop between art regimes as its animation changed mid-effect.
-        Bounds = GetParent() is Node3D body
+        Bounds = ResolveBody() is Node3D body
             ? EntityVisualBounds3D.Measure(body, exclude: this)
             : VisualBounds3D.Unmeasured;
 
+        // An unmeasurable body is not recoverable here, and the fallback renders the art at its raw
+        // authored size — plausible enough to pass a playtest while being wrong on every entity.
+        // Say so rather than letting a mis-parented shell look merely mis-tuned.
+        if (!Bounds.IsMeasured)
+        {
+            JmoLogger.Warning(this,
+                $"[Visual] {Name} could not measure a body to encase; its art renders at the authored size.");
+        }
+
         ApplyCenter();
     }
+
+    /// <summary>
+    /// The entity this shell encases. Defaults to the direct parent, which is where a status
+    /// runner's PersistentVisuals land. Override when the shell is authored deeper in a visual
+    /// subtree, where the parent is a slot or pivot rather than the body root.
+    /// </summary>
+    protected virtual Node3D? ResolveBody() => GetParent() as Node3D;
 
     /// <summary>
     /// Resizes the shell for a 0..1 ratio of whatever resource drives it. Centring is untouched —
@@ -107,27 +123,27 @@ public partial class EntityShellOverlay3D : Node3D
 
     /// <summary>
     /// The body extent <paramref name="axis"/> names. Kept beside <see cref="SelectArtExtent"/>
-    /// because the two must always answer for the SAME dimension — matching a body's height against
-    /// the shell art's width would scale by a ratio of unrelated quantities.
+    /// because both must be driven by the SAME axis value — reading a body's height while dividing
+    /// by the art's width would scale by a ratio of unrelated quantities.
     /// </summary>
+    /// <remarks>
+    /// Under <see cref="ShellFitAxis.Largest"/> the two sides may resolve to different axes — the
+    /// body's dominant extent against the art's dominant extent. That is the intent: it matches
+    /// dominant-to-dominant so a shell covers a body however either is proportioned, without the
+    /// shell needing to know the body's aspect.
+    /// </remarks>
     public static float SelectExtent(VisualBounds3D bounds, ShellFitAxis axis) => axis switch
     {
         ShellFitAxis.Height => bounds.Height,
         ShellFitAxis.Width => bounds.Width,
-        ShellFitAxis.Depth => bounds.Depth,
         _ => bounds.Largest,
     };
 
-    /// <summary>
-    /// The shell art's own extent along the same axis. Depth is absent from planar art, so it
-    /// resolves to zero and <see cref="ComputeFitScale"/> leaves the art alone rather than
-    /// dividing by nothing.
-    /// </summary>
+    /// <summary>The shell art's own extent, selected by the same axis as <see cref="SelectExtent"/>.</summary>
     public static float SelectArtExtent(Vector2 artSize, ShellFitAxis axis) => axis switch
     {
         ShellFitAxis.Height => artSize.Y,
         ShellFitAxis.Width => artSize.X,
-        ShellFitAxis.Depth => 0f,
         _ => Mathf.Max(artSize.X, artSize.Y),
     };
 

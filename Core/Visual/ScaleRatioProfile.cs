@@ -29,6 +29,13 @@ public partial class ScaleRatioProfile : Resource
     [Export] public float ScaleAtOne { get; private set; } = 1.0f;
 
     /// <summary>Optional remap of the ratio before the lerp. Unset is linear.</summary>
+    /// <remarks>
+    /// A raw Curve, NOT <c>Jmodot.Core.Math.CurveShape</c>, despite the surface similarity. That
+    /// type is a shaped MULTIPLIER: its neutral is 1.0 (a null curve returns 1, and Influence blends
+    /// toward 1). This field is a REMAP of the ratio, whose neutral is the identity — an unset curve
+    /// must leave the ratio untouched. Substituting CurveShape would make every unconfigured profile
+    /// return <see cref="ScaleAtOne"/> at every ratio.
+    /// </remarks>
     [Export] public Curve? ScaleCurve { get; private set; }
 
     /// <summary>Magnitude for <paramref name="ratio"/>, interpolated between the two endpoints.</summary>

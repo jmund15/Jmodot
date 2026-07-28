@@ -60,10 +60,14 @@ public static class EntityVisualBounds3D
     {
         if (entity == null || !GodotObject.IsInstanceValid(entity)) { return VisualBounds3D.Unmeasured; }
 
+        // Node3D.GlobalTransform ERR_FAILs to identity outside the tree, which would silently
+        // collapse every sprite onto the entity origin rather than reporting nothing measurable.
+        if (!entity.IsInsideTree()) { return VisualBounds3D.Unmeasured; }
+
         if (entity.TryGetFirstChildOfType<VisualComposer>(out var composer, includeSubChildren: true)
             && composer != null)
         {
-            return Union(entity, ComposedSprites(composer));
+            return Union(entity, ComposedSprites(composer, exclude));
         }
 
         return MeasureTreeWalk(entity, exclude);
@@ -148,14 +152,19 @@ public static class EntityVisualBounds3D
     /// tree walk: a composer keeps every animation of every slot resident, and those frames span art
     /// regimes, so the walk would silently measure hidden art from a different regime.
     /// </remarks>
-    private static IEnumerable<SpriteBase3D> ComposedSprites(VisualComposer composer)
+    private static IEnumerable<SpriteBase3D> ComposedSprites(VisualComposer composer, Node? exclude)
     {
         // GetVisibleNodes, NOT GetVisualNodes(VisualQuery.VisibleOnly) — the latter matches the
         // handle's build-time visibility snapshot, which is false for every slot an
         // AnimationVisibilityCoordinator drives, so it silently returns an empty set with no error.
         foreach (var handle in composer.GetVisibleNodes(MasterSlotQuery(composer)))
         {
-            if (handle.Node is SpriteBase3D sprite) { yield return sprite; }
+            if (handle.Node is not SpriteBase3D sprite) { continue; }
+            // Honoured on BOTH branches or the parameter is a lie: a caller that registers its own
+            // art in a composer slot would otherwise measure itself and grow without bound.
+            if (exclude != null && (ReferenceEquals(sprite, exclude) || exclude.IsAncestorOf(sprite))) { continue; }
+
+            yield return sprite;
         }
     }
 
@@ -219,9 +228,6 @@ public static class EntityVisualBounds3D
             _ => Vector2.Zero,
         };
     }
-
-    /// <summary>Height of one frame of the sprite's art at a node scale of 1.</summary>
-    public static float ArtHeight(SpriteBase3D sprite) => ArtSize(sprite).Y;
 
     private static Vector2 FrameSize(Texture2D? texture, int hframes, int vframes)
     {
