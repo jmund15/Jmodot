@@ -10,7 +10,7 @@ namespace Jmodot.Core.Combat;
 /// in hierarchical matching directly. Configure <see cref="Category.ParentCategories"/>
 /// to express relationships like Burn → Fire → Elemental.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CombatTag : Category
 {
     /// <summary>

@@ -11,7 +11,7 @@ namespace Jmodot.Implementation.Combat.EffectFactories;
 using Core.Combat.EffectDefinitions;
 using Effects.StatusEffects;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DurationEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] public PackedScene Runner { get; set; } = null!;
