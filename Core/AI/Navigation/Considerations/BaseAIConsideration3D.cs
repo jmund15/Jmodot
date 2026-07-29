@@ -86,16 +86,24 @@ public abstract partial class BaseAIConsideration3D : Resource
     }
 
     /// <summary>
+    /// Creates this consideration's per-agent runtime state, called once per agent by the steering
+    /// processor, which then owns the instance and hands it back on every <see cref="Evaluate"/>.
+    /// The default returns null — a consideration whose scoring is a pure function of its exports
+    /// plus the decision context needs no runtime.
+    /// </summary>
+    public virtual AIConsiderationRuntime? CreateRuntime(IBlackboard? blackboard) => null;
+
+    /// <summary>
     /// The primary evaluation method. Calculates base scores, clamps them to the [-1,1] contract
     /// (warn-once on violation), applies propagation and subjective modifiers, re-clamps, derives
     /// the Hard mask, and routes each score into the context map's Interest / Danger / HardMask
     /// channels scaled by <see cref="Weight"/>.
     /// </summary>
     public void Evaluate(SteeringDecisionContext3D context3D, IBlackboard blackboard,
-        DirectionSet3D directions, SteeringContextMap map)
+        DirectionSet3D directions, SteeringContextMap map, AIConsiderationRuntime? runtime = null)
     {
         // 1. Calculate the raw, objective scores for this consideration.
-        var baseScores = CalculateBaseScores(directions, context3D, blackboard);
+        var baseScores = CalculateBaseScores(directions, context3D, blackboard, runtime);
 
         // 2. Contract clamp: base scores MUST be signed [-1,1]. Violations warn once, then clamp.
         foreach (var key in baseScores.Keys.ToList())
@@ -152,9 +160,13 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// Child classes MUST implement this method. It contains the core logic for calculating
     /// the raw directional scores before any personality-driven modifications are applied.
     /// Scores MUST be signed and bounded to [-1,1] (positive = interest, negative = danger).
+    /// <paramref name="runtime"/> carries this consideration's per-agent state (null when the
+    /// consideration declined one via <see cref="CreateRuntime"/>, or when evaluated outside a
+    /// processor); implementations that hold no per-agent state ignore it.
     /// </summary>
     protected abstract Dictionary<Vector3, float> CalculateBaseScores(
-        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard);
+        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard,
+        AIConsiderationRuntime? runtime);
 
     #region Test Helpers
 #if TOOLS
@@ -163,10 +175,11 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// dict so contract tests can assert on a per-bin net score. Not a production path.
     /// </summary>
     internal void Evaluate(SteeringDecisionContext3D context3D, IBlackboard blackboard,
-        DirectionSet3D directions, ref Dictionary<Vector3, float> scores)
+        DirectionSet3D directions, ref Dictionary<Vector3, float> scores,
+        AIConsiderationRuntime? runtime = null)
     {
         var map = new SteeringContextMap(directions.OrderedDirections);
-        Evaluate(context3D, blackboard, directions, map);
+        Evaluate(context3D, blackboard, directions, map, runtime);
         for (int i = 0; i < map.Bins.Count; i++)
         {
             var bin = map.Bins[i];

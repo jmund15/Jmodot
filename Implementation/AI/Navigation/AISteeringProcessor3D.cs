@@ -88,6 +88,16 @@ public partial class AISteeringProcessor3D : Node
     private readonly List<BaseAIConsideration3D> _runtimeConsiderations = new();
 
     /// <summary>
+    /// Per-agent runtime state for every consideration this processor evaluates, including the
+    /// nav-path slot. Considerations are shared <c>.tres</c> Resources and hold no per-agent state,
+    /// so the state that varies between two agents lives here, on the per-instance processor.
+    /// </summary>
+    private readonly Dictionary<BaseAIConsideration3D, AIConsiderationRuntime?> _runtimes = new();
+
+    /// <summary>The agent blackboard, forwarded to considerations when their runtime is created.</summary>
+    private IBlackboard? _bb;
+
+    /// <summary>
     /// The per-frame dual-channel steering map. Built from MovementDirections.OrderedDirections in
     /// Initialize; reset and re-populated each frame in CalculateSteering.
     /// </summary>
@@ -288,8 +298,15 @@ public partial class AISteeringProcessor3D : Node
     /// <summary>
     ///     Initializes the steering processor. Must be called by the parent AIAgent.
     /// </summary>
-    public void Initialize()
+    /// <param name="bb">
+    ///     The agent blackboard, forwarded to each consideration's <see cref="BaseAIConsideration3D.CreateRuntime"/>
+    ///     so per-agent runtime state can seed itself from agent data (entity seed, stats, components).
+    ///     Null is legal — considerations that need no blackboard input are unaffected.
+    /// </param>
+    public void Initialize(IBlackboard? bb)
     {
+        _bb = bb;
+
         if (MovementDirections == null || !MovementDirections.Directions.Any())
         {
             JmoLogger.Error(this, "MovementDirections resource is null or empty. Steering processor cannot function.");
@@ -300,14 +317,30 @@ public partial class AISteeringProcessor3D : Node
         // flag so synthesis strategies can gate neighbor interpolation on it.
         _map = new SteeringContextMap(MovementDirections.OrderedDirections, MovementDirections.HasCircularOrder);
 
+        // A recycled processor must not carry a prior life's per-agent runtime state; every runtime
+        // below is rebuilt against the blackboard this Initialize was handed.
+        _runtimes.Clear();
+
         // Initialize each consideration, allowing them to perform setup tasks (e.g., caching data).
         foreach (var consideration in _considerations)
         {
-            consideration?.Initialize(MovementDirections);
+            if (consideration == null) { continue; }
+            consideration.Initialize(MovementDirections);
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
+        }
+
+        // Registrations that outlived the previous life need their runtimes rebuilt too.
+        foreach (var consideration in _runtimeConsiderations)
+        {
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
         }
 
         // Initialize the dedicated nav path consideration if configured.
-        _navPathConsideration?.Initialize(MovementDirections);
+        if (_navPathConsideration != null)
+        {
+            _navPathConsideration.Initialize(MovementDirections);
+            _runtimes[_navPathConsideration] = _navPathConsideration.CreateRuntime(_bb);
+        }
 
         RebuildActiveConsiderations();
 
@@ -331,6 +364,12 @@ public partial class AISteeringProcessor3D : Node
         if (_runtimeConsiderations.Contains(consideration)) { return; }
         _runtimeConsiderations.Add(consideration);
         consideration.Initialize(MovementDirections);
+        // Kept across unregister/re-register: a consideration shared by two BT actions that hand off
+        // would otherwise reset its accumulators on every swap.
+        if (!_runtimes.ContainsKey(consideration))
+        {
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
+        }
         RebuildActiveConsiderations();
     }
 
@@ -342,6 +381,20 @@ public partial class AISteeringProcessor3D : Node
     {
         if (!_runtimeConsiderations.Remove(consideration)) { return; }
         RebuildActiveConsiderations();
+    }
+
+    /// <summary>
+    /// The per-agent runtime for a consideration, created on first sight. The lazy path covers
+    /// considerations that reached the evaluation loop without passing through Initialize or
+    /// RegisterConsideration — a missing runtime would silently degrade a stateful consideration
+    /// to unseeded, shared-default behavior.
+    /// </summary>
+    private AIConsiderationRuntime? GetRuntime(BaseAIConsideration3D consideration)
+    {
+        if (_runtimes.TryGetValue(consideration, out var runtime)) { return runtime; }
+        runtime = consideration.CreateRuntime(_bb);
+        _runtimes[consideration] = runtime;
+        return runtime;
     }
 
     private void RebuildActiveConsiderations()
@@ -360,6 +413,10 @@ public partial class AISteeringProcessor3D : Node
     {
         _navPathOverride = consideration;
         consideration.Initialize(MovementDirections);
+        if (!_runtimes.ContainsKey(consideration))
+        {
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
+        }
     }
 
     /// <summary>
@@ -418,7 +475,7 @@ public partial class AISteeringProcessor3D : Node
             foreach (var consideration in ActiveConsiderations)
             {
                 _recorder?.CaptureBefore(_map);
-                consideration.Evaluate(context3D, blackboard, MovementDirections, _map);
+                consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetRuntime(consideration));
                 _recorder?.CaptureAfter(consideration, _map);
             }
         }
@@ -429,7 +486,7 @@ public partial class AISteeringProcessor3D : Node
         if (activeNavPath != null)
         {
             _recorder?.CaptureBefore(_map);
-            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map);
+            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map, GetRuntime(activeNavPath));
             _recorder?.CaptureAfter(activeNavPath, _map);
         }
 
