@@ -30,6 +30,8 @@ public class MovementProcessor3D : IMovementProcessor3D
     private readonly IMovementStrategy3D? _default;
     private IMovementStrategy3D? _override;
 
+    private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
+
     public MovementProcessor3D(
         ICharacterController3D controller,
         IStatProvider statsProvider,
@@ -71,8 +73,34 @@ public class MovementProcessor3D : IMovementProcessor3D
         _override = null;
     }
 
+    public bool IsSuspended => _suspensionSlot.IsClaimed;
+
+    public bool TryClaimSuspension(StringName owner)
+    {
+        if (!_suspensionSlot.TryClaim(owner, true, _owner, "Movement suspension"))
+        {
+            return false;
+        }
+
+        // Impulses are discarded, not queued: without this drain, every knockback landed while
+        // suspended would sum in _frameImpulses and discharge as one launch on release.
+        _frameImpulses = Vector3.Zero;
+        return true;
+    }
+
+    public void ReleaseSuspension(StringName owner)
+    {
+        _suspensionSlot.TryRelease(owner, _owner, "Movement suspension");
+    }
+
     public void ProcessMovement(Vector3 desiredDirection, float delta)
     {
+        if (IsSuspended)
+        {
+            _frameImpulses = Vector3.Zero;
+            return;
+        }
+
         var active = ActiveStrategy;
         if (active == null)
         {
@@ -89,6 +117,12 @@ public class MovementProcessor3D : IMovementProcessor3D
     /// </summary>
     public void ProcessMovement(IMovementStrategy3D strategy3D, Vector3 desiredDirection, float delta)
     {
+        if (IsSuspended)
+        {
+            _frameImpulses = Vector3.Zero;
+            return;
+        }
+
         // --- 0. Pre-process Turn Rate (if strategy has a composable TurnProfile) ---
         var inputVelocity = this._controller.Velocity;
 
@@ -147,6 +181,12 @@ public class MovementProcessor3D : IMovementProcessor3D
     /// </summary>
     public void ProcessExternalForcesOnly(float delta)
     {
+        if (IsSuspended)
+        {
+            _frameImpulses = Vector3.Zero;
+            return;
+        }
+
         // No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
         // 1. Still apply any impulses that might occur
         _controller.AddVelocity(_frameImpulses);
@@ -178,6 +218,12 @@ public class MovementProcessor3D : IMovementProcessor3D
     /// </summary>
     public void ProcessImpulsesOnly(float delta)
     {
+        if (IsSuspended)
+        {
+            _frameImpulses = Vector3.Zero;
+            return;
+        }
+
         _controller.AddVelocity(_frameImpulses);
         _frameImpulses = Vector3.Zero;
         _controller.Move();

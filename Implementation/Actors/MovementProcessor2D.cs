@@ -27,6 +27,8 @@ public class MovementProcessor2D : IMovementProcessor2D
     private Vector2 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
 
+    private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
+
     public MovementProcessor2D(
         ICharacterController2D controller,
         IStatProvider statsProvider,
@@ -45,8 +47,34 @@ public class MovementProcessor2D : IMovementProcessor2D
     ///     The main update loop for continuous movement. It is called by the active State,
     ///     which provides all necessary contextual information.
     /// </summary>
+    public bool IsSuspended => _suspensionSlot.IsClaimed;
+
+    public bool TryClaimSuspension(StringName owner)
+    {
+        if (!_suspensionSlot.TryClaim(owner, true, _owner, "Movement suspension"))
+        {
+            return false;
+        }
+
+        // Impulses are discarded, not queued: without this drain, every knockback landed while
+        // suspended would sum in _frameImpulses and discharge as one launch on release.
+        _frameImpulses = Vector2.Zero;
+        return true;
+    }
+
+    public void ReleaseSuspension(StringName owner)
+    {
+        _suspensionSlot.TryRelease(owner, _owner, "Movement suspension");
+    }
+
     public void ProcessMovement(IMovementStrategy2D strategy2D, Vector2 desiredDirection, float delta)
     {
+        if (IsSuspended)
+        {
+            _frameImpulses = Vector2.Zero;
+            return;
+        }
+
         // --- 0. Pre-process Turn Rate (if strategy has a composable TurnProfile) ---
         var inputVelocity = this._controller.Velocity;
 
@@ -101,6 +129,12 @@ public class MovementProcessor2D : IMovementProcessor2D
     /// </summary>
     public void ProcessExternalForcesOnly(float delta)
     {
+        if (IsSuspended)
+        {
+            _frameImpulses = Vector2.Zero;
+            return;
+        }
+
         // No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
         // 1. Still apply any impulses that might occur
         _controller.AddVelocity(_frameImpulses);
