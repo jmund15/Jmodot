@@ -21,4 +21,7 @@ public enum DetachCause
 
     /// <summary>The host's capacity shrank below what it was already carrying.</summary>
     CapacityRevoked,
+
+    /// <summary>The rider abandoned an attachment it had reserved or held.</summary>
+    RiderAborted,
 }

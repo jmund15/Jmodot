@@ -11,6 +11,9 @@ public enum ShedDamageScope
     /// <summary>Only riders the force actually shed take damage — the melee shape.</summary>
     ShedOnly,
 
-    /// <summary>Every attached rider takes damage regardless of whether it was shed — the spell shape.</summary>
+    /// <summary>
+    /// Every RIDING rider takes damage regardless of whether it was shed — the spell shape. Riders
+    /// still flying to a reservation are outside every shed's reach, damage included.
+    /// </summary>
     AllAttached,
 }

@@ -203,8 +203,9 @@ public static partial class BBDataSig
 
     /// <summary>
     /// The entity's <c>AttachmentHostComponent3D</c> — present only on entities that can be ridden.
-    /// Capability discovery still goes through <c>IAttachmentHost</c> on the TARGET's node tree;
-    /// this key is for an entity's own components resolving their sibling host.
+    /// Capability discovery still goes through <c>IAttachmentHost</c> on the TARGET's node tree; this
+    /// key is how an entity's OWN components reach their sibling host — a melee state resolving the
+    /// host it must shake riders off, and a caster component doing the same on every cast.
     /// </summary>
     public static readonly StringName AttachmentHost = new("AttachmentHost");
 
@@ -212,8 +213,9 @@ public static partial class BBDataSig
     public static readonly StringName AttachmentRider = new("AttachmentRider");
 
     /// <summary>
-    /// Level-triggered flag, true between a successful attach and any detach. Transition-only:
-    /// HSM conditions read it, nothing else branches on it.
+    /// Level-triggered flag, true only while RIDING — between a host's confirm and any detach, so it
+    /// stays false for the whole approach. Transition-only: HSM conditions read it, nothing else
+    /// branches on it.
     /// </summary>
     public static readonly StringName IsAttached = new("IsAttached");
 

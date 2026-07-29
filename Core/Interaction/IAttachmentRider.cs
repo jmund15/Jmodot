@@ -19,27 +19,32 @@ public interface IAttachmentRider : IGodotNodeInterface
     /// <summary>Force required to shed this rider from a fresh attachment. Refills fully on each new attachment; never regenerates mid-ride.</summary>
     float MaxGrip { get; }
 
-    /// <summary>Multiplier converting force spent shedding this rider into its launch impulse.</summary>
-    float FlingForceScale { get; }
-
     /// <summary>Damage per second dealt to the host while attached.</summary>
     float AttachDamagePerSecond { get; }
 
-    /// <summary>The host being ridden, or null while unattached.</summary>
+    /// <summary>The host whose anchor this rider is reserving or riding, or null when it holds neither.</summary>
     IAttachmentHost? Host { get; }
 
-    /// <summary>True between a successful attach and any detach.</summary>
+    /// <summary>True only while riding — that is, between a host's confirm and any detach. False for the whole approach.</summary>
     bool IsAttached { get; }
 
-    /// <summary>The host confirmed the attachment at <paramref name="localAnchor"/> (host-local, planar).</summary>
+    /// <summary>
+    /// The host booked <paramref name="localAnchor"/> (host-local, planar) for this rider. It may now
+    /// fly there, but it is NOT attached yet — nothing that keys off riding may flip here.
+    /// </summary>
+    void OnReserved(IAttachmentHost host, Vector3 localAnchor);
+
+    /// <summary>The rider arrived and the host confirmed it: the attachment is now real.</summary>
     void OnAttached(IAttachmentHost host, Vector3 localAnchor);
 
     /// <summary>
-    /// Grip was exhausted: release positional authority FIRST, then apply
-    /// <paramref name="spentForce"/> × <see cref="FlingForceScale"/> along <paramref name="direction"/>.
-    /// Ordering is load-bearing — an impulse applied while movement is still suspended is discarded.
+    /// Grip was exhausted: release positional authority FIRST, then convert
+    /// <paramref name="spentForce"/> into a launch impulse along <paramref name="direction"/>,
+    /// attributed to <paramref name="attributedSource"/>. Ordering is load-bearing — an impulse
+    /// applied while movement is still suspended is discarded.
     /// </summary>
-    void OnShed(Vector3 direction, float spentForce);
+    /// <param name="attributedSource">Who gets credit for the fling: the shed's instigator when one was named, else the host.</param>
+    void OnShed(Vector3 direction, float spentForce, Node? attributedSource);
 
     /// <summary>The attachment ended for a reason other than a shed; release every claim and resume normal AI.</summary>
     void OnDetached(DetachCause cause);

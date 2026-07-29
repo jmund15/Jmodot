@@ -29,14 +29,15 @@ using Jmodot.Implementation.Shared;
 ///
 /// <para>
 /// <b>Tuning is data.</b> All four numbers are <see cref="BaseFloatValueDefinition"/>s so a designer
-/// picks constant-or-stat-driven per field without a code change; the interface exposes the
-/// resolved floats.
+/// picks constant-or-stat-driven per field without a code change. Three resolve through the rider
+/// interface; <see cref="FlingForceScale"/> stays local, since only this rider ever converts spent
+/// force into its own impulse.
 /// </para>
 ///
 /// <para>Optional BB keys: <see cref="BBDataSig.MovementProcessor"/> (without it the ride cannot
 /// suspend self-movement), <see cref="BBDataSig.KnockbackComponent"/> (without it a shed cannot
 /// fling), <see cref="BBDataSig.HurtboxComponent"/> (without it shed damage cannot land),
-/// <see cref="BBDataSig.HealthComponent"/>, <see cref="BBDataSig.EntitySeed"/>.</para>
+/// <see cref="BBDataSig.HealthComponent"/>.</para>
 /// </summary>
 [GlobalClass]
 public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentRider
@@ -53,24 +54,14 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition FlingForceScaleDefinition { get; private set; } = null!;
 
-    /// <summary>
-    /// Half-range, in metres, this rider may sit off the host's sprite plane. Placement itself is
-    /// planar — every shipped silhouette has zero depth — so this exists purely to give overlapping
-    /// riders draw-order separation. 0 keeps every rider exactly on the plane.
-    /// </summary>
-    [Export] public float AnchorDepthJitter { get; private set; } = 0f;
-
     private IBlackboard _bb = null!;
     private IMovementProcessor3D? _movement;
     private KnockbackComponent3D? _knockback;
     private HurtboxComponent3D? _hurtbox;
     private IHealth? _health;
     private IStatProvider? _stats;
-    private JmoRng _rng = null!;
-    private bool _warnedMissingSeed;
 
     private Node? _hostNode;
-    private float _depthOffset;
     private bool _holdsSuspension;
 
     /// <inheritdoc />
@@ -91,7 +82,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <inheritdoc />
     public float AttachDamagePerSecond => this.AttachDamagePerSecondDefinition?.ResolveFloatValue(this._stats) ?? 0f;
 
-    /// <inheritdoc />
+    /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse. Read only by this rider.</summary>
     public float FlingForceScale => this.FlingForceScaleDefinition?.ResolveFloatValue(this._stats) ?? 0f;
 
     public override void _Ready()
@@ -103,25 +94,45 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <summary>
     /// The host cannot always tell the rider it is gone: <c>QueueFree</c> raises no domain event,
     /// and a host freed outside the tree never runs <c>_ExitTree</c>. So the rider verifies every
-    /// frame that the host still holds a record for it.
+    /// frame that the host still holds a record for it. Runs from the RESERVATION onward, not just
+    /// while riding — a host that dies mid-approach must release the reservation too.
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
-        if (!this.IsAttached) { return; }
+        if (this.Host == null) { return; }
         if (this.HostStillHoldsRecord()) { return; }
 
         this.ReleaseAttachment();
     }
 
+    /// <summary>
+    /// Re-arms the death hook that <see cref="_ExitTree"/> drops. Reparenting fires both, so without
+    /// this the rider survives the move with no way to notice its own death.
+    /// </summary>
+    public override void _EnterTree()
+    {
+        if (this._health == null) { return; }
+
+        this._health.OnDied -= this.OnOwnDeath;
+        this._health.OnDied += this.OnOwnDeath;
+    }
+
     public override void _ExitTree()
     {
         if (this._health != null) { this._health.OnDied -= this.OnOwnDeath; }
-        if (!this.IsAttached) { return; }
+        if (this.Host == null) { return; }
 
         var host = this.Host;
         var hostNode = this._hostNode;
         this.ReleaseAttachment();
-        if (host != null && GodotObject.IsInstanceValid(hostNode)) { host.Detach(this, DetachCause.RiderRemoved); }
+        if (GodotObject.IsInstanceValid(hostNode)) { host.Detach(this, DetachCause.RiderRemoved); }
+    }
+
+    /// <inheritdoc />
+    public void OnReserved(IAttachmentHost host, Vector3 localAnchor)
+    {
+        this.Host = host;
+        this._hostNode = host.GetUnderlyingNode();
     }
 
     /// <inheritdoc />
@@ -129,23 +140,18 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     {
         this.Host = host;
         this._hostNode = host.GetUnderlyingNode();
-        this._depthOffset = this.AnchorDepthJitter > 0f
-            ? this._rng.GetRndInRange(-this.AnchorDepthJitter, this.AnchorDepthJitter)
-            : 0f;
         this.IsAttached = true;
         this._bb?.Set(BBDataSig.IsAttached, true);
     }
 
     /// <inheritdoc />
-    public void OnShed(Vector3 direction, float spentForce)
+    public void OnShed(Vector3 direction, float spentForce, Node? attributedSource)
     {
-        var attributedSource = this._hostNode;
-
         // Ordering is load-bearing: a suspended processor CLEARS its pending impulses every tick,
         // so an impulse applied before the release is discarded rather than queued.
         this.ReleaseAttachment();
 
-        var impulse = spentForce * ((IAttachmentRider)this).FlingForceScale;
+        var impulse = spentForce * this.FlingForceScale;
         if (impulse <= 0f) { return; }
         if (this._knockback == null) { return; }
 
@@ -173,8 +179,15 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// </summary>
     public bool TryClaimPositionalAuthority()
     {
-        if (this._movement == null) { return false; }
-        if (!this._movement.TryClaimSuspension(Name)) { return false; }
+        if (this._movement == null)
+        {
+            JmoLogger.Warning(this, "[Attachment] No IMovementProcessor3D on the blackboard — this rider cannot ride.");
+            return false;
+        }
+
+        // Zero, not Preserve: the claim is taken mid-chase, and the release happens on a shed. Resuming
+        // a seconds-old chase vector pointed AT the host can cancel the fling that just threw the rider off.
+        if (!this._movement.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero)) { return false; }
 
         this._holdsSuspension = true;
         return true;
@@ -190,31 +203,28 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <summary>
-    /// Where this rider should sit this frame: the host's live anchor plus this rider's own depth
-    /// jitter, applied along the host's local view axis so it survives the host rotating.
+    /// Where this rider should sit this frame: the host's live anchor, verbatim. Any off-plane depth
+    /// is already baked into the anchor by the host's <c>AttachmentAnchorProfile3D</c> — how riders
+    /// are arranged across a silhouette is the host's decision, not each rider's.
     /// </summary>
     public bool TryGetRideWorldPosition(out Vector3 worldPosition)
     {
         worldPosition = Vector3.Zero;
-        if (!this.IsAttached || this.Host == null) { return false; }
-        if (!this.Host.TryGetAnchorWorldPosition(this, out var anchor)) { return false; }
+        // Answers from the RESERVATION onward: the anchor is precisely what the approach flies toward,
+        // so gating this on IsAttached would leave the rider with no destination.
+        if (this.Host == null) { return false; }
 
-        worldPosition = anchor;
-        if (this._depthOffset == 0f) { return true; }
-        if (this._hostNode is not Node3D host3D || !GodotObject.IsInstanceValid(host3D)) { return true; }
-
-        worldPosition += host3D.GlobalBasis.Z * this._depthOffset;
-        return true;
+        return this.Host.TryGetAnchorWorldPosition(this, out worldPosition);
     }
 
+    /// <summary>Clears BOTH phases' state — a reservation abandoned mid-flight unwinds through here too.</summary>
     private void ReleaseAttachment()
     {
-        if (!this.IsAttached) { return; }
+        if (this.Host == null && !this.IsAttached) { return; }
 
         this.IsAttached = false;
         this.Host = null;
         this._hostNode = null;
-        this._depthOffset = 0f;
         this.ReleasePositionalAuthority();
         this._bb?.Set(BBDataSig.IsAttached, false);
     }
@@ -222,7 +232,14 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private bool HostStillHoldsRecord()
     {
         if (this.Host == null) { return false; }
-        if (!GodotObject.IsInstanceValid(this._hostNode) || this._hostNode!.IsQueuedForDeletion()) { return false; }
+        if (!GodotObject.IsInstanceValid(this._hostNode)) { return false; }
+
+        // Ancestor walk, not a single node: QueueFree stamps the flag on the node it was called on
+        // only, so a host component whose ENTITY is being freed reports false for its own queued state.
+        for (Node? ancestor = this._hostNode; ancestor != null; ancestor = ancestor.GetParent())
+        {
+            if (ancestor.IsQueuedForDeletion()) { return false; }
+        }
 
         foreach (var record in this.Host.Attachments)
         {
@@ -234,11 +251,11 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     private void OnOwnDeath(HealthChangeEventArgs args)
     {
-        if (!this.IsAttached) { return; }
+        if (this.Host == null) { return; }
 
         var host = this.Host;
         this.ReleaseAttachment();
-        host?.Detach(this, DetachCause.RiderDied);
+        host.Detach(this, DetachCause.RiderDied);
     }
 
     #region IComponent
@@ -254,7 +271,6 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
         bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
-        this._rng = EntityRngResolver.Resolve(bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
 
         IsInitialized = true;
         Initialized();
@@ -265,6 +281,11 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     {
         ProcessMode = ProcessModeEnum.Inherit;
         this._bb?.Set(BBDataSig.IsAttached, this.IsAttached);
+
+        if (this._knockback == null)
+        {
+            JmoLogger.Warning(this, "[Attachment] No KnockbackComponent3D on the blackboard — sheds will not fling this rider.");
+        }
 
         if (this._health == null) { return; }
 
@@ -291,8 +312,6 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.AttachDamagePerSecondDefinition = attachDps;
         this.FlingForceScaleDefinition = flingForceScale;
     }
-
-    internal void SetAnchorDepthJitter(float jitter) => this.AnchorDepthJitter = jitter;
 
     internal bool _TestHoldsSuspension => this._holdsSuspension;
 
