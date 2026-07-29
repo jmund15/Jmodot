@@ -387,9 +387,11 @@ public partial class AISteeringProcessor3D : Node
     /// The per-agent runtime for a consideration, created on first sight. The lazy path covers
     /// considerations that reached the evaluation loop without passing through Initialize or
     /// RegisterConsideration — a missing runtime would silently degrade a stateful consideration
-    /// to unseeded, shared-default behavior.
+    /// to unseeded, shared-default behavior. Public so BT actions that evaluate a consideration
+    /// off the main pipeline (on-demand probes) can hand it the same per-agent runtime the
+    /// pipeline would.
     /// </summary>
-    private AIConsiderationRuntime? GetRuntime(BaseAIConsideration3D consideration)
+    public AIConsiderationRuntime? GetOrCreateRuntime(BaseAIConsideration3D consideration)
     {
         if (_runtimes.TryGetValue(consideration, out var runtime)) { return runtime; }
         runtime = consideration.CreateRuntime(_bb);
@@ -472,10 +474,13 @@ public partial class AISteeringProcessor3D : Node
         // NavigationOnly claim skips consideration scoring entirely.
         if (mode != SteeringControlMode.NavigationOnly)
         {
-            foreach (var consideration in ActiveConsiderations)
+            // Indexed rather than foreach: ActiveConsiderations is typed as the interface, so foreach
+            // would box the List enumerator once per agent per physics frame on a hot path.
+            for (int i = 0; i < ActiveConsiderations.Count; i++)
             {
+                var consideration = ActiveConsiderations[i];
                 _recorder?.CaptureBefore(_map);
-                consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetRuntime(consideration));
+                consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(consideration));
                 _recorder?.CaptureAfter(consideration, _map);
             }
         }
@@ -486,7 +491,7 @@ public partial class AISteeringProcessor3D : Node
         if (activeNavPath != null)
         {
             _recorder?.CaptureBefore(_map);
-            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map, GetRuntime(activeNavPath));
+            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(activeNavPath));
             _recorder?.CaptureAfter(activeNavPath, _map);
         }
 
@@ -541,8 +546,12 @@ public partial class AISteeringProcessor3D : Node
     {
         string best = "-";
         float bestMag = 0f;
-        foreach (var c in _recorder!.Contributions)
+        // Indexed rather than foreach: Contributions is a zero-alloc view typed as the interface,
+        // and its enumerator is an iterator — foreach would allocate one per bin per dump.
+        var contributions = _recorder!.Contributions;
+        for (int i = 0; i < contributions.Count; i++)
         {
+            var c = contributions[i];
             float mag = c.InterestDelta[bin] - c.DangerDelta[bin];
             if (Mathf.Abs(mag) > Mathf.Abs(bestMag)) { bestMag = mag; best = c.Source; }
         }

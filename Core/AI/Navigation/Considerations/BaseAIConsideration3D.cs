@@ -6,6 +6,7 @@ using BB;
 using Implementation.AI.Navigation;
 using Implementation.AI.Navigation.Considerations;
 using Implementation.Shared;
+using Implementation.Shared.GodotExceptions;
 using Movement;
 using SteeringModifiers;
 using GColl = Godot.Collections;
@@ -167,6 +168,26 @@ public abstract partial class BaseAIConsideration3D : Resource
     protected abstract Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard,
         AIConsiderationRuntime? runtime);
+
+    /// <summary>
+    /// Narrows the processor-owned runtime to the type this consideration creates. Null passes
+    /// through — evaluation outside a processor legitimately carries no per-agent state, and the
+    /// caller must degrade without allocating a throwaway on a per-frame path. A non-null runtime
+    /// of the wrong type is a wiring error (a runtime built by a different consideration) that no
+    /// correct call path can produce; substituting a default there would silently drop per-agent
+    /// continuity, so it throws instead.
+    /// </summary>
+    protected TRuntime? NarrowRuntime<TRuntime>(AIConsiderationRuntime? runtime)
+        where TRuntime : AIConsiderationRuntime
+    {
+        if (runtime == null) { return null; }
+        if (runtime is TRuntime typed) { return typed; }
+
+        throw new ResourceConfigurationException(
+            $"Consideration '{ResourceName}' ({GetType().Name}) was handed a " +
+            $"{runtime.GetType().Name} runtime; it only accepts {typeof(TRuntime).Name}.",
+            this);
+    }
 
     #region Test Helpers
 #if TOOLS

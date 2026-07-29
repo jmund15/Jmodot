@@ -69,11 +69,17 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     {
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        // A missing runtime means this consideration was evaluated outside a processor; take a
-        // throwaway unseeded sample rather than parking per-agent state on the shared Resource.
-        var wander = runtime as WanderRuntime ?? new WanderRuntime();
-        wander.AccumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
-        float time = wander.AccumulatedTime + wander.Offset;
+        // A missing runtime means this consideration was evaluated outside a processor: sample the
+        // unseeded origin rather than parking per-agent state on the shared Resource. A throwaway
+        // runtime would sample a constant anyway (a fresh accumulator never advances past one tick)
+        // while churning the heap on a path that can run every frame.
+        var wander = NarrowRuntime<WanderRuntime>(runtime);
+        float time = 0f;
+        if (wander != null)
+        {
+            wander.AccumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
+            time = wander.AccumulatedTime + wander.Offset;
+        }
         float noiseValue = _noise?.GetNoise1D(time) ?? 0f;
 
         Vector3 wanderDirection = CalculateAngularDirection(noiseValue);
