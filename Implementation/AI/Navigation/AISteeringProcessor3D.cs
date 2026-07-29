@@ -135,7 +135,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// <summary>The current control-claim owner, or null when unclaimed.</summary>
     public StringName? ControlOwner => _controlSlot.Owner;
 
-    private readonly OwnedSlot<ControlClaim> _controlSlot = new();
+    private readonly OwnedSlot<ControlClaim> _controlSlot = new("Steering");
 
     /// <summary>
     /// Claims the control slot under reject-second-claimant discipline: unclaimed or same-owner reclaim
@@ -178,7 +178,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// </summary>
     [Export] private SteeringSynthesisStrategy3D? _synthesisStrategy;
 
-    private readonly OwnedSlot<SteeringSynthesisStrategy3D> _synthesisSlot = new();
+    private readonly OwnedSlot<SteeringSynthesisStrategy3D> _synthesisSlot = new("Steering");
     private SteeringSynthesisState _synthesisState = SteeringSynthesisState.Empty;
 
     // Lazily created; static so all unassigned processors share one instance. NEVER an eager field
@@ -231,48 +231,6 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     {
         _recorder ??= new DebugSteeringRecorder();
         return _recorder;
-    }
-
-    /// <summary>
-    /// One reject-second-claimant discipline, reused by the control slot and the synthesis-override
-    /// slot: the first owner keeps the slot; a conflicting owner is rejected (returns false + warns);
-    /// the owner (or a reset) releases it. Per-agent state lives here as a private field on the Node,
-    /// never on a shared Resource.
-    /// </summary>
-    private sealed class OwnedSlot<T>
-    {
-        public StringName? Owner { get; private set; }
-        public T? Value { get; private set; }
-        public bool IsClaimed => Owner != null;
-
-        public bool TryClaim(StringName owner, T value, Node context, string slotName)
-        {
-            if (Owner != null && Owner != owner)
-            {
-                JmoLogger.Warning(context, $"[Steering] {slotName} claim held by '{Owner}'; '{owner}' rejected.");
-                return false;
-            }
-            Owner = owner;
-            Value = value;
-            return true;
-        }
-
-        public bool TryRelease(StringName owner, Node context, string slotName)
-        {
-            if (Owner != owner)
-            {
-                JmoLogger.Warning(context, $"[Steering] '{owner}' tried to release {slotName} held by '{Owner?.ToString() ?? "no one"}'.");
-                return false;
-            }
-            Clear();
-            return true;
-        }
-
-        public void Clear()
-        {
-            Owner = null;
-            Value = default;
-        }
     }
 
     [ExportGroup("Debug")]
