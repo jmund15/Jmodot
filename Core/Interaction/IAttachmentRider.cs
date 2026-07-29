@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Interaction;
 
 using Godot;
+using Jmodot.Core.Combat;
 using Jmodot.Core.Shared;
 
 /// <summary>
@@ -42,4 +43,13 @@ public interface IAttachmentRider : IGodotNodeInterface
 
     /// <summary>The attachment ended for a reason other than a shed; release every claim and resume normal AI.</summary>
     void OnDetached(DetachCause cause);
+
+    /// <summary>
+    /// Route a shed's damage payload through this rider's OWN hurtbox, so armour, reaction
+    /// resolvers, payload interceptors and i-frames all run. The rider performs the call rather
+    /// than the host reaching across into its components: only the rider resolved its own
+    /// hurtbox from its own blackboard, and only it can tell an absent hurtbox from a rejected hit.
+    /// </summary>
+    /// <returns>True when the hurtbox processed the hit; false when it rejected it or none exists.</returns>
+    bool TryApplyShedDamage(IAttackPayload payload);
 }
