@@ -254,16 +254,18 @@ public static class NodeExts
     /// nothing. Widening to the scene root makes placement a presentation concern.
     /// <para>
     /// Siblings still win, so a component that already resolved keeps resolving to the same node —
-    /// this widens reach without re-targeting anything that previously worked. The nearest match is
-    /// also the right tiebreak when an entity carries several of a type (multiple sprites, several
-    /// colliders); where that is still ambiguous, an explicit <c>[Export]</c> is the answer.
+    /// this widens reach without re-targeting anything that previously worked. Past the sibling scope
+    /// the walk is breadth-first from the scene root, so a tie between several of a type (multiple
+    /// sprites, several colliders) resolves to whichever sits shallowest in authoring order — NOT to
+    /// whichever is nearest this node. Where that distinction matters, wire an explicit
+    /// <c>[Export]</c> instead of relying on discovery.
     /// </para>
     /// <para>
     /// <see cref="Node.Owner" /> is the scene root the node was authored into, and is null for the
     /// root itself and for nodes added at runtime — both fall back to the parent.
     /// </para>
     /// </remarks>
-    public static bool TryGetFirstPeerOfType<T>(this Node self, [MaybeNullWhen(false)] out T? result)
+    public static bool TryGetFirstCompanionOfType<T>(this Node self, [MaybeNullWhen(false)] out T? result)
         where T : Node
     {
         var parent = self.GetParent();
@@ -274,6 +276,30 @@ public static class NodeExts
 
         var sceneRoot = self.Owner ?? parent;
         if (sceneRoot != null && sceneRoot.TryGetFirstChildOfType(out result, includeSubChildren: true))
+        {
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Interface-typed counterpart of <see cref="TryGetFirstCompanionOfType{T}" />, for discovering a
+    /// companion by capability rather than concrete type. Same scoping contract: siblings first, then
+    /// anywhere under the scene root this node was authored into.
+    /// </summary>
+    public static bool TryGetFirstCompanionOfInterface<T>(this Node self, [MaybeNullWhen(false)] out T? result)
+        where T : class
+    {
+        var parent = self.GetParent();
+        if (parent != null && parent.TryGetFirstChildOfInterface(out result, includeSubChildren: false))
+        {
+            return true;
+        }
+
+        var sceneRoot = self.Owner ?? parent;
+        if (sceneRoot != null && sceneRoot.TryGetFirstChildOfInterface(out result, includeSubChildren: true))
         {
             return true;
         }
