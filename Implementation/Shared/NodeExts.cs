@@ -242,6 +242,46 @@ public static class NodeExts
         return false;
     }
 
+    /// <summary>
+    /// Finds a companion node for <paramref name="self" />: siblings first, then anywhere under the
+    /// scene root it was authored into. For components that discover what they act on rather than
+    /// taking an explicit <c>[Export]</c>.
+    /// </summary>
+    /// <remarks>
+    /// A bare sibling search encodes a component's POSITION into what it can SEE — it works only
+    /// while the component is a direct child of the entity root, and the moment a scene author groups
+    /// nodes for organization the component's reach shrinks to that group and it silently finds
+    /// nothing. Widening to the scene root makes placement a presentation concern.
+    /// <para>
+    /// Siblings still win, so a component that already resolved keeps resolving to the same node —
+    /// this widens reach without re-targeting anything that previously worked. The nearest match is
+    /// also the right tiebreak when an entity carries several of a type (multiple sprites, several
+    /// colliders); where that is still ambiguous, an explicit <c>[Export]</c> is the answer.
+    /// </para>
+    /// <para>
+    /// <see cref="Node.Owner" /> is the scene root the node was authored into, and is null for the
+    /// root itself and for nodes added at runtime — both fall back to the parent.
+    /// </para>
+    /// </remarks>
+    public static bool TryGetFirstPeerOfType<T>(this Node self, [MaybeNullWhen(false)] out T? result)
+        where T : Node
+    {
+        var parent = self.GetParent();
+        if (parent != null && parent.TryGetFirstChildOfType(out result))
+        {
+            return true;
+        }
+
+        var sceneRoot = self.Owner ?? parent;
+        if (sceneRoot != null && sceneRoot.TryGetFirstChildOfType(out result, includeSubChildren: true))
+        {
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
     public static bool TryGetFirstChildOfInterface<T>(this Node root, [MaybeNullWhen(false)] out T? result,
         bool includeSubChildren = true) where T : class
     {
