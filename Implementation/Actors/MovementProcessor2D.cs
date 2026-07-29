@@ -49,7 +49,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     /// </summary>
     public bool IsSuspended => _suspensionSlot.IsClaimed;
 
-    public bool TryClaimSuspension(StringName owner)
+    public bool TryClaimSuspension(StringName owner, SuspensionVelocityPolicy velocityPolicy = SuspensionVelocityPolicy.Preserve)
     {
         if (!_suspensionSlot.TryClaim(owner, true, _owner, "Movement suspension"))
         {
@@ -59,6 +59,8 @@ public class MovementProcessor2D : IMovementProcessor2D
         // Impulses are discarded, not queued: without this drain, every knockback landed while
         // suspended would sum in _frameImpulses and discharge as one launch on release.
         _frameImpulses = Vector2.Zero;
+        if (velocityPolicy == SuspensionVelocityPolicy.Zero) { _controller.SetVelocity(Vector2.Zero); }
+
         return true;
     }
 

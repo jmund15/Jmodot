@@ -19,7 +19,7 @@ using Godot;
 /// </para>
 /// </summary>
 [GlobalClass, Tool]
-public abstract partial class ApproachProfile3D : Resource
+public abstract partial class ApproachProfile2D : Resource
 {
     /// <summary>Position after one step from <paramref name="current"/> toward <paramref name="target"/>.</summary>
     /// <param name="start">Where the approach began, captured once by the caller. Profiles whose progress is
@@ -28,8 +28,8 @@ public abstract partial class ApproachProfile3D : Resource
     /// <param name="target">The live target position; it may move between steps.</param>
     /// <param name="elapsed">Seconds since the approach began, owned and accumulated by the caller.</param>
     /// <param name="delta">Frame delta in seconds.</param>
-    public abstract Vector3 Step(Vector3 start, Vector3 current, Vector3 target, float elapsed, float delta);
+    public abstract Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta);
 
     /// <summary>True once the approach should be treated as arrived.</summary>
-    public abstract bool IsComplete(Vector3 current, Vector3 target, float elapsed);
+    public abstract bool IsComplete(Vector2 current, Vector2 target, float elapsed);
 }

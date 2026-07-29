@@ -8,7 +8,7 @@ using Godot;
 /// the trip — it only steepens the remaining path.
 /// </summary>
 [GlobalClass, Tool]
-public partial class FixedDurationApproach3D : ApproachProfile3D
+public partial class FixedDurationApproach2D : ApproachProfile2D
 {
     /// <summary>Seconds the approach takes end to end. Values ≤ 0 arrive instantly.</summary>
     [Export] public float Duration { get; private set; } = 0.35f;
@@ -16,7 +16,7 @@ public partial class FixedDurationApproach3D : ApproachProfile3D
     /// <summary>Optional 0→1 easing over normalized progress. Unset means linear.</summary>
     [Export] public Curve? Easing { get; private set; }
 
-    public override Vector3 Step(Vector3 start, Vector3 current, Vector3 target, float elapsed, float delta)
+    public override Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta)
     {
         if (Duration <= 0f) { return target; }
         if (elapsed + delta >= Duration) { return target; }
@@ -24,7 +24,7 @@ public partial class FixedDurationApproach3D : ApproachProfile3D
         return start.Lerp(target, SampleProgress((elapsed + delta) / Duration));
     }
 
-    public override bool IsComplete(Vector3 current, Vector3 target, float elapsed)
+    public override bool IsComplete(Vector2 current, Vector2 target, float elapsed)
     {
         return Duration <= 0f || elapsed >= Duration;
     }
