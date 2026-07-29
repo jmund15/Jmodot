@@ -11,11 +11,11 @@ using Shared;
 public abstract partial class MovementQuirk2D : Resource
 {
     /// <summary>
-    /// Builds this quirk's per-agent state. <paramref name="rngOverride" /> is the determinism seam:
-    /// production passes null and the subclass resolves a seeded stream off the agent's blackboard,
-    /// while a pure-CLR test supplies its own <see cref="IRng" /> and never reaches the resolver.
+    /// Builds this quirk's per-agent state. <paramref name="rng" /> is always a live stream — the
+    /// per-agent processor resolves it once and hands it down, so no subclass resolves or latches
+    /// anything itself. That is what keeps the shared Resource free of per-agent mutable state.
     /// </summary>
-    public abstract MovementQuirkRuntime CreateRuntime(IBlackboard? blackboard, IRng? rngOverride = null);
+    public abstract MovementQuirkRuntime CreateRuntime(IBlackboard? blackboard, IRng rng);
 
     public abstract void Tick(MovementQuirkRuntime runtime, in MovementQuirkContext2D ctx, float delta);
 }

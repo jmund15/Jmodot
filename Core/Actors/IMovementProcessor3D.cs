@@ -2,7 +2,7 @@ namespace Jmodot.Core.Actors;
 
 using Movement.Strategies;
 
-public interface IMovementProcessor3D
+public interface IMovementProcessor3D : IImpulseReceiver3D
 {
     void ProcessMovement(IMovementStrategy3D strategy, Vector3 desiredDirection, float delta);
     void ProcessExternalForcesOnly(float delta);
@@ -16,7 +16,6 @@ public interface IMovementProcessor3D
     /// </summary>
     void ProcessImpulsesOnly(float delta);
 
-    void ApplyImpulse(Vector3 impulse);
     void ClearImpulses();
 
     /// <summary>

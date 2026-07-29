@@ -4,7 +4,6 @@ using System;
 using Core.AI.BB;
 using Core.Movement.Quirks;
 using Core.Shared;
-using Shared;
 
 /// <summary>
 /// Snaps the agent sideways off its intended heading at randomized intervals, alternating sides.
@@ -20,19 +19,17 @@ public partial class LateralJerkQuirk3D : MovementQuirk3D
     /// <summary>Longest gap between jerks, in seconds.</summary>
     [Export(PropertyHint.Range, "0.05, 5.0, 0.05")] private float _maxInterval = 1.0f;
 
-    /// <summary>Sideways impulse magnitude, in units per second.</summary>
-    [Export] private float _impulseMagnitude = 4.0f;
+    /// <summary>Sideways impulse magnitude, in units per second. Negative would invert the alternation.</summary>
+    [Export(PropertyHint.Range, "0.0, 20.0, 0.1, or_greater")] private float _impulseMagnitude = 4.0f;
 
-    /// <summary>Horizontal speed the agent must exceed before jerks fire — keeps them out of windups.</summary>
-    [Export] private float _minSpeed = 0.5f;
+    /// <summary>
+    /// Horizontal speed the agent must exceed before jerks fire — keeps them out of windups.
+    /// Negative would defeat the gate entirely, so the range floors at zero.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0, 10.0, 0.1")] private float _minSpeed = 0.5f;
 
-    private bool _warnedNoSeed;
-
-    public override MovementQuirkRuntime CreateRuntime(IBlackboard? blackboard, IRng? rngOverride = null)
+    public override MovementQuirkRuntime CreateRuntime(IBlackboard? blackboard, IRng rng)
     {
-        var rng = rngOverride
-                  ?? EntityRngResolver.Resolve(blackboard, SeedKinds.MovementQuirk, this, ref _warnedNoSeed);
-
         return new LateralJerkRuntime(rng)
         {
             TimeUntilNextJerk = rng.GetRndInRange(MinIntervalBound, MaxIntervalBound),

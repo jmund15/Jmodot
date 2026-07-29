@@ -5,6 +5,8 @@ using System.Linq;
 using Core.Actors;
 using Core.AI.BB;
 using Core.Movement.Quirks;
+using Core.Shared;
+using Shared;
 using GColl = Godot.Collections;
 
 /// <summary>
@@ -22,6 +24,8 @@ public partial class MovementQuirkProcessor2D : Node
 
     private IBlackboard? _bb;
     private IMovementProcessor2D _movement = null!;
+    private IRng? _rng;
+    private bool _warnedNoSeed;
 
     /// <summary>
     /// Exported quirks followed by runtime-registered ones, in insertion order. Impulses sum, so
@@ -29,19 +33,21 @@ public partial class MovementQuirkProcessor2D : Node
     /// </summary>
     public IReadOnlyList<MovementQuirk2D> ActiveQuirks { get; private set; } = new List<MovementQuirk2D>();
 
-    public void Initialize(IBlackboard? bb, IMovementProcessor2D movement)
+    public void Initialize(IBlackboard? bb, IMovementProcessor2D movement, IRng? rngOverride = null)
     {
         _bb = bb;
         _movement = movement;
+        _rng = rngOverride;
 
         _runtimeQuirks.Clear();
         _refCounts.Clear();
         _runtimes.Clear();
 
+        var rng = ResolveRng();
         foreach (var quirk in _quirks)
         {
             if (quirk == null) { continue; }
-            _runtimes[quirk] = quirk.CreateRuntime(_bb);
+            _runtimes[quirk] = quirk.CreateRuntime(_bb, rng);
         }
 
         RebuildActiveQuirks();
@@ -58,7 +64,7 @@ public partial class MovementQuirkProcessor2D : Node
         _runtimeQuirks.Add(quirk);
         if (!_runtimes.ContainsKey(quirk))
         {
-            _runtimes[quirk] = quirk.CreateRuntime(_bb);
+            _runtimes[quirk] = quirk.CreateRuntime(_bb, ResolveRng());
         }
         RebuildActiveQuirks();
     }
@@ -90,16 +96,32 @@ public partial class MovementQuirkProcessor2D : Node
         if (_movement == null) { return; }
 
         var ctx = new MovementQuirkContext2D(_movement, desiredDirection, agentVelocity);
-        foreach (var quirk in ActiveQuirks)
+        // Indexed rather than foreach: ActiveQuirks is typed as the interface, so foreach would box
+        // the List enumerator once per agent per physics frame on an otherwise allocation-free path.
+        for (int i = 0; i < ActiveQuirks.Count; i++)
         {
+            var quirk = ActiveQuirks[i];
             if (quirk == null || !_runtimes.TryGetValue(quirk, out var runtime)) { continue; }
             quirk.Tick(runtime, in ctx, delta);
         }
     }
 
+    /// <summary>
+    /// Resolving here rather than only in Initialize keeps registration order-independent: a State's
+    /// OnEnter can register a quirk before the entity has wired its processor up.
+    /// </summary>
+    private IRng ResolveRng()
+        => _rng ??= EntityRngResolver.Resolve(_bb, SeedKinds.MovementQuirk, this, ref _warnedNoSeed);
+
+    /// <summary>
+    /// Distinct is load-bearing: one quirk must tick once however many owners hold it. The refcount
+    /// enforces that among runtime registrations, but the exported array bypasses it — a quirk that
+    /// is both always-on and state-scoped, or listed twice in the array, would otherwise tick twice
+    /// per frame against a single shared runtime and silently run at double rate.
+    /// </summary>
     private void RebuildActiveQuirks()
     {
-        ActiveQuirks = _quirks.Concat(_runtimeQuirks).ToList();
+        ActiveQuirks = _quirks.Concat(_runtimeQuirks).Distinct().ToList();
     }
 
     #region Test Helpers

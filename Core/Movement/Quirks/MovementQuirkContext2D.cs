@@ -9,14 +9,14 @@ using Actors;
 public readonly struct MovementQuirkContext2D
 {
     /// <summary>The impulse channel a quirk writes to. Quirks never set velocity directly.</summary>
-    public readonly IMovementProcessor2D Movement;
+    public readonly IImpulseReceiver2D Movement;
 
     /// <summary>This frame's steering output — a unit vector, or zero when the agent has no heading.</summary>
     public readonly Vector2 DesiredDirection;
 
     public readonly Vector2 AgentVelocity;
 
-    public MovementQuirkContext2D(IMovementProcessor2D movement, Vector2 desiredDirection, Vector2 agentVelocity)
+    public MovementQuirkContext2D(IImpulseReceiver2D movement, Vector2 desiredDirection, Vector2 agentVelocity)
     {
         Movement = movement;
         DesiredDirection = desiredDirection;
