@@ -31,4 +31,5 @@ public static class SeedKinds
     [SeedStreamKey("composite_consideration")] public const string CompositeConsideration = "composite_consideration";
     [SeedStreamKey("zone_shape")] public const string ZoneShape = "zone_shape";
     [SeedStreamKey("movement_quirk")] public const string MovementQuirk = "movement_quirk";
+    [SeedStreamKey("attachment")] public const string Attachment = "attachment";
 }
