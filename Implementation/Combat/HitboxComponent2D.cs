@@ -176,11 +176,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     /// collision exceptions, capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a
     /// target already hit during this attack is a no-op regardless of which channel saw it first.
     /// </summary>
-    /// <param name="collider">The contacted node; its <see cref="HurtboxComponent2D"/> child is
-    /// resolved by type. A collider carrying no hurtbox is a no-op.</param>
+    /// <param name="collider">The contacted node; its <see cref="HurtboxComponent2D"/> descendant is
+    /// resolved by type, breadth-first, so grouping the hurtbox under a presentation node does not
+    /// silence this channel. A collider carrying no hurtbox is a no-op.</param>
     public void TryHitNode(Node2D collider)
     {
-        if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox) && hurtbox != null)
+        if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
         {
             TryHitHurtbox(hurtbox);
         }
