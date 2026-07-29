@@ -78,6 +78,11 @@ public static partial class BBDataSig
     /// </summary>
     public static readonly StringName SteeringComp = new("SteeringComponent");
 
+    /// <summary>
+    /// MovementQuirkProcessor3D reference. Absent when the entity authors no quirk processor.
+    /// </summary>
+    public static readonly StringName MovementQuirkProcessor = new("MovementQuirkProcessor");
+
     #region AI_PROPERTIES
 
     public static readonly StringName OwnedVehicle = new("OwnedVehicle");
