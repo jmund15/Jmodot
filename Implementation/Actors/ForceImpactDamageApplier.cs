@@ -8,7 +8,7 @@ using Core.AI.BB;
 using Core.Combat;
 using Core.Combat.EffectDefinitions;
 using Core.Combat.Reactions;
-using Core.Pooling;
+using Core.Components;
 using Core.Shared.Attributes;
 using Core.Stats;
 using Implementation.AI.BB;
@@ -39,12 +39,12 @@ using Shared;
 /// absorption coefficient. Enables Wind-Blast chain mechanics.
 /// </para>
 /// <para>
-/// Re-entrant: <see cref="Initialize"/> tears down prior subscriptions before re-binding,
+/// Re-entrant: <see cref="Initialize"/> tears down prior subscriptions before re-resolving,
 /// safe to call repeatedly (pool reuse, scene reload).
 /// </para>
 /// </remarks>
-[GlobalClass]
-public partial class ForceImpactDamageApplier : Node, IPoolResetable
+[GlobalClass, Tool]
+public partial class ForceImpactDamageApplier : Node, IComponent
 {
     [Export, RequiredExport] public ImpactDamageProfile DamageProfile { get; set; } = null!;
 
@@ -75,50 +75,82 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
     private HealthComponent? _health;
     private Node3D? _self;
     private CombatLog? _combatLog;
-    private ExternalForceReceiver3D? _forceReceiver;
+    private IExternalForceReceiver? _forceReceiver;
     private IReadOnlyList<IImpactDamageGate> _gates = new List<IImpactDamageGate>();
+    private IStatProvider? _launcherStats;
 
-    private IStatProvider? _launcherStatProvider;
-    private bool _launcherStatProviderResolved;
+    public bool IsInitialized { get; private set; }
+    public event System.Action Initialized = delegate { };
 
     public override void _Ready()
     {
+        if (Engine.IsEditorHint())
+        {
+            return;
+        }
+
         this.ValidateRequiredExports();
         base._Ready();
     }
 
-    public void Initialize(
-        ImpactDetector detector,
-        HealthComponent health,
-        Node3D self,
-        IBlackboard bb)
+    /// <summary>
+    /// Required: <see cref="BBDataSig.ImpactDetector"/> (the only damage trigger),
+    /// <see cref="BBDataSig.HealthComponent"/> (the only damage sink), and
+    /// <see cref="BBDataSig.Agent"/> as a Node3D (self-collision filter + velocity-loss target).
+    /// Soft: <see cref="BBDataSig.CombatLog"/> and <see cref="BBDataSig.ExternalForceReceiver"/>
+    /// (attribution evidence — absence silently downgrades every impact to collider-fallback,
+    /// which <see cref="RequireExternalCause"/> then skips) and <see cref="BBDataSig.Stats"/>
+    /// (launcher mass).
+    /// </summary>
+    public bool Initialize(IBlackboard bb)
     {
         Teardown();
 
-        _detector = detector;
-        _health = health;
+        if (!bb.TryGet(BBDataSig.ImpactDetector, out _detector) || _detector == null)
+        {
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.ImpactDetector not found");
+            return false;
+        }
+
+        if (!bb.TryGet(BBDataSig.HealthComponent, out _health) || _health == null)
+        {
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.HealthComponent not found");
+            return false;
+        }
+
+        if (!bb.TryGet(BBDataSig.Agent, out Node3D? self) || self == null)
+        {
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.Agent not found, or not a Node3D");
+            return false;
+        }
+
         _self = self;
-        _launcherStatProviderResolved = false;
-        _launcherStatProvider = null;
 
         // Optional siblings: degrade gracefully when not BB-published.
-        bb.TryGet<CombatLog>(BBDataSig.CombatLog, out _combatLog);
-        bb.TryGet<ExternalForceReceiver3D>(BBDataSig.ExternalForceReceiver, out _forceReceiver);
+        bb.TryGet(BBDataSig.CombatLog, out _combatLog);
+        bb.TryGet(BBDataSig.ExternalForceReceiver, out _forceReceiver);
+        bb.TryGet(BBDataSig.Stats, out _launcherStats);
 
         // Capability gates (invulnerability window, damage-absorption shield, …) veto impact
         // damage per-impact. Direct siblings only — a gate is a peer component, not something
         // inherited from a nested subtree. Re-resolved on every Initialize to honor the
         // pool-reuse/rebind contract.
-        _gates = self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: false).ToList();
+        _gates = _self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: false).ToList();
 
-        _detector.Impacted += OnImpacted;
+        IsInitialized = true;
+        Initialized();
+        return true;
     }
 
-    public void OnPoolReset()
+    public void OnPostInitialize()
     {
-        _launcherStatProviderResolved = false;
-        _launcherStatProvider = null;
+        if (_detector != null)
+        {
+            _detector.Impacted += OnImpacted;
+        }
     }
+
+    public Node GetUnderlyingNode() => this;
 
     public override void _ExitTree()
     {
@@ -184,8 +216,8 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
 
     private void ApplyVelocityLoss(float damage, Node3D target)
     {
-        var mass = Mass?.ResolveFloatValue(GetLauncherStatProvider()) ?? 1f;
-        var absorption = Absorption?.ResolveFloatValue(WalkForCombatantStatProvider(target)) ?? 0.5f;
+        var mass = Mass?.ResolveFloatValue(_launcherStats) ?? 1f;
+        var absorption = Absorption?.ResolveFloatValue(ResolveTargetStatProvider(target)) ?? 0.5f;
 
         if (mass <= 0f)
         {
@@ -203,44 +235,59 @@ public partial class ForceImpactDamageApplier : Node, IPoolResetable
         }
     }
 
-    private IStatProvider? GetLauncherStatProvider()
-    {
-        if (_launcherStatProviderResolved)
-        {
-            return _launcherStatProvider;
-        }
-        _launcherStatProviderResolved = true;
-        if (_self == null)
-        {
-            return null;
-        }
-        _launcherStatProvider = WalkForCombatantStatProvider(_self);
-        return _launcherStatProvider;
-    }
-
     /// <summary>
-    /// Walks <paramref name="start"/> + ancestors for any <see cref="ICombatant"/> whose
-    /// blackboard publishes <see cref="BBDataSig.Stats"/>. Loose coupling — works for any
-    /// future entity that implements ICombatant + publishes stats. Returns null if no stat
-    /// provider found.
+    /// Resolves the impacted entity's stat provider by climbing from the collider to the first
+    /// ancestor that owns a blackboard publishing <see cref="BBDataSig.Stats"/>. The climb is
+    /// required because a collider is typically a physics-body descendant, not the entity root.
+    /// Returns null when the target carries no stats (walls, static geometry).
+    /// <para>
+    /// The climb is capped because the dominant impact collider is static geometry with no
+    /// blackboard anywhere in its ancestry: uncapped, every such impact runs a child scan at
+    /// every ancestor up to the scene root, whose child count scales with level population.
+    /// Colliders sit 2-3 levels below their entity root, so 4 leaves a level of slack.
+    /// </para>
     /// </summary>
-    private static IStatProvider? WalkForCombatantStatProvider(Node? start)
+    private const int TargetStatProviderMaxClimb = 4;
+
+    private static IStatProvider? ResolveTargetStatProvider(Node? collider)
     {
-        for (var n = start; n != null; n = n.GetParent())
+        var climbsLeft = TargetStatProviderMaxClimb;
+        for (var n = collider; n != null && climbsLeft-- > 0; n = n.GetParent())
         {
-            if (n is ICombatant combatant
-                && combatant.Blackboard.TryGet<IStatProvider>(BBDataSig.Stats, out var sp)
-                && sp != null)
+            if (!n.TryGetFirstChildOfInterface<IBlackboard>(out var bb, includeSubChildren: false) || bb == null)
             {
-                return sp;
+                continue;
+            }
+
+            if (bb.TryGet(BBDataSig.Stats, out IStatProvider? stats) && stats != null)
+            {
+                return stats;
             }
         }
         return null;
     }
 
+    #region CONFIGURATION_WARNINGS
+
+    public override string[] _GetConfigurationWarnings()
+    {
+        var warnings = new List<string>();
+        var missingDetector = ConfigWarnings.RequireEntitySibling<ImpactDetector>(this,
+            "No ImpactDetector sibling — this node has no damage trigger and will fail to initialize.");
+        if (missingDetector != null)
+        {
+            warnings.Add(missingDetector);
+        }
+
+        return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
+    }
+
+    #endregion
+
     #region Test Helpers
 #if TOOLS
     internal void SetRequireExternalCauseForTesting(bool value) => RequireExternalCause = value;
+    internal void SetMassForTesting(BaseFloatValueDefinition? value) => Mass = value;
 #endif
     #endregion
 }

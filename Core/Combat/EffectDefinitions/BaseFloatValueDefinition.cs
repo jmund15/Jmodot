@@ -6,7 +6,7 @@ using Stats;
 /// Abstract base class for all float value definitions.
 /// Provides a common interface for resolving float values, optionally using stats.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class BaseFloatValueDefinition : Resource
 {
     /// <summary>

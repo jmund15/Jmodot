@@ -35,8 +35,14 @@ public enum SteeringControlMode
 /// </summary>
 [Tool]
 [GlobalClass]
-public partial class AISteeringProcessor3D : Node
+public partial class AISteeringProcessor3D : Node, IBlackboardProvider
 {
+    /// <summary>
+    /// Published in Phase 0 so components resolving the steering processor cannot lose a
+    /// scene-order race against the entity root.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (Implementation.AI.BB.BBDataSig.SteeringComp, this);
+
     [ExportGroup("Configuration")]
     /// <summary>
     /// The set of discrete directions the AI uses to evaluate its world. All consideration

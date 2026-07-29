@@ -12,7 +12,7 @@ using Core.Combat.EffectDefinitions;
 using Effects.StatusEffects;
 using Shared;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DurationRevertibleEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] public PackedScene Runner { get; set; } = null!;

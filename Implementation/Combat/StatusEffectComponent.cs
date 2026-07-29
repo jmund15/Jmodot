@@ -87,7 +87,6 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
         // Default-off: re-enabled by AddStatus when a runner with SpreadConfig joins.
         SetProcess(false);
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

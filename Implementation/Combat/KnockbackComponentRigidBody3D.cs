@@ -184,7 +184,6 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 		IsInitialized = true;
 		Initialized();
-		OnPostInitialize();
 		return true;
 	}
 

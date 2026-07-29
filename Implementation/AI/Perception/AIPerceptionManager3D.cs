@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Core.AI;
+using Core.AI.BB;
 using Core.AI.Perception;
 using Core.Identification;
 using Core.Shared;
@@ -18,8 +19,14 @@ using Implementation.Shared;
 ///     queryable view of the game world.
 /// </summary>
 [GlobalClass]
-public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPanelProvider
+public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPanelProvider, IBlackboardProvider
 {
+    /// <summary>
+    /// Published in Phase 0 so perception consumers resolve the manager without the entity root
+    /// republishing it by hand.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BB.BBDataSig.PerceptionComp, this);
+
     private readonly System.Collections.Generic.Dictionary<Category, HashSet<Perception3DInfo>> _memoryByCategory = new();
 
     private readonly System.Collections.Generic.Dictionary<Node3D, Perception3DInfo> _memoryByTarget = new();

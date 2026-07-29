@@ -52,7 +52,6 @@ public partial class CollisionResponderComponent3D : Node3D, IComponent, IPoolRe
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

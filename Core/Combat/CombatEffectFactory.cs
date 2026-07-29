@@ -9,7 +9,7 @@ using Stats;
 /// Desiging the factory/create pattern allows for resource to be stateless
 /// while maintaining resource/exportability in the Godot editor
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class CombatEffectFactory : Resource, ICombatEffectFactory
 {
     [Export] public VisualEffect? TargetVisualEffect { get; set; }

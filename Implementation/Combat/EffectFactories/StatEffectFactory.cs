@@ -12,7 +12,7 @@ using Shared;
 using Attribute = Core.Stats.Attribute;
 using GCol = Godot.Collections;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] public Attribute Attribute { get; set; } = null!;

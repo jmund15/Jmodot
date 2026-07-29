@@ -14,7 +14,7 @@ using GCol = Godot.Collections;
 /// Factory for creating distance-scaled damage effects.
 /// Damage and knockback scale based on proximity to the hitbox epicenter.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] private BaseFloatValueDefinition _damageDefinition = null!;

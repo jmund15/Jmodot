@@ -14,7 +14,7 @@ using Core.Visual.Effects;
 using Effects.StatusEffects;
 using Shared;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class TickEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] public PackedScene Runner { get; set; } = null!;

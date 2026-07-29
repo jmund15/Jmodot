@@ -7,7 +7,7 @@ using Godot;
 /// Configures how effects with the same CombatTag stack.
 /// Attached to CombatTag as optional configuration.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StackPolicy : Resource
 {
     /// <summary>

@@ -5,9 +5,11 @@ using System.Collections.Generic;
 using Core.AI.BB;
 using Core.Combat;
 using Core.Combat.Reactions;
+using Core.Components;
 using Core.Movement;
 using Core.Pooling;
 using Implementation.AI.BB;
+using Shared;
 
 /// <summary>
 /// Raw collision-event detector for character-body actors. Emits one
@@ -26,8 +28,10 @@ using Implementation.AI.BB;
 /// the fallback, so an author who has reasoned about frame ordering is never clobbered.
 /// </remarks>
 [GlobalClass]
-public partial class ImpactDetector : Node, IPoolResetable
+public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPoolResetable
 {
+    public (StringName Key, object Value)? Provision => (BBDataSig.ImpactDetector, this);
+
     /// <summary>Pre-move velocity magnitude required for a contact to count as an impact.</summary>
     [Export(PropertyHint.Range, "0.1,100,0.1")]
     public float MinImpactSpeed { get; set; } = 6f;
@@ -49,27 +53,47 @@ public partial class ImpactDetector : Node, IPoolResetable
     private HashSet<ulong> _inContactLastFrame = new();
     private HashSet<ulong> _newContactsThisFrame = new();
 
+    public bool IsInitialized { get; private set; }
+    public event Action Initialized = delegate { };
+
     /// <summary>
-    /// Wires the detector's runtime dependencies. <paramref name="bb"/> is optional — when
-    /// provided, ImpactDetector logs each rising-edge contact to <c>CombatLog</c> as an
-    /// <see cref="ImpactResult"/>, enabling HSM-side queryable lookups
-    /// (e.g., WallImpactCondition reading <c>GetAllCombatResultsWithinCombatTime&lt;ImpactResult&gt;</c>).
-    /// When null, the event-only path remains active for direct subscribers.
+    /// Required: <see cref="BBDataSig.CharacterController"/> — the body is derived from it rather
+    /// than from <see cref="BBDataSig.Agent"/>, which static props and beams legitimately set to a
+    /// non-CharacterBody3D node. Soft: <see cref="BBDataSig.CombatLog"/> — when present, each
+    /// rising-edge contact is also logged as an <see cref="ImpactResult"/> for HSM-side queryable
+    /// lookback (WallImpactCondition); when absent the event-only path stays active.
     /// </summary>
-    public void Initialize(ICharacterController3D controller, CharacterBody3D body, IBlackboard? bb = null)
+    public bool Initialize(IBlackboard bb)
     {
-        _controller = controller;
+        if (!bb.TryGet(BBDataSig.CharacterController, out _controller) || _controller == null)
+        {
+            JmoLogger.Debug(this, "[Impact] Required dependency BBDataSig.CharacterController not found");
+            return false;
+        }
+
+        if (_controller.GetUnderlyingNode() is not CharacterBody3D body)
+        {
+            JmoLogger.Debug(this,
+                "[Impact] Registered CharacterController is not backed by a CharacterBody3D — slide-collision "
+                + "detection has no input.");
+            _controller = null;
+            return false;
+        }
+
         _body = body;
         _inContactLastFrame.Clear();
         _newContactsThisFrame.Clear();
 
-        // Soft dep — entities without combat (props, destructibles) won't have CombatLog.
-        // Mirrors KnockbackComponent3D.Initialize CombatLog resolution.
-        if (bb != null)
-        {
-            bb.TryGet(BBDataSig.CombatLog, out _combatLog);
-        }
+        bb.TryGet(BBDataSig.CombatLog, out _combatLog);
+
+        IsInitialized = true;
+        Initialized();
+        return true;
     }
+
+    public void OnPostInitialize() { }
+
+    public Node GetUnderlyingNode() => this;
 
     public void OnPoolReset()
     {

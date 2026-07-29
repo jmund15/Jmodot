@@ -68,7 +68,6 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

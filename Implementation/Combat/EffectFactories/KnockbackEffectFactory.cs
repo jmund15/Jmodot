@@ -15,7 +15,7 @@ using Jmodot.Implementation.Combat.Effects;
 /// (_curveDeferralWarned), which is race-tolerant. Sharing the same Resource across
 /// concurrent CombatPayload consumers is safe.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class KnockbackEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] private KnockbackEffect _effect = null!;

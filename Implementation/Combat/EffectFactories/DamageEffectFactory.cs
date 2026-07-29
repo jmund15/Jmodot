@@ -15,7 +15,7 @@ using GCol = Godot.Collections;
 /// Factory for creating DamageEffect instances.
 /// Rolls for critical hit at creation time based on attacker's stats.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DamageEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] private BaseFloatValueDefinition _damageDefinition = null!;

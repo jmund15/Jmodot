@@ -18,7 +18,7 @@ using Jmodot.Implementation.Shared;
 /// <see cref="HitContext.EpicenterPosition"/> to the target's world position,
 /// optionally flattened to horizontal to avoid lofting.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class KnockbackEffect : Resource, ICombatEffect
 {
     [ExportGroup("Force")]

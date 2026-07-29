@@ -1,6 +1,9 @@
 namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
+using AI.BB;
+using Core.Actors;
+using Core.AI.BB;
 using Core.Environment;
 using Core.Pooling;
 
@@ -11,8 +14,32 @@ using Core.Pooling;
 ///     clean vectors that the MovementProcessor can query.
 /// </summary>
 [GlobalClass]
-public partial class ExternalForceReceiver2D : Area2D, IPoolResetable
+public partial class ExternalForceReceiver2D : Area2D, IPoolResetable, IBlackboardProvider, IExternalForceReceiver
 {
+    /// <summary>
+    /// Deliberately the SAME key as the 3D receiver — consumers address the concept, not the
+    /// dimension, so a dimension-suffixed key would break transparent 2D/3D swapping.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.ExternalForceReceiver, this);
+
+    #region IExternalForceReceiver
+
+    /// <summary>
+    /// Always zero: <see cref="IForceProvider2D"/> carries no capture/ambient discrimination, so
+    /// 2D has no capture-force concept to report. Declared out-of-contract on the interface.
+    /// </summary>
+    public float GetCaptureForceMagnitude(Node target) => 0f;
+
+    /// <inheritdoc/>
+    public float GetTotalForceMagnitude(Node target)
+        => target is Node2D t ? GetTotalForce(t).Length() : 0f;
+
+    /// <inheritdoc/>
+    public Node? GetDominantForceSourceNode(Node target)
+        => target is Node2D t ? GetDominantForceSource(t).source : null;
+
+    #endregion
+
     private readonly HashSet<IForceProvider2D> _activeAreaProviders = new();
     private readonly HashSet<IForceProvider2D> _internalProviders = new();
     private readonly HashSet<IVelocityOffsetProvider2D> _activeOffsetProviders = new();

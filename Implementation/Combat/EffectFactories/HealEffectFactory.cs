@@ -10,7 +10,7 @@ using Effects;
 /// Factory that creates a HealEffect restoring a percentage of max health.
 /// Used by TickEffectFactory for health-over-time (regen) player effects.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class HealEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport]

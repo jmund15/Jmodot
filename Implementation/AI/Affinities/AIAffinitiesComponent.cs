@@ -89,7 +89,6 @@ public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvid
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

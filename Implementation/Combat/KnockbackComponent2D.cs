@@ -130,7 +130,6 @@ public partial class KnockbackComponent2D : Node2D, IComponent, IBlackboardProvi
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

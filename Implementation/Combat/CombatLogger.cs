@@ -16,9 +16,10 @@ using Status;
 /// Listens to the Combatant and pushes results into the Blackboard's Event Log.
 /// </summary>
 [GlobalClass]
-public partial class CombatLogger : Node, IComponent
+public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 {
-    [Export] public CombatantComponent Combatant { get; private set; }
+    private CombatantComponent? _combatant;
+
     /// <summary>
     /// Set to true to enable verbose logging of combat events to the Godot console.
     /// Toggle this during debugging/testing sessions.
@@ -27,37 +28,33 @@ public partial class CombatLogger : Node, IComponent
 
     private CombatLog _log;
 
+    /// <summary>
+    /// The log is published in Phase 0 so consumers whose own Initialize reads
+    /// <see cref="BBDataSig.CombatLog"/> cannot lose a scene-order race against this
+    /// component's Phase-1 creation of it.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.CombatLog, _log ??= new CombatLog());
+
     public bool Initialize(IBlackboard bb)
     {
-        // 1. Create or Retrieve the Log
-        if (!bb.TryGet(BBDataSig.CombatLog, out _log))
-        {
-            _log = new CombatLog();
-            bb.Set(BBDataSig.CombatLog, _log);
-        }
+        Teardown();
 
-        // 2. Resolve Dependency
-        if (!bb.TryGet<CombatantComponent>(BBDataSig.CombatantComponent, out var c))
+        if (!bb.TryGet<CombatantComponent>(BBDataSig.CombatantComponent, out var c) || c == null)
         {
-            JmoLogger.Error(this, $"CombatLogger must have a Combatant Component to operate!");
+            JmoLogger.Debug(this, "[Combat] Required dependency BBDataSig.CombatantComponent not found");
             return false;
         }
-        if (c == null)
-        {
-            JmoLogger.Error(this, "CombatantComponent resolved to null from Blackboard!");
-            return false;
-        }
-        Combatant = c;
+        _combatant = c;
 
         IsInitialized = true;
         Initialized?.Invoke();
-        OnPostInitialize();
         return true;
     }
 
     public void OnPostInitialize()
     {
-        Combatant.CombatResultEvent += HandleCombatResultEvent;
+        if (_combatant == null) { return; }
+        _combatant.CombatResultEvent += HandleCombatResultEvent;
     }
 
     private void HandleCombatResultEvent(CombatResult result)
@@ -78,9 +75,20 @@ public partial class CombatLogger : Node, IComponent
 
     public override void _ExitTree()
     {
-        if (Combatant != null)
+        Teardown();
+        base._ExitTree();
+    }
+
+    /// <summary>
+    /// Teardown-first in <see cref="Initialize"/> is what makes a second entity-init pass safe:
+    /// the driver runs Phase 2 unconditionally for every component that returned true, so without
+    /// this a pool-reuse or rebind pass would log every combat result twice.
+    /// </summary>
+    private void Teardown()
+    {
+        if (_combatant != null)
         {
-            Combatant.CombatResultEvent -= HandleCombatResultEvent;
+            _combatant.CombatResultEvent -= HandleCombatResultEvent;
         }
     }
 

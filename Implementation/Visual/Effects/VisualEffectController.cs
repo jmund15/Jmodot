@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Visual.Effects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AI.BB;
 using Core.AI.BB;
 using Core.Visual;
 using Core.Visual.Effects;
@@ -19,8 +20,10 @@ using Shared;
 /// <remarks>
 /// <para>
 /// Wired via explicit <see cref="Composer"/> export (replaces the legacy Blackboard
-/// auto-wire of <c>BaseModulationTracker</c>; fixes the layering violation where
-/// Implementation.Visual.Effects reached into Implementation.AI.BB.BBDataSig).
+/// auto-wire of <c>BaseModulationTracker</c> for the composer dependency). The
+/// <see cref="Provision"/> below re-references <c>BBDataSig</c> deliberately: publishing
+/// self under a key is the framework-wide IBlackboardProvider contract every component
+/// shares — distinct from the retired pattern of PULLING wiring dependencies off the BB.
 /// </para>
 /// <para>
 /// When a composer is set: subscribes to its <see cref="IVisualNodeProvider.NodeAdded"/>
@@ -37,8 +40,10 @@ using Shared;
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
-public partial class VisualEffectController : Node, IComponent
+public partial class VisualEffectController : Node, IComponent, IBlackboardProvider
 {
+    public (StringName Key, object Value)? Provision => (BBDataSig.VisualEffectController, this);
+
     /// <summary>
     /// Primary source of visual nodes and base colors. When set, the controller
     /// queries the composer for nodes and uses its <see cref="VisualEffectService"/>
@@ -77,18 +82,36 @@ public partial class VisualEffectController : Node, IComponent
             return;
         }
 
-        if (Composer != null)
-        {
-            Composer.NodeAdded += OnNodeAdded;
-            Composer.NodeRemoved += OnNodeRemoved;
-            _subscribedService = Composer.Effects;
-            if (_subscribedService != null)
-            {
-                _subscribedService.TintChanged += OnTintChanged;
-            }
-        }
-
+        SubscribeToComposer();
         RefreshVisualNodes();
+    }
+
+    /// <summary>
+    /// Re-attaches composer/service subscriptions after a reparent: _ExitTree tears them down and
+    /// _Ready does not run a second time, so _EnterTree is the only hook that fires again.
+    /// </summary>
+    public override void _EnterTree()
+    {
+        base._EnterTree();
+        if (Engine.IsEditorHint() || !IsNodeReady()) { return; }
+        SubscribeToComposer();
+    }
+
+    private void SubscribeToComposer()
+    {
+        if (Composer == null) { return; }
+
+        Composer.NodeAdded -= OnNodeAdded;
+        Composer.NodeAdded += OnNodeAdded;
+        Composer.NodeRemoved -= OnNodeRemoved;
+        Composer.NodeRemoved += OnNodeRemoved;
+
+        if (_subscribedService != null) { _subscribedService.TintChanged -= OnTintChanged; }
+        _subscribedService = Composer.Effects;
+        if (_subscribedService != null)
+        {
+            _subscribedService.TintChanged += OnTintChanged;
+        }
     }
 
     /// <summary>
@@ -101,7 +124,6 @@ public partial class VisualEffectController : Node, IComponent
         RefreshVisualNodes();
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 
@@ -345,7 +367,7 @@ public partial class VisualEffectController : Node, IComponent
         {
             warnings.Add("Set either Composer (for entities) or Root (for single-sprite props).");
         }
-        return warnings.ToArray();
+        return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
     }
 
     public Node GetUnderlyingNode() => this;

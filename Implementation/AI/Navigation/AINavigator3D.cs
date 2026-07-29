@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.Navigation;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Core.AI.BB;
 using Core.AI.Navigation;
 using Shared;
 
@@ -16,8 +17,14 @@ using Shared;
 /// </summary>
 [Tool]
 [GlobalClass]
-public partial class AINavigator3D : NavigationAgent3D
+public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
 {
+    /// <summary>
+    /// Published in Phase 0 so nav-consuming components and BT actions resolve the navigator
+    /// without the entity root republishing it by hand.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BB.BBDataSig.AINavComp, this);
+
     private Node3D _ownerAgent = null!;
     private NavigationProfile _activeProfile= null!;
 

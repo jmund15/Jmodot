@@ -21,7 +21,7 @@ using GCol = Godot.Collections;
 /// per-instance state, component only drives the loop. Future SpreadConfig variants encapsulate
 /// their rules without modifying StatusRunner or StatusEffectComponent.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatusSpreadConfig : Resource
 {
     [ExportGroup("Chance & Timing")]

@@ -6,7 +6,7 @@ using Jmodot.Core.Shared.Attributes;
 /// Configuration resource for distance-based effect falloff.
 /// Define how damage/knockback/etc scales based on distance from epicenter.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DistanceFalloffConfig : Resource
 {
     /// <summary>

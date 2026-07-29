@@ -28,13 +28,13 @@ public class ComponentInitHelper : IGodotNodeInterface
     }
 
     /// <summary>
-    /// Activates the component's processing. Does NOT call _comp.OnPostInitialize()
-    /// because components self-call OnPostInitialize() at the end of their own
-    /// Initialize() method (convention enforced by IComponent implementors).
+    /// Runs the component's Phase 2 and activates its processing. Callers must invoke this
+    /// only after every sibling has completed <see cref="IComponent.Initialize"/>.
     /// </summary>
     public void OnPostInitialize()
     {
         if (!IsInitialized) { return; }
+        _comp.OnPostInitialize();
         _owner.ProcessMode = Node.ProcessModeEnum.Inherit;
     }
 

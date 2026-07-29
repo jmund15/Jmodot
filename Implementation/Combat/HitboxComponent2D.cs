@@ -105,7 +105,6 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 

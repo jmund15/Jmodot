@@ -154,14 +154,13 @@ using AI.BB;
             // Hitbox is generally autonomous, receiving data from its controller.
             IsInitialized = true;
             Initialized();
-            OnPostInitialize();
             return true;
         }
 
         public void OnPostInitialize()
         {
-            // Signal connection moved to _Ready() - only needs to happen once per node lifetime
-            // OnPostInitialize() is called every Initialize(), which happens on each pool reuse
+            // Signal connection lives in _Ready() — it must happen once per node lifetime,
+            // whereas this runs on every re-initialization (pool reuse).
         }
 
         public event Action Initialized = delegate { };

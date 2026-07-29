@@ -249,7 +249,6 @@ public partial class HolderComponent3D : Node3D, IComponent, IHolder3D
 
         IsInitialized = true;
         Initialized.Invoke();
-        OnPostInitialize();
         return true;
     }
 

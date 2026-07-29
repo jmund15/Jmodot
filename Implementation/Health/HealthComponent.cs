@@ -154,7 +154,6 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         _lastResolvedMaxHealth = _currentHealth;
         IsInitialized = true;
         Initialized();
-        OnPostInitialize();
         return true;
     }
 
