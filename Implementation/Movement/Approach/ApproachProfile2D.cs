@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Movement.Approach;
 
 using Godot;
+using Jmodot.Core.Stats;
 
 /// <summary>
 /// Abstract base Resource for "glide from here to there" motion rules. An approach profile answers
@@ -28,8 +29,11 @@ public abstract partial class ApproachProfile2D : Resource
     /// <param name="target">The live target position; it may move between steps.</param>
     /// <param name="elapsed">Seconds since the approach began, owned and accumulated by the caller.</param>
     /// <param name="delta">Frame delta in seconds.</param>
-    public abstract Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta);
+    /// <param name="stats">The mover's stat provider, passed per call rather than cached: the profile is
+    /// shared, so it may hold no consumer's provider. Null resolves every tuning value to its constant.</param>
+    public abstract Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta, IStatProvider? stats);
 
     /// <summary>True once the approach should be treated as arrived.</summary>
-    public abstract bool IsComplete(Vector2 current, Vector2 target, float elapsed);
+    /// <param name="stats">The mover's stat provider — see <see cref="Step"/>.</param>
+    public abstract bool IsComplete(Vector2 current, Vector2 target, float elapsed, IStatProvider? stats);
 }

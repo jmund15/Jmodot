@@ -212,12 +212,5 @@ public static partial class BBDataSig
     /// <summary>The entity's <c>AttachmentRiderComponent3D</c> — present only on entities that can latch onto a host.</summary>
     public static readonly StringName AttachmentRider = new("AttachmentRider");
 
-    /// <summary>
-    /// Level-triggered flag, true only while RIDING — between a host's confirm and any detach, so it
-    /// stays false for the whole approach. Transition-only: HSM conditions read it, nothing else
-    /// branches on it.
-    /// </summary>
-    public static readonly StringName IsAttached = new("IsAttached");
-
     #endregion
 }

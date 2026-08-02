@@ -8,6 +8,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Components;
 using Jmodot.Core.Health;
+using Jmodot.Core.Movement;
 using Jmodot.Core.Interaction;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Stats;
@@ -21,22 +22,26 @@ using Jmodot.Implementation.Shared;
 /// anchor while holding the movement-suspension claim.
 ///
 /// <para>
-/// <b>This component owns the suspension claim identity</b> for the whole ride. The states that
-/// drive the approach and the ride claim through <see cref="TryClaimPositionalAuthority"/> rather
-/// than each claiming under their own name, so the handoff from approach to ride is an idempotent
-/// same-owner re-claim with no window where the entity is briefly self-driving.
+/// <b>This component owns the whole attach funnel</b> — <see cref="TryAttachTo"/> is the single route
+/// onto a host, and <c>ReleaseAttachment</c> the single route off one. No state and no behaviour-tree
+/// task holds a claim or mirrors a flag, so there is no bookkeeping anywhere else to get out of step.
+/// It also DRIVES the ride: while attached it writes its own position each idle frame, which always
+/// runs after the physics frame that moved the host.
 /// </para>
 ///
 /// <para>
-/// <b>Tuning is data.</b> All four numbers are <see cref="BaseFloatValueDefinition"/>s so a designer
+/// <b>Tuning is data.</b> All five numbers are <see cref="BaseFloatValueDefinition"/>s so a designer
 /// picks constant-or-stat-driven per field without a code change. Three resolve through the rider
-/// interface; <see cref="FlingForceScale"/> stays local, since only this rider ever converts spent
-/// force into its own impulse.
+/// interface; <see cref="FlingForceScale"/> and the re-attach cooldown stay local, since only this
+/// rider reads them.
 /// </para>
 ///
-/// <para>Optional BB keys: <see cref="BBDataSig.MovementProcessor"/> (without it the ride cannot
-/// suspend self-movement), <see cref="BBDataSig.KnockbackComponent"/> (without it a shed cannot
-/// fling), <see cref="BBDataSig.HurtboxComponent"/> (without it shed damage cannot land),
+/// <para>Required BB key: <see cref="BBDataSig.CharacterController"/> — a rider that cannot write its
+/// own position cannot ride at all, so its absence fails initialization rather than producing an
+/// entity that latches on and then sits motionless. Optional:
+/// <see cref="BBDataSig.MovementProcessor"/> (without it the ride cannot suspend self-movement),
+/// <see cref="BBDataSig.KnockbackComponent"/> (without it a shed cannot fling),
+/// <see cref="BBDataSig.HurtboxComponent"/> (without it shed damage cannot land),
 /// <see cref="BBDataSig.HealthComponent"/>.</para>
 /// </summary>
 [GlobalClass]
@@ -55,9 +60,10 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     [Export, RequiredExport] public BaseFloatValueDefinition FlingForceScaleDefinition { get; private set; } = null!;
 
     /// <summary>Seconds after being shed during which this rider refuses to claim a host again. 0 disables the cooldown.</summary>
-    [Export] public float ReattachCooldownSeconds { get; private set; }
+    [Export, RequiredExport] public BaseFloatValueDefinition ReattachCooldownDefinition { get; private set; } = null!;
 
     private IBlackboard _bb = null!;
+    private ICharacterController3D _controller = null!;
     private IMovementProcessor3D? _movement;
     private KnockbackComponent3D? _knockback;
     private HurtboxComponent3D? _hurtbox;
@@ -110,6 +116,19 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <summary>
+    /// The ride itself. Idle-frame rather than physics-frame on purpose: <c>_Process</c> always runs
+    /// after the physics frame that moved the host, so the rider reads a settled anchor without any
+    /// cross-entity execution-order contract for a designer to get wrong.
+    /// </summary>
+    public override void _Process(double delta)
+    {
+        if (!this.IsAttached) { return; }
+        if (!this.TryGetRideWorldPosition(out var anchor)) { return; }
+
+        this._controller.Teleport(anchor);
+    }
+
+    /// <summary>
     /// Re-arms the death hook that <see cref="_ExitTree"/> drops. Reparenting fires both, so without
     /// this the rider survives the move with no way to notice its own death.
     /// </summary>
@@ -145,7 +164,6 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.Host = host;
         this._hostNode = host.GetUnderlyingNode();
         this.IsAttached = true;
-        this._bb?.Set(BBDataSig.IsAttached, true);
     }
 
     /// <inheritdoc />
@@ -182,6 +200,28 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <summary>
+    /// The single route onto a host: cooldown peek, reservation, then the suspension claim.
+    /// </summary>
+    /// <remarks>
+    /// The order is load-bearing and cheap-and-non-mutating first. The suspension claim is taken with
+    /// <see cref="SuspensionVelocityPolicy.Zero"/>, so taking it speculatively would brake a chasing
+    /// entity on every refusal — and with several riders contending for one host, capacity refusal is the
+    /// COMMON case, not the exceptional one.
+    /// </remarks>
+    /// <returns>False when any step refused; the rider is left holding nothing either way.</returns>
+    public bool TryAttachTo(IAttachmentHost host)
+    {
+        if (host == null) { return false; }
+        if (this.IsReattachOnCooldown) { return false; }
+        if (!host.TryReserve(this, out _)) { return false; }
+        if (this.TryClaimPositionalAuthority()) { return true; }
+
+        host.Detach(this, DetachCause.RiderAborted);
+        this.ReleaseAttachment();
+        return false;
+    }
+
+    /// <summary>
     /// Take exclusive positional authority over this entity, suspending its own movement pump.
     /// Idempotent for this component, which is the sole claimant for the whole ride.
     /// </summary>
@@ -189,7 +229,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     {
         // Enforced here rather than at the caller: every route onto a host passes through this claim, so
         // a refusal reads to the BT as an ordinary failed attach and the task retries on its own cadence.
-        if (this.IsReattachOnCooldown()) { return false; }
+        if (this.IsReattachOnCooldown) { return false; }
 
         if (this._movement == null)
         {
@@ -238,16 +278,24 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.Host = null;
         this._hostNode = null;
         this.ReleasePositionalAuthority();
-        this._bb?.Set(BBDataSig.IsAttached, false);
     }
 
-    private bool IsReattachOnCooldown()
+    /// <summary>
+    /// True while a shed still bars this rider from claiming a host. Readable from outside because the
+    /// attach funnel peeks at it FIRST — the peek is side-effect-free, where every step behind it is not.
+    /// </summary>
+    public bool IsReattachOnCooldown
     {
-        if (this.ReattachCooldownSeconds <= 0f) { return false; }
-        if (this._shedAtMsec == 0uL) { return false; }
+        get
+        {
+            if (this._shedAtMsec == 0uL) { return false; }
 
-        var elapsed = (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
-        return elapsed < this.ReattachCooldownSeconds;
+            var cooldown = this.ReattachCooldownDefinition?.ResolveFloatValue(this._stats) ?? 0f;
+            if (cooldown <= 0f) { return false; }
+
+            var elapsed = (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
+            return elapsed < cooldown;
+        }
     }
 
     private bool HostStillHoldsRecord()
@@ -291,6 +339,18 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         // instance must not inherit the last entity's cooldown.
         this._shedAtMsec = 0uL;
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out this._stats);
+
+        // HARD dependency, unlike every other resolve here: the rider WRITES its own position for the
+        // whole ride, so without a controller it would latch onto a host and then sit still. Failing
+        // initialization makes the entity initializer retract this component's blackboard provision, so
+        // consumers fail loudly instead of holding a rider that cannot ride.
+        if (!bb.TryGet<ICharacterController3D>(BBDataSig.CharacterController, out var controller) || controller == null)
+        {
+            JmoLogger.Debug(this, "[Attachment] No ICharacterController3D on the blackboard — this rider cannot ride.");
+            return false;
+        }
+
+        this._controller = controller;
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out this._movement);
         bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
@@ -304,7 +364,6 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     public void OnPostInitialize()
     {
         ProcessMode = ProcessModeEnum.Inherit;
-        this._bb?.Set(BBDataSig.IsAttached, this.IsAttached);
 
         if (this._knockback == null)
         {
@@ -337,7 +396,8 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.FlingForceScaleDefinition = flingForceScale;
     }
 
-    internal void SetReattachCooldownSeconds(float seconds) => this.ReattachCooldownSeconds = seconds;
+    internal void SetReattachCooldownSeconds(float seconds)
+        => this.ReattachCooldownDefinition = new ConstantFloatDefinition(seconds);
 
     internal bool _TestHoldsSuspension => this._holdsSuspension;
 

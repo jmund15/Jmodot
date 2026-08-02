@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Movement.Approach;
 
 using Godot;
+using Jmodot.Core.Stats;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
@@ -17,12 +18,12 @@ public partial class ExpDecayApproach2D : ApproachProfile2D
     /// <summary>Distance from the target at which the approach counts as arrived.</summary>
     [Export] public float ArrivalDistance { get; private set; } = 0.1f;
 
-    public override Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta)
+    public override Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta, IStatProvider? stats)
     {
         return JmoMath.ExpDecay(current, target, Speed, delta);
     }
 
-    public override bool IsComplete(Vector2 current, Vector2 target, float elapsed)
+    public override bool IsComplete(Vector2 current, Vector2 target, float elapsed, IStatProvider? stats)
     {
         return current.DistanceTo(target) <= ArrivalDistance;
     }

@@ -129,9 +129,19 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (!this.IsInitialized) { return false; }
         if (rider == null) { return false; }
         if (!IsRiderAlive(rider)) { return false; }
-        // Already booked — here or on another host. A second record would double-book its footprint
-        // and leave the losing host holding a rider that answers to someone else.
-        if (rider.Host != null || this.IndexOf(rider) >= 0) { return false; }
+        // Already booked HERE: idempotent, and it hands back the LIVE record rather than a default one —
+        // a caller re-entering the attach path must read its real anchor, not the origin. Refusing
+        // instead reads to that caller as a failed attach and tears down a perfectly live attachment.
+        var booked = this.IndexOf(rider);
+        if (booked >= 0)
+        {
+            record = this._records[booked];
+            return true;
+        }
+
+        // Booked on another host. A second record would double-book its footprint and leave the losing
+        // host holding a rider that answers to someone else.
+        if (rider.Host != null) { return false; }
 
         var footprint = Mathf.Max(rider.Footprint, 0f);
         var bounds = this.MeasureBounds();
