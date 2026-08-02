@@ -61,7 +61,12 @@ public partial class Sequence : CompositeTask
         if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
 
         var currentChild = ChildTasks[_runningChildIdx];
+        // Unsubscribe BEFORE Exit — Exit writes Status = Fresh, which would re-enter this handler.
         currentChild.TaskStatusChanged -= OnChildStatusChanged;
+        // The composite contract: a self-terminated child is Exited AT termination. Once the index
+        // advances past it, nothing — not even this composite's own OnExit — can reach it again, so
+        // every claim, subscription and suspension it took would leak for the rest of the entity's life.
+        currentChild.Exit();
 
         switch (newStatus)
         {

@@ -1,7 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
-using System.Linq;
 using Core.AI;
+using Tasks;
 
 /// <summary>
 /// A composite task that executes all of its children simultaneously. Its final status
@@ -21,12 +21,35 @@ public partial class ParallelComposite : CompositeTask
     [Export] public Policy SuccessPolicy { get; private set; } = Policy.RequireOne;
     [Export] public Policy FailurePolicy { get; private set; } = Policy.RequireOne;
 
+    /// <summary>
+    /// How each child ENDED, recorded at the moment it terminated. The live <c>child.Status</c> cannot
+    /// answer that here: the composite contract Exits a self-terminated child immediately, and Exit
+    /// writes <c>Fresh</c> — so policy math reading live status would forget every verdict it needs.
+    /// <see cref="TaskStatus.Running"/> is the not-yet-terminal sentinel.
+    /// </summary>
+    private TaskStatus[] _terminalStatuses = [];
+
+    /// <summary>
+    /// Per-child handlers, kept so each subscription can be removed individually. A shared handler
+    /// cannot tell the composite WHICH child fired, and the snapshot needs to know.
+    /// </summary>
+    private BehaviorTask.TaskStatusChangedEventHandler?[] _childHandlers = [];
+
     protected override void OnEnter()
     {
         base.OnEnter();
-        foreach (var child in ChildTasks)
+
+        var count = ChildTasks.Count;
+        _terminalStatuses = new TaskStatus[count];
+        _childHandlers = new BehaviorTask.TaskStatusChangedEventHandler?[count];
+
+        for (var i = 0; i < count; i++)
         {
-            child.TaskStatusChanged += OnChildStatusChanged;
+            var index = i;
+            var child = ChildTasks[i];
+            _terminalStatuses[i] = TaskStatus.Running;
+            _childHandlers[i] = status => OnChildStatusChanged(index, status);
+            child.TaskStatusChanged += _childHandlers[i];
             child.Enter();
         }
     }
@@ -34,13 +57,19 @@ public partial class ParallelComposite : CompositeTask
     protected override void OnExit()
     {
         base.OnExit();
-        foreach (var child in ChildTasks)
+
+        for (var i = 0; i < ChildTasks.Count; i++)
         {
-            child.TaskStatusChanged -= OnChildStatusChanged;
-            if (child.Status == TaskStatus.Running)
+            var child = ChildTasks[i];
+            if (i < _childHandlers.Length && _childHandlers[i] != null)
             {
-                child.Exit();
+                child.TaskStatusChanged -= _childHandlers[i];
+                _childHandlers[i] = null;
             }
+
+            // Unconditional, not gated on Running: a child torn down externally is left un-exited by a
+            // status guard, and BehaviorTask.Exit is already idempotent so the extra call costs nothing.
+            child.Exit();
         }
     }
 
@@ -60,15 +89,28 @@ public partial class ParallelComposite : CompositeTask
         }
     }
 
-    private void OnChildStatusChanged(TaskStatus newStatus)
+    private void OnChildStatusChanged(int index, TaskStatus newStatus)
     {
-        if (Status != TaskStatus.Running)
-        {
-            return; // Already succeeded or failed
-        }
+        if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
+        if (index >= _terminalStatuses.Length) { return; }
 
-        var successCount = ChildTasks.Count(c => c.Status == TaskStatus.Success);
-        var failureCount = ChildTasks.Count(c => c.Status == TaskStatus.Failure);
+        _terminalStatuses[index] = newStatus;
+
+        var child = ChildTasks[index];
+        // Unsubscribe BEFORE Exit — Exit writes Status = Fresh, which would re-enter this handler.
+        child.TaskStatusChanged -= _childHandlers[index];
+        _childHandlers[index] = null;
+        child.Exit();
+
+        if (Status != TaskStatus.Running) { return; }
+
+        var successCount = 0;
+        var failureCount = 0;
+        foreach (var recorded in _terminalStatuses)
+        {
+            if (recorded == TaskStatus.Success) { successCount++; }
+            else if (recorded == TaskStatus.Failure) { failureCount++; }
+        }
 
         if (SuccessPolicy == Policy.RequireOne && successCount >= 1)
         {
