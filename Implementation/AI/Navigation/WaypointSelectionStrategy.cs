@@ -78,7 +78,10 @@ public abstract partial class WaypointSelectionStrategy : Resource
                 ? context.CurrentPosition
                 : context.OriginPosition;
             center = nav.SnapToNavMesh(center);
-            return _zone.SampleRandomInteriorPoint(center, ResolveRng(context));
+            var authored = _zone.SampleRandomInteriorPoint(center, ResolveRng(context));
+            // The SAMPLE is snapped, not just the zone centre: a zone whose radius overhangs a mesh edge
+            // otherwise hands the navigator an off-mesh target, which it can only answer as unreachable.
+            return nav.SnapToNavMesh(authored);
         }
         return nav.SampleRandomNavPoint();
     }

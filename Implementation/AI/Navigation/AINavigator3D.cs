@@ -174,7 +174,7 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
     /// Bridges agent-space coordinates (GlobalPosition) to nav-mesh-space for operations
     /// that require nav-mesh-aligned Y values (e.g., zone center for waypoint sampling).
     /// </summary>
-    public Vector3 SnapToNavMesh(Vector3 worldPosition)
+    public virtual Vector3 SnapToNavMesh(Vector3 worldPosition)
     {
         Rid map = GetNavigationMap();
         if (NavigationServer3D.MapGetIterationId(map) < 2)
