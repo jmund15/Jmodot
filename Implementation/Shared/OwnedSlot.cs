@@ -29,6 +29,12 @@ public sealed class OwnedSlot<T>
             JmoLogger.Warning(context, $"[{_subsystemTag}] {slotName} claim held by '{Owner}'; '{owner}' rejected.");
             return false;
         }
+        if (Owner == owner)
+        {
+            // Idempotent, and silent at Warning — but a re-claim usually means two code paths both think
+            // they own the slot, which is exactly what a leaked claim looks like from the outside.
+            JmoLogger.Debug(context, $"[{_subsystemTag}] {slotName} re-claimed by its current owner '{owner}'.");
+        }
         Owner = owner;
         Value = value;
         return true;

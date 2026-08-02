@@ -188,7 +188,9 @@ using Shared.GodotExceptions;
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
-            JmoLogger.Debug(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, propagate={canPropagateUp})");
+            // Info, not Debug: the state chain an entity actually walked is the first question every
+            // AI investigation asks, and debug logging is off in the shipped project settings.
+            JmoLogger.Info(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, propagate={canPropagateUp})");
             if (!newSubState.IsValid())
             {
                 JmoLogger.Error(this, $"Attempted to transition from '{oldSubState.Name}' to a null or invalid state.");
