@@ -54,6 +54,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition FlingForceScaleDefinition { get; private set; } = null!;
 
+    /// <summary>Seconds after being shed during which this rider refuses to claim a host again. 0 disables the cooldown.</summary>
+    [Export] public float ReattachCooldownSeconds { get; private set; }
+
     private IBlackboard _bb = null!;
     private IMovementProcessor3D? _movement;
     private KnockbackComponent3D? _knockback;
@@ -63,6 +66,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     private Node? _hostNode;
     private bool _holdsSuspension;
+    private ulong _shedAtMsec;
 
     /// <inheritdoc />
     public (StringName Key, object Value)? Provision => (BBDataSig.AttachmentRider, this);
@@ -147,6 +151,10 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <inheritdoc />
     public void OnShed(Vector3 direction, float spentForce, Node? attributedSource)
     {
+        // Only a shed arms the cooldown. A deliberate detach — death, an aborted approach, the owner
+        // letting go — is not the entity being thrown off, so it must not be punished with a wait.
+        this._shedAtMsec = Time.GetTicksMsec();
+
         // Ordering is load-bearing: a suspended processor CLEARS its pending impulses every tick,
         // so an impulse applied before the release is discarded rather than queued.
         this.ReleaseAttachment();
@@ -179,6 +187,10 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// </summary>
     public bool TryClaimPositionalAuthority()
     {
+        // Enforced here rather than at the caller: every route onto a host passes through this claim, so
+        // a refusal reads to the BT as an ordinary failed attach and the task retries on its own cadence.
+        if (this.IsReattachOnCooldown()) { return false; }
+
         if (this._movement == null)
         {
             JmoLogger.Warning(this, "[Attachment] No IMovementProcessor3D on the blackboard — this rider cannot ride.");
@@ -229,6 +241,15 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this._bb?.Set(BBDataSig.IsAttached, false);
     }
 
+    private bool IsReattachOnCooldown()
+    {
+        if (this.ReattachCooldownSeconds <= 0f) { return false; }
+        if (this._shedAtMsec == 0uL) { return false; }
+
+        var elapsed = (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
+        return elapsed < this.ReattachCooldownSeconds;
+    }
+
     private bool HostStillHoldsRecord()
     {
         if (this.Host == null) { return false; }
@@ -266,6 +287,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     public bool Initialize(IBlackboard bb)
     {
         this._bb = bb;
+        // Pool reuse re-runs Initialize on a component whose previous life ended in a shed; a recycled
+        // instance must not inherit the last entity's cooldown.
+        this._shedAtMsec = 0uL;
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out this._stats);
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out this._movement);
         bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
@@ -312,6 +336,8 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.AttachDamagePerSecondDefinition = attachDps;
         this.FlingForceScaleDefinition = flingForceScale;
     }
+
+    internal void SetReattachCooldownSeconds(float seconds) => this.ReattachCooldownSeconds = seconds;
 
     internal bool _TestHoldsSuspension => this._holdsSuspension;
 
