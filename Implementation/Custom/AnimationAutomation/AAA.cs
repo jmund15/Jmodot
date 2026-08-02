@@ -1,4 +1,4 @@
-//#if TOOLS
+#if TOOLS
 
 namespace Jmodot.Implementation.Custom.AnimationAutomation;
 
@@ -314,4 +314,4 @@ public partial class AAA : EditorScript
         //GetTree().Quit();
     }
 }
-//#endif
+#endif
