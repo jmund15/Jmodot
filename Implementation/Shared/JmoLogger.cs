@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Shared;
 using Godot;
 using System;
 using System.Runtime.CompilerServices;
+using Jmodot.Core.Identification;
 
 /// <summary>
 /// A centralized static class for logging with rich context. It standardizes message formats
@@ -122,6 +123,12 @@ public static class JmoLogger
             case Node node:
                 var nodeOwner = (node.IsInsideTree()) ? (owner ?? node.GetOwner()) : null;
                 ownerStr = nodeOwner != null ? $" (Owner: {nodeOwner.GetPath()})" : "";
+                if (node is ILogIdentity nodeIdentity && !string.IsNullOrEmpty(nodeIdentity.LogLabel))
+                {
+                    contextStr = $"[{nodeIdentity.LogLabel}]{ownerStr}";
+                    break;
+                }
+
                 var pathStr = (node.IsInsideTree()) ? node.GetPath().ToString() : "[Detached]";
                 contextStr = $"[{node.GetType().Name} @ '{pathStr}']{ownerStr}";
                 break;
@@ -130,6 +137,12 @@ public static class JmoLogger
                 contextStr = $"[{resource.GetType().Name} @ '{resource.ResourcePath}']{ownerStr}";
                 break;
             default:
+                if (context is ILogIdentity objectIdentity && !string.IsNullOrEmpty(objectIdentity.LogLabel))
+                {
+                    contextStr = $"[{objectIdentity.LogLabel}]";
+                    break;
+                }
+
                 // If it overrides ToString(), use it. Otherwise use Type Name.
                 var str = context.ToString() ?? string.Empty;
                 // Check if default ToString (Namespace.ClassName) was returned
