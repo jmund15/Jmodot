@@ -78,6 +78,11 @@ public static partial class BBDataSig
     /// </summary>
     public static readonly StringName SteeringComp = new("SteeringComponent");
 
+    /// <summary>
+    /// MovementQuirkProcessor3D reference. Absent when the entity authors no quirk processor.
+    /// </summary>
+    public static readonly StringName MovementQuirkProcessor = new("MovementQuirkProcessor");
+
     #region AI_PROPERTIES
 
     public static readonly StringName OwnedVehicle = new("OwnedVehicle");
@@ -191,6 +196,21 @@ public static partial class BBDataSig
     /// </summary>
     public static readonly StringName HolderComponent = new("HandMovementComponent");
     public static readonly StringName GrabberHolding = new("Grabber_Holding");
+
+    #endregion
+
+    #region ATTACHMENT
+
+    /// <summary>
+    /// The entity's <c>AttachmentHostComponent3D</c> — present only on entities that can be ridden.
+    /// Capability discovery still goes through <c>IAttachmentHost</c> on the TARGET's node tree; this
+    /// key is how an entity's OWN components reach their sibling host — a melee state resolving the
+    /// host it must shake riders off, and a caster component doing the same on every cast.
+    /// </summary>
+    public static readonly StringName AttachmentHost = new("AttachmentHost");
+
+    /// <summary>The entity's <c>AttachmentRiderComponent3D</c> — present only on entities that can latch onto a host.</summary>
+    public static readonly StringName AttachmentRider = new("AttachmentRider");
 
     #endregion
 }

@@ -30,7 +30,7 @@ using Core.Movement;
 [GlobalClass, Tool]
 public partial class NavigationPath3DConsideration : BaseAIConsideration3D
 {
-    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
+    protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard, AIConsiderationRuntime? runtime)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, dir => 0f);
 

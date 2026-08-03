@@ -92,7 +92,12 @@ public abstract partial class PrioritySelectorBase : CompositeTask
         if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
 
         var currentChild = ChildTasks[_runningChildIdx];
+        // Unsubscribe BEFORE Exit — Exit writes Status = Fresh, which would re-enter this handler.
         currentChild.TaskStatusChanged -= OnChildStatusChanged;
+        // The composite contract, uniform across the family: a self-terminated child is Exited AT
+        // termination. Failure is the branch that leaks — the index advances past the child and nothing
+        // reaches it again — but Success takes the same route so the rule has no exceptions to remember.
+        currentChild.Exit();
 
         switch (newStatus)
         {

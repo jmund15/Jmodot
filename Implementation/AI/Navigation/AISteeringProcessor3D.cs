@@ -94,6 +94,16 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     private readonly List<BaseAIConsideration3D> _runtimeConsiderations = new();
 
     /// <summary>
+    /// Per-agent runtime state for every consideration this processor evaluates, including the
+    /// nav-path slot. Considerations are shared <c>.tres</c> Resources and hold no per-agent state,
+    /// so the state that varies between two agents lives here, on the per-instance processor.
+    /// </summary>
+    private readonly Dictionary<BaseAIConsideration3D, AIConsiderationRuntime?> _runtimes = new();
+
+    /// <summary>The agent blackboard, forwarded to considerations when their runtime is created.</summary>
+    private IBlackboard? _bb;
+
+    /// <summary>
     /// The per-frame dual-channel steering map. Built from MovementDirections.OrderedDirections in
     /// Initialize; reset and re-populated each frame in CalculateSteering.
     /// </summary>
@@ -125,7 +135,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// <summary>The current control-claim owner, or null when unclaimed.</summary>
     public StringName? ControlOwner => _controlSlot.Owner;
 
-    private readonly OwnedSlot<ControlClaim> _controlSlot = new();
+    private readonly OwnedSlot<ControlClaim> _controlSlot = new("Steering");
 
     /// <summary>
     /// Claims the control slot under reject-second-claimant discipline: unclaimed or same-owner reclaim
@@ -168,7 +178,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// </summary>
     [Export] private SteeringSynthesisStrategy3D? _synthesisStrategy;
 
-    private readonly OwnedSlot<SteeringSynthesisStrategy3D> _synthesisSlot = new();
+    private readonly OwnedSlot<SteeringSynthesisStrategy3D> _synthesisSlot = new("Steering");
     private SteeringSynthesisState _synthesisState = SteeringSynthesisState.Empty;
 
     // Lazily created; static so all unassigned processors share one instance. NEVER an eager field
@@ -223,48 +233,6 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         return _recorder;
     }
 
-    /// <summary>
-    /// One reject-second-claimant discipline, reused by the control slot and the synthesis-override
-    /// slot: the first owner keeps the slot; a conflicting owner is rejected (returns false + warns);
-    /// the owner (or a reset) releases it. Per-agent state lives here as a private field on the Node,
-    /// never on a shared Resource.
-    /// </summary>
-    private sealed class OwnedSlot<T>
-    {
-        public StringName? Owner { get; private set; }
-        public T? Value { get; private set; }
-        public bool IsClaimed => Owner != null;
-
-        public bool TryClaim(StringName owner, T value, Node context, string slotName)
-        {
-            if (Owner != null && Owner != owner)
-            {
-                JmoLogger.Warning(context, $"[Steering] {slotName} claim held by '{Owner}'; '{owner}' rejected.");
-                return false;
-            }
-            Owner = owner;
-            Value = value;
-            return true;
-        }
-
-        public bool TryRelease(StringName owner, Node context, string slotName)
-        {
-            if (Owner != owner)
-            {
-                JmoLogger.Warning(context, $"[Steering] '{owner}' tried to release {slotName} held by '{Owner?.ToString() ?? "no one"}'.");
-                return false;
-            }
-            Clear();
-            return true;
-        }
-
-        public void Clear()
-        {
-            Owner = null;
-            Value = default;
-        }
-    }
-
     [ExportGroup("Debug")]
 
     /// <summary>
@@ -294,8 +262,15 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// <summary>
     ///     Initializes the steering processor. Must be called by the parent AIAgent.
     /// </summary>
-    public void Initialize()
+    /// <param name="bb">
+    ///     The agent blackboard, forwarded to each consideration's <see cref="BaseAIConsideration3D.CreateRuntime"/>
+    ///     so per-agent runtime state can seed itself from agent data (entity seed, stats, components).
+    ///     Null is legal — considerations that need no blackboard input are unaffected.
+    /// </param>
+    public void Initialize(IBlackboard? bb)
     {
+        _bb = bb;
+
         if (MovementDirections == null || !MovementDirections.Directions.Any())
         {
             JmoLogger.Error(this, "MovementDirections resource is null or empty. Steering processor cannot function.");
@@ -306,14 +281,30 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         // flag so synthesis strategies can gate neighbor interpolation on it.
         _map = new SteeringContextMap(MovementDirections.OrderedDirections, MovementDirections.HasCircularOrder);
 
+        // A recycled processor must not carry a prior life's per-agent runtime state; every runtime
+        // below is rebuilt against the blackboard this Initialize was handed.
+        _runtimes.Clear();
+
         // Initialize each consideration, allowing them to perform setup tasks (e.g., caching data).
         foreach (var consideration in _considerations)
         {
-            consideration?.Initialize(MovementDirections);
+            if (consideration == null) { continue; }
+            consideration.Initialize(MovementDirections);
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
+        }
+
+        // Registrations that outlived the previous life need their runtimes rebuilt too.
+        foreach (var consideration in _runtimeConsiderations)
+        {
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
         }
 
         // Initialize the dedicated nav path consideration if configured.
-        _navPathConsideration?.Initialize(MovementDirections);
+        if (_navPathConsideration != null)
+        {
+            _navPathConsideration.Initialize(MovementDirections);
+            _runtimes[_navPathConsideration] = _navPathConsideration.CreateRuntime(_bb);
+        }
 
         RebuildActiveConsiderations();
 
@@ -337,6 +328,12 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         if (_runtimeConsiderations.Contains(consideration)) { return; }
         _runtimeConsiderations.Add(consideration);
         consideration.Initialize(MovementDirections);
+        // Kept across unregister/re-register: a consideration shared by two BT actions that hand off
+        // would otherwise reset its accumulators on every swap.
+        if (!_runtimes.ContainsKey(consideration))
+        {
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
+        }
         RebuildActiveConsiderations();
     }
 
@@ -348,6 +345,22 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     {
         if (!_runtimeConsiderations.Remove(consideration)) { return; }
         RebuildActiveConsiderations();
+    }
+
+    /// <summary>
+    /// The per-agent runtime for a consideration, created on first sight. The lazy path covers
+    /// considerations that reached the evaluation loop without passing through Initialize or
+    /// RegisterConsideration — a missing runtime would silently degrade a stateful consideration
+    /// to unseeded, shared-default behavior. Public so BT actions that evaluate a consideration
+    /// off the main pipeline (on-demand probes) can hand it the same per-agent runtime the
+    /// pipeline would.
+    /// </summary>
+    public AIConsiderationRuntime? GetOrCreateRuntime(BaseAIConsideration3D consideration)
+    {
+        if (_runtimes.TryGetValue(consideration, out var runtime)) { return runtime; }
+        runtime = consideration.CreateRuntime(_bb);
+        _runtimes[consideration] = runtime;
+        return runtime;
     }
 
     private void RebuildActiveConsiderations()
@@ -366,6 +379,10 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     {
         _navPathOverride = consideration;
         consideration.Initialize(MovementDirections);
+        if (!_runtimes.ContainsKey(consideration))
+        {
+            _runtimes[consideration] = consideration.CreateRuntime(_bb);
+        }
     }
 
     /// <summary>
@@ -421,10 +438,13 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         // NavigationOnly claim skips consideration scoring entirely.
         if (mode != SteeringControlMode.NavigationOnly)
         {
-            foreach (var consideration in ActiveConsiderations)
+            // Indexed rather than foreach: ActiveConsiderations is typed as the interface, so foreach
+            // would box the List enumerator once per agent per physics frame on a hot path.
+            for (int i = 0; i < ActiveConsiderations.Count; i++)
             {
+                var consideration = ActiveConsiderations[i];
                 _recorder?.CaptureBefore(_map);
-                consideration.Evaluate(context3D, blackboard, MovementDirections, _map);
+                consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(consideration));
                 _recorder?.CaptureAfter(consideration, _map);
             }
         }
@@ -435,7 +455,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         if (activeNavPath != null)
         {
             _recorder?.CaptureBefore(_map);
-            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map);
+            activeNavPath.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(activeNavPath));
             _recorder?.CaptureAfter(activeNavPath, _map);
         }
 
@@ -490,8 +510,12 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     {
         string best = "-";
         float bestMag = 0f;
-        foreach (var c in _recorder!.Contributions)
+        // Indexed rather than foreach: Contributions is a zero-alloc view typed as the interface,
+        // and its enumerator is an iterator — foreach would allocate one per bin per dump.
+        var contributions = _recorder!.Contributions;
+        for (int i = 0; i < contributions.Count; i++)
         {
+            var c = contributions[i];
             float mag = c.InterestDelta[bin] - c.DangerDelta[bin];
             if (Mathf.Abs(mag) > Mathf.Abs(bestMag)) { bestMag = mag; best = c.Source; }
         }

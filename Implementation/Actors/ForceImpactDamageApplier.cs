@@ -132,10 +132,11 @@ public partial class ForceImpactDamageApplier : Node, IComponent
         bb.TryGet(BBDataSig.Stats, out _launcherStats);
 
         // Capability gates (invulnerability window, damage-absorption shield, …) veto impact
-        // damage per-impact. Direct siblings only — a gate is a peer component, not something
-        // inherited from a nested subtree. Re-resolved on every Initialize to honor the
-        // pool-reuse/rebind contract.
-        _gates = _self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: false).ToList();
+        // damage per-impact. Subtree-scoped: whether a gate is authored at the root or grouped under
+        // a Combat/ organiser is the scene author's prerogative, and a direct-child search answers
+        // "absent" for a grouped gate with no error — the ice would silently stop absorbing impact
+        // damage. Re-resolved on every Initialize to honor the pool-reuse/rebind contract.
+        _gates = _self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: true).ToList();
 
         IsInitialized = true;
         Initialized();

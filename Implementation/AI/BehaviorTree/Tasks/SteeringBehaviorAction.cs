@@ -31,6 +31,13 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     private AISteeringProcessor3D? _cachedSteering;
 
+    /// <summary>
+    /// Enter() skips OnEnter() when the task's condition check fails, but Exit() runs OnExit()
+    /// regardless. Consideration registration is not refcounted, so an unpaired unregister would
+    /// drop another owner's live registration of the same consideration .tres.
+    /// </summary>
+    private bool _considerationsRegistered;
+
     protected override void OnEnter()
     {
         base.OnEnter();
@@ -56,11 +63,16 @@ public partial class SteeringBehaviorAction : BehaviorAction
         {
             steering.TrySetSynthesisOverride(Name, _synthesisOverride);
         }
+
+        _considerationsRegistered = true;
     }
 
     protected override void OnExit()
     {
         base.OnExit();
+
+        if (!_considerationsRegistered) { return; }
+        _considerationsRegistered = false;
 
         if (!TryGetSteering(out var steering)) { return; }
 

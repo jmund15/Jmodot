@@ -115,7 +115,8 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions,
         SteeringDecisionContext3D context3D,
-        IBlackboard blackboard)
+        IBlackboard blackboard,
+        AIConsiderationRuntime? runtime)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
@@ -409,7 +410,7 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     /// </summary>
     internal Dictionary<Vector3, float> CalculateBaseScoresForTest(
         DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard) =>
-        CalculateBaseScores(directions, context3D, blackboard);
+        CalculateBaseScores(directions, context3D, blackboard, null);
 #endif
     #endregion
 }

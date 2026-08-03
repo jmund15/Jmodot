@@ -237,13 +237,26 @@ public partial class SquadRoster : Node
 
     public override void _ExitTree()
     {
-        // Stack exit is always teardown. A non-sanctioned exit (reparent) is loud but still disbands.
-        if (!_disbanded && !AncestorQueuedForDeletion())
-        {
-            JmoLogger.Error(this, "[Squad] squad stack reparent is unsupported — squad disbanding.");
-        }
+        // A reparent and an ordinary quit-driven teardown are INDISTINGUISHABLE from inside _ExitTree:
+        // AncestorQueuedForDeletion cannot see a teardown the engine drives itself, so the error fired on
+        // every clean shutdown and trained readers to ignore it. One deferred frame later the difference
+        // is plain — a reparented roster is back in the tree, a torn-down one is gone. Same shape as
+        // DeferredTreeExitCheck below, for the same reason.
+        var mightBeReparent = !_disbanded && !AncestorQueuedForDeletion();
 
         Disband();
+
+        if (!mightBeReparent) { return; }
+
+        Callable.From(DeferredReparentCheck).CallDeferred();
+    }
+
+    private void DeferredReparentCheck()
+    {
+        if (!GodotObject.IsInstanceValid(this)) { return; }
+        if (!IsInsideTree()) { return; } // genuinely torn down
+
+        JmoLogger.Error(this, "[Squad] squad stack reparent is unsupported — squad disbanding.");
     }
 
     private void OnMemberDied(Node3D member)

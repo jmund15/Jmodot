@@ -1,0 +1,39 @@
+namespace Jmodot.Implementation.Movement.Approach;
+
+using Godot;
+using Jmodot.Core.Stats;
+
+/// <summary>
+/// Abstract base Resource for "glide from here to there" motion rules. An approach profile answers
+/// two questions each physics frame: where should the mover be after this step, and has it arrived?
+///
+/// <para>
+/// <b>Stateless:</b> one <c>.tres</c> instance is shared by every entity that authors it, so a profile
+/// holds ZERO per-consumer state. Elapsed time is a parameter, never a field — two movers stepping the
+/// same instance in the same frame must not perturb each other.
+/// </para>
+///
+/// <para>
+/// <b>Subclass rules:</b> concrete subclasses MUST be marked <c>[GlobalClass, Tool]</c> — otherwise
+/// <c>.tres</c> files deserialize as bare <see cref="Resource"/> and throw
+/// <see cref="System.InvalidCastException"/> on type-checked access.
+/// </para>
+/// </summary>
+[GlobalClass, Tool]
+public abstract partial class ApproachProfile2D : Resource
+{
+    /// <summary>Position after one step from <paramref name="current"/> toward <paramref name="target"/>.</summary>
+    /// <param name="start">Where the approach began, captured once by the caller. Profiles whose progress is
+    /// absolute in time interpolate from here; profiles that only chase the remaining gap ignore it.</param>
+    /// <param name="current">The mover's position at the start of this step.</param>
+    /// <param name="target">The live target position; it may move between steps.</param>
+    /// <param name="elapsed">Seconds since the approach began, owned and accumulated by the caller.</param>
+    /// <param name="delta">Frame delta in seconds.</param>
+    /// <param name="stats">The mover's stat provider, passed per call rather than cached: the profile is
+    /// shared, so it may hold no consumer's provider. Null resolves every tuning value to its constant.</param>
+    public abstract Vector2 Step(Vector2 start, Vector2 current, Vector2 target, float elapsed, float delta, IStatProvider? stats);
+
+    /// <summary>True once the approach should be treated as arrived.</summary>
+    /// <param name="stats">The mover's stat provider — see <see cref="Step"/>.</param>
+    public abstract bool IsComplete(Vector2 current, Vector2 target, float elapsed, IStatProvider? stats);
+}

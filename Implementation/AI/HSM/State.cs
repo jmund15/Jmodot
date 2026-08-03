@@ -7,9 +7,13 @@ using Core.AI.BehaviorTree;
 using Core.AI.HSM;
 using Core.Stats;
 
+using Core.Movement.Quirks;
+using Movement.Quirks;
+
 using GColl = Godot.Collections;
 using System.Collections.Generic;
 using Shared;
+using Shared.GodotExceptions;
 
 /// <summary>
 /// The abstract base class for all states in the Hierarchical State Machine.
@@ -48,6 +52,16 @@ public partial class State : Node, IState
     /// Modifiers defined on the context are applied on enter and removed on exit.
     /// </summary>
     [Export] protected StatContext? ActiveStatContext;
+
+    [ExportGroup("Movement Quirks")]
+    /// <summary>
+    /// Movement quirks registered on the entity's quirk processor while this state is active.
+    /// Registration is refcounted, so a quirk shared with another state or BehaviorAction survives
+    /// until every holder releases it.
+    /// </summary>
+    [Export] protected GColl.Array<MovementQuirk3D> StateQuirks { get; private set; } = new();
+
+    private MovementQuirkProcessor3D? _quirkProcessor;
 
     public IBlackboard BB { get; protected set; }
     public Node Agent { get; protected set; }
@@ -102,6 +116,17 @@ public partial class State : Node, IState
             }
         }
 
+        if (StateQuirks.Count > 0)
+        {
+            if (!BB.TryGet<MovementQuirkProcessor3D>(BBDataSig.MovementQuirkProcessor, out var quirkProcessor)
+                || quirkProcessor == null)
+            {
+                throw new NodeConfigurationException(
+                    "StateQuirks are assigned but the agent has no MovementQuirkProcessor3D.", this);
+            }
+            _quirkProcessor = quirkProcessor;
+        }
+
         OnInit();
 
         IsInitialized = true;
@@ -126,6 +151,11 @@ public partial class State : Node, IState
             statProvider!.AddActiveContext(ActiveStatContext);
         }
 
+        foreach (var quirk in StateQuirks)
+        {
+            _quirkProcessor?.RegisterQuirk(quirk);
+        }
+
         OnEnter();
         IsActive = true;
     }
@@ -141,6 +171,11 @@ public partial class State : Node, IState
             && BB.TryGet<IStatProvider>(BBDataSig.Stats, out var statProvider))
         {
             statProvider!.RemoveActiveContext(ActiveStatContext);
+        }
+
+        foreach (var quirk in StateQuirks)
+        {
+            _quirkProcessor?.UnregisterQuirk(quirk);
         }
 
         OnExit();
@@ -264,6 +299,12 @@ public partial class State : Node, IState
             }
         }
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetStateQuirks(GColl.Array<MovementQuirk3D> quirks) => StateQuirks = quirks;
+#endif
+    #endregion
 
     public override string[] _GetConfigurationWarnings()
     {

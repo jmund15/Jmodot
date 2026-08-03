@@ -12,8 +12,8 @@ using Shared;
 /// A steering consideration that uses FastNoiseLite to generate time-varying
 /// directional interest on the XZ plane. Creates organic meandering behavior
 /// without waypoints or targets.
-/// Per-instance random time offset prevents synchronized wandering across
-/// critters sharing the same .tres resource.
+/// A per-agent, seed-derived time offset (held on the processor-owned runtime) prevents
+/// synchronized wandering across critters sharing the same .tres resource.
 /// </summary>
 [GlobalClass, Tool]
 public partial class WanderConsideration3D : BaseAIConsideration3D
@@ -32,25 +32,12 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 
     #endregion
 
-    private sealed class WanderRuntime
+    /// <summary>Per-agent wander state: the desync offset plus this agent's own time accumulator.</summary>
+    internal sealed class WanderRuntime : AIConsiderationRuntime
     {
         public float Offset;
         public float AccumulatedTime;
     }
-
-    /// <summary>
-    /// Per-agent wander runtime (desync offset + time accumulator), keyed by entity seed.
-    /// </summary>
-    /// <remarks>
-    /// DOCUMENTED EXCEPTION to arch_rule_resource_config_runtime_split (a shared .tres Resource
-    /// normally holds zero per-consumer state). Keying by the unique entity seed defeats the
-    /// rule's primary harm — cross-agent stomping — since each agent touches only its own entry.
-    /// The steering architecture offers no per-agent init seam (the processor's Initialize
-    /// carries no Blackboard), so a CreateRuntime split is not viable here. Residual: a bounded
-    /// leak of one ~12-byte entry per distinct agent for the run's lifetime.
-    /// </remarks>
-    private readonly Dictionary<int, WanderRuntime> _runtimeByEntity = new();
-    private bool _warnedNoSeed;
 
     public override void Initialize(DirectionSet3D directions)
     {
@@ -62,17 +49,37 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
         }
     }
 
+    public override AIConsiderationRuntime CreateRuntime(IBlackboard? blackboard)
+    {
+        int entitySeed = 0;
+        bool hasSeed = blackboard != null && blackboard.TryGet<int>(BBDataSig.EntitySeed, out entitySeed);
+        if (!hasSeed)
+        {
+            JmoLogger.Warning(this, "[Lineage] WanderConsideration3D: no EntitySeed — desync offset 0 (unseeded).");
+        }
+
+        return new WanderRuntime { Offset = hasSeed ? DeriveOffset(entitySeed) : 0f, AccumulatedTime = 0f };
+    }
+
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions,
         SteeringDecisionContext3D context3D,
-        IBlackboard blackboard)
+        IBlackboard blackboard,
+        AIConsiderationRuntime? runtime)
     {
         var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        // Per-agent runtime: deterministic offset (from entity seed) + per-agent accumulator.
-        var runtime = ResolveRuntime(blackboard);
-        runtime.AccumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
-        float time = runtime.AccumulatedTime + runtime.Offset;
+        // A missing runtime means this consideration was evaluated outside a processor: sample the
+        // unseeded origin rather than parking per-agent state on the shared Resource. A throwaway
+        // runtime would sample a constant anyway (a fresh accumulator never advances past one tick)
+        // while churning the heap on a path that can run every frame.
+        var wander = NarrowRuntime<WanderRuntime>(runtime);
+        float time = 0f;
+        if (wander != null)
+        {
+            wander.AccumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
+            time = wander.AccumulatedTime + wander.Offset;
+        }
         float noiseValue = _noise?.GetNoise1D(time) ?? 0f;
 
         Vector3 wanderDirection = CalculateAngularDirection(noiseValue);
@@ -110,24 +117,6 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
         return new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
     }
 
-    private WanderRuntime ResolveRuntime(IBlackboard? blackboard)
-    {
-        int entitySeed = 0;
-        bool hasSeed = blackboard != null && blackboard.TryGet<int>(BBDataSig.EntitySeed, out entitySeed);
-        if (!hasSeed && !_warnedNoSeed)
-        {
-            JmoLogger.Warning(this, "[Lineage] WanderConsideration3D: no EntitySeed — desync offset 0 (unseeded).");
-            _warnedNoSeed = true;
-        }
-
-        if (!_runtimeByEntity.TryGetValue(entitySeed, out var runtime))
-        {
-            runtime = new WanderRuntime { Offset = hasSeed ? DeriveOffset(entitySeed) : 0f, AccumulatedTime = 0f };
-            _runtimeByEntity[entitySeed] = runtime;
-        }
-        return runtime;
-    }
-
     // Deterministic per-agent desync offset in [0, 1000), folded straight from the seed — no
     // JmoRng construction (keeps this off the SIGSEGV-prone ctor and avoids a per-frame alloc).
     private static float DeriveOffset(int entitySeed)
@@ -139,8 +128,8 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     #region Test Helpers
 #if TOOLS
     internal void SetNoise(FastNoiseLite? noise) => _noise = noise;
-    internal void SetOffsetForTest(int entitySeed, float offset)
-        => _runtimeByEntity[entitySeed] = new WanderRuntime { Offset = offset, AccumulatedTime = 0f };
+    internal static WanderRuntime RuntimeWithOffsetForTest(float offset)
+        => new() { Offset = offset, AccumulatedTime = 0f };
 #endif
     #endregion
 }

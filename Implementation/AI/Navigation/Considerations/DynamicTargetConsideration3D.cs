@@ -138,7 +138,8 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     #endregion
 
     protected override Dictionary<Vector3, float> CalculateBaseScores(
-        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard)
+        DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard,
+        AIConsiderationRuntime? runtime)
     {
         // Lazy: this runs per-frame per-agent, and in the common has-targets case the zero
         // dictionary would be allocated only to be discarded in favor of AggregateScores.

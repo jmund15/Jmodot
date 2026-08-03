@@ -48,7 +48,7 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
     [Export]
     public AnimationDirectionSuffixes DirectionSuffixes { get; set; }
 
-    [Export] public Vector2I FrameSize { get; set; } = new(850, 850);
+    [Export] public Vector2I FrameSize { get; set; } = new(16, 16);
     private readonly Vector2I AllRange = new(-1, -1);
     [Export] public Vector2I ColumnsToUse { get; set; } = new(-1, -1);
     [Export] public Vector2I RowsToUse { get; set; } = new(-1, -1);

@@ -256,11 +256,12 @@ using AI.BB;
         /// capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a target already hit
         /// during this attack is a no-op regardless of which channel saw it first.
         /// </summary>
-        /// <param name="collider">The contacted node; its <see cref="HurtboxComponent3D"/> child is
-        /// resolved by type. A collider carrying no hurtbox is a no-op.</param>
+        /// <param name="collider">The contacted node; its <see cref="HurtboxComponent3D"/> descendant is
+        /// resolved by type, breadth-first, so grouping the hurtbox under a presentation node does not
+        /// silence this channel. A collider carrying no hurtbox is a no-op.</param>
         public void TryHitNode(Node3D collider)
         {
-            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox) && hurtbox != null)
+            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
             {
                 TryHitHurtbox(hurtbox);
             }

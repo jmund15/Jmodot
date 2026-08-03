@@ -77,7 +77,12 @@ public partial class RandomSelector : CompositeTask
         if (newStatus is TaskStatus.Running or TaskStatus.Fresh) { return; }
 
         var currentChild = ChildTasks[_shuffledIndices[_currentIdx]];
+        // Unsubscribe BEFORE Exit — Exit writes Status = Fresh, which would re-enter this handler.
         currentChild.TaskStatusChanged -= OnChildStatusChanged;
+        // The composite contract: a self-terminated child is Exited AT termination. The last child of an
+        // exhausted shuffle is unreachable even from this composite's own OnExit, whose guard has already
+        // walked off the end of the index array.
+        currentChild.Exit();
 
         switch (newStatus)
         {
