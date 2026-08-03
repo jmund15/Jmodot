@@ -2,7 +2,9 @@ namespace Jmodot.Implementation.Visual.Effects;
 
 using System;
 using System.Collections.Generic;
+using AI.BB;
 using Godot;
+using Jmodot.Core.AI.BB;
 using Jmodot.Core.Visual;
 using Jmodot.Core.Visual.Effects;
 using Shared;
@@ -19,8 +21,15 @@ using Shared;
 /// circular [Export] dependency that would otherwise occur.
 /// </remarks>
 [GlobalClass, Tool]
-public partial class VisualEffectService : Node, IVisualEffectService
+public partial class VisualEffectService : Node, IVisualEffectService, IBlackboardProvider
 {
+    /// <summary>
+    /// Publishes self so entity-scoped consumers that are not the composer (trait indicator
+    /// channels, status visuals) can reach the tint surface without an exported wire to a node
+    /// buried under the composer.
+    /// </summary>
+    public (StringName Key, object Value)? Provision => (BBDataSig.VisualEffectService, this);
+
     private readonly Dictionary<Node, Color> _baseColors = new();
     private readonly Dictionary<EffectId, (VisualQuery query, Color color)> _persistentTints = new();
     private long _nextEffectId = 1;
