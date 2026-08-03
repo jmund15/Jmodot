@@ -69,6 +69,7 @@ public partial class MovementQuirkProcessor3D : Node
             _runtimes[quirk] = quirk.CreateRuntime(_bb, ResolveRng());
         }
         RebuildActiveQuirks();
+        JmoLogger.Debug(this, $"[Quirk] Activated '{QuirkLabel(quirk)}' (active={ActiveQuirks.Count})");
     }
 
     /// <summary>
@@ -91,7 +92,11 @@ public partial class MovementQuirkProcessor3D : Node
         _refCounts.Remove(quirk);
         _runtimeQuirks.Remove(quirk);
         RebuildActiveQuirks();
+        JmoLogger.Debug(this, $"[Quirk] Deactivated '{QuirkLabel(quirk)}' (active={ActiveQuirks.Count})");
     }
+
+    private static string QuirkLabel(MovementQuirk3D quirk)
+        => string.IsNullOrEmpty(quirk.ResourceName) ? quirk.GetType().Name : quirk.ResourceName;
 
     public void ProcessQuirks(Vector3 desiredDirection, Vector3 agentVelocity, float delta)
     {

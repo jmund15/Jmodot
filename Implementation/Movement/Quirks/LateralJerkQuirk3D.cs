@@ -4,6 +4,7 @@ using System;
 using Core.AI.BB;
 using Core.Movement.Quirks;
 using Core.Shared;
+using Shared;
 
 /// <summary>
 /// Snaps the agent sideways off its intended heading at randomized intervals, alternating sides.
@@ -58,6 +59,8 @@ public partial class LateralJerkQuirk3D : MovementQuirk3D
         jerk.Side = -jerk.Side;
 
         ctx.Movement.ApplyImpulse(lateral * _impulseMagnitude);
+        JmoLogger.Debug(this, $"[Quirk] LateralJerk fired: side={(jerk.Side < 0 ? "right" : "left")}, " +
+            $"impulse={_impulseMagnitude:F1}, speed={flatVelocity.Length():F2}, nextIn={jerk.TimeUntilNextJerk:F2}s");
     }
 
     private float MinIntervalBound => Math.Min(_minInterval, _maxInterval);
