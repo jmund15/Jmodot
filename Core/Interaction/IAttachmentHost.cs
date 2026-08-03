@@ -24,6 +24,29 @@ public interface IAttachmentHost : IGodotNodeInterface
     IReadOnlyList<AttachmentRecord> Attachments { get; }
 
     /// <summary>
+    /// The entity this host IS — the root whose transform anchors are expressed in and whose art the
+    /// capacity rule measures, not the component node. Consumers that need the host's visual subtree
+    /// (facing sources, art measurement) start here rather than walking up from the component, which
+    /// has no children of its own.
+    /// </summary>
+    Node3D HostEntity { get; }
+
+    /// <summary>
+    /// Side-effect-free peek: could this host seat <paramref name="rider"/> on its CAPACITY axes right
+    /// now? For committing callers that must decide before paying for an approach.
+    /// <para>
+    /// <b>Capacity axes only.</b> Deliberately excludes pose availability, anchor congestion, and the
+    /// already-booked case (an already-booked rider answers false here while
+    /// <see cref="TryReserve"/> stays idempotently true for it) — those are refusals a caller is
+    /// expected to absorb at booking time, and folding them in here would suppress approaches that are
+    /// designed to happen and fail. <see cref="Capacity"/> and <see cref="UsedFootprint"/> are raw
+    /// facts, NOT a sufficient room test: only this peek applies the same footprint clamp and
+    /// exact-fit tolerance the booking does.
+    /// </para>
+    /// </summary>
+    bool HasRoomFor(IAttachmentRider rider);
+
+    /// <summary>
     /// Reserve capacity for <paramref name="rider"/> and place its anchor, leaving the record
     /// <see cref="AttachmentPhase.Reserved"/>. Fails without side effects when the rider's footprint
     /// exceeds remaining capacity or no free anchor could be placed.

@@ -3,6 +3,7 @@ namespace Jmodot.Core.Interaction;
 using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Shared;
+using Jmodot.Implementation.Interaction.Attachment;
 
 /// <summary>
 /// An entity that latches onto an <see cref="IAttachmentHost"/>, rides it, and damages it over time.
@@ -21,6 +22,14 @@ public interface IAttachmentRider : IGodotNodeInterface
 
     /// <summary>Damage per second dealt to the host while attached.</summary>
     float AttachDamagePerSecond { get; }
+
+    /// <summary>
+    /// The attach visuals this rider's art provides, or null for a rider with no pose art — the whole
+    /// pose mechanism is opt-in and a null set means the legacy behaviour everywhere. The set is
+    /// RIDER-owned because the art is the rider's, so it travels to any host with zero host authoring;
+    /// a host tracks only which of its <see cref="AttachPose.Id"/>s its current riders hold.
+    /// </summary>
+    AttachPoseSet? AttachPoses { get; }
 
     /// <summary>The host whose anchor this rider is reserving or riding, or null when it holds neither.</summary>
     IAttachmentHost? Host { get; }

@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Interaction.Attachment;
 
 using System;
+using System.Collections.Generic;
 using Godot;
 using Jmodot.Core.Actors;
 using Jmodot.Core.AI.BB;
@@ -12,6 +13,7 @@ using Jmodot.Core.Movement;
 using Jmodot.Core.Interaction;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Stats;
+using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Combat;
 using Jmodot.Implementation.Shared;
@@ -42,7 +44,9 @@ using Jmodot.Implementation.Shared;
 /// <see cref="BBDataSig.MovementProcessor"/> (without it the ride cannot suspend self-movement),
 /// <see cref="BBDataSig.KnockbackComponent"/> (without it a shed cannot fling),
 /// <see cref="BBDataSig.HurtboxComponent"/> (without it shed damage cannot land),
-/// <see cref="BBDataSig.HealthComponent"/>.</para>
+/// <see cref="BBDataSig.HealthComponent"/>,
+/// <see cref="BBDataSig.AnimationOrchestrator"/> (without it the pose clips cannot be checked for
+/// existence at load).</para>
 /// </summary>
 [GlobalClass]
 public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentRider
@@ -56,11 +60,25 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <summary>Damage per second dealt to the host while attached.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition AttachDamagePerSecondDefinition { get; private set; } = null!;
 
+    /// <summary>
+    /// Damage dealt to the host by ONE physical contact that failed to become an attachment — the
+    /// missed-jump hit. Separate from the ride drain because they answer different questions: what a
+    /// single impact costs versus what a second of riding costs.
+    /// </summary>
+    [Export, RequiredExport] public BaseFloatValueDefinition ContactDamageDefinition { get; private set; } = null!;
+
     /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition FlingForceScaleDefinition { get; private set; } = null!;
 
     /// <summary>Seconds after being shed during which this rider refuses to claim a host again. 0 disables the cooldown.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition ReattachCooldownDefinition { get; private set; } = null!;
+
+    /// <summary>
+    /// The attach visuals this rider's art provides. Unset leaves the legacy behaviour everywhere: no
+    /// pose is booked, the ride position stays the host's placed anchor, and the pose-less animation
+    /// exports keep driving the clips.
+    /// </summary>
+    [Export] public AttachPoseSet? AttachPoses { get; private set; }
 
     private IBlackboard _bb = null!;
     private ICharacterController3D _controller = null!;
@@ -69,6 +87,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private HurtboxComponent3D? _hurtbox;
     private IHealth? _health;
     private IStatProvider? _stats;
+    private IAnimationOrchestrator? _orchestrator;
 
     private Node? _hostNode;
     private bool _holdsSuspension;
@@ -100,6 +119,47 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse. Read only by this rider.</summary>
     public float FlingForceScale => this.FlingForceScaleDefinition?.ResolveFloatValue(this._stats) ?? 0f;
 
+    /// <summary>
+    /// Damage one failed-attach contact deals to the host. Stat-resolvable like every other attachment
+    /// number, so a buffed roach hits harder on a bounce without a second authored surface.
+    /// </summary>
+    public float ContactDamage => this.ContactDamageDefinition?.ResolveFloatValue(this._stats) ?? 0f;
+
+    /// <summary>
+    /// The pose this rider currently holds, or null while it holds none. DERIVED from the host's record
+    /// — the single home for the assignment — rather than mirrored here: a stored copy would need
+    /// clearing on every one of the release paths, and the one that got missed would leave a released
+    /// rider still rendering a pose it no longer holds.
+    /// </summary>
+    public AttachPose? AssignedPose
+    {
+        get
+        {
+            if (this.Host == null) { return null; }
+
+            foreach (var record in this.Host.Attachments)
+            {
+                if (ReferenceEquals(record.Rider, this)) { return record.Pose; }
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The attachment became real (the host confirmed the arrival). For consumers whose behaviour is
+    /// scoped to the ride itself — pose overlays, host-facing mirroring — rather than to the approach.
+    /// </summary>
+    public event Action<IAttachmentHost> AttachmentStarted = delegate { };
+
+    /// <summary>
+    /// The attachment ended, however it ended. Raised from <c>ReleaseAttachment</c>, the single point
+    /// every exit path funnels through — shed, host-vanished poll, tree exit, death, plain detach — so a
+    /// subscriber cannot be left holding ride-scoped state. <c>OnDetached</c> would NOT do: the shed and
+    /// host-vanished paths never reach it.
+    /// </summary>
+    public event Action<DetachCause> AttachmentEnded = delegate { };
+
     public override void _Ready()
     {
         this.ValidateRequiredExports();
@@ -117,7 +177,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         if (this.Host == null) { return; }
         if (this.HostStillHoldsRecord()) { return; }
 
-        this.ReleaseAttachment();
+        this.ReleaseAttachment(DetachCause.HostRemoved);
     }
 
     /// <summary>
@@ -152,7 +212,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
         var host = this.Host;
         var hostNode = this._hostNode;
-        this.ReleaseAttachment();
+        this.ReleaseAttachment(DetachCause.RiderRemoved);
         if (GodotObject.IsInstanceValid(hostNode)) { host.Detach(this, DetachCause.RiderRemoved); }
     }
 
@@ -169,6 +229,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.Host = host;
         this._hostNode = host.GetUnderlyingNode();
         this.IsAttached = true;
+        this.AttachmentStarted.Invoke(host);
     }
 
     /// <inheritdoc />
@@ -180,7 +241,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
         // Ordering is load-bearing: a suspended processor CLEARS its pending impulses every tick,
         // so an impulse applied before the release is discarded rather than queued.
-        this.ReleaseAttachment();
+        this.ReleaseAttachment(DetachCause.Shed);
 
         var impulse = spentForce * this.FlingForceScale;
         if (impulse <= 0f) { return; }
@@ -192,7 +253,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <inheritdoc />
     public void OnDetached(DetachCause cause)
     {
-        this.ReleaseAttachment();
+        this.ReleaseAttachment(cause);
     }
 
     /// <inheritdoc />
@@ -222,7 +283,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         if (this.TryClaimPositionalAuthority()) { return true; }
 
         host.Detach(this, DetachCause.RiderAborted);
-        this.ReleaseAttachment();
+        this.ReleaseAttachment(DetachCause.RiderAborted);
         return false;
     }
 
@@ -306,8 +367,13 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         return this.Host.TryGetAnchorWorldPosition(this, out worldPosition);
     }
 
-    /// <summary>Clears BOTH phases' state — a reservation abandoned mid-flight unwinds through here too.</summary>
-    private void ReleaseAttachment()
+    /// <summary>
+    /// Clears BOTH phases' state — a reservation abandoned mid-flight unwinds through here too — and
+    /// announces the end. The single release point, which is why <see cref="AttachmentEnded"/> is raised
+    /// here and nowhere else: the shed, the host-vanished poll and the tree exit all bypass
+    /// <see cref="OnDetached"/>.
+    /// </summary>
+    private void ReleaseAttachment(DetachCause cause)
     {
         if (this.Host == null && !this.IsAttached) { return; }
 
@@ -315,6 +381,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.Host = null;
         this._hostNode = null;
         this.ReleasePositionalAuthority();
+        this.AttachmentEnded.Invoke(cause);
     }
 
     /// <summary>
@@ -355,12 +422,36 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         return false;
     }
 
+    /// <summary>
+    /// Pose ids and the entity's animation library are two hand-synced surfaces: a renamed or unauthored
+    /// clip costs nothing at load and shows nothing at play. One Error naming EVERY missing clip is the
+    /// drift guard — a per-use warning would emit one indistinguishable line per frame of riding and bury
+    /// the authoring mistake it is reporting.
+    /// </summary>
+    private void ReportMissingPoseClips()
+    {
+        if (this.AttachPoses == null || this._orchestrator == null) { return; }
+
+        var missing = new List<string>();
+        foreach (var pose in this.AttachPoses.ValidatedPoses)
+        {
+            if (!this._orchestrator.HasAnimationBase(pose.RideAnimationName)) { missing.Add(pose.RideAnimationName.ToString()); }
+            if (!this._orchestrator.HasAnimationBase(pose.AttackAnimationName)) { missing.Add(pose.AttackAnimationName.ToString()); }
+        }
+
+        if (missing.Count == 0) { return; }
+
+        JmoLogger.Error(this,
+            $"[Attachment] {missing.Count} authored pose clip(s) do not exist on this entity's animator: "
+            + $"{string.Join(", ", missing)}. Those poses will render nothing while held.");
+    }
+
     private void OnOwnDeath(HealthChangeEventArgs args)
     {
         if (this.Host == null) { return; }
 
         var host = this.Host;
-        this.ReleaseAttachment();
+        this.ReleaseAttachment(DetachCause.RiderDied);
         host.Detach(this, DetachCause.RiderDied);
     }
 
@@ -393,6 +484,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
         bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
+        bb.TryGet<IAnimationOrchestrator>(BBDataSig.AnimationOrchestrator, out this._orchestrator);
 
         IsInitialized = true;
         Initialized();
@@ -402,6 +494,8 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     public void OnPostInitialize()
     {
         ProcessMode = ProcessModeEnum.Inherit;
+
+        this.ReportMissingPoseClips();
 
         if (this._knockback == null)
         {
@@ -432,10 +526,18 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.MaxGripDefinition = maxGrip;
         this.AttachDamagePerSecondDefinition = attachDps;
         this.FlingForceScaleDefinition = flingForceScale;
+        // Filled so a rig that never authors a contact hit still satisfies the required export; suites
+        // that exercise the missed-jump hit call SetContactDamage explicitly.
+        this.ContactDamageDefinition = new ConstantFloatDefinition(0f);
     }
 
     internal void SetReattachCooldownSeconds(float seconds)
         => this.ReattachCooldownDefinition = new ConstantFloatDefinition(seconds);
+
+    internal void SetContactDamage(float amount)
+        => this.ContactDamageDefinition = new ConstantFloatDefinition(amount);
+
+    internal void SetAttachPoses(AttachPoseSet? poses) => this.AttachPoses = poses;
 
     internal bool _TestHoldsSuspension => this._holdsSuspension;
 

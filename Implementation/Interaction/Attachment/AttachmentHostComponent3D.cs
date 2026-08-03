@@ -86,6 +86,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public IReadOnlyList<AttachmentRecord> Attachments => this._records;
 
     /// <inheritdoc />
+    public Node3D HostEntity => GodotObject.IsInstanceValid(this._entity) ? this._entity : this;
+
+    /// <inheritdoc />
     public event Action<IAttachmentRider, DetachCause> RiderDetached = delegate { };
 
     public override void _Ready()
@@ -124,14 +127,12 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public bool TryReserve(IAttachmentRider rider, out AttachmentRecord record)
     {
         record = default;
-        // Tree-walk discovery finds this component whether or not its init ran, and _rng is null
-        // until it does.
-        if (!this.IsInitialized) { return false; }
         if (rider == null) { return false; }
-        if (!IsRiderAlive(rider)) { return false; }
+
         // Already booked HERE: idempotent, and it hands back the LIVE record rather than a default one —
         // a caller re-entering the attach path must read its real anchor, not the origin. Refusing
         // instead reads to that caller as a failed attach and tears down a perfectly live attachment.
+        // Ahead of every feasibility gate on purpose: this is a hand-back, not a seating decision.
         var booked = this.IndexOf(rider);
         if (booked >= 0)
         {
@@ -139,6 +140,52 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             return true;
         }
 
+        if (!this.CanSeat(rider)) { return false; }
+
+        // Pose availability sits HERE rather than in CanSeat, so the public peek stays capacity-only: a
+        // committing caller is expected to absorb this refusal, not to be talked out of approaching.
+        AttachPose? pose = null;
+        if (rider.AttachPoses != null && !this.TryPickFreePose(rider.AttachPoses, out pose)) { return false; }
+
+        var footprint = Mathf.Max(rider.Footprint, 0f);
+        var occupied = new List<Vector3>(this._records.Count);
+        foreach (var existing in this._records) { occupied.Add(existing.LocalAnchor); }
+
+        var anchor = this.AnchorProfile.Place(this.MeasureBounds(), occupied, footprint, this._rng.GetRndFloat);
+        // A pose rider rides at the host's origin and only ever spends its anchor on fling spread, so a
+        // congested silhouette must not refuse it; a pose-less rider has nowhere else to sit.
+        if (anchor == null && pose == null) { return false; }
+
+        var localAnchor = anchor ?? Vector3.Zero;
+        record = new AttachmentRecord(
+            rider,
+            this._nextAttachSequence++,
+            Mathf.Max(rider.MaxGrip, 0f),
+            footprint,
+            localAnchor,
+            AttachmentPhase.Reserved,
+            pose);
+
+        this._records.Add(record);
+        this.SubscribeTreeExiting(rider);
+        rider.OnReserved(this, localAnchor);
+        return true;
+    }
+
+    /// <inheritdoc />
+    public bool HasRoomFor(IAttachmentRider rider) => rider != null && this.CanSeat(rider);
+
+    /// <summary>
+    /// The feasibility gates every seating decision shares, side-effect-free so the public peek and the
+    /// booking cannot drift apart. Deliberately NOT covering pose availability or anchor congestion:
+    /// those consume state (the pose ledger, the RNG) or are refusals a committing caller absorbs.
+    /// </summary>
+    private bool CanSeat(IAttachmentRider rider)
+    {
+        // Tree-walk discovery finds this component whether or not its init ran, and _rng is null
+        // until it does.
+        if (!this.IsInitialized) { return false; }
+        if (!IsRiderAlive(rider)) { return false; }
         // Booked on another host. A second record would double-book its footprint and leave the losing
         // host holding a rider that answers to someone else.
         if (rider.Host != null) { return false; }
@@ -149,26 +196,47 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (capacity <= 0f && !bounds.IsMeasured) { this.WarnUnmeasuredBounds(); }
 
         // Float epsilon: a rider whose footprint exactly fills the remaining budget must fit.
-        if (this.UsedFootprint + footprint > capacity + 0.0001f) { return false; }
+        return this.UsedFootprint + footprint <= capacity + 0.0001f;
+    }
 
-        var occupied = new List<Vector3>(this._records.Count);
-        foreach (var existing in this._records) { occupied.Add(existing.LocalAnchor); }
+    /// <summary>
+    /// Pick one of <paramref name="set"/>'s poses no rider on THIS host currently holds, uniformly at
+    /// random from the free ones off the same seeded stream anchor placement draws from. False when every
+    /// id is taken — the pose set, not mechanical capacity, is usually the binding parallel limit.
+    /// </summary>
+    private bool TryPickFreePose(AttachPoseSet set, out AttachPose? pose)
+    {
+        pose = null;
+        var poses = set.ValidatedPoses;
 
-        var anchor = this.AnchorProfile.Place(bounds, occupied, footprint, this._rng.GetRndFloat);
-        if (anchor == null) { return false; }
+        List<AttachPose>? free = null;
+        foreach (var candidate in poses)
+        {
+            if (this.IsPoseHeld(candidate.Id)) { continue; }
 
-        record = new AttachmentRecord(
-            rider,
-            this._nextAttachSequence++,
-            Mathf.Max(rider.MaxGrip, 0f),
-            footprint,
-            anchor.Value,
-            AttachmentPhase.Reserved);
+            free ??= new List<AttachPose>(poses.Count);
+            free.Add(candidate);
+        }
 
-        this._records.Add(record);
-        this.SubscribeTreeExiting(rider);
-        rider.OnReserved(this, anchor.Value);
+        if (free == null) { return false; }
+
+        pose = free[this._rng.GetRndInt(free.Count)];
         return true;
+    }
+
+    /// <summary>
+    /// Occupancy is keyed by <see cref="AttachPose.Id"/>, never by resource instance: a set loaded under
+    /// <c>CacheMode.Ignore</c> or inlined into a PackedScene yields different instances of the same
+    /// authored pose, and instance keying would silently let both ride the same visual.
+    /// </summary>
+    private bool IsPoseHeld(StringName id)
+    {
+        foreach (var record in this._records)
+        {
+            if (record.Pose != null && record.Pose.Id == id) { return true; }
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
@@ -261,7 +329,12 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (index < 0) { return false; }
         if (!GodotObject.IsInstanceValid(this._entity) || !this._entity.IsInsideTree()) { return false; }
 
-        worldPosition = this._entity.ToGlobal(this._records[index].LocalAnchor);
+        // Pose art is drawn on a host-sized canvas with the rider already at the right body spot, so a
+        // posed rider rides the host's own origin — applying the anchor too would double the offset the
+        // art already bakes in. LocalAnchor keeps its fling-direction role either way.
+        worldPosition = this._records[index].Pose != null
+            ? this._entity.GlobalPosition
+            : this._entity.ToGlobal(this._records[index].LocalAnchor);
         return true;
     }
 
