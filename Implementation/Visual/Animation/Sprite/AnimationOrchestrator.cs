@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Visual.Animation.Sprite;
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Core.AI.BB;
 using Core.Movement;
 using Core.Visual.Animation.Sprite;
@@ -112,20 +113,31 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
             _targetAnimator.AnimStarted -= OnTargetAnimStarted;
             _targetAnimator.AnimFinished -= OnTargetAnimFinished;
             _targetAnimator.AnimStopped -= OnTargetAnimStopped;
-            if (_targetAnimator is IDirectionalResolutionSource source)
+            if (TargetOwnsResolution(out var source))
             {
                 source.DirectionalResolutionApplied -= OnTargetResolutionApplied;
             }
         }
     }
 
+    // Forwarding is gated on IDirectionalAnimTarget, not on IDirectionalResolutionSource: it must
+    // pair with the UpdateAnim branch that DELEGATES resolution. A target that announces its own
+    // resolution without owning it (a nested orchestrator — legal, since IAnimationOrchestrator
+    // derives IAnimComponent) is still resolved by THIS class, so forwarding as well would fire
+    // twice per resolution with two different facings.
     // Idempotent: -= before += so the _Ready/_EnterTree overlap on first entry can't double-hook.
     private void SubscribeTargetResolution()
     {
-        if (_targetAnimator is not IDirectionalResolutionSource source) { return; }
+        if (!TargetOwnsResolution(out var source)) { return; }
 
         source.DirectionalResolutionApplied -= OnTargetResolutionApplied;
         source.DirectionalResolutionApplied += OnTargetResolutionApplied;
+    }
+
+    private bool TargetOwnsResolution([NotNullWhen(true)] out IDirectionalResolutionSource? source)
+    {
+        source = _targetAnimator as IDirectionalResolutionSource;
+        return source != null && _targetAnimator is IDirectionalAnimTarget;
     }
 
     private void OnTargetResolutionApplied(IAnimComponent animator, StringName? resolvedName, DirectionalAnimRequest request)
