@@ -46,13 +46,29 @@ public partial class FacingFlipController : Node
     private IDirectionalResolutionSource? _source;
     private VisualComposer? _composer;
     private bool _warnedUnflippableAnimator;
+    private bool _warnedUnusableSource;
 
     public override void _EnterTree()
     {
         if (Engine.IsEditorHint()) { return; }
 
         ResolveSource();
-        if (_source == null) { return; }
+        if (_source == null)
+        {
+            // An UNSET export is _Ready's ValidateRequiredExports to report. A node that is
+            // assigned but announces nothing would otherwise leave the controller permanently
+            // inert with no runtime trace — the editor warning only reaches an author who has
+            // the scene open. Latched because _EnterTree re-runs on every reparent.
+            if (AnimationSource != null && !_warnedUnusableSource)
+            {
+                _warnedUnusableSource = true;
+                JmoLogger.Error(this,
+                    $"AnimationSource '{AnimationSource.Name}' announces no clip resolution — expected a "
+                    + "VisualComposer, an AnimationOrchestrator, or a CompositeAnimatorComponent. "
+                    + "Facing flipping is disabled for this entity.");
+            }
+            return;
+        }
 
         // Idempotent, and paired with _ExitTree rather than _Ready: _ExitTree fires on reparent
         // but _Ready runs once per node lifetime, so a _Ready-bound subscription dies silently
@@ -162,8 +178,12 @@ public partial class FacingFlipController : Node
         if (_warnedUnflippableAnimator) { return; }
         _warnedUnflippableAnimator = true;
 
+        // IAnimComponent is not constrained to Node, and GetUnderlyingNode() may return null on a
+        // non-Node implementation — neither may throw from the branch whose only job is to report.
+        var animatorName = (animator as Node)?.Name.ToString() ?? animator.GetType().Name;
+
         JmoLogger.Warning(this,
-            $"Animator '{((Node)animator).Name}' is not an ISpriteComponent and owns no VisualComposer slot, "
+            $"Animator '{animatorName}' is not an ISpriteComponent and owns no VisualComposer slot, "
             + "so there is no sprite to mirror. Target an AnimatedSprite3DComponent (or wire a VisualComposer) "
             + "— flipping is a no-op for this animator.");
     }
