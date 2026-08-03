@@ -62,6 +62,18 @@ public class CombatPayload : IAttackPayload
         return copy;
     }
 
+    /// <summary>
+    /// Rebuilds a payload from <paramref name="original"/> with a DIFFERENT stat source, preserving
+    /// Attacker/Source AND the lineage token (AttackSeed/SeedProvenance) and starting from an EMPTY
+    /// effect list — effects are stat-derived at creation, so a stat swap invalidates them and the
+    /// caller's re-initialization repopulates. Third member of the seed-preserving rebuild family:
+    /// <see cref="With"/> swaps the seed, <see cref="RebuildWithEffects"/> swaps the effects, this
+    /// swaps the stats.
+    /// </summary>
+    public static CombatPayload RebuildWithStats(IAttackPayload original, IStatProvider? stats)
+        => new CombatPayload(original.Attacker, original.Source, stats,
+            original.AttackSeed, original.SeedProvenance);
+
     public void AddEffect(ICombatEffect effect)
     {
         if (effect != null)
