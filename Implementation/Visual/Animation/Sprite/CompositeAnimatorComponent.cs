@@ -314,6 +314,18 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent, IDirecti
 
     public bool UpdateAnimDirectional(DirectionalAnimRequest request, AnimUpdateMode mode) => FanOutDirectional(request, isUpdate: true, mode);
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Answers from the retained directional request — the same state a late-registering slave
+    /// re-resolves from — so it goes false again after a legacy StartAnim/UpdateAnim supersedes it,
+    /// exactly as slave catch-up does.
+    /// </remarks>
+    public bool TryGetLastResolution(out DirectionalAnimRequest request)
+    {
+        request = _lastDirectionalRequest ?? default;
+        return _lastDirectionalRequest.HasValue;
+    }
+
     /// <summary>
     /// Resolves the request per-animator under each one's <see cref="SlotFallbackPolicy"/> and
     /// plays the resolved clip (or hides the animator via StopAnim when nothing resolves — but

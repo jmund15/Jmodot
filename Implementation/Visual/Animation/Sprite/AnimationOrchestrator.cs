@@ -241,6 +241,22 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
             SlotFallbackPolicy.NearestDirectional);
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The orchestrator's directional state is STANDING, not per-event: the base name and the current
+    /// facing are live properties it keeps between resolutions, so the answer is simply the request it
+    /// would build right now. Only the pre-<c>_Ready</c> window — before its target animator resolves —
+    /// has nothing to report.
+    /// </remarks>
+    public bool TryGetLastResolution(out DirectionalAnimRequest request)
+    {
+        request = default;
+        if (_targetAnimator == null) { return false; }
+
+        request = BuildDirectionalRequest();
+        return true;
+    }
+
     private DirectionalAnimRequest BuildDirectionalRequest()
     {
         return new DirectionalAnimRequest(

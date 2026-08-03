@@ -24,4 +24,12 @@ public interface IDirectionalResolutionSource
     /// (single-direction, facing-flippable) from directional art (already facing-correct).
     /// </summary>
     event Action<IAnimComponent, StringName?, DirectionalAnimRequest> DirectionalResolutionApplied;
+
+    /// <summary>
+    /// The resolution state a late subscriber would otherwise have to wait for. Event-only observation is
+    /// stale by default: a standing-still entity emits no resolution, so anything deriving facing from
+    /// <see cref="DirectionalAnimRequest.Direction"/> would render un-mirrored until the entity next
+    /// moves. False when this source has nothing to report yet.
+    /// </summary>
+    bool TryGetLastResolution(out DirectionalAnimRequest request);
 }
