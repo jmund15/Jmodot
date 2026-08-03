@@ -11,7 +11,7 @@ using Shared;
 /// Handles time synchronization, ensuring "Slave" animators match the "Master" (Body).
 /// </summary>
 [GlobalClass, Tool]
-public partial class CompositeAnimatorComponent : Node, IAnimComponent, IDirectionalAnimTarget
+public partial class CompositeAnimatorComponent : Node, IAnimComponent, IDirectionalAnimTarget, IDirectionalResolutionSource
 {
     /// <summary>
     /// If true, automatically finds and registers all IAnimComponent children on _Ready.
@@ -54,14 +54,8 @@ public partial class CompositeAnimatorComponent : Node, IAnimComponent, IDirecti
     public event Action<StringName> AnimFinished = delegate { };
     public event Action<StringName> AnimStopped = delegate { };
 
-    /// <summary>
-    /// Fired once per registered animator on every directional fan-out (including
-    /// late-registration catch-up). <c>resolvedName</c> is the clip the animator was
-    /// told to play, or null when nothing resolved (the animator was stopped/hidden).
-    /// Consumers can compare <c>resolvedName</c> against <c>request.BaseName</c> to
-    /// distinguish undirected-base art (single-direction, facing-flippable) from
-    /// directional art (facing-correct) — see FacingFlipController.
-    /// </summary>
+    /// <inheritdoc />
+    /// <remarks>Fires once per registered animator on every directional fan-out.</remarks>
     public event Action<IAnimComponent, StringName?, DirectionalAnimRequest> DirectionalResolutionApplied = delegate { };
     public override void _PhysicsProcess(double delta)
     {

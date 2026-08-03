@@ -14,7 +14,7 @@ using Jmodot.Core.Shared.Attributes;
 /// Combines a Base Name (State) with a Direction Suffix.
 /// </summary>
 [GlobalClass, Tool]
-public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlackboardProvider
+public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlackboardProvider, IDirectionalResolutionSource
 {
     /// <summary>
     /// Published in Phase 0 so states resolving the orchestrator through its interface do not
@@ -56,6 +56,14 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
     public event Action<StringName> AnimFinished = delegate { };
     public event Action<StringName> AnimStopped = delegate { };
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Raised directly for a leaf target; for a target that resolves per-slave the composite's
+    /// events are forwarded verbatim rather than re-raised, so a subscriber sees exactly one
+    /// event per animator in both topologies.
+    /// </remarks>
+    public event Action<IAnimComponent, StringName?, DirectionalAnimRequest> DirectionalResolutionApplied = delegate { };
+
 
     public override void _Ready()
     {
@@ -76,6 +84,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
         _targetAnimator.AnimStarted += OnTargetAnimStarted;
         _targetAnimator.AnimFinished += OnTargetAnimFinished;
         _targetAnimator.AnimStopped += OnTargetAnimStopped;
+        SubscribeTargetResolution();
     }
 
     public override void _EnterTree()
@@ -91,6 +100,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
             _targetAnimator.AnimStarted += OnTargetAnimStarted;
             _targetAnimator.AnimFinished += OnTargetAnimFinished;
             _targetAnimator.AnimStopped += OnTargetAnimStopped;
+            SubscribeTargetResolution();
         }
     }
 
@@ -102,8 +112,24 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
             _targetAnimator.AnimStarted -= OnTargetAnimStarted;
             _targetAnimator.AnimFinished -= OnTargetAnimFinished;
             _targetAnimator.AnimStopped -= OnTargetAnimStopped;
+            if (_targetAnimator is IDirectionalResolutionSource source)
+            {
+                source.DirectionalResolutionApplied -= OnTargetResolutionApplied;
+            }
         }
     }
+
+    // Idempotent: -= before += so the _Ready/_EnterTree overlap on first entry can't double-hook.
+    private void SubscribeTargetResolution()
+    {
+        if (_targetAnimator is not IDirectionalResolutionSource source) { return; }
+
+        source.DirectionalResolutionApplied -= OnTargetResolutionApplied;
+        source.DirectionalResolutionApplied += OnTargetResolutionApplied;
+    }
+
+    private void OnTargetResolutionApplied(IAnimComponent animator, StringName? resolvedName, DirectionalAnimRequest request)
+        => DirectionalResolutionApplied.Invoke(animator, resolvedName, request);
 
     private void OnTargetAnimStarted(StringName n) => AnimStarted.Invoke(n);
     private void OnTargetAnimFinished(StringName n) => AnimFinished.Invoke(n);
@@ -174,9 +200,12 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
             return;
         }
 
+        // A leaf target resolves once and announces it here; the composite branch above forwards
+        // its own per-slave events instead, so exactly one event fires per animator either way.
         var playable = ResolvePlayableAnimation();
         if (playable == null)
         {
+            DirectionalResolutionApplied.Invoke(_targetAnimator, null, BuildDirectionalRequest());
             HandleMissingAnimation(finalName);
             return;
         }
@@ -189,6 +218,8 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
         {
             _targetAnimator.UpdateAnim(playable, mode);
         }
+
+        DirectionalResolutionApplied.Invoke(_targetAnimator, playable, BuildDirectionalRequest());
     }
 
     /// <summary>
