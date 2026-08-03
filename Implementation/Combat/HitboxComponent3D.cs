@@ -109,6 +109,20 @@ using AI.BB;
         /// for OnHitRegistered subscribers regardless of what the interceptor returns.
         /// </summary>
         public IPayloadInterceptor3D? PayloadInterceptor { get; set; }
+
+        /// <summary>
+        /// Optional runtime-wired source of ADDITIONAL effect factories for each swing, appended
+        /// after <see cref="DefaultEffects"/> under this hitbox's single effect-index cursor.
+        /// Null = today's behavior exactly. Queried once per <see cref="StartDefaultAttack"/>;
+        /// cleared on pool reset, so a game-layer owner must re-install it on pool acquire.
+        /// <para>
+        /// <b>Ordering contract.</b> An <see cref="AutoStartWithDefault"/> hitbox assembles its
+        /// swing inside <c>_Ready</c>, so the source must be installed BEFORE the hitbox enters the
+        /// tree on that path; installing it afterwards yields the already-assembled, un-augmented
+        /// swing.
+        /// </para>
+        /// </summary>
+        public IEffectFactorySource? FactorySource { get; set; }
         #endregion
 
         #region Private State
@@ -132,6 +146,11 @@ using AI.BB;
         // the live seed and nulled on pool reset so a re-acquired hitbox re-derives for its new entity.
         private IBlackboard? _bb;
         private Shared.SeedSequence? _attackSeq;
+
+        // Each fold violation is an authoring mistake, not a per-swing event: latch on the offending
+        // source instance so a continuous attack logs once, and a re-installed source can re-report.
+        private IEffectFactorySource? _noFoldTargetLatch;
+        private IEffectFactorySource? _unmarkedSlotDamageLatch;
 
 
         /// <summary>
@@ -344,6 +363,12 @@ using AI.BB;
             // Game-layer components (e.g., ReactionComponent) re-wire on each pool cycle.
             PayloadInterceptor = null;
 
+            // Clear the factory source for clean pool state — the game-layer owner re-installs it on
+            // pool acquire, mirroring the interceptor's re-wire contract.
+            FactorySource = null;
+            _noFoldTargetLatch = null;
+            _unmarkedSlotDamageLatch = null;
+
             // Reset continuous mode to export defaults for clean pool state.
             // WavePullEffectInstance re-sets these during OnInitialize each cast.
             IsContinuous = false;
@@ -383,19 +408,93 @@ using AI.BB;
             var (attackSeed, provenance) = lineageOverride ?? NextAttackSeed();
             var payload = new CombatPayload(attacker, source, stats, attackSeed, provenance);
 
-            // effectIdx advances per slot (including nulls) for index-stability against editor reordering;
-            // it disambiguates the crit derivation when one hit carries multiple effects.
-            int effectIdx = 0;
-            foreach (var factory in DefaultEffects)
+            // The slot is snapshotted ONCE per swing; the assembly loop reads this local, never the
+            // property again, so mid-swing mutation lands on the next swing.
+            var factorySource = FactorySource;
+            var contributed = factorySource?.GetFactories();
+            int contributedCount = contributed?.Count ?? 0;
+
+            // Pre-pass: sum the slot's base-damage contributions and elect the fold target BEFORE any
+            // effect is constructed, so exactly one DamageEffect (and one crit roll) is ever built.
+            float contributedBase = 0f;
+            bool hasContributions = false;
+            for (int i = 0; i < contributedCount; i++)
             {
+                if (contributed![i] is IDamageContributingFactory contributor)
+                {
+                    hasContributions = true;
+                    // Contributions are NON-NEGATIVE by contract — one never subtracts from the swing.
+                    contributedBase += Mathf.Max(0f, contributor.ResolveBaseDamageContribution(stats));
+                }
+            }
+
+            // The fold target is elected from DefaultEffects ONLY — a slot contribution has one
+            // semantics on every host and is never promoted to target.
+            int foldTargetIdx = -1;
+            if (hasContributions)
+            {
+                for (int i = 0; i < DefaultEffects.Count; i++)
+                {
+                    if (DefaultEffects[i] is IDamageContributingFactory) { foldTargetIdx = i; break; }
+                }
+                if (foldTargetIdx < 0 && contributedBase > 0f)
+                {
+                    LogFoldViolationOnce(ref _noFoldTargetLatch, factorySource,
+                        $"factory source contributed {contributedBase} base damage but DefaultEffects has no damage-contributing fold target — contributions dropped (first offender shown; one report per source)");
+                    contributedBase = 0f;
+                }
+            }
+
+            // effectIdx advances per slot (including nulls) for index-stability against editor reordering;
+            // it disambiguates the crit derivation when one hit carries multiple effects. The SAME cursor
+            // spans DefaultEffects ++ contributed, so seed stability is a framework property.
+            int effectIdx = 0;
+            for (int i = 0; i < DefaultEffects.Count; i++)
+            {
+                var factory = DefaultEffects[i];
                 if (factory != null)
                 {
-                    payload.AddEffect(factory.Create(stats, BuildEffectSeed(attackSeed, provenance, effectIdx)));
+                    var seed = BuildEffectSeed(attackSeed, provenance, effectIdx);
+                    payload.AddEffect(i == foldTargetIdx && factory is IDamageContributingFactory target
+                        ? target.CreateWithComposedBase(stats, seed,
+                            target.ResolveBaseDamageContribution(stats) + contributedBase)
+                        : factory.Create(stats, seed));
+                }
+                effectIdx++;
+            }
+
+            for (int i = 0; i < contributedCount; i++)
+            {
+                var factory = contributed![i];
+                // A marked contributor already folded into the target: it consumes its index and
+                // produces no effect of its own.
+                if (factory != null && factory is not IDamageContributingFactory)
+                {
+                    var effect = factory.Create(stats, BuildEffectSeed(attackSeed, provenance, effectIdx));
+                    if (effect is Effects.DamageEffect)
+                    {
+                        LogFoldViolationOnce(ref _unmarkedSlotDamageLatch, factorySource,
+                            $"factory source supplied '{factory.GetType().Name}', which produces a DamageEffect without implementing {nameof(IDamageContributingFactory)} — effect NOT added (a sibling DamageEffect corrupts first-only base-damage extraction) (first offender shown; one report per source)");
+                    }
+                    else
+                    {
+                        payload.AddEffect(effect);
+                    }
                 }
                 effectIdx++;
             }
 
             StartAttack(payload);
+        }
+
+        // Latches against the SNAPSHOTTED source, never the live property: a source that clears the
+        // slot from inside GetFactories would otherwise compare null-to-null and silently suppress
+        // the one report this fail-loud path exists to emit.
+        private void LogFoldViolationOnce(ref IEffectFactorySource? latch, IEffectFactorySource? source, string message)
+        {
+            if (ReferenceEquals(latch, source)) { return; }
+            latch = source;
+            Shared.JmoLogger.Error(this, message);
         }
 
         /// <summary>

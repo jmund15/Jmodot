@@ -14,9 +14,18 @@ using GCol = Godot.Collections;
 /// <summary>
 /// Factory for creating DamageEffect instances.
 /// Rolls for critical hit at creation time based on attacker's stats.
+/// <para>
+/// <b>Fold contract.</b> This factory is damage-CONTRIBUTING
+/// (<see cref="IDamageContributingFactory"/>): when it is delivered to a hitbox through an
+/// <see cref="IEffectFactorySource"/> rather than authored in <c>DefaultEffects</c>, it contributes
+/// its BASE DAMAGE ONLY into the swing's single damage effect and produces no effect of its own —
+/// its <see cref="Tags"/>, knockback, spatial falloff and <c>TargetVisualEffect</c> do not merge
+/// into the fold target. Authored <c>DefaultEffects</c> entries are unaffected and keep producing
+/// their own independent effects.
+/// </para>
 /// </summary>
 [GlobalClass, Tool]
-public partial class DamageEffectFactory : CombatEffectFactory
+public partial class DamageEffectFactory : CombatEffectFactory, IDamageContributingFactory
 {
     [Export, RequiredExport] private BaseFloatValueDefinition _damageDefinition = null!;
 
@@ -60,11 +69,20 @@ public partial class DamageEffectFactory : CombatEffectFactory
     [Export] public float MaxRange { get; set; } = 5.0f;
     [Export] public float MaxAngleDegrees { get; set; } = 45.0f;
 
+    public float ResolveBaseDamageContribution(Jmodot.Core.Stats.IStatProvider? stats)
+    {
+        this.ValidateRequiredExports();
+        return _damageDefinition.ResolveFloatValue(stats);
+    }
+
     public override ICombatEffect Create(Jmodot.Core.Stats.IStatProvider? stats = null, EffectCreationSeed? seed = null)
+        => CreateWithComposedBase(stats, seed, ResolveBaseDamageContribution(stats));
+
+    public ICombatEffect CreateWithComposedBase(Jmodot.Core.Stats.IStatProvider? stats, EffectCreationSeed? seed, float composedBase)
     {
         this.ValidateRequiredExports();
 
-        float baseDamage = _damageDefinition.ResolveFloatValue(stats);
+        float baseDamage = composedBase;
         float baseKnockback = _knockbackDefinition.ResolveFloatValue(stats);
 
         // Resolve crit attributes: per-factory override wins, else the project-wide CombatFactoryDefaults
