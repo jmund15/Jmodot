@@ -74,6 +74,11 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private bool _holdsSuspension;
     private ulong _shedAtMsec;
 
+    private CollisionObject3D? _body;
+    private bool _bodyCollisionSuspended;
+    private uint _savedCollisionLayer;
+    private uint _savedCollisionMask;
+
     /// <inheritdoc />
     public (StringName Key, object Value)? Provision => (BBDataSig.AttachmentRider, this);
 
@@ -242,6 +247,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         if (!this._movement.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero)) { return false; }
 
         this._holdsSuspension = true;
+        this.SuspendBodyCollision();
         return true;
     }
 
@@ -251,7 +257,38 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         if (!this._holdsSuspension) { return; }
 
         this._holdsSuspension = false;
+        this.RestoreBodyCollision();
         this._movement?.ReleaseSuspension(Name);
+    }
+
+    /// <summary>
+    /// While authority is held the body is teleported through the host's collider every frame; a live
+    /// layer/mask there is a depenetration ramp the host's own move-and-slide climbs, launching the
+    /// host skyward with no force ever logged. Area children (hurtbox, sensors) keep their own layers,
+    /// so a riding entity can still be hit. Scoped to the authority claim, not the attachment: the
+    /// claim starts before the approach flight, which already overlaps the host.
+    /// </summary>
+    private void SuspendBodyCollision()
+    {
+        if (this._bodyCollisionSuspended) { return; }
+        if (this._body == null || !GodotObject.IsInstanceValid(this._body)) { return; }
+
+        this._savedCollisionLayer = this._body.CollisionLayer;
+        this._savedCollisionMask = this._body.CollisionMask;
+        this._body.CollisionLayer = 0u;
+        this._body.CollisionMask = 0u;
+        this._bodyCollisionSuspended = true;
+    }
+
+    private void RestoreBodyCollision()
+    {
+        if (!this._bodyCollisionSuspended) { return; }
+
+        this._bodyCollisionSuspended = false;
+        if (this._body == null || !GodotObject.IsInstanceValid(this._body)) { return; }
+
+        this._body.CollisionLayer = this._savedCollisionLayer;
+        this._body.CollisionMask = this._savedCollisionMask;
     }
 
     /// <summary>
@@ -351,6 +388,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         }
 
         this._controller = controller;
+        this._body = controller.GetUnderlyingNode() as CollisionObject3D;
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out this._movement);
         bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
