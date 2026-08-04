@@ -29,6 +29,40 @@ public partial class Identity : Resource
     [Export] public Array<Category> Categories { get; private set; } = new();
 
     /// <summary>
+    /// Builds a synthesized identity from an owner's own name and category fields. This is THE
+    /// construction home for an <see cref="IIdentifiable"/> that derives its identity rather than
+    /// authoring one: the setters below are deliberately not public, and every synthesizing
+    /// implementer routing through here keeps that boundary meaningful.
+    /// </summary>
+    /// <remarks>
+    /// The <paramref name="categories"/> array is SNAPSHOTTED at synthesis: the owner stays its single
+    /// author, and later CONTENT mutations of that array do not reach an already-synthesized identity.
+    /// Owners re-publish by reassigning through an invalidating setter, which drops the cached identity
+    /// and re-synthesizes on the next read.
+    /// </remarks>
+    public static Identity From(string name, Array<Category> categories)
+    {
+        var identity = new Identity();
+        identity.SetIdentityName(name);
+        identity.SetCategories(new Array<Category>(categories));
+        return identity;
+    }
+
+    /// <summary>Assigns the identity's display name. Non-public: synthesis routes through <see cref="From"/>.</summary>
+    internal void SetIdentityName(string value) => IdentityName = value;
+
+    /// <summary>
+    /// Assigns the identity's category array and drops the memoized decay resolution.
+    /// Non-public: synthesis routes through <see cref="From"/>.
+    /// </summary>
+    internal void SetCategories(Array<Category> categories)
+    {
+        Categories = categories;
+        _resolvedDecay = null;
+        _decayResolved = false;
+    }
+
+    /// <summary>
     /// Checks whether this identity belongs to the specified category, hierarchically.
     /// Returns true if any of this identity's <see cref="Categories"/> matches the target by name
     /// OR descends from the target via <see cref="Category.ParentCategories"/>. Example: an identity
@@ -120,18 +154,4 @@ public partial class Identity : Resource
         return clone;
     }
 
-    #region Test Helpers
-
-    /// <summary>Sets IdentityName for testing purposes.</summary>
-    internal void SetIdentityName(string value) => IdentityName = value;
-
-    /// <summary>Sets Categories for testing purposes. Drops the memoized decay resolution.</summary>
-    internal void SetCategories(Array<Category> categories)
-    {
-        Categories = categories;
-        _resolvedDecay = null;
-        _decayResolved = false;
-    }
-
-    #endregion
 }
