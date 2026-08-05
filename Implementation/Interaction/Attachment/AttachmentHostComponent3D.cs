@@ -152,11 +152,13 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         foreach (var existing in this._records) { occupied.Add(existing.LocalAnchor); }
 
         var anchor = this.AnchorProfile.Place(this.MeasureBounds(), occupied, footprint, this._rng.GetRndFloat);
-        // A pose rider rides at the host's origin and only ever spends its anchor on fling spread, so a
-        // congested silhouette must not refuse it; a pose-less rider has nowhere else to sit.
+        // A pose rider rides at its authored offset (origin by default) and only ever spends its anchor
+        // on fling spread, so a congested silhouette must not refuse it; a pose-less rider has nowhere
+        // else to sit. The origin-vs-anchor decision stays HERE, where a future per-host placement
+        // strategy has exactly one site to replace.
         if (anchor == null && pose == null) { return false; }
 
-        var localAnchor = anchor ?? Vector3.Zero;
+        var localAnchor = pose != null ? pose.PoseOffset : (anchor ?? Vector3.Zero);
         record = new AttachmentRecord(
             rider,
             this._nextAttachSequence++,

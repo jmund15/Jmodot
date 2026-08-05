@@ -55,24 +55,13 @@ public partial class AttachPoseSet : Resource
                 throw new ResourceConfigurationException("An AttachPoseSet holds an empty pose slot.", this);
             }
 
-            var id = pose.Id.ToString();
-            if (id.Length == 0)
-            {
-                throw new ResourceConfigurationException(
-                    "An AttachPose has no Id — a host books poses by Id, so an unnamed pose can never be tracked.", this);
-            }
+            pose.Validate();
 
-            if (!seen.Add(id))
+            if (!seen.Add(pose.Id.ToString()))
             {
                 throw new ResourceConfigurationException(
-                    $"AttachPose Id '{id}' appears twice. Occupancy is keyed by Id, so duplicates would let two " +
+                    $"AttachPose Id '{pose.Id}' appears twice. Occupancy is keyed by Id, so duplicates would let two " +
                     "riders hold the same visual.", this);
-            }
-
-            if (pose.RideAnimationName.ToString().Length == 0 || pose.AttackAnimationName.ToString().Length == 0)
-            {
-                throw new ResourceConfigurationException(
-                    $"AttachPose '{id}' is missing a clip name (ride and attack are both required).", this);
             }
         }
 

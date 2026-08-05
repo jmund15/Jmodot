@@ -32,10 +32,10 @@ using Jmodot.Implementation.Shared;
 /// </para>
 ///
 /// <para>
-/// <b>Tuning is data.</b> All five numbers are <see cref="BaseFloatValueDefinition"/>s so a designer
+/// <b>Tuning is data.</b> All seven numbers are <see cref="BaseFloatValueDefinition"/>s so a designer
 /// picks constant-or-stat-driven per field without a code change. Three resolve through the rider
-/// interface; <see cref="FlingForceScale"/> and the re-attach cooldown stay local, since only this
-/// rider reads them.
+/// interface; <see cref="FlingForceScale"/>, the re-attach cooldown and the attack tick interval stay
+/// local, since only this rider reads them.
 /// </para>
 ///
 /// <para>Required BB key: <see cref="BBDataSig.CharacterController"/> — a rider that cannot write its
@@ -74,11 +74,21 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     [Export, RequiredExport] public BaseFloatValueDefinition ReattachCooldownDefinition { get; private set; } = null!;
 
     /// <summary>
-    /// The attach visuals this rider's art provides. Unset leaves the legacy behaviour everywhere: no
-    /// pose is booked, the ride position stays the host's placed anchor, and the pose-less animation
-    /// exports keep driving the clips.
+    /// The attach visuals this rider's art provides. Unset leaves the pose-less behaviour: no pose is
+    /// booked and the ride position stays the host's placed anchor.
     /// </summary>
     [Export] public AttachPoseSet? AttachPoses { get; private set; }
+
+    /// <summary>
+    /// The single pose a rider falls back to when no roster is authored and it holds none — the
+    /// pose-less rider's one pose. The only surface reachable when <see cref="AttachPoses"/> is null,
+    /// so the global fallback lives here rather than on the set.
+    /// </summary>
+    [Export] public AttachPose? DefaultPose { get; private set; }
+
+    /// <summary>Seconds between attack damage ticks while attached. The scheduler owns the cadence; the
+    /// per-tick amount is the rider's damage-per-second scaled by this.</summary>
+    [Export, RequiredExport] public BaseFloatValueDefinition AttackTickIntervalDefinition { get; private set; } = null!;
 
     private IBlackboard _bb = null!;
     private ICharacterController3D _controller = null!;
@@ -145,6 +155,23 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
             return null;
         }
     }
+
+    /// <summary>The single pose in effect right now: the assigned one when holding, else the authored
+    /// default. Assigned wins because it reflects what is actually on screen.</summary>
+    public AttachPose? ActivePose => this.AssignedPose ?? this.DefaultPose;
+
+    /// <summary>The ride clip the current pose plays, or empty when the rider holds no pose.</summary>
+    public StringName ActiveRideClip => this.ActivePose?.RideAnimationName ?? new StringName();
+
+    /// <summary>The attack clip a landed tick claims, or empty when the rider holds no pose.</summary>
+    public StringName ActiveAttackClip => this.ActivePose?.AttackAnimationName ?? new StringName();
+
+    /// <summary>How long one attack tick's claim survives for the current pose; 0 falls back to the tick
+    /// interval at the scheduler.</summary>
+    public float ActiveAttackHoldSeconds => this.ActivePose?.AttackAnimationHoldSeconds ?? 0f;
+
+    /// <summary>Seconds between attack damage ticks, resolved from the authored cadence definition.</summary>
+    public float AttackTickInterval => this.AttackTickIntervalDefinition.ResolveFloatValue(this._stats);
 
     /// <summary>
     /// The attachment became real (the host confirmed the arrival). For consumers whose behaviour is
@@ -430,14 +457,22 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// </summary>
     private void ReportMissingPoseClips()
     {
-        if (this.AttachPoses == null || this._orchestrator == null) { return; }
+        if (this._orchestrator == null) { return; }
 
         var missing = new List<string>();
-        foreach (var pose in this.AttachPoses.ValidatedPoses)
+
+        void Check(AttachPose pose)
         {
             if (!this._orchestrator.HasAnimationBase(pose.RideAnimationName)) { missing.Add(pose.RideAnimationName.ToString()); }
             if (!this._orchestrator.HasAnimationBase(pose.AttackAnimationName)) { missing.Add(pose.AttackAnimationName.ToString()); }
         }
+
+        if (this.AttachPoses != null)
+        {
+            foreach (var pose in this.AttachPoses.ValidatedPoses) { Check(pose); }
+        }
+
+        if (this.DefaultPose != null) { Check(this.DefaultPose); }
 
         if (missing.Count == 0) { return; }
 
@@ -466,6 +501,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         // Pool reuse re-runs Initialize on a component whose previous life ended in a shed; a recycled
         // instance must not inherit the last entity's cooldown.
         this._shedAtMsec = 0uL;
+        // Authored-pose contract, enforced here so a DefaultPose that can never render fails at load
+        // rather than after a rider latches onto a host.
+        this.DefaultPose?.Validate();
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out this._stats);
 
         // HARD dependency, unlike every other resolve here: the rider WRITES its own position for the
@@ -529,6 +567,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         // Filled so a rig that never authors a contact hit still satisfies the required export; suites
         // that exercise the missed-jump hit call SetContactDamage explicitly.
         this.ContactDamageDefinition = new ConstantFloatDefinition(0f);
+        // Filled so a rig that never authors a cadence still satisfies the required export; suites that
+        // exercise the tick call SetAttackTickInterval explicitly.
+        this.AttackTickIntervalDefinition = new ConstantFloatDefinition(0.25f);
     }
 
     internal void SetReattachCooldownSeconds(float seconds)
@@ -537,7 +578,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     internal void SetContactDamage(float amount)
         => this.ContactDamageDefinition = new ConstantFloatDefinition(amount);
 
+    internal void SetAttackTickInterval(float seconds)
+        => this.AttackTickIntervalDefinition = new ConstantFloatDefinition(seconds);
+
     internal void SetAttachPoses(AttachPoseSet? poses) => this.AttachPoses = poses;
+
+    internal void SetDefaultPose(AttachPose? pose) => this.DefaultPose = pose;
 
     internal bool _TestHoldsSuspension => this._holdsSuspension;
 
