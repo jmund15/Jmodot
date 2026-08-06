@@ -72,7 +72,7 @@ public partial class Category : Resource
         visited ??= new HashSet<Category>();
         if (!visited.Add(this))
         {
-            JmoLogger.Warning(this, $"Category cycle detected at '{CategoryName}' while resolving '{target.CategoryName}'. Check ParentCategories chains for self-reference.");
+            //JmoLogger.Warning(this, $"Category cycle detected at '{CategoryName}' while resolving '{target.CategoryName}'. Check ParentCategories chains for self-reference.");
             return false;
         }
 

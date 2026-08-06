@@ -20,7 +20,7 @@ using Shared;
 /// Manages active status effects (Runners) on an entity.
 /// Acts as a container for StatusRunner nodes and a registry for active Tags.
 /// </summary>
-[GlobalClass]
+[GlobalClass] // TODO: ideally should be a 'Tool'
 public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvider
 {
     #region IBlackboardProvider Implementation
