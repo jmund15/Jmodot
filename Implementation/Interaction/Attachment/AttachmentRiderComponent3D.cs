@@ -48,7 +48,7 @@ using Jmodot.Implementation.Shared;
 /// <see cref="BBDataSig.AnimationOrchestrator"/> (without it the pose clips cannot be checked for
 /// existence at load).</para>
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentRider
 {
     /// <summary>How much of a host's capacity budget this rider occupies while attached.</summary>

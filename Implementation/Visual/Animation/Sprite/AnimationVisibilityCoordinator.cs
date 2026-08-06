@@ -36,8 +36,8 @@ public partial class AnimationVisibilityCoordinator : Node
     /// name (e.g. "Vis_Travel"). Entries merge ADDITIVELY with auto-registration: a node may be BOTH
     /// auto-registered (via its "Vis_" name) and listed here under a different key, letting one body
     /// sprite serve several animations (e.g. a projectile whose single sprite plays both "spawn" and
-    /// "travel") without a per-scene AutoRegisterNodes override. Manually-mapped nodes need no "Vis_"
-    /// prefix.
+    /// "travel") without a per-scene AutoRegisterNodes override.
+    /// Manually-mapped nodes need no "Vis_" prefix.
     /// </summary>
     [Export] public GCol.Dictionary<StringName, GCol.Array<NodePath>> ManualVisibilityMap { get; set; } = new();
 
@@ -276,7 +276,7 @@ public partial class AnimationVisibilityCoordinator : Node
                     continue;
                 }
 
-                var node = parent.GetNodeOrNull(path);
+                var node = GetNodeOrNull(path);
                 if (node == null)
                 {
                     JmoLogger.Warning(this, $"ManualVisibilityMap key '{rawKey}' path '{path}' did not resolve to a node under '{parent.Name}'; skipping entry.");
@@ -510,7 +510,7 @@ public partial class AnimationVisibilityCoordinator : Node
                 if (manualParent == null) { continue; }
                 foreach (var path in paths)
                 {
-                    if (path == null || path.IsEmpty || manualParent.GetNodeOrNull(path) == null)
+                    if (path == null || path.IsEmpty || GetNodeOrNull(path) == null)
                     {
                         warnings.Add($"ManualVisibilityMap key '{rawKey}' has an unresolvable NodePath '{path}'.");
                     }
