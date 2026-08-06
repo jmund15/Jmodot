@@ -31,6 +31,19 @@ public interface IAttachmentRider : IGodotNodeInterface
     /// </summary>
     AttachPoseSet? AttachPoses { get; }
 
+    /// <summary>
+    /// The pose used when <see cref="AttachPoses"/> is null, or null for a rider with no pose art at
+    /// all. It sits BESIDE the set rather than inside it because a set-owned fallback is unreachable in
+    /// the case it serves: a host books a pose from the set on every successful reserve, so the fallback
+    /// is only ever wanted when there is no set to own it.
+    /// </summary>
+    /// <remarks>
+    /// On the interface, not just the component, because the HOST reads it — a rider riding on default
+    /// pose art must seat at that pose's offset like any other pose rider, and the host cannot honour a
+    /// fallback it cannot see. Resolving it for clips alone would render the art off its authored spot.
+    /// </remarks>
+    AttachPose? DefaultPose { get; }
+
     /// <summary>The host whose anchor this rider is reserving or riding, or null when it holds neither.</summary>
     IAttachmentHost? Host { get; }
 

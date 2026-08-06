@@ -146,6 +146,12 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         // committing caller is expected to absorb this refusal, not to be talked out of approaching.
         AttachPose? pose = null;
         if (rider.AttachPoses != null && !this.TryPickFreePose(rider.AttachPoses, out pose)) { return false; }
+        // A rider with no pose SET but a DefaultPose still rides pose art, so it must seat like a pose
+        // rider — its clips are drawn for the pose's placement. Resolving the fallback only for clips
+        // and not for seating would render that art at a scattered anchor instead of its authored
+        // offset. The default is deliberately outside the free-pose pool: it is a fallback, so several
+        // pose-less riders may share it, where set poses stay exclusive.
+        pose ??= rider.DefaultPose;
 
         var footprint = Mathf.Max(rider.Footprint, 0f);
         var occupied = new List<Vector3>(this._records.Count);
