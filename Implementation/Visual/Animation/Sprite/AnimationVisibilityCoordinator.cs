@@ -31,9 +31,10 @@ public partial class AnimationVisibilityCoordinator : Node
     /// The key is the animation's BASE name WITHOUT any directional suffix (e.g. "spawn", not
     /// "spawn_left"), matched case-insensitively — the coordinator lower-cases and strips the
     /// directional suffix off the live animation name before lookup, exactly as it does for
-    /// auto-registered nodes. NodePaths resolve relative to this coordinator's PARENT (the same node
-    /// the auto-registered "Vis_"-prefixed children live under), so a sibling sprite is just its node
-    /// name (e.g. "Vis_Travel"). Entries merge ADDITIVELY with auto-registration: a node may be BOTH
+    /// auto-registered nodes. NodePaths resolve relative to this coordinator itself (same convention as
+    /// <see cref="TargetAnimatorPath"/>), so a sibling sprite is authored as "../Vis_Travel"; only the
+    /// coordinator's own children use a bare name. Entries merge ADDITIVELY with auto-registration: a
+    /// node may be BOTH
     /// auto-registered (via its "Vis_" name) and listed here under a different key, letting one body
     /// sprite serve several animations (e.g. a projectile whose single sprite plays both "spawn" and
     /// "travel") without a per-scene AutoRegisterNodes override.
@@ -249,7 +250,8 @@ public partial class AnimationVisibilityCoordinator : Node
 
     /// <summary>
     /// Resolves <see cref="ManualVisibilityMap"/> at ready-time, merging each entry's nodes into the
-    /// runtime caches additively. Paths resolve relative to the coordinator's parent. A node already
+    /// runtime caches additively. Paths resolve relative to this coordinator (self-relative), matching
+    /// <see cref="TargetAnimatorPath"/>. A node already
     /// picked up by auto-registration keeps its existing registration and its already-applied initial
     /// hide; a node reached ONLY through the manual map is added to the managed set and force-hidden
     /// like any auto-registered node.
@@ -279,7 +281,7 @@ public partial class AnimationVisibilityCoordinator : Node
                 var node = GetNodeOrNull(path);
                 if (node == null)
                 {
-                    JmoLogger.Warning(this, $"ManualVisibilityMap key '{rawKey}' path '{path}' did not resolve to a node under '{parent.Name}'; skipping entry.");
+                    JmoLogger.Warning(this, $"ManualVisibilityMap key '{rawKey}' path '{path}' did not resolve from this coordinator (paths are self-relative); skipping entry.");
                     continue;
                 }
 
