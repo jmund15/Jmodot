@@ -48,8 +48,16 @@ public class HealthChangeEventArgs : EventArgs
     /// </summary>
     public DamageKind Kind { get; }
 
+    /// <summary>
+    /// The direction the blow travelled, when whoever dealt it knew and said so. Null on every change
+    /// that carried none — subscribers that need a direction fall back to inferring one from geometry,
+    /// and this field exists precisely for the cases where that inference cannot work (attacker and
+    /// victim overlapping at damage time).
+    /// </summary>
+    public Vector3? ImpactDirection { get; }
+
     public HealthChangeEventArgs(float newHealth, float previousHealth, float maxHealth, object source,
-        DamageKind kind = DamageKind.Direct)
+        DamageKind kind = DamageKind.Direct, Vector3? impactDirection = null)
     {
         NewHealth = newHealth;
         PreviousHealth = previousHealth;
@@ -57,6 +65,7 @@ public class HealthChangeEventArgs : EventArgs
         HealthDelta = newHealth - previousHealth;
         Source = source;
         Kind = kind;
+        ImpactDirection = impactDirection;
     }
 }
 
@@ -88,6 +97,12 @@ public interface IDamageable
     /// </summary>
     /// <param name="amount">The amount of health to remove. Should be positive.</param>
     /// <param name="source">The object responsible for the damage.</param>
+    /// <remarks>
+    /// Deliberately carries no impact direction: the dozens of implementers here are spells, ingredients
+    /// and props that receive damage without ever raising a health event, so widening the CONTRACT would
+    /// tax every one of them for a field only the health-event path reads. <c>HealthComponent</c> offers
+    /// the widened entry point on its own type.
+    /// </remarks>
     void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct);
 }
 

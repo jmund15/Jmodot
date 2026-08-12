@@ -284,12 +284,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <inheritdoc />
-    public bool TryApplyShedDamage(IAttackPayload payload)
+    public bool TryApplyShedDamage(IAttackPayload payload, Vector3? impactDirection = null)
     {
         if (payload == null) { return false; }
         if (this._hurtbox == null || !GodotObject.IsInstanceValid(this._hurtbox)) { return false; }
 
-        return this._hurtbox.ProcessHit(payload);
+        return this._hurtbox.ProcessHit(payload, impactDirection);
     }
 
     /// <summary>

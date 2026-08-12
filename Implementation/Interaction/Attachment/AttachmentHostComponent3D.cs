@@ -296,11 +296,14 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         var plan = AttachmentShedResolver.Resolve(riding, request.Force, request.Scope);
         var attribution = request.Instigator ?? this.GetUnderlyingNode();
 
-        // Aim every fling before anything is removed — the anchor is gone once the record is.
+        // Aim before anything is removed — the anchor is gone once the record is. Resolved for every
+        // outcome, not just the shed ones: a rider that only took damage still hands its direction to
+        // the hit, and that is the same aim its fling would have used.
         var directions = new Dictionary<IAttachmentRider, Vector3>();
-        foreach (var outcome in plan.Shed)
+        foreach (var outcome in plan.Outcomes)
         {
-            directions[outcome.Record.Rider] = this.FlingDirectionFor(outcome.Record, request.OriginPosition);
+            directions[outcome.Record.Rider] =
+                this.FlingDirectionFor(outcome.Record, request.OriginPosition, request.ImpactDirection);
         }
 
         this.WriteBackGrip(plan);
@@ -310,7 +313,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             foreach (var outcome in plan.Damaged)
             {
                 if (!IsRiderAlive(outcome.Record.Rider)) { continue; }
-                outcome.Record.Rider.TryApplyShedDamage(request.DamagePayload);
+                outcome.Record.Rider.TryApplyShedDamage(request.DamagePayload, directions[outcome.Record.Rider]);
             }
         }
 
@@ -453,18 +456,13 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         }
     }
 
-    private Vector3 FlingDirectionFor(AttachmentRecord record, Vector3 origin)
+    private Vector3 FlingDirectionFor(AttachmentRecord record, Vector3 origin, Vector3? impactDirection)
     {
         var anchorWorld = GodotObject.IsInstanceValid(this._entity) && this._entity.IsInsideTree()
             ? this._entity.ToGlobal(record.LocalAnchor)
             : record.LocalAnchor;
 
-        // Flattened BEFORE the emptiness test, not after: knockback discards Y, so a rider sitting
-        // almost directly above the origin has a long vector that collapses to nothing once flattened,
-        // and a post-flatten check would hand it a normalized zero instead of the fallback.
-        var away = new Vector3(anchorWorld.X - origin.X, 0f, anchorWorld.Z - origin.Z);
-        // Back is a stable horizontal fallback; Up would resolve to no impulse at all.
-        return away.IsZeroApprox() ? Vector3.Back : away.Normalized();
+        return AttachmentShedResolver.ResolveFlingDirection(anchorWorld, origin, impactDirection);
     }
 
     private VisualBounds3D MeasureBounds()

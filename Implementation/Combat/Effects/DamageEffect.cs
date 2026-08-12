@@ -128,7 +128,7 @@ public class DamageEffect : ICombatEffect
             appliedDamage = isCritical ? DamageAmount * CritMultiplier : DamageAmount;
         }
 
-        health.TakeDamage(appliedDamage, context.Attacker, context.Kind);
+        health.TakeDamage(appliedDamage, context.Attacker, context.Kind, context.ImpactDirection);
 
         return new DamageResult
         {

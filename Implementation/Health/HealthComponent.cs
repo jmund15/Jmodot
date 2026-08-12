@@ -240,7 +240,14 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// <param name="amount">The positive amount of health to remove.</param>
     /// <param name="source">The object responsible for the damage (e.g., a projectile, player, or status effect).</param>
     /// <param name="kind">Categorizes the damage cause; carried into HealthChangeEventArgs so feedback subscribers can filter (e.g., HitFlash skips Tick).</param>
-    public virtual void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct)
+    /// <param name="impactDirection">The direction the blow travelled, when the caller knows it; carried into HealthChangeEventArgs for impact-aimed feedback such as fragment spray.</param>
+    /// <remarks>
+    /// The direction rides on this type rather than on <see cref="IDamageable"/> on purpose — see the
+    /// remark on <see cref="IDamageable.TakeDamage"/>. The interface's own narrower entry point is
+    /// implemented explicitly below and forwards here, so there is still ONE body.
+    /// </remarks>
+    public virtual void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct,
+        Vector3? impactDirection = null)
     {
         if (amount <= 0 || IsDead || !IsInitialized)
         {
@@ -266,14 +273,17 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Fire events manually so visual feedback (flash, fragments) still triggers.
         if (IsIndestructible && Mathf.IsEqualApprox(newHealth, _currentHealth))
         {
-            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind);
+            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind, impactDirection);
             OnHealthChanged.Invoke(args);
             OnDamaged.Invoke(args);
             return;
         }
 
-        SetHealth(newHealth, source, kind);
+        SetHealth(newHealth, source, kind, impactDirection);
     }
+
+    void IDamageable.TakeDamage(float amount, object source, DamageKind kind)
+        => TakeDamage(amount, source, kind, null);
 
     /// <summary>
     /// Restores health to the component. Healing is ignored if the entity is dead.
@@ -370,7 +380,8 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// The central method for all health modifications. It calculates changes,
     /// clamps values, invokes all relevant events, and handles the death transition.
     /// </summary>
-    private void SetHealth(float newHealth, object source, DamageKind kind = DamageKind.Direct)
+    private void SetHealth(float newHealth, object source, DamageKind kind = DamageKind.Direct,
+        Vector3? impactDirection = null)
     {
         float previousHealth = _currentHealth;
         float maxHealth = MaxHealth; // Cache for this scope to avoid repeated lookups.
@@ -385,7 +396,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
 
         // --- Event Invocation ---
-        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source, kind);
+        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source, kind, impactDirection);
         OnHealthChanged.Invoke(eventArgs);
 
         if (eventArgs.HealthDelta < 0)

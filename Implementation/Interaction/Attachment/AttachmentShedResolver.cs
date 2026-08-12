@@ -51,4 +51,27 @@ public static class AttachmentShedResolver
 
         return new ShedPlan(outcomes);
     }
+
+    /// <summary>
+    /// Aim one shed rider's fling. Most-specific source first: the rider's own anchor relative to the
+    /// action's origin, then <paramref name="impactDirection"/> — the direction the blow travelled,
+    /// supplied by the attacker for riders whose anchor cannot imply one — then a stable last resort.
+    /// </summary>
+    public static Vector3 ResolveFlingDirection(Vector3 anchorWorld, Vector3 origin, Vector3? impactDirection)
+    {
+        // Flattened BEFORE the emptiness test, not after: knockback discards Y, so a rider sitting
+        // almost directly above the origin has a long vector that collapses to nothing once flattened,
+        // and a post-flatten check would hand it a normalized zero instead of the next candidate.
+        var away = new Vector3(anchorWorld.X - origin.X, 0f, anchorWorld.Z - origin.Z);
+        if (!away.IsZeroApprox()) { return away.Normalized(); }
+
+        // Flattened for the same reason and judged by the same test: a purely vertical blow carries no
+        // horizontal aim and must reach the fallback rather than normalize a zero vector.
+        var impact = impactDirection ?? Vector3.Zero;
+        var alongBlow = new Vector3(impact.X, 0f, impact.Z);
+        if (!alongBlow.IsZeroApprox()) { return alongBlow.Normalized(); }
+
+        // Back is a stable horizontal fallback; Up would resolve to no impulse at all.
+        return Vector3.Back;
+    }
 }

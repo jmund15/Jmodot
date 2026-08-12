@@ -124,7 +124,10 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
     /// <summary>
     /// Called DIRECTLY by HitboxComponent2D. Receiving end of the handshake.
     /// </summary>
-    public bool ProcessHit(IAttackPayload payload)
+    /// <param name="impactDirection">The direction the blow travelled, when the attacker knows it and
+    /// the geometry cannot say (mirrors 3D). Carried on the context verbatim; it never displaces the
+    /// inferred <see cref="HitContext2D.HitDirection"/>.</param>
+    public bool ProcessHit(IAttackPayload payload, Vector2? impactDirection = null)
     {
         if (!CanReceiveHit()) { return false; }
 
@@ -140,6 +143,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
             EpicenterPosition = epicenter,
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
             HitSeed = hitSeed,
+            ImpactDirection = impactDirection,
         };
 
         // Forward to Brain. The Combatant's ProcessPayload signature is dimension-

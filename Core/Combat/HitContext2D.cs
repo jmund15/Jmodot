@@ -55,6 +55,12 @@ public sealed record class HitContext2D
     public int? HitSeed { get; init; }
 
     /// <summary>
+    /// The explicitly-supplied blow direction (see <see cref="HitContext.ImpactDirection"/>). Null on
+    /// every hit whose attacker had no direction to give.
+    /// </summary>
+    public Vector2? ImpactDirection { get; init; }
+
+    /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.
     /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).

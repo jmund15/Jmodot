@@ -68,6 +68,15 @@ public sealed record class HitContext
     public int? HitSeed { get; init; }
 
     /// <summary>
+    /// The direction the blow travelled, when the attacker supplied one explicitly. Distinct from
+    /// <see cref="HitDirection"/>, which is always populated and is INFERRED from velocity or from the
+    /// gap between two bodies — an inference that answers nothing when attacker and victim overlap.
+    /// Null on every hit whose attacker had no direction to give, which is what lets a consumer tell an
+    /// authored aim from a geometric guess and prefer the former.
+    /// </summary>
+    public Vector3? ImpactDirection { get; init; }
+
+    /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.
     /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).

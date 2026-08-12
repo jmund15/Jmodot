@@ -137,8 +137,11 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     /// Called DIRECTLY by HitboxComponent3D.
     /// This is the receiving end of the Handshake.
     /// </summary>
+    /// <param name="impactDirection">The direction the blow travelled, when the attacker knows it and
+    /// the geometry cannot say. Carried on the context verbatim — it never displaces the inferred
+    /// <see cref="HitContext.HitDirection"/>, so knockback is untouched by supplying it.</param>
     /// <returns>True if the hit was processed, False if rejected.</returns>
-    public bool ProcessHit(IAttackPayload payload)
+    public bool ProcessHit(IAttackPayload payload, Vector3? impactDirection = null)
     {
         if (!CanReceiveHit()) { return false; }
 
@@ -158,6 +161,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             EpicenterForward = GetEpicenterForward(payload.Source),
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
             HitSeed = hitSeed,
+            ImpactDirection = impactDirection,
         };
 
         // 3.5. Reaction-resolver consultation (A2)

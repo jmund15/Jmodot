@@ -77,6 +77,9 @@ public interface IAttachmentRider : IGodotNodeInterface
     /// than the host reaching across into its components: only the rider resolved its own
     /// hurtbox from its own blackboard, and only it can tell an absent hurtbox from a rejected hit.
     /// </summary>
+    /// <param name="impactDirection">The direction the blow travelled, as the host resolved it for this
+    /// rider's fling. Carried into the hit so feedback keyed off the impact — fragment spray above all —
+    /// is aimed by the blow rather than inferred from two bodies that overlap at damage time.</param>
     /// <returns>True when the hurtbox processed the hit; false when it rejected it or none exists.</returns>
-    bool TryApplyShedDamage(IAttackPayload payload);
+    bool TryApplyShedDamage(IAttackPayload payload, Vector3? impactDirection = null);
 }
