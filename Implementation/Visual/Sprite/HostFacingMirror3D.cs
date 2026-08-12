@@ -49,7 +49,7 @@ public partial class HostFacingMirror3D : Node, IComponent
     /// <summary>The direction the rider's attach art faces unflipped. FlipH applies whenever the host's facing opposes this.</summary>
     [Export] public bool ArtFacesRight { get; set; } = true;
 
-    private readonly List<SpriteBase3D> _resolved = new();
+    private readonly SpriteTargetSet3D _targets = new();
     private AttachmentRiderComponent3D? _rider;
     private IDirectionalResolutionSource? _hostSource;
     private bool _warnedNoHostSource;
@@ -63,14 +63,7 @@ public partial class HostFacingMirror3D : Node, IComponent
             warnings.Add("Sprites is empty, so this node mirrors nothing. Assign the rider's attach-art sprites.");
         }
 
-        for (var i = 0; i < this.Sprites.Count; i++)
-        {
-            if (this.Sprites[i] == null) { warnings.Add($"Sprites[{i}] is empty."); }
-            else if (this.Sprites[i] is not SpriteBase3D)
-            {
-                warnings.Add($"Sprites[{i}] ('{this.Sprites[i].Name}') is not a SpriteBase3D, so it has nothing to mirror.");
-            }
-        }
+        warnings.AddRange(SpriteTargetSet3D.DescribeExplicitListProblems(this.Sprites));
 
         if (this.GetParent() != null && !this.HasRiderInEntity())
         {
@@ -122,30 +115,11 @@ public partial class HostFacingMirror3D : Node, IComponent
 
     private bool ValidateSprites()
     {
-        this._resolved.Clear();
+        if (this._targets.TryResolveExplicit(this.Sprites, out var error)) { return true; }
 
-        if (this.Sprites.Count == 0)
-        {
-            JmoLogger.Error(this, "[Attachment] HostFacingMirror3D has no Sprites assigned, so no attach art "
-                + "would ever mirror to the host's facing.");
-            return false;
-        }
-
-        foreach (var entry in this.Sprites)
-        {
-            if (entry is SpriteBase3D sprite)
-            {
-                this._resolved.Add(sprite);
-                continue;
-            }
-
-            JmoLogger.Error(this, "[Attachment] HostFacingMirror3D holds a Sprites entry that is empty or not a "
-                + "SpriteBase3D. Fix every entry — one bad slot means one pose silently stops mirroring.");
-            this._resolved.Clear();
-            return false;
-        }
-
-        return true;
+        JmoLogger.Error(this, $"[Attachment] HostFacingMirror3D cannot mirror the rider's attach art — {error} "
+            + "Fix every entry — one bad slot means one pose silently stops mirroring.");
+        return false;
     }
 
     /// <summary>
@@ -242,7 +216,7 @@ public partial class HostFacingMirror3D : Node, IComponent
 
     private void ApplyFlip(bool flip)
     {
-        foreach (var sprite in this._resolved)
+        foreach (var sprite in this._targets.Resolved)
         {
             if (!GodotObject.IsInstanceValid(sprite)) { continue; }
 
