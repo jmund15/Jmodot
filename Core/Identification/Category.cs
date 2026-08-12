@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot.Collections;
 using Implementation.AI.Perception.Strategies;
-using Implementation.Shared;
 
 /// <summary>
 ///     A data-driven Resource representing a high-level, abstract category or "tag".
@@ -61,39 +60,55 @@ public partial class Category : Resource
     /// <summary>
     ///     Returns true if this category matches <paramref name="target"/> by name,
     ///     or if any ancestor in the <see cref="ParentCategories"/> chain matches.
-    ///     Uses a visited set (CategoryName-keyed via Equals/GetHashCode override) to guard against cycles.
-    ///     Cycles are designer errors and emit a JmoLogger.Warning when detected.
     /// </summary>
-    public bool IsOrDescendsFrom(Category? target, HashSet<Category>? visited = null)
+    /// <remarks>
+    ///     MATCHING is name-keyed; the WALK GUARD is reference-keyed, and the two must not be
+    ///     conflated. Distinct resources legitimately share a name — a CombatTag is authored onto the
+    ///     same-named element atom — so a name-keyed guard reads that parent as already-visited and
+    ///     severs every broadening above it. Only a repeated REFERENCE is a cycle, and Godot's
+    ///     resource cache is what makes an authored self-loop arrive as one. A revisit yields false
+    ///     silently: the guard cannot tell a legal converging DAG path from a loop, so cycle and
+    ///     duplicate-name loudness belongs to the corpus lint, not to a per-query walk.
+    /// </remarks>
+    public bool IsOrDescendsFrom(Category? target)
     {
         if (target == null) { return false; }
         if (CategoryName == target.CategoryName) { return true; }
 
-        visited ??= new HashSet<Category>();
-        if (!visited.Add(this))
-        {
-            JmoLogger.Warning(this, $"Category cycle detected at '{CategoryName}' while resolving '{target.CategoryName}'. Check ParentCategories chains for self-reference.");
-            return false;
-        }
+        return DescendsFrom(target, new HashSet<Category>(ReferenceEqualityComparer.Instance) { this });
+    }
 
+    private bool DescendsFrom(Category target, HashSet<Category> visitedByReference)
+    {
         if (ParentCategories == null) { return false; }
-        return ParentCategories.Any(p => p?.IsOrDescendsFrom(target, visited) == true);
+
+        return ParentCategories.Any(p =>
+            p != null
+            && visitedByReference.Add(p)
+            && (p.CategoryName == target.CategoryName || p.DescendsFrom(target, visitedByReference)));
     }
 
     /// <summary>
     ///     Adds this category and every ancestor reachable through <see cref="ParentCategories"/>
-    ///     into <paramref name="accumulator"/>. The accumulator doubles as the cycle guard, so
-    ///     self-referencing chains (a designer error) terminate instead of recursing forever.
-    ///     Membership is CategoryName-keyed via the Equals/GetHashCode override.
+    ///     into <paramref name="accumulator"/>, which stays CategoryName-keyed via the
+    ///     Equals/GetHashCode override — one entry per distinct NAME, as its consumers expect.
+    ///     Recursion is guarded separately, by reference, for the reason given on
+    ///     <see cref="IsOrDescendsFrom"/>: a same-named ancestor must not halt the walk.
     /// </summary>
     public void CollectSelfAndAncestors(HashSet<Category> accumulator)
     {
-        if (!accumulator.Add(this)) { return; }
+        CollectSelfAndAncestors(accumulator, new HashSet<Category>(ReferenceEqualityComparer.Instance));
+    }
+
+    private void CollectSelfAndAncestors(HashSet<Category> accumulator, HashSet<Category> visitedByReference)
+    {
+        if (!visitedByReference.Add(this)) { return; }
+        accumulator.Add(this);
         if (ParentCategories == null) { return; }
 
         foreach (var parent in ParentCategories)
         {
-            parent?.CollectSelfAndAncestors(accumulator);
+            parent?.CollectSelfAndAncestors(accumulator, visitedByReference);
         }
     }
 
