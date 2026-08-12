@@ -313,7 +313,11 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             foreach (var outcome in plan.Damaged)
             {
                 if (!IsRiderAlive(outcome.Record.Rider)) { continue; }
-                outcome.Record.Rider.TryApplyShedDamage(request.DamagePayload, directions[outcome.Record.Rider]);
+
+                // The fling takes the resolved direction because it always needs one and falls back to a
+                // constant; the hit takes the raw authored one because its consumers read null as "nothing
+                // was aimed, infer it yourself".
+                outcome.Record.Rider.TryApplyShedDamage(request.DamagePayload, request.ImpactDirection);
             }
         }
 
@@ -322,8 +326,8 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             var rider = outcome.Record.Rider;
             this.ReleaseRecord(rider, DetachCause.Shed);
 
-            // A rider killed by the damage above has already detached itself; it is still flung,
-            // so a corpse carries the momentum of the blow that killed it.
+            // A rider the damage killed has already detached itself and is NOT flung — the guard
+            // below skips it. Its fling direction was resolved above only to aim the hit it took.
             if (!IsRiderAlive(rider)) { continue; }
 
             rider.OnShed(directions[rider], outcome.ForceSpent, attribution);
