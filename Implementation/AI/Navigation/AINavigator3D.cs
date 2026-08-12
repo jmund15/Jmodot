@@ -42,6 +42,8 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
     /// </summary>
     private Vector3 _lastCalculatedTargetPath;
 
+    private readonly UnreachableWarningLatch _unreachableWarnings = new();
+
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
@@ -110,20 +112,25 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
         }
 
         Vector3 closestPointOnNavmesh = NavigationServer3D.MapGetClosestPoint(map, globalPosition);
-        float distanceToMesh = closestPointOnNavmesh.DistanceTo(globalPosition);
 
-        // Allow for a small tolerance in case the target is slightly off the mesh.
-        if (distanceToMesh <= 1.0f)
+        if (NavReachability.IsReachable(globalPosition, closestPointOnNavmesh, out float planarDelta, out float verticalDelta))
         {
             // Snap to the nav mesh surface for accurate path calculation and target-reached detection.
             TargetPosition = closestPointOnNavmesh;
             _lastCalculatedTargetPath = closestPointOnNavmesh;
+            _unreachableWarnings.Reset();
             return NavReqPathResponse.Success;
         }
 
-        JmoLogger.Warning(this,
-            $"Nav target unreachable: candidate={globalPosition}, " +
-            $"closestNavPoint={closestPointOnNavmesh}, distance={distanceToMesh:F2} (tolerance=1.0)");
+        if (_unreachableWarnings.ShouldWarn(out int suppressed))
+        {
+            JmoLogger.Warning(this,
+                $"[Navigator] Nav target unreachable: candidate={globalPosition}, " +
+                $"closestNavPoint={closestPointOnNavmesh}, planar={planarDelta:F2}/{NavReachability.PlanarToleranceMeters:F2}, " +
+                $"vertical={verticalDelta:F2}/{NavReachability.VerticalToleranceMeters:F2}" +
+                (suppressed > 0 ? $" (previous episode suppressed {suppressed} repeats)" : string.Empty));
+        }
+
         return NavReqPathResponse.Unreachable;
     }
 
