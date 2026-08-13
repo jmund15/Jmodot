@@ -8,6 +8,7 @@ using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Core.Visual.Sprite;
 using Jmodot.Implementation.Visual.Animation.Sprite;
 using Shared;
+using GCol = Godot.Collections;
 
 /// <summary>
 /// Facing-based horizontal mirroring for single-direction sprite art, driven by
@@ -64,6 +65,15 @@ public partial class FacingFlipController : Node
     /// </summary>
     [Export] public FacingProfile3D? FacingProfile { get; set; }
 
+    /// <summary>
+    /// The sprites to mirror when authored. Non-empty ⇒ this list IS the flip target and the
+    /// composer-slot / animator paths are bypassed (one knob, one axis). Leave empty to flip through
+    /// the composer slot or the resolving animator's own sprite, as before.
+    /// </summary>
+    // A field, not a property: node-reference array exports on properties deserialize empty when a
+    // spawned scene is instantiated at runtime — the same reason HostFacingMirror3D.Sprites is a field.
+    [Export] public GCol.Array<Node> Sprites = new();
+
     private MirrorFacingConfig? ActiveMirror => this.FacingProfile?.Mirror;
 
     private IDirectionalResolutionSource? _source;
@@ -71,6 +81,8 @@ public partial class FacingFlipController : Node
     private readonly HashSet<StringName> _warnedNonLoopingBaseClips = new();
     private bool _warnedUnflippableAnimator;
     private bool _warnedUnusableSource;
+    private readonly SpriteTargetSet3D _explicitTargets = new();
+    private bool _explicitListResolved;
 
     public override void _EnterTree()
     {
@@ -97,6 +109,18 @@ public partial class FacingFlipController : Node
                     + "Facing flipping is disabled for this entity.");
             }
             return;
+        }
+
+        // Authored Sprites list, resolved ONCE and only post-dormancy (a dormant controller resolves
+        // nothing). When authored it IS the flip target, so ApplyFlip writes only these sprites.
+        if (this.Sprites.Count > 0)
+        {
+            this._explicitListResolved = this._explicitTargets.TryResolveExplicit(this.Sprites, out var listError);
+            if (!this._explicitListResolved)
+            {
+                JmoLogger.Error(this, $"FacingFlipController cannot resolve the authored Sprites list — {listError} "
+                    + "Flipping is disabled for this entity; fix every entry in the scene dock.");
+            }
         }
 
         // Idempotent, and paired with _ExitTree rather than _Ready: _ExitTree fires on reparent
@@ -150,6 +174,13 @@ public partial class FacingFlipController : Node
             warnings.Add("The assigned FacingProfile3D carries no MirrorFacingConfig. This controller reads only the mirror channel, so the profile does nothing here. Add a Mirror channel, or clear the profile to leave the controller dormant.");
         }
 
+        // The authored list is only read once the mirror channel is active — a dormant controller must
+        // stay silent even about a stale list, so the bad-slot rows are gated here, not on list presence.
+        if (mirror != null && this.Sprites.Count > 0)
+        {
+            warnings.AddRange(SpriteTargetSet3D.DescribeExplicitListProblems(this.Sprites));
+        }
+
         if (FacingProfile?.ValidateConfiguration() is { } profileProblem)
         {
             warnings.Add(profileProblem);
@@ -192,6 +223,20 @@ public partial class FacingFlipController : Node
 
     private void ApplyFlip(IAnimComponent animator, bool flip)
     {
+        if (this.Sprites.Count > 0)
+        {
+            // Authored list IS the target set — one knob, one axis. The composer/animator paths are
+            // not the author's intent here; an unresolvable list was already reported at resolve time.
+            if (this._explicitListResolved)
+            {
+                foreach (var listed in this._explicitTargets.Resolved)
+                {
+                    if (GodotObject.IsInstanceValid(listed)) { listed.FlipH = flip; }
+                }
+            }
+            return;
+        }
+
         if (_composer != null && TryFlipComposerSlot(animator, flip)) { return; }
 
         // The capability must sit on the animator itself (AnimatedSprite3DComponent is both),
