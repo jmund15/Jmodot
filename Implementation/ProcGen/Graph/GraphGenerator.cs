@@ -224,7 +224,8 @@ internal static class GraphGenerator
             this._pinsByIndex = forcedByIndex;
 
             INodeTemplate? forcedFirst = forcedByIndex.GetValueOrDefault(0)?.AsNodeTemplate;
-            GraphNode? first = this.PlaceNode("spine", requiredType: default, anchor: null, weights, constraints, forcedFirst);
+            (GraphNode? first, PortSlot? _) = this.PlaceNode(
+                "spine", Array.Empty<PortSlot>(), requiredType: default, weights, constraints, forcedFirst);
             if (first == null)
             {
                 cause = forcedFirst != null
@@ -246,8 +247,11 @@ internal static class GraphGenerator
                     break; // live node-budget ceiling
                 }
 
-                IGraphPort? exit = this.SelectOpenPort(prev, requiredType: default);
-                if (exit == null)
+                // The joint (slot, template) draw enumerates every open port on prev, so the spine-exit
+                // port on the current node is seed-varying (uniform when no weights are authored) rather
+                // than always the first open port.
+                List<PortSlot> anchors = this.OpenPortSlots(prev);
+                if (anchors.Count == 0)
                 {
                     break; // prev has no spare port to grow from — stop the spine here
                 }
@@ -255,10 +259,9 @@ internal static class GraphGenerator
                 // Interior nodes need an entry AND an exit port; only the tail may be a dead-end cap.
                 int minPorts = i < length - 1 ? 2 : 1;
                 INodeTemplate? forced = forcedByIndex.GetValueOrDefault(i)?.AsNodeTemplate;
-                GraphNode? node = this.PlaceNode(
-                    "spine", requiredType: exit.Type,
-                    anchor: new PortSlot(prev, exit), weights, constraints, forced, minPorts: minPorts);
-                if (node == null)
+                (GraphNode? node, PortSlot? slot) = this.PlaceNode(
+                    "spine", anchors, requiredType: default, weights, constraints, forced, minPorts: minPorts);
+                if (node == null || slot == null)
                 {
                     cause = forced != null
                         ? PinUnsatisfiable($"the pin at spine index {i} could not be placed.")
@@ -266,7 +269,7 @@ internal static class GraphGenerator
                     return forced != null ? FloorOutcome.PinUnsatisfiable : FloorOutcome.SpineInfeasible;
                 }
 
-                IGraphPort? entry = this.SelectOpenPort(node, requiredType: exit.Type);
+                IGraphPort? entry = this.SelectOpenPort(node, requiredType: slot.Port.Type);
                 if (entry == null)
                 {
                     cause = SpineInfeasible($"spine node {i} exposes no port compatible with its predecessor.");
@@ -276,7 +279,7 @@ internal static class GraphGenerator
                 // A pin may gate its own exit: the edge leaving the pinned node (From = index i-1)
                 // ships gated, blocking progression past the set-piece until its door opens.
                 bool gated = forcedByIndex.GetValueOrDefault(i - 1)?.GateExitEdge == true;
-                this._g.Connect(prev, exit, node, entry, gated: gated, provenance: new EdgeProvenance(EdgeProvenanceKind.Spine, 0));
+                this._g.Connect(prev, slot.Port, node, entry, gated: gated, provenance: new EdgeProvenance(EdgeProvenanceKind.Spine, 0));
                 this._spineNodeIds.Add(node.Id);
                 this._spineNodes.Add(node);
                 prev = node;
@@ -599,8 +602,9 @@ internal static class GraphGenerator
 
                 // minPorts 2: a route node must pass through (entry + exit); a 1-port dead-end here
                 // would fail the whole route at commit time.
-                INodeTemplate? template = this.SelectTemplate(
-                    id, entryType, anchor: null, Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), passKey, ord, forced: null, pref: TemplateRole.Connector, minPorts: 2);
+                (INodeTemplate? template, PortSlot? _) = this.SelectTemplate(
+                    id, Array.Empty<PortSlot>(), entryType, Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(),
+                    passKey, ord, forced: null, pref: TemplateRole.Connector, minPorts: 2);
                 if (template == null)
                 {
                     return false; // no admissible routing template — deterministic, retry cannot help
@@ -769,9 +773,8 @@ internal static class GraphGenerator
                     }
 
                     PartialGraph.GraphCheckpoint cp = this._g.Checkpoint();
-                    GraphNode? child = this.PlaceNode(
-                        "pinned", requiredType: exit.Type,
-                        anchor: new PortSlot(host, exit),
+                    (GraphNode? child, PortSlot? _) = this.PlaceNode(
+                        "pinned", new List<PortSlot> { new PortSlot(host, exit) }, requiredType: default,
                         Array.Empty<SlotWeight>(), Array.Empty<SlotConstraint>(), forced: neighbor);
                     if (child == null)
                     {
@@ -884,14 +887,16 @@ internal static class GraphGenerator
             int grown = 0;
             for (int b = 0; b < count; b++)
             {
-                GraphNode? anchor = this.PickBranchAnchor();
-                if (anchor == null)
+                // The joint (slot, template) draw now selects the branch anchor from every open
+                // (node, port) pair, so the anchor node is seed-varying instead of always spine⟨0⟩.
+                IReadOnlyList<PortSlot> anchors = this.PickBranchAnchors();
+                if (anchors.Count == 0)
                 {
                     break; // no node has a spare port — stop branching
                 }
 
                 int before = this._g.NodeCount;
-                this.GrowBranch(anchor, depth, fanout, weights, constraints, b);
+                this.GrowBranch(anchors, depth, fanout, weights, constraints, b);
                 if (this._g.NodeCount > before)
                 {
                     grown++;
@@ -933,7 +938,7 @@ internal static class GraphGenerator
                     }
 
                     int before = this._g.NodeCount;
-                    this.GrowBranch(anchor, depth, fanout, weights, constraints, b);
+                    this.GrowBranch(this.OpenPortSlots(anchor), depth, fanout, weights, constraints, b);
                     if (this._g.NodeCount > before)
                     {
                         grown++;
@@ -960,9 +965,10 @@ internal static class GraphGenerator
         }
 
         // rootOrdinal = the b-th branch growth (the LayBranches loop index); the whole tree under this
-        // root shares it, even when a branch roots on a node an earlier branch created.
+        // root shares it, even when a branch roots on a node an earlier branch created. anchors = the
+        // candidate open (node, port) slots; the joint draw selects one per child.
         private void GrowBranch(
-            GraphNode parent, int depth, int fanout,
+            IReadOnlyList<PortSlot> anchors, int depth, int fanout,
             IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints, int rootOrdinal)
         {
             if (depth <= 0)
@@ -970,6 +976,7 @@ internal static class GraphGenerator
                 return;
             }
 
+            List<PortSlot> openSlots = anchors.Count > 0 ? anchors.ToList() : this.PickBranchAnchors();
             for (int f = 0; f < fanout; f++)
             {
                 if (this._g.NodeCount >= this.BudgetMax)
@@ -977,31 +984,37 @@ internal static class GraphGenerator
                     return; // live ceiling
                 }
 
-                IGraphPort? exit = this.SelectOpenPort(parent, requiredType: default);
-                if (exit == null)
+                // A prior fanout sibling consumed a port; re-derive so it is never re-drawn. The
+                // caller's anchors seed the first iteration (identical to a fresh enumerate then).
+                if (f > 0)
                 {
-                    return; // parent exhausted its spare ports
+                    openSlots = this.PickBranchAnchors();
+                }
+
+                if (openSlots.Count == 0)
+                {
+                    return; // no node has a spare port — stop this branch
                 }
 
                 PartialGraph.GraphCheckpoint cp = this._g.Checkpoint();
 
                 // Free-growth passes (spine + branch) prefer Body — branches dead-end into pocket
-                // rooms; only routing passes prefer Connector (design-se §2).
-                GraphNode? child = this.PlaceNode(
-                    "branch", requiredType: exit.Type,
-                    anchor: new PortSlot(parent, exit), weights, constraints, forced: null);
-                if (child == null)
+                // rooms; only routing passes prefer Connector (design-se §2). The joint draw selects
+                // the (anchor slot, template) pair, so the branch's attachment node+port is seed-varying.
+                (GraphNode? child, PortSlot? slot) = this.PlaceNode(
+                    "branch", openSlots, requiredType: default, weights, constraints, forced: null);
+                if (child == null || slot == null)
                 {
-                    return; // no admissible template — soft-skip the rest of this branch
+                    return; // no admissible (slot, template) — soft-skip the rest of this branch
                 }
 
-                IGraphPort? entry = this.SelectOpenPort(child, exit.Type);
+                IGraphPort? entry = this.SelectOpenPort(child, slot.Port.Type);
                 if (entry == null)
                 {
                     return;
                 }
 
-                this._g.Connect(parent, exit, child, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Branch, rootOrdinal));
+                this._g.Connect((GraphNode)slot.Node, slot.Port, child, entry, provenance: new EdgeProvenance(EdgeProvenanceKind.Branch, rootOrdinal));
 
                 // Geometry gate (advisor mode): a branch child that cannot be placed on the grid is rolled
                 // back and the next fanout slot is tried, rather than shipping an unembeddable branch. No
@@ -1012,95 +1025,139 @@ internal static class GraphGenerator
                     continue;
                 }
 
-                this.GrowBranch(child, depth - 1, fanout, weights, constraints, rootOrdinal);
+                this.GrowBranch(this.OpenPortSlots(child), depth - 1, fanout, weights, constraints, rootOrdinal);
             }
         }
 
-        private GraphNode? PickBranchAnchor()
+        private List<PortSlot> PickBranchAnchors()
         {
+            var anchors = new List<PortSlot>();
             foreach (GraphNode node in this._g.Nodes)
             {
-                if (this.SelectOpenPort(node, requiredType: default) != null)
-                {
-                    return node;
-                }
+                anchors.AddRange(this.OpenPortSlots(node, requiredType: default));
             }
 
-            return null;
+            return anchors;
         }
 
         // ── Placement primitives ────────────────────────────────────────────
 
         /// <summary>
-        ///     Commits a new node: resolves a template then AddNode. Returns null when no template is
-        ///     constraint-admissible. Used commit-as-you-go for the spine (a mid-spine failure
-        ///     re-rolls the floor).
+        ///     Commits a new node: resolves a (template, slot) pair then AddNode. Returns the chosen slot
+        ///     so the caller connects the edge through the port the joint draw selected. Null template
+        ///     when no (slot, template) pair is constraint-admissible. Used commit-as-you-go for the spine
+        ///     (a mid-spine failure re-rolls the floor).
         /// </summary>
-        private GraphNode? PlaceNode(
-            string passKey, StringName requiredType,
-            PortSlot? anchor, IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
+        private (GraphNode? Node, PortSlot? Slot) PlaceNode(
+            string passKey, IReadOnlyList<PortSlot> anchors, StringName requiredType,
+            IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
             INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body, int minPorts = 1)
         {
             int ord = this._ordinal++;
             var nodeId = new StringName($"{passKey}{Sep}{ord}");
 
-            INodeTemplate? template = this.SelectTemplate(nodeId, requiredType, anchor, weights, constraints, passKey, ord, forced, pref, minPorts);
+            (INodeTemplate? template, PortSlot? slot) = this.SelectTemplate(
+                nodeId, anchors, requiredType, weights, constraints, passKey, ord, forced, pref, minPorts);
             if (template == null)
             {
-                return null;
+                return (null, null);
             }
 
-            return this._g.AddNode(nodeId, template);
+            return (this._g.AddNode(nodeId, template), slot);
         }
 
         /// <summary>
-        ///     Resolves a template for <paramref name="nodeId" />: hard-filters the pool by port-type
-        ///     compatibility + constraints, then weighted-draws a candidate. Returns null on an empty
-        ///     candidate set. Does NOT touch the graph — caller commits.
+        ///     Resolves a (template, slot) pair for <paramref name="nodeId" />. A forced template
+        ///     (pin) overrides free selection, pairing with the first compatible anchor slot (or null
+        ///     when no anchor is given). Otherwise the joint <see cref="WeightedDraw" /> picks one
+        ///     <c>(slot, template)</c> pair over the cross-product. Returns <c>(null, null)</c> when no
+        ///     pair is admissible. Does NOT touch the graph — caller commits.
         /// </summary>
-        private INodeTemplate? SelectTemplate(
-            StringName nodeId, StringName requiredType, PortSlot? anchor,
+        private (INodeTemplate?, PortSlot?) SelectTemplate(
+            StringName nodeId, IReadOnlyList<PortSlot> anchors, StringName requiredType,
             IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints,
             string passKey, int ordinal,
             INodeTemplate? forced = null, TemplateRole pref = TemplateRole.Body, int minPorts = 1)
         {
-            List<INodeTemplate> candidates;
             if (forced != null)
             {
                 // A pin overrides free selection (and the constraint + minPorts filters — it is
-                // authored intent); it still requires a port compatible with its predecessor.
-                candidates = HasOpenTypeMatch(forced, requiredType)
-                    ? new List<INodeTemplate> { forced }
-                    : new List<INodeTemplate>();
+                // authored intent); it still requires a port compatible with its predecessor. With a
+                // placement context the forced template must match some anchor slot; without one (the
+                // spine-source pin) it must match the caller's requiredType.
+                if (anchors.Count > 0)
+                {
+                    PortSlot? slot = this.FirstCompatibleSlot(anchors, forced);
+                    return slot == null ? (null, null) : (forced, slot);
+                }
+
+                return HasOpenTypeMatch(forced, requiredType)
+                    ? (forced, (PortSlot?)null)
+                    : (null, null);
             }
-            else
-            {
-                candidates = OrderByRolePreference(
-                    this._config.TemplatePool
-                        .Where(t => t.Ports.Count >= minPorts)
-                        .Where(t => HasOpenTypeMatch(t, requiredType))
-                        .Where(t => this.PassesConstraints(t, anchor, constraints))
-                        .ToList(),
-                    pref).ToList();
-            }
+
+            // Candidates are filtered by minPorts + constraints; per-slot type compatibility and the
+            // per-(slot, template) constraints are applied inside the joint draw, because a template
+            // admissible for one slot need not be for another. Empty anchors (spine source / route
+            // node) keep the caller's requiredType filter.
+            List<INodeTemplate> candidates = OrderByRolePreference(
+                this._config.TemplatePool
+                    .Where(t => t.Ports.Count >= minPorts)
+                    .Where(t => anchors.Count == 0 ? HasOpenTypeMatch(t, requiredType) : true)
+                    .ToList(),
+                pref).ToList();
 
             if (candidates.Count == 0)
             {
-                return null;
+                return (null, null);
             }
 
-            return this.WeightedDraw(candidates, passKey, nodeId, ordinal, anchor, weights);
+            return this.WeightedDraw(candidates, anchors, passKey, nodeId, ordinal, weights, constraints);
         }
 
-        private INodeTemplate WeightedDraw(
-            List<INodeTemplate> candidates, string passKey, StringName nodeId, int ordinal,
-            PortSlot? anchor, IReadOnlyList<SlotWeight> weights)
+        /// <summary>
+        ///     The joint weighted draw over the (slot, template) cross-product: each open anchor slot ×
+        ///     each type-compatible, constraint-admissible candidate scores its placement weight, and one
+        ///     pair is rolled. With zero authored weights every pair scores 1, so the draw is uniform
+        ///     over all open ports (the default behavior). The seed label is content-addressed per node,
+        ///     so widening the table does not shift any other draw stream.
+        /// </summary>
+        private (INodeTemplate?, PortSlot?) WeightedDraw(
+            List<INodeTemplate> candidates, IReadOnlyList<PortSlot> anchors,
+            string passKey, StringName nodeId, int ordinal,
+            IReadOnlyList<SlotWeight> weights, IReadOnlyList<SlotConstraint> constraints)
         {
             bool hasMetrics = this._g.TryGetMetrics(out _);
-            var choices = new List<(INodeTemplate Item, long Weight)>(candidates.Count);
-            foreach (INodeTemplate t in candidates)
+            var choices = new List<((INodeTemplate Template, PortSlot? Slot) Item, long Weight)>();
+
+            if (anchors.Count == 0)
             {
-                choices.Add((t, this.PlacementWeightProduct(anchor, t, weights, hasMetrics)));
+                // No placement context (spine source / route node): template-only, neutral weight,
+                // constraints skipped — matching the pre-joint-draw single-anchor path.
+                foreach (INodeTemplate t in candidates)
+                {
+                    choices.Add(((t, (PortSlot?)null), 1L));
+                }
+            }
+            else
+            {
+                foreach (PortSlot slot in anchors)
+                {
+                    foreach (INodeTemplate t in candidates)
+                    {
+                        if (!HasOpenTypeMatch(t, slot.Port.Type) || !this.PassesConstraints(t, slot, constraints))
+                        {
+                            continue;
+                        }
+
+                        choices.Add(((t, slot), this.PlacementWeightProduct(slot, t, weights, hasMetrics)));
+                    }
+                }
+            }
+
+            if (choices.Count == 0)
+            {
+                return (null, null);
             }
 
             var rng = this._rngFactory(SeedManager.DeriveChild(
@@ -1133,13 +1190,8 @@ internal static class GraphGenerator
             return Math.Max(1L, product);
         }
 
-        private bool PassesConstraints(INodeTemplate t, PortSlot? anchor, IReadOnlyList<SlotConstraint> constraints)
+        private bool PassesConstraints(INodeTemplate t, PortSlot anchor, IReadOnlyList<SlotConstraint> constraints)
         {
-            if (anchor == null)
-            {
-                return true; // no placement context (spine source / route node)
-            }
-
             bool hasMetrics = this._g.TryGetMetrics(out _);
             var placement = new Placement(anchor, t);
             foreach (SlotConstraint c in this._config.GlobalConstraints.Concat(constraints))
@@ -1170,6 +1222,37 @@ internal static class GraphGenerator
                 if (this.IsPortOpen(node.Id, port.Name) && TypeMatches(port.Type, requiredType))
                 {
                     return port;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        ///     Every open, type-compatible port on <paramref name="node" /> as a <see cref="PortSlot" />,
+        ///     in template order. The candidate universe for the joint (slot, template) draw.
+        /// </summary>
+        private List<PortSlot> OpenPortSlots(GraphNode node, StringName requiredType = default)
+        {
+            var slots = new List<PortSlot>();
+            foreach (IGraphPort port in node.Template.Ports)
+            {
+                if (this.IsPortOpen(node.Id, port.Name) && TypeMatches(port.Type, requiredType))
+                {
+                    slots.Add(new PortSlot(node, port));
+                }
+            }
+
+            return slots;
+        }
+
+        private PortSlot? FirstCompatibleSlot(IReadOnlyList<PortSlot> anchors, INodeTemplate template)
+        {
+            foreach (PortSlot slot in anchors)
+            {
+                if (HasOpenTypeMatch(template, slot.Port.Type))
+                {
+                    return slot;
                 }
             }
 
