@@ -10,7 +10,7 @@ using Core.AI.Navigation.SteeringModifiers;
 ///     mood or focus. For example, it can make an "avoid walls" consideration sometimes more
 ///     potent (cautious AI) and sometimes less potent (brave AI).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class NoiseSteeringModifier3D : SteeringConsiderationModifier3D
 {
     [ExportGroup("Influence Clamping")]

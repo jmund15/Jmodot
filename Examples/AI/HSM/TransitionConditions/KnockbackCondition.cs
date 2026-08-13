@@ -21,7 +21,7 @@ using Jmodot.Core.Combat;
 /// IForceCarrier.Force, but with different physical interpretation. Tune thresholds per
 /// the result type your effects emit.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class KnockbackCondition : CombatLogCondition
 {
     /// <summary>

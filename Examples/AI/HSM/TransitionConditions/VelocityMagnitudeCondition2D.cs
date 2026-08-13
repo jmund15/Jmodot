@@ -6,7 +6,7 @@ using Jmodot.Core.Movement;
 using Jmodot.Implementation.AI.BB;
 
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VelocityMagnitudeCondition2D : TransitionCondition
 {
     [Export] private float _velocityThreshold;

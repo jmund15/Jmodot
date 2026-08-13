@@ -25,7 +25,7 @@ using Implementation.AI.Navigation;
 ///     (DistanceScalingModifier3D) require specific context fields and should document those
 ///     dependencies via remarks.</para>
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class SteeringConsiderationModifier3D : Resource
 {
     /// <summary>

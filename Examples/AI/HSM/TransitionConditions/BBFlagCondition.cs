@@ -10,7 +10,7 @@ using Implementation.Shared;
 /// The flag is consumed (set to false) only when the transition commits via
 /// <see cref="OnTransitionCommitted"/>, ensuring the flag survives if CanExit() blocks.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class BBFlagCondition : TransitionCondition
 {
     /// <summary>

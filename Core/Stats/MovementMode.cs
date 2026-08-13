@@ -5,7 +5,7 @@ namespace Jmodot.Core.Stats;
 ///     (e.g., "Ground", "Air", "Swimming"). It is used as a type-safe key in dictionaries,
 ///     replacing brittle enums or strings and allowing designers to define new movement types.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class MovementMode : StatContext
 {
     //[Export] public string ModeName { get; private set; } = "Unnamed";

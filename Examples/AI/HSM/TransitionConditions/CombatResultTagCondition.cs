@@ -4,7 +4,7 @@ using Core.Combat;
 using Core.Combat.Reactions;
 using Jmodot.Core.Shared.Attributes;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CombatResultTagCondition : CombatLogCondition
 {
     [Export, RequiredExport] public Godot.Collections.Array<CombatTag> RequiredTags { get; set; } = null!;

@@ -13,7 +13,7 @@ using Jmodot.Core.Shared.Attributes;
 /// on the StatusEffectComponent. Used for state-based transitions like
 /// "exit freeze when freeze tag is no longer active".
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatusActiveCondition : TransitionCondition
 {
     /// <summary>

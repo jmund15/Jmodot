@@ -12,7 +12,7 @@ using Jmodot.Implementation.AI.Emotions;
 ///     <see cref="IEmotionalStateProvider"/> instead of affinities.
 ///     Example: Fear intensity boosts "Flee" consideration score.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class EmotionConsiderationModifier : ConsiderationModifier
 {
     /// <summary>The emotion to use for modification.</summary>

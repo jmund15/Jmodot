@@ -4,7 +4,7 @@ namespace Jmodot.Implementation.AI.Perception.Strategies;
 /// A decay strategy that provides zero memory after sensing stops.
 /// When a sensor loses contact, confidence immediately drops to zero.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class InstantForgetDecay : MemoryDecayStrategy
 {
     /// <inheritdoc />

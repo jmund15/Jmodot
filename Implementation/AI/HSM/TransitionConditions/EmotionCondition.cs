@@ -15,7 +15,7 @@ using Shared;
 ///     Mirrors <see cref="AffinityCondition"/> but reads from <see cref="IEmotionalStateProvider"/>
 ///     instead of <see cref="Affinities.AIAffinitiesComponent"/>.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class EmotionCondition : TransitionCondition
 {
     /// <summary>The emotion type to check intensity for.</summary>

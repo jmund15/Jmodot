@@ -6,7 +6,7 @@ using System.Collections.Generic;
 ///     Data-driven fold rule for one stage of an int modifier pipeline. Mirror of
 ///     <see cref="FloatModifierStageRule" /> — see it for the grouping/ordering contract.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class IntModifierStageRule : Resource
 {
     /// <summary>Stage identity. Modifiers sharing a StageId fold together in one <see cref="Reduce" /> call.</summary>

@@ -13,7 +13,7 @@ using Shared;
 ///     value (e.g., Fear) into a score multiplier, allowing for complex, non-linear
 ///     behavioral tuning.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AffinityCurveModifier : ConsiderationModifier
 {
     /// <summary>

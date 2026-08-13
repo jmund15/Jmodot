@@ -9,7 +9,7 @@ using Godot;
 /// was logged this physics frame. Used for triggering state transitions
 /// when a status effect (like Freeze, Stun) is applied.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatusAppliedCondition : CombatLogCondition
 {
     /// <summary>

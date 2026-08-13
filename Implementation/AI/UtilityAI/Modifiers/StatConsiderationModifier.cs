@@ -13,7 +13,7 @@ using Jmodot.Implementation.Shared;
 /// This allows AI behavior to be influenced by character statistics
 /// (e.g., low stamina reduces attack urgency).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatConsiderationModifier : ConsiderationModifier
 {
     /// <summary>

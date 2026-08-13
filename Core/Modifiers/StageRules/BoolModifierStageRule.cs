@@ -6,7 +6,7 @@ using System.Collections.Generic;
 ///     Data-driven fold rule for one stage of a bool modifier pipeline. No NeutralValue — efficacy
 ///     scaling never touches bool stats. See <see cref="FloatModifierStageRule" /> for the fold contract.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class BoolModifierStageRule : Resource
 {
     /// <summary>Stage identity. Modifiers sharing a StageId fold together in one <see cref="Reduce" /> call.</summary>

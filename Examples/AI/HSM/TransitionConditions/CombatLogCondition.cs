@@ -12,6 +12,7 @@ using Jmodot.Implementation.Shared;
 /// Abstract base for any condition that checks the Combat Event Log.
 /// Handles the safe retrieval of the log from the Blackboard.
 /// </summary>
+[Tool]
 public abstract partial class CombatLogCondition : TransitionCondition
 {
     /// <summary>

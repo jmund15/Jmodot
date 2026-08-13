@@ -9,7 +9,7 @@ using Jmodot.Core.Identification;
 /// Used to determine what happens when effects with different categories
 /// interact (e.g., Water cancels Fire). Lookups use hierarchical matching.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CategoryInteractionRegistry : Resource
 {
     /// <summary>

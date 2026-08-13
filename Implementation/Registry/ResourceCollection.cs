@@ -7,7 +7,7 @@ using Godot.Collections;
 ///     It supports both bulk-loading from directories and explicit inclusion/exclusion,
 ///     providing a scalable yet granular way to populate registries.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ResourceCollection : Resource
 {
     /// <summary>

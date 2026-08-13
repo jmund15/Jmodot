@@ -8,7 +8,7 @@ using System.Collections.Generic;
 ///     orders the groups by <see cref="Order" />, and folds each group via <see cref="Reduce" />.
 ///     Adding a new fold behaviour is a new concrete + a new <c>.tres</c> — no strategy code change.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class FloatModifierStageRule : Resource
 {
     /// <summary>Stage identity. Modifiers sharing a StageId fold together in one <see cref="Reduce" /> call.</summary>

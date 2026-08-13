@@ -6,7 +6,7 @@ using Jmodot.Core.Modifiers;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Stats;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class RandomAttributeModifierGroup : Resource
 {
     [Export] public Array<Attribute> PossibleAttributes { get; private set; } = new();

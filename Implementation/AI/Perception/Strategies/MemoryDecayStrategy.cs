@@ -5,7 +5,7 @@ namespace Jmodot.Implementation.AI.Perception.Strategies;
 ///     This enables a data-driven approach, allowing designers to create various decay models (linear, exponential, etc.)
 ///     and apply them to different sensors or objects to fine-tune AI behavior.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class MemoryDecayStrategy : Resource
 {
     /// <summary>

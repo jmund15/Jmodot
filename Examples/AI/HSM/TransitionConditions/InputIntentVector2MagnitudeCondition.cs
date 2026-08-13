@@ -6,7 +6,7 @@ using Core.Input;
 using Implementation.AI.BB;
 using Jmodot.Core.Shared.Attributes;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class InputIntentVector2MagnitudeCondition : TransitionCondition
 {
     [Export, RequiredExport] private InputAction _requiredAction = null!;

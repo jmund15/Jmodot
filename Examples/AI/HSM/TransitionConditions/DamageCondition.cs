@@ -4,7 +4,7 @@ using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DamageCondition : CombatLogCondition
 {
     /// <summary>

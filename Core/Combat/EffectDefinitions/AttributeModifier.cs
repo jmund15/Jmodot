@@ -7,7 +7,7 @@ using Stats;
 /// A pair of an Attribute and an AttributeOperation.
 /// Used by <see cref="ModifiedFloatDefinition"/> to define how each attribute modifies the value.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AttributeModifier : Resource
 {
     [Export, RequiredExport] public Attribute Attribute { get; set; } = null!;

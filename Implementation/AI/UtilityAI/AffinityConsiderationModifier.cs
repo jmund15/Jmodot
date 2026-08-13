@@ -11,7 +11,7 @@ using Jmodot.Implementation.AI.BB;
 /// Generalized affinity modifier that adjusts consideration scores based on any affinity.
 /// Replaces hardcoded FearAffinityModifier with a data-driven approach.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AffinityConsiderationModifier : ConsiderationModifier
 {
     /// <summary>

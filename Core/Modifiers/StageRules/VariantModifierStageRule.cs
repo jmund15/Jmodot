@@ -6,7 +6,7 @@ using System.Collections.Generic;
 ///     Data-driven fold rule for one stage of a Variant modifier pipeline. No NeutralValue — efficacy
 ///     scaling never touches Variant stats. See <see cref="FloatModifierStageRule" /> for the fold contract.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class VariantModifierStageRule : Resource
 {
     /// <summary>Stage identity. Modifiers sharing a StageId fold together in one <see cref="Reduce" /> call.</summary>

@@ -10,7 +10,7 @@ using Jmodot.Core.Identification;
 /// Uses hierarchical matching via <see cref="Category.IsOrDescendsFrom"/>, so
 /// a rule targeting "Fire" matches any tag descending from Fire (e.g., Burn, Smolder).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CategoryInteraction : Resource
 {
     /// <summary>

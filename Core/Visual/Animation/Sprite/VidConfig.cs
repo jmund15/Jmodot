@@ -2,7 +2,7 @@ namespace Jmodot.Core.Visual.Animation.Sprite;
 
 using Jmodot.Core.Shared.Attributes;
 
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class VidConfig : Resource
 {
     [Export, RequiredExport] public SlotKey Key { get; private set; } = null!;

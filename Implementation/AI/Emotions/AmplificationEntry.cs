@@ -9,7 +9,7 @@ using Jmodot.Core.AI.Affinities;
 ///     <see cref="AmplificationCurve"/> maps affinity value [0,1] → multiplier.
 ///     Falls back to <see cref="DefaultMultiplier"/> when no curve is assigned.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AmplificationEntry : Resource
 {
     /// <summary>Which personality trait drives this emotion's amplification.</summary>

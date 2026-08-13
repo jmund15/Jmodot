@@ -10,7 +10,7 @@ using Jmodot.Implementation.Combat;
 /// <see cref="ICollisionPhysicsStrategy"/> interface, only a <see cref="Resource"/>-derived type.
 /// Concrete strategies (Impact, Slide, Pierce) derive from this.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class CollisionPhysicsStrategy : Resource, ICollisionPhysicsStrategy
 {
     /// <inheritdoc cref="ICollisionPhysicsStrategy.Apply"/>

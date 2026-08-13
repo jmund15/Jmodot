@@ -22,7 +22,7 @@ using GCol = Godot.Collections;
 /// texture or <c>null</c> if unmapped. Callers fall back to text-only
 /// rendering when <c>null</c> is returned.</para>
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class InputGlyphRegistry : Resource
 {
     /// <summary>Maps physical keycodes (Key.W, Key.Space, etc.) to glyph textures.</summary>
@@ -38,7 +38,7 @@ public partial class InputGlyphRegistry : Resource
     /// = LT, axis 5 = RT) which are analog motion events but semantically
     /// "press" actions. Also usable for whole-stick activation prompts
     /// (axis 0/1 = Left Stick, axis 2/3 = Right Stick); for per-direction
-    /// stick glyphs, the <c>VectorGlyphHint</c> text system handles
+    /// stick glyphs, the <see cref="VectorGlyphHint"/> text system handles
     /// movement/aim clusters instead.
     ///
     /// <para><b>Direction is not encoded</b> — the dict key is axis only.

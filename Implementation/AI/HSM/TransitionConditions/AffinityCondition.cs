@@ -13,7 +13,7 @@ using Shared;
 ///     HSM transition condition that evaluates an agent's affinity value against a threshold.
 ///     Example: Transition to "Flee" state when Fear > 0.7
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AffinityCondition : TransitionCondition
 {
     /// <summary>

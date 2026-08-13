@@ -9,7 +9,7 @@ using Jmodot.Core.Shared.Attributes;
 /// A transition condition that checks for a variable within the blackboard.
 /// If equal to the given value, the condition returns true
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class BBBoolCondition : TransitionCondition
 {
     /// <summary>

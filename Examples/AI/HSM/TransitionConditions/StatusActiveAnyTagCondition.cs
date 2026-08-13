@@ -14,14 +14,14 @@ using GCol = Godot.Collections;
 /// OR-mode counterpart to <see cref="StatusActiveCondition"/>.
 /// </summary>
 /// <remarks>
-/// Used by <c>BehaviorSuppressedState</c> entry/exit transitions — author the
+/// Used by <see cref="Jmodot.Implementation.AI.HSM.BehaviorSuppressedState"/> entry/exit transitions — author the
 /// list of behavior-altering tags (freeze, stun, root, etc.) once on the entry
 /// transition .tres and the same list with <see cref="Inverted"/>=true on the
 /// exit transition. Adding a new behavior-altering status type means adding it
 /// to those arrays plus a new ProfileMap entry on the entity, no new
 /// transition class needed.
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class StatusActiveAnyTagCondition : TransitionCondition
 {
     /// <summary>

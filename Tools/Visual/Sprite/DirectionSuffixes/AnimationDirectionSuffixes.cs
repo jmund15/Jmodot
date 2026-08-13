@@ -7,7 +7,7 @@ using Godot;
 /// Defines a template for sprite sheet directions.
 /// Maps column indices to direction names.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public abstract partial class AnimationDirectionSuffixes : Resource
 {
     /// <summary>

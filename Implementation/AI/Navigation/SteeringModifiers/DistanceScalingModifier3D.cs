@@ -31,7 +31,7 @@ using Jmodot.Core.Shared.Attributes;
 ///     effect). ZoneBoundaryConsideration3D (already distance-based internally — applying
 ///     distance scaling adds no value).</para>
 /// </remarks>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class DistanceScalingModifier3D : SteeringConsiderationModifier3D
 {
     [Export(PropertyHint.Range, "1.0, 50.0, 0.5")]

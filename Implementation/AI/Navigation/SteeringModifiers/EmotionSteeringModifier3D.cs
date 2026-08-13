@@ -15,7 +15,7 @@ using Shared;
 ///     Mirrors <see cref="AffinitySteeringModifier3D"/> but reads from <see cref="IEmotionalStateProvider"/>.
 ///     Example: High fear intensity amplifies avoidance directions.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class EmotionSteeringModifier3D : SteeringConsiderationModifier3D
 {
     [Export, RequiredExport] private EmotionType _emotionToMeasure = null!;

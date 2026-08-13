@@ -5,7 +5,7 @@ namespace Jmodot.Implementation.AI.Perception.Strategies;
 ///     to decrease linearly over a set duration. This provides a common, predictable decay model
 ///     that can be easily created and configured by designers in the Godot editor.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class LinearMemoryDecay : MemoryDecayStrategy
 {
     /// <summary>

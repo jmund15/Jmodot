@@ -10,7 +10,7 @@ using Core.Stats;
 /// The returned value IS the new velocity — no stat lookups or scaling are performed.
 /// </para>
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class ProjectileStrategy : BaseMovementStrategy3D
 {
     public override Vector3 CalculateVelocity(Vector3 currentVelocity, Vector3 desiredDirection, Vector3 previousDirection, IStatProvider stats, float delta)

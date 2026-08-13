@@ -7,7 +7,7 @@ using Jmodot.Implementation.ProcGen.Graph;
 ///     <see cref="Placement" /> during graph generation. The generator hard-filters candidates with
 ///     <c>config.Constraints.All(c =&gt; c.IsAdmissible(...))</c> before soft-weighting survivors.
 ///     <para>
-///         Mirrors the <c>TransitionCondition</c> precedent: a <c>[GlobalClass,Tool]</c> Resource
+///         Mirrors the <see cref="Jmodot.Core.AI.HSM.TransitionCondition" /> precedent: a <c>[GlobalClass,Tool]</c> Resource
 ///         with <c>[Export]</c> tuning fields on each subclass and a pure evaluation method.
 ///         <b>Stateless by contract</b> — no mutable instance fields beyond <c>[Export]</c>s, so a
 ///         single <c>.tres</c> can be shared across consumers without cross-stomp

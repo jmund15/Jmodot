@@ -17,7 +17,7 @@ using Shared;
 /// When Value=true: returns true if any active memory exists for the category (→ "threatened")
 /// When Value=false: returns true if NO active memories exist (→ "safe, return to wander")
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class PerceptionHasMemoryCondition : TransitionCondition
 {
     [Export, RequiredExport] private Category _category = null!;

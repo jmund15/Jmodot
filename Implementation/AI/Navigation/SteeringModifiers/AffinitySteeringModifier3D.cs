@@ -15,7 +15,7 @@ using Shared;
 ///     It uses a Curve resource to translate an affinity value into a multiplier, allowing designers
 ///     to visually sculpt how personality traits affect movement choices.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class AffinitySteeringModifier3D : SteeringConsiderationModifier3D
 {
     [Export, RequiredExport] private Affinity _affinityToMeasure = null!;

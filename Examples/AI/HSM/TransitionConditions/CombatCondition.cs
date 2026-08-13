@@ -12,7 +12,7 @@ using Jmodot.Core.Combat;
 /// amount thresholds, and force thresholds. Designed to replace or complement
 /// specialized conditions (DamageCondition, KnockbackCondition, etc.).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class CombatCondition : CombatLogCondition
 {
     [Export] public CombatResultType ResultType { get; set; } = CombatResultType.Any;

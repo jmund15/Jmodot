@@ -7,7 +7,7 @@ namespace Jmodot.Core.AI.Emotions;
 ///     but semantically distinct: affinities are stable personality traits, emotions are
 ///     transient runtime reactions.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class EmotionType : Resource
 {
     [Export] public string EmotionName { get; private set; } = "Unnamed Emotion";

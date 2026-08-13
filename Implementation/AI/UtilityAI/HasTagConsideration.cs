@@ -9,7 +9,7 @@ using Jmodot.Core.AI.BB;
 /// 0.0 otherwise. Uses the blackboard's parent-chain lookup, so individual agents automatically
 /// read a tag published on an ancestor scope (e.g. a squad graph).
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class HasTagConsideration : UtilityConsideration
 {
     [Export]
