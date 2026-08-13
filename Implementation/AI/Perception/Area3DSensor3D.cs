@@ -38,12 +38,12 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     [ExportGroup("Filtering")]
     [Export] private Godot.Collections.Array<Category> _categoryFilter = new();
 
-    [ExportGroup("Tracking")]
     /// <summary>
     /// When enabled, bodies inside the sensor area are re-polled each physics frame
     /// to update their position and velocity. Enable for moving targets (threats, players).
     /// Leave disabled for static targets (obstacles, environment) to avoid per-frame cost.
     /// </summary>
+    [ExportGroup("Tracking")]
     [Export] private bool _continuousTracking;
 
     /// <summary>
@@ -59,7 +59,6 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     [Export(PropertyHint.Range, "0.05, 1.0, 0.05")]
     private float _pollInterval = 0.25f;
 
-    [ExportGroup("Line of Sight")]
     /// <summary>
     /// When enabled, overlap alone is not detection: a body only produces percepts while an
     /// occlusion ray from this sensor to it is clear. Blocked bodies stay tracked and re-check
@@ -68,6 +67,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     /// mirroring body-exit. Applies to the signal/tracking path only, not StaticBodyPolling
     /// (obstacle sensors sense the occluders themselves).
     /// </summary>
+    [ExportGroup("Line of Sight")]
     [Export] private bool _requireLineOfSight;
 
     /// <summary>Physics layers that BLOCK sight (walls, closed doors). The ray excludes this

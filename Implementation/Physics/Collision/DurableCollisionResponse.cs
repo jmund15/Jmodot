@@ -20,7 +20,6 @@ public abstract partial class DurableCollisionResponse : BaseCollisionResponse
     private BaseSelfDamageDefinition? _selfDamageDefinition;
     private BaseIntValueDefinition? _maxCountDefinition;
 
-    [ExportGroup("Durability")]
     /// <summary>
     /// Defines how self-damage is calculated per collision.
     /// Use SimpleSelfDamageDefinition for flat/stat-driven, ImpactSelfDamageDefinition for velocity-based.
@@ -28,6 +27,7 @@ public abstract partial class DurableCollisionResponse : BaseCollisionResponse
     /// NOT [Export] — serialization handled via _Set/_Get/_GetPropertyList to avoid
     /// InvalidCastException in the generated setter during [Tool] deserialization.
     /// </summary>
+    [ExportGroup("Durability")]
     public BaseSelfDamageDefinition? SelfDamageDefinition
     {
         get => _selfDamageDefinition;
@@ -47,8 +47,8 @@ public abstract partial class DurableCollisionResponse : BaseCollisionResponse
         set => _maxCountDefinition = value;
     }
 
-    [ExportGroup("Physics")]
     /// <summary>Velocity multiplier after this collision (0.0–1.0).</summary>
+    [ExportGroup("Physics")]
     [Export(PropertyHint.Range, "0,1")] public float VelocityRetention { get; set; } = 1.0f;
 
     /// <summary>
@@ -70,13 +70,13 @@ public abstract partial class DurableCollisionResponse : BaseCollisionResponse
     /// </summary>
     [Export(PropertyHint.Range, "0,50,0.1")] public float VelocityFallbackThreshold { get; set; } = 0f;
 
-    [ExportGroup("Fallback")]
     /// <summary>
     /// When MaxCount is exhausted, use this response instead of destroying.
     /// Enables patterns like bounce->slide, bounce->destroy, pierce->persist, etc.
     /// NOT [Export] — serialization handled via _Set/_Get/_GetPropertyList to avoid
     /// InvalidCastException in the generated setter during [Tool] deserialization.
     /// </summary>
+    [ExportGroup("Fallback")]
     public BaseCollisionResponse? FallbackResponse
     {
         get => _fallbackResponse;

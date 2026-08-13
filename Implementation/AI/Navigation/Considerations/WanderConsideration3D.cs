@@ -20,13 +20,12 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
 
-    [ExportGroup("Noise Configuration")]
-
     /// <summary>
     /// The noise resource driving direction variation. Controls temporal evolution
-    /// speed via its Frequency property: low frequency = lazy drift,
+    /// speed via its <c>Frequency</c> property: low frequency = lazy drift,
     /// high frequency = jittery exploration.
     /// </summary>
+    [ExportGroup("Noise Configuration")]
     [Export]
     private FastNoiseLite? _noise;
 

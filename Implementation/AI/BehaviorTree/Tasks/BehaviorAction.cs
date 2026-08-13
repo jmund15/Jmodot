@@ -23,12 +23,12 @@ public abstract partial class BehaviorAction : BehaviorTask
     /// </summary>
     [Export] protected InterruptibleChange SelfInterruptible = InterruptibleChange.NoChange;
 
-    [ExportGroup("Movement Quirks")]
     /// <summary>
     /// Movement quirks registered on the entity's quirk processor while this action is active.
     /// Registration is refcounted, so a quirk shared with a State or another action survives until
     /// every holder releases it.
     /// </summary>
+    [ExportGroup("Movement Quirks")]
     [Export] protected GColl.Array<MovementQuirk3D> ActionQuirks { get; private set; } = new();
 
     private MovementQuirkProcessor3D? _quirkProcessor;

@@ -48,8 +48,8 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
     /// </summary>
     [Export] public SlotFallbackPolicy FallbackPolicy { get; set; } = SlotFallbackPolicy.NearestDirectional;
 
-    [ExportGroup("Slot Behavior")]
     /// <summary>If false, <see cref="Unequip"/> reverts to <see cref="DefaultItem"/> (or no-ops).</summary>
+    [ExportGroup("Slot Behavior")]
     [Export] public bool IsOptional { get; set; } = true;
 
     /// <summary>Equipped automatically by the composer if the slot is empty after wiring.</summary>

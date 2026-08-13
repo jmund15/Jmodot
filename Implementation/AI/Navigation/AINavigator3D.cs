@@ -28,11 +28,11 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
     private Node3D _ownerAgent = null!;
     private NavigationProfile _activeProfile= null!;
 
-    [ExportGroup("Pathing Optimization")]
     /// <summary>
     /// To prevent excessive path requests, new navigation commands to a position within this
     /// distance (in meters) of the last calculated path's target will be ignored.
     /// </summary>
+    [ExportGroup("Pathing Optimization")]
     [Export(PropertyHint.Range, "0.1, 5.0, 0.1")]
     public float RecalculationThreshold { get; private set; } = 1.0f;
 

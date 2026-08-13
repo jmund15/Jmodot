@@ -18,18 +18,15 @@ public enum StaticBodyResponseMode { Avoid, Attract }
 /// A consideration that scores directions based on proximity to static bodies of a specific Category.
 /// It is used to create avoidance or attraction behaviors towards environmental objects like walls,
 /// cover points, or hazards.
-///
-/// Note: propagation now bleeds symmetrically in sign, so attaching a SteeringPropagationConfig makes
-/// negative avoidance scores spread a danger gradient to neighboring directions for smoother steering.
 /// </summary>
 [GlobalClass, Tool]
 public partial class StaticBody3DConsideration : BaseAIConsideration3D
 {
-    [ExportGroup("Behavior Tuning")]
     /// <summary>
     /// Whether proximity to the target category repels (Avoid → danger) or attracts (Attract → interest).
     /// Contribution magnitude is owned by the base <see cref="BaseAIConsideration3D.Weight"/>.
     /// </summary>
+    [ExportGroup("Behavior Tuning")]
     [Export] public StaticBodyResponseMode Mode { get; private set; } = StaticBodyResponseMode.Avoid;
 
     /// <summary>
@@ -39,12 +36,12 @@ public partial class StaticBody3DConsideration : BaseAIConsideration3D
 
     private bool _missingMemoryLogged;
 
-    [ExportGroup("Distance Weighting")]
     /// <summary>
     /// Defines the range over which the consideration's weight is applied.
     /// X: The distance at which the full weight is applied (max danger/interest).
     /// Y: The distance at which the weight fades to zero.
     /// </summary>
+    [ExportGroup("Distance Weighting")]
     [Export] private Vector2 _distanceDiminishRange = new Vector2(1.0f, 5.0f);
 
     protected override Dictionary<Vector3, float> CalculateBaseScores(DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard, AIConsiderationRuntime? runtime)

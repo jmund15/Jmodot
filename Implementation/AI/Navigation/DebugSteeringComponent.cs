@@ -10,17 +10,12 @@ using Jmodot.Implementation.Shared;
 /// a stack of arrows colored per contributing consideration (interest positive / danger negative),
 /// a hollow marker on hard-masked bins, and a ring on the committed bin. Reads the processor's
 /// <see cref="DebugSteeringRecorder"/> — it never mutates steering state.
-///
-/// Mirrors the flat-sibling Debug&lt;Subsystem&gt;Component family (e.g. DebugFormationComponent).
-/// Default OFF: it ships on npc_template (inherited by every NPC) and stays inert until a developer
-/// flips the toggle on a specific instance.
 /// </summary>
 [GlobalClass]
 public partial class DebugSteeringComponent : Node
 {
-    [ExportGroup("Visualization")]
-
     /// <summary>Master toggle. Off by default so inherited NPC scenes are inert until opted in.</summary>
+    [ExportGroup("Visualization")]
     [Export] private bool _enableDebug = false;
 
     /// <summary>World-space length multiplier for the per-bin arrow stacks.</summary>
@@ -35,9 +30,8 @@ public partial class DebugSteeringComponent : Node
     /// <summary>Ring color for the synthesis-committed bin.</summary>
     [Export] private Color _committedColor = new(1f, 1f, 1f, 0.9f);
 
+    /// <summary>The steering processor to visualize. If unset, resolved from a sibling at <c>_Ready</c>.</summary>
     [ExportGroup("References")]
-
-    /// <summary>The steering processor to visualize. If unset, resolved from a sibling at _Ready.</summary>
     [Export] private AISteeringProcessor3D? _processor;
 
     private DebugSteeringRecorder? _recorder;

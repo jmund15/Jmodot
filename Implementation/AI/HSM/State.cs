@@ -53,12 +53,12 @@ public partial class State : Node, IState
     /// </summary>
     [Export] protected StatContext? ActiveStatContext;
 
-    [ExportGroup("Movement Quirks")]
     /// <summary>
     /// Movement quirks registered on the entity's quirk processor while this state is active.
     /// Registration is refcounted, so a quirk shared with another state or BehaviorAction survives
     /// until every holder releases it.
     /// </summary>
+    [ExportGroup("Movement Quirks")]
     [Export] protected GColl.Array<MovementQuirk3D> StateQuirks { get; private set; } = new();
 
     private MovementQuirkProcessor3D? _quirkProcessor;

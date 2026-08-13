@@ -18,13 +18,12 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
 
-    [ExportGroup("Formation Behavior")]
-
     /// <summary>
     /// If true, the member occupying slot 0 is not affected by this consideration — but only while the
     /// squad actually has a designated leader. Leaders drive the formation position rather than follow it;
     /// in a leaderless squad slot 0 is just the centre of the formation and its occupant must still steer.
     /// </summary>
+    [ExportGroup("Formation Behavior")]
     [Export]
     private bool _excludeLeader = true;
 

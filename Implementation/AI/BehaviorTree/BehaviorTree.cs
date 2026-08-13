@@ -78,10 +78,10 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
     /// </summary>
     [Export] public RestartPolicy Policy { get; private set; } = RestartPolicy.AlwaysRestart;
 
-    [ExportGroup("Debugging")]
     /// <summary>
     /// If true, a debug overlay will be instantiated to visualize the tree's activity at runtime.
     /// </summary>
+    [ExportGroup("Debugging")]
     [Export] private bool _enableDebugView = false;
 
     [Export] private DebugAIPanel.DebugViewPosition _debugViewPosition = DebugAIPanel.DebugViewPosition.TopLeft;

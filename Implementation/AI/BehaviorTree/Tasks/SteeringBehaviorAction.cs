@@ -24,9 +24,9 @@ public partial class SteeringBehaviorAction : BehaviorAction
     [ExportGroup("Navigation Path Override")]
     [Export] private NavigationPath3DConsideration? _navPathOverride;
 
-    [ExportGroup("Synthesis Override")]
     /// <summary>Optional per-action synthesis strategy claimed on enter (owned-slot, owner = task Name)
     /// and released on exit. A conflicting concurrent claim is rejected+warned by the processor.</summary>
+    [ExportGroup("Synthesis Override")]
     [Export] private SteeringSynthesisStrategy3D? _synthesisOverride;
 
     private AISteeringProcessor3D? _cachedSteering;

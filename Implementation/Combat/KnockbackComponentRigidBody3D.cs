@@ -61,19 +61,19 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	/// </summary>
 	[Export, RequiredExport] public RigidBody3D TargetRigidBody { get; set; } = null!;
 
-	[ExportGroup("Behavior")]
 	/// <summary>
 	/// If true, the Y component of the impulse is zeroed before <see cref="RigidBody3D.ApplyCentralImpulse"/> —
 	/// keeps the entity grounded under horizontal pushes.
 	/// </summary>
+	[ExportGroup("Behavior")]
 	[Export] public bool FlattenKnockback { get; private set; } = true;
 
-	[ExportGroup("Stats")]
 	/// <summary>
 	/// Resistance to knockback forces. Resolved via the polymorphic
 	/// <see cref="BaseFloatValueDefinition"/> family (constant or stat-driven). Null → 0.
 	/// Resistance formula: <c>resistanceFactor = 1 / (1 + stability)</c>.
 	/// </summary>
+	[ExportGroup("Stats")]
 	[Export] public BaseFloatValueDefinition? Stability { get; private set; }
 
 	#endregion

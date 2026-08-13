@@ -18,11 +18,11 @@ public partial class IdleFrictionStrategy2D : BaseMovementStrategy2D
     [ExportGroup("Stat Bindings")]
     [Export, RequiredExport] private Attribute _frictionAttr = null!;
 
-    [ExportGroup("Behavior")]
     /// <summary>
     /// Speed below which velocity is snapped to zero. Prevents sub-pixel
     /// drift and unintended perpetual motion from floating-point residue.
     /// </summary>
+    [ExportGroup("Behavior")]
     [Export(PropertyHint.Range, "0, 10, 0.01")]
     private float _stopThreshold = 0.1f;
 
