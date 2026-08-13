@@ -24,9 +24,8 @@ using GCol = Godot.Collections;
 /// <summary>
 /// Combat Effect that applies a stat modifier
 /// </summary>
-/// <typeparam name="T"></typeparam>
 /// <remarks>
-/// Note: This struct implements ICombatEffect/IRevertibleCombatEffect, which causes boxing
+/// This struct implements <see cref="IRevertibleCombatEffect"/>, which causes boxing
 /// when passed as interface references. This is an acceptable trade-off for hit-frequency
 /// operations (not hot-path per-frame code).
 /// </remarks>

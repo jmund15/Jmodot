@@ -13,7 +13,7 @@ using Jmodot.Implementation.Shared;
 /// <para>
 /// COMPOSED by HurtboxComponent3D/2D (not inherited) so the 2D/3D pair share one implementation and
 /// the derivation + provenance 2×2 stay pure-CLR testable (no Godot Node). Plain counter dict — a raw
-/// <c>hitIdx</c>, NOT an L1 <c>SeedSequence</c>: the formula needs the two-int-segment
+/// <c>hitIdx</c>, NOT an L1 <see cref="SeedSequence"/>: the formula needs the two-int-segment
 /// <c>DeriveChild</c> overload a single-index SeedSequence can't express, and these counters are
 /// transient (cleared on the receiver's pool return), never save-serialized.
 /// </para>

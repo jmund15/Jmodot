@@ -27,7 +27,7 @@ public partial class StatChainResponse : BaseCollisionResponse
 
     /// <summary>
     /// Selected when no chain entry's DispatchStat is positive. Typically a leaf
-    /// <c>DestroyCollisionResponse</c> for "single-target on contact" behavior.
+    /// <see cref="DestroyCollisionResponse"/> for "single-target on contact" behavior.
     /// </summary>
     [Export, RequiredExport] public BaseCollisionResponse Fallback { get; private set; } = null!;
 

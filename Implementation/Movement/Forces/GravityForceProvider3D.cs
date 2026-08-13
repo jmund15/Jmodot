@@ -19,8 +19,7 @@ using Shared.GodotExceptions;
 /// entity's stat value for that Attribute, read via <see cref="BBDataSig.Stats"/> →
 /// <see cref="IStatProvider"/>. This lets designers tune fall-speed per archetype on
 /// the stat sheet (heavy enemies fall fast, light/floaty enemies fall slowly). Wires
-/// the same <c>gravity_scale</c> attribute spells use (see e.g. fireball_statsheet.tres
-/// or <c>DelayedGravityActivationEffectInstance</c> for the spell-side write pattern).
+/// the same <c>gravity_scale</c> attribute spells use.
 /// When the export is null OR the BB / stats lookup fails, the scale defaults to 1.0
 /// (back-compat — entities that don't opt in see raw gravity).
 /// </para>
@@ -40,7 +39,7 @@ using Shared.GodotExceptions;
 ///
 /// <para><b>Composition with status effects:</b> the gravity_scale stat is a regular
 /// <see cref="IStatProvider"/> stat, so future Heavy/Levitate status effects can apply
-/// <c>FloatAttributeModifier</c>s to it via the standard modifier pipeline (compose,
+/// <see cref="Jmodot.Core.Modifiers.FloatAttributeModifier"/>s to it via the standard modifier pipeline (compose,
 /// don't override — per <c>Modifier_Pipeline_Consistency</c>). The provider reads the
 /// final modified value at every physics tick.</para>
 /// </summary>

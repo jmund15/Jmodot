@@ -35,34 +35,31 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
 
-    [ExportGroup("Zone Shape")]
-
     /// <summary>
     /// Zone geometry definition (sphere, box, etc.). Handles normalized distance
     /// and direction-to-interior calculations for the configured shape.
     /// When set: uses shape-based evaluation with self-managed or BB center.
     /// When null: falls back to legacy Vector4 BB path.
     /// </summary>
+    [ExportGroup("Zone Shape")]
     [Export]
     private ZoneShape3D? _zoneShape;
-
-    [ExportGroup("Zone Center")]
 
     /// <summary>
     /// Optional BB key for externally-managed zone center.
     /// When null (default): center auto-captured from agent's first evaluation position.
     /// When set: center read from BB as Vector4(centerX, centerY, centerZ, *).
-    /// Also enables legacy Vector4 path when _zoneShape is null.
+    /// Also enables the legacy Vector4 path when <see cref="_zoneShape"/> is null.
     /// </summary>
+    [ExportGroup("Zone Center")]
     [Export]
     private StringName? _boundaryZoneKey;
-
-    [ExportGroup("Penalty (Away-From-Center Repulsion)")]
 
     /// <summary>
     /// Normalized distance where the penalty ramp begins.
     /// 0.7 means penalty starts at 70% of the way from center to edge.
     /// </summary>
+    [ExportGroup("Penalty (Away-From-Center Repulsion)")]
     [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
     private float _penaltyRampStart = 0.7f;
 
@@ -80,12 +77,11 @@ public partial class ZoneBoundaryConsideration3D : BaseAIConsideration3D
     [Export]
     private Curve? _penaltyCurve;
 
-    [ExportGroup("Attraction (Toward-Center Pull)")]
-
     /// <summary>
     /// Normalized distance where attraction begins.
     /// 1.0 = outside zone only (default). 0.0 = attraction everywhere.
     /// </summary>
+    [ExportGroup("Attraction (Toward-Center Pull)")]
     [Export(PropertyHint.Range, "0.0, 2.0, 0.05")]
     private float _attractionRampStart = 1.0f;
 

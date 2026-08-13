@@ -13,8 +13,7 @@ using Jmodot.Core.Shared;
 ///     <para>
 ///         Consumed polymorphically — the generator calls <see cref="Validate" /> at generation
 ///         start through this reference and never downcasts to the concrete profile (BOUNDARY
-///         invariant). The PP-side <c>FloorSkeletonProfile</c> is the authored implementation.
-///     </para>
+///         invariant).///     </para>
 /// </summary>
 public interface ISkeletonConfig
 {
@@ -45,7 +44,7 @@ public interface ISkeletonConfig
     /// <summary>
     ///     Fail-fast topology feasibility check, run at generation start. Throws
     ///     <see cref="System.ArgumentException" /> on a per-knob range violation (delegated to
-    ///     <c>IntRange.Validate</c>) or <c>ResourceConfigurationException</c> on a cross-knob /
+    ///     <c>IntRange.Validate</c>) or <see cref="Jmodot.Implementation.Shared.GodotExceptions.ResourceConfigurationException" /> on a cross-knob /
     ///     structural violation (over-subscribed budget, out-of-range pin, degenerate pool).
     /// </summary>
     void Validate();

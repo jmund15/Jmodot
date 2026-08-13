@@ -128,11 +128,10 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <summary>
     ///     Emitted whenever the final calculated value of a stat changes.
     ///     This is the primary mechanism for decoupled systems (like UI or HealthComponents) to react to data changes.
-    ///     Note: This is currently emitted only during initialization. A full implementation would require
-    ///     ModifiableProperty to raise an event when its value changes, which this StatController would subscribe to.
+    ///     Handlers receive the changed attribute and its new final calculated value.
     /// </summary>
-    /// <param name="attribute">The attribute whose value has changed.</param>
-    /// <param name="newValue">The new final calculated value.</param>
+    // Currently emitted only during initialization and from NotifySubscribers; ModifiableProperty
+    // does not yet raise its own value-changed event for this controller to forward.
     public event Action<Attribute, Variant> OnStatChanged = null!;
 
     private readonly Dictionary<Attribute, Action<Variant>> _subscriptions = new();
@@ -178,11 +177,10 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <summary>
     ///     Retrieves the underlying ModifiableProperty object for a given attribute. This is the
     ///     correct method to use for systems that need to ADD or REMOVE modifiers (e.g., buff/debuff systems).
-    ///     It automatically handles the contextual fallback logic.
     /// </summary>
     /// <param name="attribute">The attribute to retrieve the property for.</param>
-    /// <param name="context">Optional: The current MovementMode. If provided, will search for a contextual stat first.</param>
-    /// <returns>The ModifiableProperty object, or null if the entity does not have the specified attribute.</returns>
+    /// <returns>The ModifiableProperty object. Throws <see cref="InvalidCastException"/> if the stored
+    /// property's value type does not match <typeparamref name="T"/>.</returns>
     public ModifiableProperty<T> GetStat<T>(Attribute attribute)
     {
         // If no contextual version exists, fall back to the universal version.
@@ -393,7 +391,6 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// Sets the base value of an attribute without removing any active modifiers.
     /// Modifiers will be recalculated on top of the new base value.
     /// </summary>
-    /// <typeparam name="T">The type of the attribute's value.</typeparam>
     /// <param name="attribute">The attribute to modify.</param>
     /// <param name="newValue">The new base value.</param>
     public void SetBaseValue(Attribute attribute, Variant newValue)
@@ -422,9 +419,8 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <summary>
     /// Gets the attribute value's Type
     /// </summary>
-    /// <param name="attribute"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
+    /// <param name="attribute">The attribute whose value type is requested.</param>
+    /// <returns>The <c>T</c> of the stored <c>ModifiableProperty&lt;T&gt;</c>.</returns>
     public Type GetAttributeType(Attribute attribute)
     {
         // First, attempt to find the most specific, contextual version of the stat.

@@ -11,7 +11,7 @@ using Jmodot.Implementation.Physics.Collision;
 /// <see cref="ICollisionResponder"/>. Segregates the responder's needs from the kinematic-only
 /// <see cref="ICollisionHost"/>: the responder resolves a decision (category match, count,
 /// thresholds, self-damage) against this surface alone, so a non-kinematic body — a RigidBody,
-/// a ray-based beam — plugs in without faking an <c>ICharacterController3D</c>.
+/// a ray-based beam — plugs in without faking an <see cref="Jmodot.Core.Movement.ICharacterController3D"/>.
 ///
 /// Two members the responder previously obtained via type-tests on the host:
 /// - <see cref="CollisionImpactVelocity"/> replaces the pre-move velocity read.

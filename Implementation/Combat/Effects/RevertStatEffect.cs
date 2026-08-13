@@ -11,9 +11,9 @@ using Shared;
 using Jmodot.Core.Visual.Effects;
 
 /// <summary>
-/// Combat Effect that applies a stat modifier
+/// Combat Effect that removes a previously applied stat modifier, identified by its
+/// <see cref="ModifierHandle"/>.
 /// </summary>
-/// <typeparam name="T"></typeparam>
 public struct RevertStatEffect : ICombatEffect
 {
     public readonly ModifierHandle ModifierToRevert;

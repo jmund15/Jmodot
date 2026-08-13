@@ -6,7 +6,7 @@ using Shared.Attributes;
 /// <summary>
 /// Pairs a target <see cref="Attribute"/> with a modifier <see cref="Resource"/> for declarative,
 /// status-driven stat modification.
-/// Designed to be authored on a <c>StatusRunner</c> via the <c>ActiveStatModifiers</c> export so
+/// Designed to be authored on a <see cref="Jmodot.Implementation.Combat.Status.StatusRunner"/> via the <c>ActiveStatModifiers</c> export so
 /// the modifier is applied while the status is active and reverted on Stop.
 /// </summary>
 [GlobalClass]

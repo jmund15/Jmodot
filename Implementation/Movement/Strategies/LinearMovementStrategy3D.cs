@@ -9,11 +9,9 @@ using Core.Stats;
 ///     Speed is explicitly capped by a maxSpeed value — contrasts with TerminalVelocityMovementStrategy3D
 ///     where max speed emerges from the acceleration/friction ratio.
 ///
-///     <para><b>C15 / Wave 3b (2026-04-26):</b> migrated from raw <c>Attribute</c> exports to
-///     <see cref="BaseFloatValueDefinition"/>. Designers wire <see cref="ConstantFloatDefinition"/>
-///     for stat-free strategies or <see cref="AttributeFloatDefinition"/> for stat-sourced.
-///     Behavior is preserved: <c>AttributeFloatDefinition.ResolveFloatValue(stats)</c> internally
-///     calls <c>stats.GetStatValue&lt;float&gt;(SourceAttribute)</c>.</para>
+///     <para>Speeds are authored as <see cref="BaseFloatValueDefinition"/>: wire
+///     <see cref="ConstantFloatDefinition"/> for stat-free strategies or
+///     <see cref="AttributeFloatDefinition"/> for stat-sourced.</para>
 /// </summary>
 [GlobalClass, Tool]
 public partial class LinearMovementStrategy3D : BaseMovementStrategy3D

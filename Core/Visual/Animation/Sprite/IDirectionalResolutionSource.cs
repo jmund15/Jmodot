@@ -5,7 +5,7 @@ using Godot;
 
 /// <summary>
 /// Announces which concrete clip a <see cref="DirectionalAnimRequest"/> resolved to, per animator.
-/// Both resolution paths run the same <c>DirectionalClipResolver</c> — the composite fans out
+/// Both resolution paths run the same <see cref="Jmodot.Implementation.Visual.Animation.Sprite.DirectionalClipResolver"/> — the composite fans out
 /// per-slave, a leaf orchestrator resolves once — so this contract lets a consumer observe the
 /// outcome without knowing which topology produced it.
 /// </summary>

@@ -1,9 +1,9 @@
 namespace Jmodot.AI.Navigation;
 
 /// <summary>
-/// 2D counterpart to <see cref="AISteeringProcessor3D"/>. This session only ports
-/// the turn-rate clamping helper needed by <c>TurnRateProfile2D</c> implementations;
-/// the steering/consideration pipeline has not yet been ported.
+/// 2D counterpart to <see cref="AISteeringProcessor3D"/>. Provides only the turn-rate
+/// clamping helper needed by <see cref="Jmodot.Core.Movement.TurnRateProfile2D"/> implementations;
+/// there is no 2D steering/consideration pipeline.
 /// </summary>
 public static class AISteeringProcessor2D
 {

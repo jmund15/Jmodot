@@ -11,7 +11,7 @@ using Core.Movement;
 /// Scores directions by alignment with the agent's current navigation path direction.
 /// Creates the primary steering "desire" to follow a nav path toward the goal.
 ///
-/// <para><b>Ownership:</b> This consideration is owned by <c>AISteeringProcessor3D</c> as a
+/// <para><b>Ownership:</b> This consideration is owned by <see cref="Jmodot.AI.Navigation.AISteeringProcessor3D"/> as a
 /// dedicated singleton slot — NOT placed in the regular <c>_considerations</c> array.
 /// This ensures exactly one nav path consideration is active at a time and prevents
 /// the footgun of forgetting to include it in a BT action's considerations.</para>
@@ -23,8 +23,9 @@ using Core.Movement;
 /// <para><b>Self-disabling:</b> Returns all-zero scores when <c>NextPathPointDirection</c>
 /// is zero (no active path), so it contributes nothing during pure flee/wander states.</para>
 ///
-/// <para><b>Extensible:</b> Attach <c>SteeringConsiderationModifier3D</c> instances
-/// (e.g., <c>DistanceScalingModifier3D</c>, <c>AffinitySteeringModifier3D</c>) to the
+/// <para><b>Extensible:</b> Attach <see cref="Jmodot.Core.AI.Navigation.SteeringModifiers.SteeringConsiderationModifier3D"/> instances
+/// (e.g., <see cref="Jmodot.Implementation.AI.Navigation.SteeringModifiers.DistanceScalingModifier3D"/>,
+/// <see cref="Jmodot.Implementation.AI.Navigation.SteeringModifiers.AffinitySteeringModifier3D"/>) to the
 /// <c>_modifiers</c> array for dynamic weight scaling based on distance, personality, etc.</para>
 /// </summary>
 [GlobalClass, Tool]

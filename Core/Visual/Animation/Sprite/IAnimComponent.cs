@@ -23,7 +23,7 @@ public interface IAnimComponent : IGodotNodeInterface
     /// <remarks>
     /// Godot's underlying <c>AnimationPlayer.Stop()</c> does NOT emit
     /// <c>AnimationFinished</c>, so listeners that want to clean up state on
-    /// teardown (e.g. <c>AnimationVisibilityCoordinator</c> hiding sprites)
+    /// teardown (e.g. <see cref="Jmodot.Implementation.Visual.Animation.Sprite.AnimationVisibilityCoordinator"/> hiding sprites)
     /// need a dedicated stop signal — that's this event.
     /// </remarks>
     event Action<StringName> AnimStopped;

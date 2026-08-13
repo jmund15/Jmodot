@@ -2,7 +2,7 @@ namespace Jmodot.Core.Environment.FlowField;
 
 /// <summary>
 ///     Which of the two force seams a flow field drives. Closed set — these are the only two
-///     aggregates <c>ExternalForceReceiver3D</c> consumes for movement.
+///     aggregates <see cref="Jmodot.Implementation.Actors.ExternalForceReceiver3D"/> consumes for movement.
 /// </summary>
 public enum FlowForceFlavor
 {

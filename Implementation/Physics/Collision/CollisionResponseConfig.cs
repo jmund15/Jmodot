@@ -8,7 +8,7 @@ using GCol = Godot.Collections;
 /// <summary>
 /// Authored per-archetype collision-response configuration. Pure data: a designer assigns
 /// Category-keyed responses, physics strategies, and post-bounce stat modifiers on a
-/// <c>.tres</c>; <c>CollisionResponderComponent3D</c> reads it via <c>[Export]</c> and builds a
+/// <c>.tres</c>; <see cref="CollisionResponderComponent3D"/> reads it via <c>[Export]</c> and builds a
 /// <see cref="CollisionResponderCore"/> from these fields plus a runtime-resolved stat provider.
 ///
 /// Replaces the authored surface of the legacy <c>UnifiedCollisionFactory</c> — all twelve

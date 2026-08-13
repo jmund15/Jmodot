@@ -3,7 +3,7 @@ namespace Jmodot.Core.Combat.Reactions;
 using Godot;
 
 /// <summary>
-/// Result type produced by <c>ImpactDetector</c> on each rising-edge slide-collision contact
+/// Result type produced by <see cref="Jmodot.Implementation.Actors.ImpactDetector"/> on each rising-edge slide-collision contact
 /// whose pre-move velocity exceeded the detector's MinImpactSpeed gate. Carries the raw
 /// geometric facts of the contact for HSM-side queries (WallImpactCondition, etc.) without
 /// requiring HSM consumers to subscribe to the detector's transient event stream.

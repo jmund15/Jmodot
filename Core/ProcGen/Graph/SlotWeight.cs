@@ -8,7 +8,7 @@ using Jmodot.Implementation.ProcGen.Graph;
 ///     weights — <c>config.Weights.Aggregate(1L, (a, w) =&gt; a * w.Weight(...))</c> — then does a
 ///     weighted pick, so a weight must be <c>&gt;= 1</c> (1 = neutral / no bias).
 ///     <para>
-///         Mirrors the <c>TransitionCondition</c> precedent and is <b>stateless by contract</b> —
+///         Mirrors the <see cref="Jmodot.Core.AI.HSM.TransitionCondition" /> precedent and is <b>stateless by contract</b> —
 ///         no mutable instance fields beyond <c>[Export]</c>s
 ///         (see arch_rule_transition_condition_stateless).
 ///     </para>

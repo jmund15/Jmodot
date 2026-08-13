@@ -14,7 +14,8 @@ using Shared;
 /// <c>BaseModulationTracker</c> with a query-driven, hot-swap-aware tint surface.
 /// </summary>
 /// <remarks>
-/// Authored as a <c>Node</c> so it can be a scene-graph child of <c>VisualComposer</c>
+/// Authored as a <c>Node</c> so it can be a scene-graph child of
+/// <see cref="Jmodot.Implementation.Visual.Animation.Sprite.VisualComposer"/>
 /// and exported via <c>[Export]</c>. The composer wires its provider events into the
 /// service via <see cref="AttachToProvider"/> on <c>_Ready</c>; this is a one-way
 /// inversion (service learns about provider, not vice versa) that breaks the
@@ -83,9 +84,8 @@ public partial class VisualEffectService : Node, IVisualEffectService, IBlackboa
     /// Computes base × ∏(matching persistent tints) for the given node, even when
     /// the node isn't currently held as a typed handle by the provider. Falls back
     /// to <see cref="GetBaseColor"/>'s white default if the node is untracked.
-    /// Used by transient-effect runners (e.g. <c>VisualEffectController</c>) to
-    /// restore the *layered* color on reset, not just the bare base — without
-    /// this, a transient effect's finish would clobber persistent tints.
+    /// Restore through this rather than the bare base color: restoring the base alone
+    /// would clobber persistent tints.
     /// </summary>
     public Color ComputeEffectiveColorForNode(Node node)
     {

@@ -55,8 +55,7 @@ public sealed record class HitContext
     /// in Godot's convention, since nodes visually face <c>-Z</c>). Combined with
     /// <see cref="HitDirection"/>, this lets force-modulation curves compute the
     /// angle of incidence: on-axis hits produce
-    /// <c>(-HitDirection).AngleTo(EpicenterForward) = 0°</c>. Used by
-    /// <c>KnockbackForceResolver</c> and effect-level <c>ConeAngleFalloff</c> curves.
+    /// <c>(-HitDirection).AngleTo(EpicenterForward) = 0°</c>.
     /// </summary>
     public Vector3 EpicenterForward { get; init; } = Vector3.Back;
 

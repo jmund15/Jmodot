@@ -30,7 +30,8 @@ using GCol = Godot.Collections;
 ///     (tendency toward fear, greed, etc.), NOT runtime emotional state. A Fear affinity of 0.8
 ///     means "highly predisposed to fear," not "currently 80% afraid." Runtime emotional state
 ///     (decaying intensity from stimuli) is a separate architectural concern — see perception
-///     system's <c>Perception3DInfo</c> / <c>MemoryDecayStrategy</c> for the reference pattern.
+///     system's <see cref="Jmodot.Core.AI.Perception.Perception3DInfo"/> /
+///     <see cref="Jmodot.Implementation.AI.Perception.Strategies.MemoryDecayStrategy"/> for the reference pattern.
 /// </summary>
 [GlobalClass]
 public partial class AIAffinitiesComponent : Node, IComponent, IBlackboardProvider, IDebugPanelProvider

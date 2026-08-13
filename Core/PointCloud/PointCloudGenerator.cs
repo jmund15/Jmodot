@@ -161,7 +161,7 @@ public static class PointCloudGenerator
 
     /// <summary>
     /// Checks if a point lies inside or on the surface of an ellipsoid.
-    /// Uses the ellipsoid equation: (x/a)² + (y/b)² + (z/c)² <= 1
+    /// Uses the ellipsoid equation: (x/a)² + (y/b)² + (z/c)² &lt;= 1
     /// </summary>
     public static bool IsInsideEllipsoid(Vector3 point, Vector3 radii)
     {

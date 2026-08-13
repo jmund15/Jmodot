@@ -4,9 +4,8 @@ using System;
 using Jmodot.Implementation.AI.Emotions;
 
 /// <summary>
-///     Stateful runtime data for a single active emotion. Analogous to
-///     <c>Perception3DInfo</c> but with delta-accumulated time tracking instead of
-///     wall-clock timestamps. The decay math is computed on-demand when
+///     Stateful runtime data for a single active emotion, tracking elapsed time by
+///     delta accumulation rather than wall-clock timestamps. The decay math is computed on-demand when
 ///     <see cref="CurrentIntensity"/> is queried — the only per-frame cost is
 ///     <see cref="Tick"/> accumulating elapsed time (one float addition).
 /// </summary>

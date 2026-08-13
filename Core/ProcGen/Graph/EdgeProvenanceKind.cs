@@ -7,7 +7,7 @@ namespace Jmodot.Core.ProcGen.Graph;
 ///     stays pure-CLR and dodges the Godot type-load allocation class.
 ///     <para>
 ///         <see cref="Unset" /> is invalid-at-zero: representable transiently while an edge is
-///         under construction, but rejected at <c>FloorGraph</c> build and
+///         under construction, but rejected at <see cref="Jmodot.Implementation.ProcGen.Graph.FloorGraph" /> build and
 ///         <c>GraphSignature.Of</c>. A forgotten stamp therefore fails loudly at the gate
 ///         rather than masquerading as a valid kind.
 ///     </para>
@@ -28,8 +28,8 @@ public enum EdgeProvenanceKind
 
     /// <summary>
     ///     Laid by a hand-authored floor definition rather than a generation pass — the generic,
-    ///     boundary-clean provenance for adapting an authored topology into an <c>IFloorGraph</c>.
-    ///     Passes the <c>FloorGraph</c> build gate, which rejects only <see cref="Unset" />.
+    ///     boundary-clean provenance for adapting an authored topology into an <see cref="IFloorGraph" />.
+    ///     Passes the <see cref="Jmodot.Implementation.ProcGen.Graph.FloorGraph" /> build gate, which rejects only <see cref="Unset" />.
     /// </summary>
     Authored,
 

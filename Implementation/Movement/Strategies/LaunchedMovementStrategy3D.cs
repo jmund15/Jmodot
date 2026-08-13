@@ -15,7 +15,7 @@ using Jmodot.Core.Stats;
 /// CONTRACT: Ignores <c>desiredDirection</c> and <c>previousDirection</c> entirely. The
 /// launched entity is not steering itself; the impulse is the only authority on motion.
 ///
-/// USE: Push to <see cref="IMovementProcessor3D.SetStrategyOverride"/> when entering an HSM
+/// USE: Push to <see cref="Jmodot.Core.Actors.IMovementProcessor3D.SetStrategyOverride"/> when entering an HSM
 /// state that represents control-loss after a force impulse (e.g., LaunchedState).
 /// Pop on state exit so the agent's default locomotion strategy resumes integrating
 /// player/AI input into velocity.

@@ -9,8 +9,8 @@ using Shared;
 /// Implement this on any Node type to enable standardized dependency management.
 /// </summary>
 /// <remarks>
-/// <c>EntityNodeComponentsInitializer</c> drives three barriered phases over an entity:
-/// Phase 0 publishes every <c>IBlackboardProvider</c> provision, Phase 1 calls
+/// <see cref="Jmodot.Implementation.Components.EntityNodeComponentsInitializer"/> drives three barriered phases over an entity:
+/// Phase 0 publishes every <see cref="IBlackboardProvider"/> provision, Phase 1 calls
 /// <see cref="Initialize"/> on every component, Phase 2 calls
 /// <see cref="OnPostInitialize"/> on the ones that returned true. Implementors must NOT
 /// self-call <see cref="OnPostInitialize"/> from <see cref="Initialize"/> — doing so

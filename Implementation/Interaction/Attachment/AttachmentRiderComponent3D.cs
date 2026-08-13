@@ -381,7 +381,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     /// <summary>
     /// Where this rider should sit this frame: the host's live anchor, verbatim. Any off-plane depth
-    /// is already baked into the anchor by the host's <c>AttachmentAnchorProfile3D</c> — how riders
+    /// is already baked into the anchor by the host's <see cref="AttachmentAnchorProfile3D"/> — how riders
     /// are arranged across a silhouette is the host's decision, not each rider's.
     /// </summary>
     public bool TryGetRideWorldPosition(out Vector3 worldPosition)

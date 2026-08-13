@@ -10,38 +10,34 @@ using Core.Movement;
 using Jmodot.Core.Shared.Attributes;
 using Shared;
 
-/// <summary>
-/// A unified steering consideration for reacting to dynamic targets (threats, prey, allies).
-/// Replaces FleeConsideration3D, MultiFleeConsideration3D, PerceptionFleeConsideration3D,
-/// and VelocityBody3DConsideration with a single configurable component.
-///
-/// Two continuous sliders create a 2D personality space:
-///   _threatResolution: 0=overwhelmed/cornerable → 1=analytical/gap-finding
-///   _threatFocus: 0=all threats equal → 1=tunnel vision on dominant threat
-///
-/// Two velocity dimensions:
-///   _velocityInfluence: How much target velocity affects response DIRECTION (prediction)
-///   _approachSpeedWeight: How much closing speed affects threat DANGER weight
-///
-/// All parameters are accessed via Effective*() methods for future BaseParameterDefinition support.
-/// </summary>
+/// <summary>How a consideration reacts to a perceived target: steer toward it, or away from it.</summary>
 public enum TargetResponseMode
 {
     Chase,
     Avoid,
 }
 
+/// <summary>
+/// A unified steering consideration for reacting to dynamic targets (threats, prey, allies).
+///
+/// Two continuous sliders create a 2D personality space:
+///   <see cref="_threatResolution"/>: 0=overwhelmed/cornerable → 1=analytical/gap-finding
+///   <see cref="_threatFocus"/>: 0=all threats equal → 1=tunnel vision on dominant threat
+///
+/// Two velocity dimensions:
+///   <see cref="_velocityInfluence"/>: How much target velocity affects response DIRECTION (prediction)
+///   <see cref="_approachSpeedWeight"/>: How much closing speed affects threat DANGER weight
+/// </summary>
 [GlobalClass, Tool]
 public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 {
     #region Exports
 
-    [ExportGroup("Behavior")]
-
     /// <summary>
     /// Chase steers toward perceived targets; Avoid steers away (directions mirrored).
     /// Contribution magnitude is owned by the base Weight, not by this mode.
     /// </summary>
+    [ExportGroup("Behavior")]
     [Export] public TargetResponseMode Mode { get; private set; } = TargetResponseMode.Chase;
 
     /// <summary>
@@ -58,8 +54,6 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     /// </summary>
     [Export] private StringName? _suppressWhileZoneKey;
 
-    [ExportGroup("Threat Processing")]
-
     /// <summary>
     /// Controls how multiple threats are aggregated into directional scores.
     /// 0.0 = Overwhelmed: sum all threat vectors first, then score. Produces cornered
@@ -68,6 +62,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     ///        threats. Never freezes.
     /// Intermediate values blend both strategies.
     /// </summary>
+    [ExportGroup("Threat Processing")]
     [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
     private float _threatResolution = 0.0f;
 
@@ -79,14 +74,13 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
     private float _threatFocus = 0.0f;
 
-    [ExportGroup("Velocity")]
-
     /// <summary>
     /// How much target velocity affects the response DIRECTION.
     /// 0.0 = Pure position-based (flee from / chase toward current position).
     /// 1.0 = Fully predictive (flee from / chase toward projected future position).
     /// Uses target velocity (not relative velocity) — answers "where is the threat GOING?"
     /// </summary>
+    [ExportGroup("Velocity")]
     [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
     private float _velocityInfluence = 0.0f;
 
@@ -99,9 +93,8 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
     private float _approachSpeedWeight = 0.0f;
 
-    [ExportGroup("Options")]
-
     /// <summary>Scale each threat's contribution by its perception confidence.</summary>
+    [ExportGroup("Options")]
     [Export] private bool _confidenceWeighted = true;
 
     /// <summary>Include Y axis in calculations. Disable for ground-based agents.</summary>

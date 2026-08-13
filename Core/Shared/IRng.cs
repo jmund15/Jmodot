@@ -8,9 +8,8 @@ namespace Jmodot.Core.Shared;
 ///     dependency, letting the generator run headless.
 ///     <para>
 ///         The generator depends on this interface through an injected <c>Func&lt;int, IRng&gt;</c>
-///         factory rather than a concrete type, so swapping <c>JmoRng</c> for an engine-free RNG is a
-///         one-line change at the call site. <c>JmoRng</c> is the production implementation.
-///     </para>
+///         factory rather than a concrete type, so swapping <see cref="Jmodot.Implementation.Shared.JmoRng" /> for an engine-free RNG is a
+///         one-line change at the call site.///     </para>
 /// </summary>
 public interface IRng
 {

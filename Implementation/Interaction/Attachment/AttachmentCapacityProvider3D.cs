@@ -11,7 +11,7 @@ using Jmodot.Implementation.Visual;
 /// falling back to a density constant) hides which knob is live and leaves the other one dead.
 ///
 /// <para>
-/// <b>Sibling family, not a subclass.</b> <c>HitboxCapacityProvider3D</c> answers a discrete
+/// <b>Sibling family, not a subclass.</b> <see cref="Jmodot.Implementation.Combat.CapacityProviders.HitboxCapacityProvider3D"/> answers a discrete
 /// "can I accept one more hit?" against a hit COUNT; this answers a continuous footprint BUDGET.
 /// Neither contract expresses the other, so they share a shape and nothing else.
 /// </para>

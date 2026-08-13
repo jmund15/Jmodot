@@ -21,7 +21,7 @@ using Shared;
 /// <para>
 /// Wired via explicit <see cref="Composer"/> export (replaces the legacy Blackboard
 /// auto-wire of <c>BaseModulationTracker</c> for the composer dependency). The
-/// <see cref="Provision"/> below re-references <c>BBDataSig</c> deliberately: publishing
+/// <see cref="Provision"/> below re-references <see cref="BBDataSig"/> deliberately: publishing
 /// self under a key is the framework-wide IBlackboardProvider contract every component
 /// shares — distinct from the retired pattern of PULLING wiring dependencies off the BB.
 /// </para>
@@ -33,10 +33,8 @@ using Shared;
 /// </para>
 /// <para>
 /// When only <see cref="Root"/> is set (single-sprite props with no composer):
-/// uses <see cref="VisualNodeAggregator.CollectSprites"/> to find every sprite under
-/// the root and captures their current Modulate as their base color. This path also
-/// fixes the audit-branch-identified type-NAME string-match bug — the aggregator
-/// uses pattern-based type checks, not name-substring checks.
+/// uses <see cref="VisualNodeAggregator.CollectSprites(Node)"/> to find every sprite under
+/// the root and captures their current Modulate as their base color.
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]

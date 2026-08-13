@@ -28,7 +28,7 @@ using Attribute = Jmodot.Core.Stats.Attribute;
 /// </para>
 ///
 /// <para>
-/// <b>Fail-closed when stats unavailable.</b> If <paramref name="stats"/> is null OR
+/// <b>Fail-closed when stats unavailable.</b> If the <see cref="IStatProvider"/> is null OR
 /// <see cref="CapacityStat"/> is null, the provider returns <c>false</c> — degenerate
 /// config must not silently flip the hitbox into "unlimited mode". Diagnostic logging
 /// is the hitbox's responsibility (once-per-StartAttack); providers stay stateless and

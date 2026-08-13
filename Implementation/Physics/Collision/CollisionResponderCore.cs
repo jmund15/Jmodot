@@ -17,13 +17,13 @@ using GCol = Godot.Collections;
 /// <see cref="ICollisionHost"/> (spells, ingredients, thrown objects, etc.).
 ///
 /// Plain (non-Node) class so it can be owned by either a Node component
-/// (<c>CollisionResponderComponent3D</c>) or a thin runner shell. All mutable state is a
+/// (<see cref="CollisionResponderComponent3D"/>) or a thin runner shell. All mutable state is a
 /// reset obligation — see <see cref="Reset"/> for pool reuse.
 ///
 /// Resolution order: exempt layers → category match (Identity) → normal fallback
 /// (infer Ground/Wall) → DefaultResponse. Guards: per-frame bounce coalesce, pierce debounce.
 /// Post-collision stat modifiers: one-time gravity + compounding speed (bounce), compounding
-/// speed (pierce). Self-damage routed via <see cref="ICollisionHost.TakeDamage"/> (health-less
+/// speed (pierce). Self-damage routed via <see cref="Jmodot.Core.Health.IDamageable.TakeDamage"/> (health-less
 /// hosts no-op, preserving the "no health → no self-damage" contract).
 /// </summary>
 public sealed class CollisionResponderCore : ICollisionResponder

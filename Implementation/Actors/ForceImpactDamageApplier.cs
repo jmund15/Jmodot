@@ -34,7 +34,7 @@ using Shared;
 /// state-side change.
 /// </para>
 /// <para>
-/// Also applies a post-damage velocity-loss step (<c>ImpactVelocityLoss</c>): the launcher
+/// Also applies a post-damage velocity-loss step (<see cref="ImpactVelocityLoss"/>): the launcher
 /// loses kinetic energy proportional to the damage it dealt, scaled by the target's
 /// absorption coefficient. Enables Wind-Blast chain mechanics.
 /// </para>
@@ -48,12 +48,12 @@ public partial class ForceImpactDamageApplier : Node, IComponent
 {
     [Export, RequiredExport] public ImpactDamageProfile DamageProfile { get; set; } = null!;
 
-    [ExportGroup("Source Attribution")]
     /// <summary>
     /// Time window (seconds) in which a logged knockback is still considered the cause of
     /// an impact. Outside this window, attribution falls back to the dominant sustained
     /// force or the collider itself. Tunable per actor.
     /// </summary>
+    [ExportGroup("Source Attribution")]
     [Export(PropertyHint.Range, "0.1,10.0,0.1,suffix:s")] public float SourceAttributionWindowSeconds { get; private set; } = 2.0f;
 
     /// <summary>
@@ -65,8 +65,8 @@ public partial class ForceImpactDamageApplier : Node, IComponent
     /// </summary>
     [Export] public bool RequireExternalCause { get; private set; } = true;
 
+    /// <summary>Launcher mass used to convert N·s → Δv. Null → 1.0.</summary>
     [ExportGroup("Velocity Loss")]
-    /// <summary>Launcher mass used to convert N·s → Δv. Null → 1.0 (preserves pre-mass-aware feel).</summary>
     [Export] public BaseFloatValueDefinition? Mass { get; private set; }
     /// <summary>Target absorption coefficient (0..1, clamped). Null → 0.5 default.</summary>
     [Export] public BaseFloatValueDefinition? Absorption { get; private set; }
@@ -237,19 +237,21 @@ public partial class ForceImpactDamageApplier : Node, IComponent
     }
 
     /// <summary>
-    /// Resolves the impacted entity's stat provider by climbing from the collider to the first
-    /// ancestor that owns a blackboard publishing <see cref="BBDataSig.Stats"/>. The climb is
-    /// required because a collider is typically a physics-body descendant, not the entity root.
-    /// Returns null when the target carries no stats (walls, static geometry).
-    /// <para>
-    /// The climb is capped because the dominant impact collider is static geometry with no
+    /// Maximum ancestor hops <see cref="ResolveTargetStatProvider"/> will climb looking for a
+    /// blackboard. Capped because the dominant impact collider is static geometry with no
     /// blackboard anywhere in its ancestry: uncapped, every such impact runs a child scan at
     /// every ancestor up to the scene root, whose child count scales with level population.
     /// Colliders sit 2-3 levels below their entity root, so 4 leaves a level of slack.
-    /// </para>
     /// </summary>
     private const int TargetStatProviderMaxClimb = 4;
 
+    /// <summary>
+    /// Resolves the impacted entity's stat provider by climbing from <paramref name="collider"/>
+    /// to the first ancestor that owns a blackboard publishing <see cref="BBDataSig.Stats"/>. The
+    /// climb is required because a collider is typically a physics-body descendant, not the entity
+    /// root. Returns null when the target carries no stats (walls, static geometry) or sits deeper
+    /// than <see cref="TargetStatProviderMaxClimb"/> hops below one.
+    /// </summary>
     private static IStatProvider? ResolveTargetStatProvider(Node? collider)
     {
         var climbsLeft = TargetStatProviderMaxClimb;

@@ -9,7 +9,7 @@ using Jmodot.Core.Shared;
 /// randomness consumer holds its own instance; same seed → same sequence, always.
 /// <para>
 /// Determinism contract: <see cref="FromRawStreamName"/> derives a stream-isolated seed via
-/// <see cref="SeedManager.DeriveChild"/>; <see cref="NonDeterministic"/> is the
+/// <see cref="SeedManager.DeriveChild(int, string[])"/>; <see cref="NonDeterministic"/> is the
 /// Pos 3 migration target (every call site invoking it is a known non-deterministic
 /// site to be replaced — <c>Grep("NonDeterministic\(")</c> for the current backlog).
 /// </para>
@@ -135,7 +135,7 @@ public sealed class JmoRng : IRng
 
     /// <summary>
     /// Deterministic factory: derives a per-stream seed from <paramref name="parentSeed"/>
-    /// via <see cref="SeedManager.DeriveChild"/> and constructs a seeded instance.
+    /// via <see cref="SeedManager.DeriveChild(int, string[])"/> and constructs a seeded instance.
     /// Same (streamName, parentSeed) pair yields the same sequence, always.
     /// <para>
     /// Consuming-project convention: prefer the project's strongly-typed stream

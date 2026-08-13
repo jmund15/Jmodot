@@ -3,7 +3,7 @@ namespace Jmodot.Core.Profiling;
 /// <summary>
 /// Port over the handful of native Tracy calls the profiler backend needs. Wrapping them behind
 /// an interface keeps the backend's mapping logic (LIFO zone stack, availability gating, string
-/// interning) pure-CLR mock-testable, while the real P/Invoke (<c>TracyNative</c>) stays a thin,
+/// interning) pure-CLR mock-testable, while the real P/Invoke (<see cref="Jmodot.Implementation.Profiling.TracyNative"/>) stays a thin,
 /// untested adapter. The <see cref="ZoneBegin"/> handle is an opaque <see cref="ulong"/> so this
 /// Logic-Domain contract never names a <c>Tracy.*</c> type — the adapter maps it back to the
 /// real zone-context struct internally.

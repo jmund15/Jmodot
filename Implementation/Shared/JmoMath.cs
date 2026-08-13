@@ -175,7 +175,7 @@ public static class JmoMath
 
     /// <summary>
     /// In-plane facing angle (local-Y rotation, radians) for a planar aim vector — X horizontal,
-    /// Y screen-depth (e.g. a right-stick aim). Equivalent to the <see cref="IsoPlaneFacingAngle(Vector3, float, bool)"/>
+    /// Y screen-depth (e.g. a right-stick aim). Equivalent to the <see cref="IsoPlaneFacingAngle(Vector3, float, bool, float)"/>
     /// world form with the aim lifted to (X, 0, Y) and no vertical fold. Returns <c>null</c> on a zero aim.
     /// </summary>
     public static float? IsoPlaneFacingAngle(Vector2 planarAim, float artBaseAngleOffsetDegrees,
@@ -188,7 +188,7 @@ public static class JmoMath
 
     /// <summary>
     /// Single source of truth for the horizontal-mirror convention shared by the wizard's
-    /// <c>FacingFlipController</c> and the spell facing stack: whether single-direction art authored
+    /// <see cref="Jmodot.Implementation.Visual.Sprite.FacingFlipController"/> and the spell facing stack: whether single-direction art authored
     /// facing <paramref name="artFacesRight"/> should be H-mirrored to match an aim whose horizontal
     /// (screen-X) component is <paramref name="dirX"/>. Returns <c>null</c> when the aim is ~pure-vertical
     /// (|dirX| &lt; <paramref name="epsilon"/>), signalling the caller to HOLD its current mirror rather

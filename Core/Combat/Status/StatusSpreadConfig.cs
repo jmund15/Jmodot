@@ -24,11 +24,11 @@ using GCol = Godot.Collections;
 [GlobalClass, Tool]
 public partial class StatusSpreadConfig : Resource
 {
-    [ExportGroup("Chance & Timing")]
     /// <summary>
     /// Per-evaluation chance to attempt a spread (rolled once per evaluation tick).
     /// Combined with <see cref="ChanceFalloffByGeneration"/> if set.
     /// </summary>
+    [ExportGroup("Chance & Timing")]
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float ChancePerEvaluation { get; private set; } = 0.20f;
 
@@ -42,10 +42,10 @@ public partial class StatusSpreadConfig : Resource
     [Export(PropertyHint.Range, "0.05,30,0.05")]
     public float EvaluationInterval { get; private set; } = 1.0f;
 
-    [ExportGroup("Range & Targets")]
     /// <summary>
     /// World-units radius the component queries for candidates around the host's target.
     /// </summary>
+    [ExportGroup("Range & Targets")]
     [Export(PropertyHint.Range, "0.5,50,0.1,suffix:m")]
     public float Range { get; private set; } = 2.5f;
 
@@ -64,11 +64,11 @@ public partial class StatusSpreadConfig : Resource
     [Export(PropertyHint.Range, "1,32,1")]
     public int MaxTargetsPerEvaluation { get; private set; } = 1;
 
-    [ExportGroup("Generation Control")]
     /// <summary>
     /// Maximum spread generation. Generation 0 = primary; 1..MaxGenerations-1 = spread.
     /// At gen >= MaxGenerations, evaluation always returns false (hard fizzle gate).
     /// </summary>
+    [ExportGroup("Generation Control")]
     [Export(PropertyHint.Range, "1,32,1")]
     public int MaxGenerations { get; private set; } = 3;
 
@@ -89,11 +89,11 @@ public partial class StatusSpreadConfig : Resource
     [Export(PropertyHint.Range, "-1,1000,1")]
     public int MaxEvaluations { get; private set; } = -1;
 
-    [ExportGroup("Candidate Filters")]
     /// <summary>
     /// Optional category filter on candidates — only candidates whose identity descends from
     /// (or equals) this category qualify. Null = no category filter.
     /// </summary>
+    [ExportGroup("Candidate Filters")]
     [Export] public Category? TargetCategory { get; private set; }
 
     /// <summary>
@@ -134,22 +134,21 @@ public partial class StatusSpreadConfig : Resource
     }
 
     /// <summary>
-    /// True when the generation gate allows a fire (currentGeneration < MaxGenerations).
-    /// Public for direct testing.
+    /// True when the generation gate allows a fire (<paramref name="currentGeneration"/> &lt;
+    /// <see cref="MaxGenerations"/>).
     /// </summary>
     public bool ShouldFireByGeneration(int currentGeneration)
         => currentGeneration < MaxGenerations;
 
     /// <summary>
     /// True when the runner's evaluation count is below <see cref="MaxEvaluations"/>
-    /// (or the cap is disabled with -1). Honored by both <c>TickSpread</c> and the
-    /// test-friendly <c>EvaluateSpread</c> one-shot path.
+    /// (or the cap is disabled with -1).
     /// </summary>
     public bool CanEvaluate(int currentEvaluationCount)
         => MaxEvaluations < 0 || currentEvaluationCount < MaxEvaluations;
 
     /// <summary>
-    /// Effective per-evaluation chance after applying the falloff curve. Public for direct testing.
+    /// Effective per-evaluation chance after applying the falloff curve.
     /// </summary>
     public float GetEffectiveChance(int currentGeneration)
     {
@@ -164,7 +163,7 @@ public partial class StatusSpreadConfig : Resource
     }
 
     /// <summary>
-    /// Applies category + exclude-tag filters. Public for direct testing of the predicate logic.
+    /// Applies category + exclude-tag filters.
     /// </summary>
     public List<ICombatant> FilterCandidates(IEnumerable<ICombatant> candidates)
     {

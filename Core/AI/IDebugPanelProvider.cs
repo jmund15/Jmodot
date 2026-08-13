@@ -2,7 +2,7 @@ namespace Jmodot.Core.AI;
 
 /// <summary>
 ///     Base contract for any AI subsystem that can provide debug visualization content
-///     to the unified <c>AIDebugDashboard</c>. Implementations return a Control subtree
+///     to the unified <see cref="Jmodot.Implementation.AI.Debug.AIDebugDashboard"/>. Implementations return a Control subtree
 ///     for display in a tabbed dashboard panel.
 ///
 ///     <para><b>Tab ordering conventions:</b> HSM=0, BTs=10-19, Emotions=20, Affinities=30, Steering=40.</para>

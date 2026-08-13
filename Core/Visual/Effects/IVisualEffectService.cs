@@ -14,14 +14,12 @@ using Jmodot.Core.Visual;
 public interface IVisualEffectService
 {
     /// <summary>
-    /// Low-level: register a node's intended base color. Called by <c>VisualSlotNode</c>
-    /// during <c>Equip</c> for every spawned sprite. Idempotent.
+    /// Low-level: register a node's intended base color. Idempotent.
     /// </summary>
     void RegisterBaseColor(Node node, Color color);
 
     /// <summary>
-    /// Low-level: remove a node's base-color registration. Called by
-    /// <c>VisualSlotNode</c> during <c>Unequip</c>. Idempotent.
+    /// Low-level: remove a node's base-color registration. Idempotent.
     /// </summary>
     void UnregisterSprite(Node node);
 
@@ -46,7 +44,7 @@ public interface IVisualEffectService
 
     /// <summary>
     /// Fired whenever a node's effective base color changes (registration, tint apply,
-    /// tint clear). <c>VisualEffectController</c> subscribes to rebuild its blend cache.
+    /// tint clear).
     /// </summary>
     event Action<Node, Color> TintChanged;
 }

@@ -5,8 +5,7 @@ using Godot;
 /// <summary>
 /// Modular, designer-assignable behavior invoked when a thrown object impacts something.
 /// Plugged into <see cref="ThrowableComponent3D"/> via an <c>[Export]</c>; a null behavior
-/// makes the projectile inert on impact. Mirrors the Resource-strategy pattern of
-/// <c>InteractionFeedbackStrategy</c> / <c>BaseMovementStrategy3D</c>.
+/// makes the projectile inert on impact.
 /// </summary>
 [GlobalClass, Tool]
 public abstract partial class ThrowImpactBehavior : Resource

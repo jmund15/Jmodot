@@ -17,7 +17,7 @@ public sealed partial class PinnedPlacement : Resource
     /// <summary>
     ///     The pinned node template. Exported as a base <see cref="Resource" /> because Godot cannot
     ///     export the <see cref="INodeTemplate" /> interface; the engine reads it through
-    ///     <see cref="AsNodeTemplate" />. A PP <c>RoomTemplate</c> is the expected assignment.
+    ///     <see cref="AsNodeTemplate" />.
     /// </summary>
     [Export] public Resource? Template { get; private set; }
 
@@ -27,7 +27,7 @@ public sealed partial class PinnedPlacement : Resource
     /// <summary>
     ///     REQUIRED rooms attached directly adjacent to the pinned node (set-piece flanks — "the
     ///     heart chamber with a key room on either side"). Each entry must be an
-    ///     <see cref="INodeTemplate" /> (a PP <c>RoomTemplate</c>); the generator attaches every one
+    ///     <see cref="INodeTemplate" />; the generator attaches every one
     ///     as a dead-end neighbor with <see cref="EdgeProvenanceKind.PinnedNeighbor" /> provenance,
     ///     and fails the floor as PinUnsatisfiable when the pinned template cannot host them all.
     /// </summary>

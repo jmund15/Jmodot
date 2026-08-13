@@ -12,12 +12,12 @@ using Jmodot.Implementation.Shared;
 /// <summary>
 ///     The constructive floor-graph generator (P3a.6, realizer-free since P3b.3, single-attempt
 ///     since P3b.5): turns an <see cref="ISkeletonConfig" /> + ONE floor seed into a deterministic,
-///     gate-aware Source→Sink topology. A static utility (matching <c>PointCloudGenerator</c>) —
+///     gate-aware Source→Sink topology. A static utility —
 ///     every draw derives a distinct seeded sub-stream from the floor seed, so the whole algorithm
 ///     is RNG-free at the boundary and re-runnable byte-for-byte.
 ///     <para>
 ///         Stage 1 of the two-stage pipeline (design-se §1): this pass is pure topology — geometry
-///         embedding is the holistic embedder's job (stage 2). <c>FloorPipeline</c> is the ONE
+///         embedding is the holistic embedder's job (stage 2). <see cref="FloorPipeline"/> is the ONE
 ///         re-roll owner: it derives the per-attempt floor seed and decides retry-vs-fail-fast from
 ///         the returned violation kinds (<see cref="ViolationKind.PinUnsatisfiable" /> can never be
 ///         fixed by re-rolling; <see cref="ViolationKind.SpineInfeasible" /> can).

@@ -18,7 +18,7 @@ public interface IVelocityOffsetProvider3D
 
     /// <summary>
     /// Whether this provider's offset should count toward control-loss detection on
-    /// entities with an <c>ExternalForceReceiver3D</c> capture path. Default false. Capture
+    /// entities with an <see cref="Jmodot.Implementation.Actors.ExternalForceReceiver3D"/> capture path. Default false. Capture
     /// sources (wave drag, current-style carry effects) override to true. Source-side
     /// discrimination expressed as data on the provider's own declaration site.
     /// </summary>

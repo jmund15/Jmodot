@@ -133,8 +133,8 @@ public static partial class BBDataSig
     #region SQUAD_PROPERTIES
 
     /// <summary>
-    /// The squad's current directive (a <c>SquadDirectiveDefinition</c>), published on the squad
-    /// blackboard graph by <c>SquadDirectiveBrain</c>. Members read it via <c>TryGetUp</c>; HSM
+    /// The squad's current directive (a <see cref="Jmodot.Core.AI.Squad.SquadDirectiveDefinition"/>), published on the squad
+    /// blackboard graph by <see cref="Jmodot.Implementation.AI.Squad.SquadDirectiveBrain"/>. Members read it via <c>TryGetUp</c>; HSM
     /// conditions match it hierarchically. Stored directly (no wrapper) — a Category-derived Resource.
     /// </summary>
     public static readonly StringName SquadDirective = new("SquadDirective");
@@ -173,7 +173,7 @@ public static partial class BBDataSig
     #region FORCE_DETECTION_COMPONENTS
 
     /// <summary>
-    /// Typed component reference for the actor's <c>ExternalForceReceiver3D</c>. The
+    /// Typed component reference for the actor's <see cref="Jmodot.Implementation.Actors.ExternalForceReceiver3D"/>. The
     /// canonical receiver-shaped query source: HSM transition conditions read
     /// <c>GetCaptureForce(target)</c> / <c>GetDominantForceSource(target)</c>; damage
     /// attribution falls back here when no transient knockback dominates the CombatLog window.
@@ -181,7 +181,7 @@ public static partial class BBDataSig
     public static readonly StringName ExternalForceReceiver = new("ExternalForceReceiver");
 
     /// <summary>
-    /// Typed component reference for the actor's <c>ImpactDetector</c>. Consumers subscribe
+    /// Typed component reference for the actor's <see cref="Jmodot.Implementation.Actors.ImpactDetector"/>. Consumers subscribe
     /// to <c>Impacted</c> events directly; classification (wall/floor/entity) is the
     /// consumer's job via <c>ImpactInfo</c> helpers or the Category system.
     /// </summary>
@@ -203,14 +203,14 @@ public static partial class BBDataSig
     #region ATTACHMENT
 
     /// <summary>
-    /// The entity's <c>AttachmentHostComponent3D</c> — present only on entities that can be ridden.
-    /// Capability discovery still goes through <c>IAttachmentHost</c> on the TARGET's node tree; this
+    /// The entity's <see cref="Jmodot.Implementation.Interaction.Attachment.AttachmentHostComponent3D"/> — present only on entities that can be ridden.
+    /// Capability discovery still goes through <see cref="Jmodot.Core.Interaction.IAttachmentHost"/> on the TARGET's node tree; this
     /// key is how an entity's OWN components reach their sibling host — a melee state resolving the
     /// host it must shake riders off, and a caster component doing the same on every cast.
     /// </summary>
     public static readonly StringName AttachmentHost = new("AttachmentHost");
 
-    /// <summary>The entity's <c>AttachmentRiderComponent3D</c> — present only on entities that can latch onto a host.</summary>
+    /// <summary>The entity's <see cref="Jmodot.Implementation.Interaction.Attachment.AttachmentRiderComponent3D"/> — present only on entities that can latch onto a host.</summary>
     public static readonly StringName AttachmentRider = new("AttachmentRider");
 
     #endregion

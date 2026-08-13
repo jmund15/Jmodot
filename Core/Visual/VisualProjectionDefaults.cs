@@ -6,7 +6,7 @@ using Jmodot.Implementation.Shared;
 /// <summary>
 /// Project-wide 2.5D projection constants for tilted-camera sprite facing. A consuming game's
 /// active camera pushes its derived values here at startup (framework-agnostic seam; mirrors
-/// <c>CombatFactoryDefaults</c> / <c>CollisionDefaults</c> — Jmodot never learns what a camera is).
+/// <see cref="Jmodot.Core.Combat.CombatFactoryDefaults"/> / <see cref="Jmodot.Core.Physics.CollisionDefaults"/> — Jmodot never learns what a camera is).
 /// The seam is owner-scoped: a camera <see cref="Publish(object, float)"/>es itself as the publisher
 /// and only that same owner's <see cref="Retract(object)"/> un-publishes.
 /// </summary>

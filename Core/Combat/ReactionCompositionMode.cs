@@ -2,7 +2,7 @@ namespace Jmodot.Core.Combat;
 
 /// <summary>
 /// Controls whether a matched reaction's outcomes <b>replace</b> the spell's base combat
-/// effect or <b>layer on top of</b> it. Authored on each <c>Reaction</c> resource.
+/// effect or <b>layer on top of</b> it.
 ///
 /// <para>
 /// <b>Resolution rule.</b> When the defender's hurtbox is hit, the resolver finds all
@@ -10,7 +10,7 @@ namespace Jmodot.Core.Combat;
 /// <c>DefenderOutcome</c> in priority order. Outcomes are diverse (damage, status cleanse,
 /// VFX spawn, transform, future custom strategies) and each does its own work via Apply.
 /// The mode controls a single resolver decision: <b>does the spell's base
-/// <c>DamageEffect</c> get stripped from the forwarded payload?</b>
+/// <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/> get stripped from the forwarded payload?</b>
 /// <code>
 /// any_exclusive = false
 /// for each matched reaction (priority order):
@@ -38,7 +38,7 @@ namespace Jmodot.Core.Combat;
 public enum ReactionCompositionMode
 {
     /// <summary>
-    /// Outcomes layer ON TOP of the spell's base damage. The spell's <c>DamageEffect</c>
+    /// Outcomes layer ON TOP of the spell's base damage. The spell's <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/>
     /// flows through to <c>ProcessPayload</c> normally; the reaction's outcomes are
     /// additional effects (extra damage events, status applies, VFX, etc.). Use for
     /// reactions that are "extras" — e.g., burning-floor amp, wet-enemy slow-harder,
@@ -47,7 +47,7 @@ public enum ReactionCompositionMode
     Additive = 0,
 
     /// <summary>
-    /// Outcomes REPLACE the spell's base combat effect. The spell's <c>DamageEffect</c>
+    /// Outcomes REPLACE the spell's base combat effect. The spell's <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/>
     /// is stripped from the forwarded payload (so <c>ProcessPayload</c> won't deliver
     /// base damage); the reaction's outcomes are the complete new combat effect. Use for
     /// reactions where the reaction IS the damage event — shatter on frozen, oil+fire→

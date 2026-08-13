@@ -29,7 +29,7 @@ namespace Jmodot.Implementation.Combat;
 ///   for <see cref="Stability"/> / <see cref="Mass"/>. ConstantFloatDefinition users sidestep this.
 /// - BBDataSig.CombatLog (CombatLog) — receives a <see cref="KnockbackResult"/> entry every
 ///   time <see cref="ApplyKnockback"/> succeeds, so HSM transition conditions
-///   (<c>KnockbackCondition</c>) can gate launch/stagger/ragdoll states off post-resistance
+///   (<see cref="Jmodot.Examples.AI.HSM.TransitionConditions.KnockbackCondition"/>) can gate launch/stagger/ragdoll states off post-resistance
 ///   velocity-delta magnitude. Soft dep — null is acceptable; consumers without HSM
 ///   routing simply skip the audit-log write.
 /// </summary>
@@ -63,14 +63,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	#region COMPONENT_VARIABLES
 
-	[ExportGroup("Behavior")]
 	/// <summary>
 	/// If true, the Y component of the resulting velocity-delta is zeroed out (typical for
 	/// grounded characters that should be pushed horizontally, not lifted).
 	/// </summary>
+	[ExportGroup("Behavior")]
 	[Export] public bool FlattenKnockback { get; private set; } = true;
 
-	[ExportGroup("Stats")]
 	/// <summary>
 	/// Resistance to knockback forces. Resolved via the polymorphic
 	/// <see cref="BaseFloatValueDefinition"/> family — assign a <see cref="ConstantFloatDefinition"/>
@@ -80,12 +79,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// Resistance formula: <c>resistanceFactor = 1 / (1 + stability)</c>
 	/// (0 = full force, 1 = half force, 3 = quarter force).
 	/// </summary>
+	[ExportGroup("Stats")]
 	[Export] public BaseFloatValueDefinition? Stability { get; private set; }
 
 	/// <summary>
 	/// Mass used to convert incoming impulse (N·s) into a velocity-delta (m/s). Assign a
 	/// <see cref="ConstantFloatDefinition"/> for flat tuning or <see cref="AttributeFloatDefinition"/>
-	/// for stat-driven mass. Null → 1.0 (preserves pre-mass-aware knockback feel).
+	/// for stat-driven mass. Null → 1.0.
 	/// </summary>
 	[Export] public BaseFloatValueDefinition? Mass { get; private set; }
 
@@ -106,12 +106,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	/// <summary>
 	/// Universal force-carrier filter. Accepts any <see cref="CombatResult"/> implementing
-	/// <see cref="IForceCarrier"/> with positive force — currently <c>DamageResult</c> and
-	/// <c>KnockbackResult</c>, plus any future force-bearing result type that adds the marker.
+	/// <see cref="IForceCarrier"/> with positive force — currently <see cref="DamageResult"/> and
+	/// <see cref="KnockbackResult"/>, plus any future force-bearing result type that adds the marker.
 	/// </summary>
 	/// <remarks>
 	/// <c>PreserveVertical</c> is read off <see cref="KnockbackResult"/> when present and forwarded
-	/// to <see cref="ApplyKnockback"/> — producers like <c>KnockbackEffect</c> with
+	/// to <see cref="ApplyKnockback"/> — producers like <see cref="Jmodot.Implementation.Combat.Effects.KnockbackEffect"/> with
 	/// <c>UpwardAngleDegrees</c> &gt; 0 (rising rock pillar) stamp this to signal Direction.Y
 	/// is intentional. Other <see cref="IForceCarrier"/> types (DamageResult, future) default
 	/// to false and continue to flatten when <see cref="FlattenKnockback"/> is true.

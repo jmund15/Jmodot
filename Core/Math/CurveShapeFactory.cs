@@ -7,7 +7,7 @@ using Godot;
 /// Generates <see cref="Curve"/> resources from <see cref="CurveShapePreset"/> values.
 /// All curves map X (0→1) to Y (0→1) using standard easing functions.
 /// Uses 2-point Hermite interpolation with exact mathematical tangents for smooth shapes.
-/// When <paramref name="invert"/> is true, generates the X-reflected curve y=f(1-x).
+/// When <c>invert</c> is true, generates the X-reflected curve y=f(1-x).
 /// </summary>
 public static class CurveShapeFactory
 {

@@ -16,7 +16,7 @@ public interface IForceProvider3D
 
     /// <summary>
     ///     Whether this provider's force should count toward control-loss detection on
-    ///     entities with an <c>ExternalForceReceiver3D</c> capture path. Default false (ambient/
+    ///     entities with an <see cref="Jmodot.Implementation.Actors.ExternalForceReceiver3D"/> capture path. Default false (ambient/
     ///     movement-only, e.g. gravity, conveyor belts). Capture sources (waves, tractor beams,
     ///     gravity wells) override to true. Source-side discrimination expressed as data on the
     ///     provider's own declaration site, no marker interfaces required.

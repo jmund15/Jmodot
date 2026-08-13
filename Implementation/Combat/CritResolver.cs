@@ -3,8 +3,8 @@ namespace Jmodot.Implementation.Combat;
 /// <summary>
 /// Pure-CLR critical-hit predicate, shared by the damage factories (assembly-time, <c>Resolved</c>) and
 /// the damage effects (apply-time, <c>DeferredPerHit</c>). The roll is injected as a <c>float</c> so this
-/// helper never constructs a <c>JmoRng</c> — its ctor SIGSEGVs the CLR test host, so callers seed a
-/// <c>JmoRng</c> from a lineage seed in a Godot-runtime-safe context and pass the drawn roll here.
+/// helper never constructs a <see cref="Jmodot.Implementation.Shared.JmoRng"/> — its ctor SIGSEGVs the CLR test host,
+/// so callers seed a <see cref="Jmodot.Implementation.Shared.JmoRng"/> from a lineage seed in a Godot-runtime-safe context and pass the drawn roll here.
 /// Sibling of <see cref="KnockbackForceResolver"/> / <see cref="SourceAttributionResolver"/>.
 /// </summary>
 public static class CritResolver

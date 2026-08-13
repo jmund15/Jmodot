@@ -23,12 +23,11 @@ using Shared;
 [GlobalClass, Tool]
 public partial class WaypointSteeringAction : SteeringBehaviorAction
 {
-    [ExportGroup("Navigation")]
-
     /// <summary>
     /// Required waypoint selection strategy. Handles where and how to pick targets.
     /// The action handles when (on enter, on reach, on nav finish).
     /// </summary>
+    [ExportGroup("Navigation")]
     [Export] private WaypointSelectionStrategy? _waypointStrategy;
 
     [Export(PropertyHint.Range, "0.5, 10.0, 0.1")]
@@ -40,12 +39,11 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     /// </summary>
     [Export] private bool _succeedOnReach = false;
 
-    [ExportGroup("Retry")]
-
     /// <summary>
-    /// When PickNewTarget fails, wait this many seconds before retrying.
+    /// When <see cref="PickNewTarget"/> fails, wait this many seconds before retrying.
     /// Prevents log spam when waypoint selection repeatedly fails (e.g., zone exceeds nav mesh).
     /// </summary>
+    [ExportGroup("Retry")]
     [Export(PropertyHint.Range, "0.5, 5.0, 0.1")]
     private float _pickRetryDelay = 1.0f;
 

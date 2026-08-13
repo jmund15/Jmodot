@@ -19,7 +19,7 @@ using Shared;
 /// </summary>
 /// <remarks>
 /// Constructed via named-property init by <c>DamageEffectFactory.Create</c>. A class
-/// (not struct) because <c>ICombatEffect</c> reference semantics box-through anyway —
+/// (not struct) because <see cref="ICombatEffect"/> reference semantics box-through anyway —
 /// the struct optimization bought nothing and made the 10-arg positional ctor fragile
 /// (silent param-order swap risk: <c>BaseKnockback</c> ↔ <c>MaxRange</c> are both
 /// <c>float</c>).

@@ -9,7 +9,7 @@ using Jmodot.Implementation.Visual;
 /// <summary>
 /// The deterministic maths behind scattered placement: a rejection-sampled, entity-local anchor
 /// inside the host's measured silhouette that clears every anchor already taken. Pure — no node
-/// access, no <c>JmoRng</c> field, and no authored tuning of its own; every knob arrives as a
+/// access, no <see cref="JmoRng"/> field, and no authored tuning of its own; every knob arrives as a
 /// parameter from the <see cref="AttachmentAnchorProfile3D"/> that owns it, and randomness arrives
 /// as an injected roll delegate so the same roll sequence always produces the same anchor.
 /// </summary>

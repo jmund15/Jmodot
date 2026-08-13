@@ -3,7 +3,7 @@ namespace Jmodot.Core.Interaction;
 /// <summary>
 /// Interface for world objects that respond to an in-place interaction (the configured
 /// interact action) without being picked up or moved. Detected and dispatched by
-/// <c>InteractorComponent3D</c>, which filters candidates via <see cref="CanInteract"/>
+/// <see cref="Jmodot.Implementation.Interaction.InteractorComponent3D"/>, which filters candidates via <see cref="CanInteract"/>
 /// and invokes <see cref="Interact"/> on the nearest eligible target.
 ///
 /// <para>Implementers MUST be <see cref="Node3D"/> — the dispatcher detects them via Area

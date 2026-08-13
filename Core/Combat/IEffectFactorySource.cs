@@ -17,8 +17,8 @@ using System.Collections.Generic;
 /// A returned <see cref="IDamageContributingFactory"/> contributes its base damage to the swing's
 /// fold target (the first damage-contributing factory in <c>DefaultEffects</c>) and produces NO
 /// effect of its own — one damage effect, one crit roll. A returned factory that is not marked but
-/// whose <c>Create</c> yields a <c>DamageEffect</c> is rejected loudly and not added: a sibling
-/// <c>DamageEffect</c> would corrupt first-only base-damage extraction downstream.
+/// whose <c>Create</c> yields a <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/> is rejected loudly and not added: a sibling
+/// <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/> would corrupt first-only base-damage extraction downstream.
 /// </para>
 /// <para>
 /// That rejection is the FULL extent of the framework's damage policing. Damage delivered through

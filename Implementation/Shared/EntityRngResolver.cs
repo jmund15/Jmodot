@@ -7,7 +7,7 @@ using AI.BB;
 /// <summary>
 /// Resolves a per-agent seeded <see cref="JmoRng"/> for an AI consumer from the agent's
 /// <see cref="BBDataSig.EntitySeed"/> Blackboard slot. The returned stream is deterministic
-/// for a given (entity seed, <paramref name="kind"/>) pair and statistically isolated per
+/// for a given (entity seed, <c>kind</c>) pair and statistically isolated per
 /// kind (different kinds off the same entity seed never share a sequence).
 /// <para>
 /// When the slot is absent — the host game has not adopted the entity-seed scheme, or a
@@ -21,7 +21,7 @@ using AI.BB;
 public static class EntityRngResolver
 {
     /// <param name="bb">The agent's Blackboard (may be null in degenerate setups).</param>
-    /// <param name="kind">A pinned <c>SeedKinds</c> component-kind segment.</param>
+    /// <param name="kind">A pinned <see cref="SeedKinds"/> component-kind segment.</param>
     /// <param name="warnContext">The consuming Node/Resource, for the warning's source tag.</param>
     /// <param name="warned">Per-instance latch — set true after the first fallback warning so
     /// a missing-seed consumer warns once, not every evaluation.</param>

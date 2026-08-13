@@ -185,8 +185,7 @@ public class CombatLog
     /// </summary>
     /// <remarks>
     /// Walks the SortedList by index descending from the most-recent entry; breaks as soon
-    /// as the cutoff is crossed. Zero allocations, zero LINQ — this is on the per-impact
-    /// hot path for <c>ForceImpactDamageApplier</c>.
+    /// as the cutoff is crossed. Zero allocations, zero LINQ — this runs on a per-impact hot path.
     /// </remarks>
     public T? GetMostRecent<T>(float withinSeconds) where T : CombatResult
     {

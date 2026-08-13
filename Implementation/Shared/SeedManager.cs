@@ -49,7 +49,7 @@ public partial class SeedManager : Node
     /// <summary>
     /// Derive a system-specific seed from a master seed.
     /// Pure function — testable in Logic Domain without Node lifecycle.
-    /// Uses a stable FNV-1a-style mix; MUST NOT use <see cref="HashCode.Combine"/>,
+    /// Uses a stable FNV-1a-style mix; MUST NOT use <c>HashCode.Combine</c>,
     /// which is process-randomized and breaks cross-session reproducibility.
     /// </summary>
     public static int DeriveSystemSeed(int masterSeed, string systemName)

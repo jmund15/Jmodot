@@ -16,22 +16,22 @@ public partial class FloatAttributeModifier : Resource, IFloatModifier, ITaggabl
     /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
     [Export, RequiredExport] public FloatModifierStageRule StageRule { get; private set; } = null!;
 
-    [ExportGroup("Modification Value")]
     /// <summary>
-    /// The raw value, interpreted by the StageRule's Reduce:
+    /// The raw value, interpreted by <see cref="StageRule"/>:
     /// additive — a flat value (10 for +10); summed-percent — a whole-number percent (10 for +10%);
     /// multiply — a multiplier (2.0 for x2).
     /// </summary>
+    [ExportGroup("Modification Value")]
     [Export] public float Value { get; private set; }
     [Export] public int Priority { get; private set; }
 
-    [ExportGroup("Semantic Classification")]
     /// <summary>
     /// Semantic categories for this modifier (e.g., Fire, Ice).
     /// Used by slot modifiers to target specific modifier types.
-    /// Warning: This is a shared Godot Array on a Resource — consumers should
+    /// Warning: This is a shared Godot Array on a Resource — consumers must
     /// create a defensive copy via <c>new Array&lt;Category&gt;(source)</c> before mutating.
     /// </summary>
+    [ExportGroup("Semantic Classification")]
     [Export] public Array<Category> SemanticCategories { get; private set; } = new();
 
     [ExportGroup("EffectTags & Cancellation")]

@@ -21,10 +21,10 @@ using Stats;
 /// <para>
 /// Authoring rule for new damage-shaped factories: implement this interface so your damage folds.
 /// The hitbox's loud rejection is NARROWER than that rule — it fires only when a slot factory's
-/// <c>Create</c> RETURNS a <c>DamageEffect</c>. Damage carried through any other shape is NOT
+/// <c>Create</c> RETURNS a <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/>. Damage carried through any other shape is NOT
 /// detectable by the framework, does NOT fold, and carries its own crit roll: a derived effect type
-/// (<c>DistanceScaledDamageEffect</c>) or a wrapper factory holding a damage factory
-/// (<c>DelayedEffectFactory</c>, <c>TickEffectFactory</c>, <c>DurationRevertibleEffectFactory</c>).
+/// (<see cref="Jmodot.Implementation.Combat.Effects.DistanceScaledDamageEffect"/>) or a wrapper factory holding a damage factory
+/// (<see cref="Jmodot.Implementation.Combat.EffectFactories.DelayedEffectFactory"/>, <see cref="Jmodot.Implementation.Combat.EffectFactories.TickEffectFactory"/>, <see cref="Jmodot.Implementation.Combat.EffectFactories.DurationRevertibleEffectFactory"/>).
 /// Rejecting those would require a closed-set type test over an open factory family, so the policy
 /// is owned by authoring-time validation on the game-layer composite source, not by the hitbox.
 /// A factory whose damage is modulated per-target at apply time (distance scaling) must NOT

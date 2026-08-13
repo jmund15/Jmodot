@@ -5,14 +5,14 @@ namespace Jmodot.Core.Combat;
 /// <para>
 /// Heavy / fast chargers do more damage; light / slow chargers do less.
 /// Callers compute <c>damageAmount = Compute(baseDamage, mass, velocity, k)</c>
-/// before constructing a <see cref="Effects.DamageEffect"/> tagged with the
+/// before constructing a <see cref="Jmodot.Implementation.Combat.Effects.DamageEffect"/> tagged with the
 /// <c>kinetic_damage</c> <see cref="CombatTag"/>; the resulting damage scales
 /// physically rather than via designer-authored gates.
 /// </para>
 /// <para>
 /// Stateless and side-effect-free. Damage modifiers (armor, weakness, kinetic
-/// affinity, normalization tuning) live in the damage-modifier-modules layer
-/// flagged in <c>DamageEffect.cs</c>'s TODO, not inside this calculator.
+/// affinity, normalization tuning) are not applied here — callers apply them
+/// downstream of this calculation.
 /// </para>
 /// </summary>
 public static class KineticDamageCalculator

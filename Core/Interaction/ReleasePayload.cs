@@ -6,7 +6,7 @@ using Jmodot.Core.Stats;
 /// <summary>
 /// Immutable description of a single release of a held object, carried by the typed
 /// <see cref="IThrowable3D.OnThrownWithPayload"/> event. A runtime value (plain record, not a
-/// <c>[GlobalClass]</c> resource — mirrors <c>CombatPayload</c>): the release verb constructs it,
+/// <c>[GlobalClass]</c> resource): the release verb constructs it,
 /// the grabbable applies its <see cref="LaunchVelocity"/>, and downstream listeners read the
 /// classification and originating stats without coupling to a holder or HSM state.
 /// </summary>

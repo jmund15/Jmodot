@@ -22,40 +22,40 @@ public partial class DistanceScaledDamageEffectFactory : CombatEffectFactory
 
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
 
-    [ExportGroup("Distance Falloff")]
     /// <summary>
     /// If set, damage scales based on distance. Closer = more damage.
     /// </summary>
+    [ExportGroup("Distance Falloff")]
     [Export] public DistanceFalloffConfig DamageFalloff { get; set; }
 
     /// <summary>
     /// If set, knockback scales based on distance. Closer = more knockback.
-    /// Can use same or different config as DamageFalloff.
+    /// May reuse the same config as <see cref="DamageFalloff"/> or use a different one.
     /// </summary>
     [Export] public DistanceFalloffConfig KnockbackFalloff { get; set; }
 
-    [ExportGroup("Critical Hit")]
     /// <summary>
     /// Attribute for crit chance (0.0 - 1.0). If null, crit is disabled.
     /// </summary>
+    [ExportGroup("Critical Hit")]
     [Export] public Attribute? CritChanceAttrOverride { get; set; }
 
     /// <summary>
-    /// Attribute for crit damage multiplier. Falls back to DefaultCritMultiplier if null.
+    /// Attribute for crit damage multiplier. Falls back to <see cref="DefaultCritMultiplier"/> if null.
     /// </summary>
     [Export] public Attribute? CritMultiplierAttrOverride { get; set; }
 
     /// <summary>
-    /// Default crit multiplier if CritMultiplierAttribute is not set.
+    /// Default crit multiplier used when <see cref="CritMultiplierAttrOverride"/> is not set.
     /// Clamped to [1.0, 10.0] in the Inspector — values below 1.0 would
     /// reduce damage on crit (almost certainly unintended).
     /// </summary>
     [Export(PropertyHint.Range, "1.0,10.0,0.01")] public float DefaultCritMultiplier { get; set; } = 1.5f;
 
-    [ExportGroup("Knockback")]
     /// <summary>
     /// Determines how much the impact speed of the projectile affects knockback.
     /// </summary>
+    [ExportGroup("Knockback")]
     [Export] public float KnockbackVelocityScaling { get; set; } = 1f;
 
     public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)

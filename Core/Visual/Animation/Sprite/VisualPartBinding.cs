@@ -7,7 +7,7 @@ using Jmodot.Core.Shared.Attributes;
 /// <summary>
 /// Per-part binding declared by a prefab via <see cref="VisualRig"/>. Identifies a
 /// specific child node by path, attaches a <see cref="PartId"/> and tags, and gates
-/// which <c>VisualItemData</c> overrides apply to it.
+/// which <see cref="VisualItemData"/> overrides apply to it.
 /// </summary>
 [GlobalClass, Tool]
 public partial class VisualPartBinding : Resource
@@ -25,7 +25,7 @@ public partial class VisualPartBinding : Resource
     [Export] public StringName? PartId { get; set; }
 
     /// <summary>
-    /// Tags applied to the produced <c>VisualNodeHandle</c>. Tags are the primary way
+    /// Tags applied to the produced <see cref="VisualNodeHandle"/>. Tags are the primary way
     /// queries select cross-slot groupings (e.g. "PlayerColored", "Metallic").
     /// </summary>
     [Export] public GCol.Array<StringName> Tags { get; set; } = new();
@@ -37,7 +37,6 @@ public partial class VisualPartBinding : Resource
 
     /// <summary>
     /// If true, this part's visibility is tracked separately from the always-visible set.
-    /// Used by visibility-driven providers (e.g. <c>AnimationVisibilityCoordinator</c>).
     /// </summary>
     [Export] public bool VisibilityParticipant { get; set; } = true;
 

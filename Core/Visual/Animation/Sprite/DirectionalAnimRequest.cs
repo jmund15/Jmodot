@@ -7,7 +7,7 @@ using Godot;
 /// A resolved directional animation request the orchestrator fans out to a composite's slaves.
 /// Carries the base state name, the resolved direction label + world vector, and the label map +
 /// separator so each slave can independently resolve its own concrete clip via
-/// <c>DirectionalClipResolver</c> under its own <see cref="SlotFallbackPolicy"/>.
+/// <see cref="Jmodot.Implementation.Visual.Animation.Sprite.DirectionalClipResolver"/> under its own <see cref="SlotFallbackPolicy"/>.
 /// </summary>
 public readonly struct DirectionalAnimRequest
 {

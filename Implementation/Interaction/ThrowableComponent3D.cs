@@ -11,7 +11,7 @@ using Jmodot.Implementation.Shared;
 /// Drives a parent <see cref="CharacterBody3D"/> as a thrown projectile. On <see cref="Throw"/>
 /// it integrates flight through <see cref="FlightStrategy"/> each physics frame and dispatches
 /// the optional <see cref="Impact"/> behavior on the first collision. Self-contained — needs no
-/// HSM state. Mirrors <c>GrabbableComponent3D</c>'s child-component-manipulates-parent-body pattern.
+/// HSM state.
 /// </summary>
 [GlobalClass]
 public partial class ThrowableComponent3D : Node3D, IThrowable3D

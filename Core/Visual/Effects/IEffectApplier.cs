@@ -8,10 +8,9 @@ using Godot;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Today's effects (<c>FlashEffect</c>, <c>TintEffect</c>) are Modulate-tween based
-/// and share the implementation <c>ModulateTweenApplier</c>. Future effect kinds
-/// (glow-shader, particle burst, per-node gradient) can ship their own applier
-/// without <c>VisualEffectController</c> ever seeing the details — the controller
+/// Future effect kinds (glow-shader, particle burst, per-node gradient) can ship their
+/// own applier without <see cref="Jmodot.Implementation.Visual.Effects.VisualEffectController"/>
+/// ever seeing the details — the controller
 /// treats appliers as opaque "start / stop" units with a shared modulate handle for
 /// the Modulate-blending case.
 /// </para>

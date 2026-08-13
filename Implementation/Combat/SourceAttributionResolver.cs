@@ -8,25 +8,24 @@ using Implementation.Actors;
 
 /// <summary>
 /// Pure-function attribution resolver: maps an <see cref="ImpactInfo"/> to the most
-/// plausible damage-source <see cref="Node"/>. Used by <c>ForceImpactDamageApplier</c>
-/// to credit wall-slam damage to the launching spell/actor instead of the wall itself.
+/// plausible damage-source <see cref="Node"/>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Three-step chain (in order of preference):
 /// </para>
 /// <list type="number">
-///   <item>Most recent <see cref="KnockbackResult"/> in <paramref name="combatLog"/>
-///         within <paramref name="windowSeconds"/> — typically the spell or actor that
+///   <item>Most recent <see cref="KnockbackResult"/> in the supplied <c>combatLog</c>
+///         within <c>windowSeconds</c> — typically the spell or actor that
 ///         just knocked the target into the wall.</item>
-///   <item>Dominant sustained force from <paramref name="forceReceiver"/> — wave drag,
-///         conveyor, magnet, future fluid currents.</item>
+///   <item>Dominant sustained force from the supplied <c>forceReceiver</c> — wave drag,
+///         conveyor, magnet, fluid currents.</item>
 ///   <item><c>info.Collider</c> — last resort, the wall itself.</item>
 /// </list>
 /// <para>
 /// Extracted as a static helper so the chain ordering, window expiry, and
 /// null-degradation paths are unit-testable independently of the Node lifecycle of
-/// <c>ForceImpactDamageApplier</c>. Logic Domain — strict TDD applies.
+/// <see cref="ForceImpactDamageApplier"/>.
 /// </para>
 /// </remarks>
 public static class SourceAttributionResolver
@@ -43,7 +42,7 @@ public static class SourceAttributionResolver
     /// Same chain as <see cref="Resolve"/>, additionally classifying WHICH step attributed
     /// the impact. <see cref="ImpactCause.ColliderFallback"/> means no external evidence was
     /// found — the impact was caused by the actor's own movement (attack lunge, leap landing,
-    /// voluntary fall), which consumers like <c>ForceImpactDamageApplier</c> use to gate
+    /// voluntary fall), which consumers like <see cref="ForceImpactDamageApplier"/> use to gate
     /// self-damage out of force-driven damage application.
     /// </summary>
     public static (Node? Source, ImpactCause Cause) ResolveWithCause(

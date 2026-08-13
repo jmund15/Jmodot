@@ -4,9 +4,9 @@ using Godot;
 using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
-/// Strong identifier for a <c>VisualSlotNode</c>. Authored as <c>.tres</c> so designers
+/// Strong identifier for a <see cref="Jmodot.Implementation.Visual.Animation.Sprite.VisualSlotNode"/>. Authored as <c>.tres</c> so designers
 /// reference the same slot key across components instead of typing string names repeatedly.
-/// Equality is on <see cref="Id"/>, so two <c>SlotKey</c> resources pointing at the same
+/// Equality is on <see cref="Id"/>, so two <see cref="SlotKey"/> resources pointing at the same
 /// <see cref="StringName"/> interchange in dictionary lookups.
 /// </summary>
 /// <remarks>

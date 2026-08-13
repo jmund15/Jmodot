@@ -32,14 +32,14 @@ public abstract partial class BaseAIConsideration2D : Resource
     /// Called once by the AISteeringProcessor during initialization. This allows the
     /// consideration to perform any necessary setup or caching.
     /// </summary>
-    /// <param name="directions">The DirectionSet3D used by the agent.</param>
+    /// <param name="directions">The <see cref="DirectionSet2D"/> used by the agent.</param>
     public virtual void Initialize(DirectionSet2D directions) { }
 
     /// <summary>
     /// The primary evaluation method. It calculates the base scores and then allows
     /// all registered modifiers to alter them before adding to the final scores.
     /// </summary>
-    /// <param name="context3D">A snapshot of the current world and agent state.</param>
+    /// <param name="context">A snapshot of the current world and agent state.</param>
     /// <param name="blackboard">The AI's blackboard for accessing core components.</param>
     /// <param name="directions">The set of directions to score.</param>
     /// <param name="finalScores">The master score dictionary from the steering processor, passed by reference.</param>

@@ -88,7 +88,7 @@ public abstract partial class BaseAIConsideration3D : Resource
 
     /// <summary>
     /// Creates this consideration's per-agent runtime state, called once per agent by the steering
-    /// processor, which then owns the instance and hands it back on every <see cref="Evaluate"/>.
+    /// processor, which then owns the instance and hands it back on every <c>Evaluate</c> call.
     /// The default returns null — a consideration whose scoring is a pure function of its exports
     /// plus the decision context needs no runtime.
     /// </summary>

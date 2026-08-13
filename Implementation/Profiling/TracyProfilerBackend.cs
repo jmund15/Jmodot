@@ -13,7 +13,7 @@ using Jmodot.Core.Profiling;
 /// ignored entirely in favor of Tracy's own high-resolution timeline.
 ///
 /// <para><b>Godot-free invariant:</b> the constructor and all four <c>On*</c> methods touch zero
-/// Godot API (no <c>JmoLogger</c>, no <see cref="ProjectSettings"/>, no <see cref="OS"/>), so
+/// Godot API (no <see cref="Jmodot.Implementation.Shared.JmoLogger"/>, no <see cref="ProjectSettings"/>, no <see cref="OS"/>), so
 /// the mapping logic is pure-CLR mock-testable without the engine runtime. All native interop and
 /// degradation logging live in <see cref="TracyNative"/>; the ProjectSettings statics below are
 /// invoked only from the game's autoload, never from a test.</para>

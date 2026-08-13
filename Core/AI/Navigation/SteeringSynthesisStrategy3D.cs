@@ -6,8 +6,7 @@ using Implementation.AI.Navigation;
 /// <summary>
 /// Pure, stateless strategy that collapses a <see cref="SteeringContextMap"/> into a single desired
 /// direction. Per-agent commitment state is NOT held here — it flows through <see cref="Synthesize"/>
-/// as input and output, so one shared <c>.tres</c> instance is safe across every agent. Follows the
-/// <c>TurnRateProfile3D</c> pure-Resource-strategy precedent.
+/// as input and output, so one shared <c>.tres</c> instance is safe across every agent.
 /// </summary>
 [GlobalClass, Tool]
 public abstract partial class SteeringSynthesisStrategy3D : Resource

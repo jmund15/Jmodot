@@ -15,12 +15,12 @@ public partial class IntAttributeModifier : Resource, IIntModifier, ITaggableMod
     /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
     [Export, RequiredExport] public IntModifierStageRule StageRule { get; private set; } = null!;
 
-    [ExportGroup("Modification Value")]
     /// <summary>
-    /// The raw value, interpreted by the StageRule's Reduce:
+    /// The raw value, interpreted by <see cref="StageRule"/>:
     /// additive — a flat value (10 for +10); summed-percent — a whole-number percent (10 for +10%);
     /// multiply — a multiplier (2 for x2); override — the replacement value.
     /// </summary>
+    [ExportGroup("Modification Value")]
     [Export] public int Value { get; private set; }
     [Export] public int Priority { get; private set; }
 

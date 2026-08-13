@@ -9,9 +9,9 @@ namespace Jmodot.Core.Actors;
 /// </summary>
 /// <remarks>
 /// Deliberately excluded because they cannot be expressed dimension-neutrally over the current
-/// provider interfaces: internal-provider registration (<c>IForceProvider2D</c> and
-/// <c>IForceProvider3D</c> share no base type), the vector-valued force/offset queries, and the
-/// velocity-offset capture split (<c>IForceProvider2D</c> carries no <c>IsCaptureForce</c>
+/// provider interfaces: internal-provider registration (<see cref="Jmodot.Core.Environment.IForceProvider2D"/> and
+/// <see cref="Jmodot.Core.Environment.IForceProvider3D"/> share no base type), the vector-valued force/offset queries, and the
+/// velocity-offset capture split (<see cref="Jmodot.Core.Environment.IForceProvider2D"/> carries no <c>IsCaptureForce</c>
 /// concept at all, so a 2D receiver reports zero capture force by construction). Consumers that
 /// need those work against the concrete receiver.
 /// </remarks>

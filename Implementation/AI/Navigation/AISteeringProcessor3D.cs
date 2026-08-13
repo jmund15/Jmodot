@@ -43,11 +43,11 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// </summary>
     public (StringName Key, object Value)? Provision => (Implementation.AI.BB.BBDataSig.SteeringComp, this);
 
-    [ExportGroup("Configuration")]
     /// <summary>
     /// The set of discrete directions the AI uses to evaluate its world. All consideration
     /// scores will be calculated for the vectors in this set.
     /// </summary>
+    [ExportGroup("Configuration")]
     [Export]
     public DirectionSet3D MovementDirections { get; private set; } = null!;
 
@@ -58,13 +58,13 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// </summary>
     [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
 
-    [ExportGroup("Navigation Path")]
     /// <summary>
     /// The processor-owned navigation path consideration. Evaluated separately from the
     /// regular considerations array to guarantee exactly one nav path consideration is active.
     /// When a nav path exists, this provides the primary "desire" to move toward the goal.
     /// BT actions can temporarily override this via <see cref="OverrideNavPathConsideration"/>.
     /// </summary>
+    [ExportGroup("Navigation Path")]
     [Export] private NavigationPath3DConsideration? _navPathConsideration;
 
     /// <summary>
@@ -74,11 +74,11 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     /// </summary>
     private NavigationPath3DConsideration? _navPathOverride;
 
-    [ExportGroup("Behavior")]
     /// <summary>
     /// If true, the final, blended direction vector will be snapped to the closest vector
-    /// in the MovementDirections set. This is useful for grid-based or 8-way sprite movement.
+    /// in the <see cref="MovementDirections"/> set. This is useful for grid-based or 8-way sprite movement.
     /// </summary>
+    [ExportGroup("Behavior")]
     [Export] private bool _snapToDirectionSet = false;
 
     /// <summary>
@@ -169,13 +169,13 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         }
     }
 
-    [ExportGroup("Synthesis")]
     /// <summary>
     /// The strategy that collapses the per-frame context map into a desired direction. Optional —
     /// null falls back to a lazily-created shared default <see cref="ArgmaxSynthesisStrategy3D"/>
     /// (one-time Info log). Deliberately NOT [RequiredExport]: this lands before the .tres is assigned
     /// on npc_template, and a required export would throw at _Ready for every existing NPC in that gap.
     /// </summary>
+    [ExportGroup("Synthesis")]
     [Export] private SteeringSynthesisStrategy3D? _synthesisStrategy;
 
     private readonly OwnedSlot<SteeringSynthesisStrategy3D> _synthesisSlot = new("Steering");
@@ -233,13 +233,12 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         return _recorder;
     }
 
-    [ExportGroup("Debug")]
-
     /// <summary>
     /// When true, emits a standing per-N-frame <c>[Steering]</c> attribution line via
     /// <see cref="JmoLogger.Debug"/> (chosen/committed bins + top-3 bins with the dominant
     /// contributor each). A permanent gate — NOT an ephemeral <c>[DIAG-*]</c> diagnostic.
     /// </summary>
+    [ExportGroup("Debug")]
     [Export] private bool _logSteeringAttribution;
 
     /// <summary>Frame interval between attribution log lines while <see cref="_logSteeringAttribution"/> is on.</summary>

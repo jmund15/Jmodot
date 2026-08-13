@@ -8,8 +8,7 @@ using Jmodot.Implementation.Shared;
 /// <summary>
 /// Releases a parent <see cref="CharacterBody3D"/> to fall and settle at rest. On <see cref="Drop"/>
 /// it zeroes horizontal velocity and lets gravity settle the body, raising <see cref="OnDropped"/>.
-/// Self-contained — needs no HSM state. Mirrors <c>GrabbableComponent3D</c>'s
-/// child-component-manipulates-parent-body pattern.
+/// Self-contained — needs no HSM state.
 /// </summary>
 [GlobalClass]
 public partial class DroppableComponent3D : Node3D, IDroppable3D

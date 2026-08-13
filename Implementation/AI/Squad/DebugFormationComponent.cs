@@ -16,11 +16,10 @@ public partial class DebugFormationComponent : Node
 {
     #region Exported Parameters
 
-    [ExportGroup("Visualization")]
-
     /// <summary>
     /// Master toggle for debug visualization.
     /// </summary>
+    [ExportGroup("Visualization")]
     [Export]
     private bool _enableDebug = true;
 
@@ -60,12 +59,11 @@ public partial class DebugFormationComponent : Node
     [Export(PropertyHint.Range, "0.0, 2.0, 0.1")]
     private float _heightOffset = 0.1f;
 
-    [ExportGroup("References")]
-
     /// <summary>
-    /// Optional direct reference to the SquadRoster.
-    /// If not set, will try to find the parent SquadRoster.
+    /// Optional direct reference to the <see cref="SquadRoster"/>.
+    /// If not set, the parent <see cref="SquadRoster"/> is used.
     /// </summary>
+    [ExportGroup("References")]
     [Export]
     private SquadRoster? _roster;
 

@@ -18,7 +18,7 @@ using Jmodot.Implementation.Physics.Collision;
 /// Both are default interface members, so existing kinematic implementers adopt the supertype with
 /// no changes. Inherits <see cref="IDamageable"/> (self-damage; health-less hosts no-op TakeDamage),
 /// <see cref="IIdentifiable"/> (category resolution), and <see cref="IGodotNodeInterface"/> (node
-/// access for collision-exception wiring + <c>IImpactable</c> blackboard discovery) via the supertype.
+/// access for collision-exception wiring + <see cref="IImpactable"/> blackboard discovery) via the supertype.
 /// </summary>
 public interface ICollisionHost : ICollisionResponseHost
 {

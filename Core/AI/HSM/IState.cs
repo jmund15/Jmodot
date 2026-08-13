@@ -10,11 +10,10 @@ using Implementation.AI.HSM;
 public interface IState
 {
     /// <summary>
-    /// Fired when this state determines a transition to a new state is required.
+    /// Fired when this state determines a transition to a new state is required. Handlers receive the
+    /// requesting state, the target state, and an urgent flag; when urgent is true the transition
+    /// bypasses <see cref="CanExit"/> and the exit handshake.
     /// </summary>
-    /// <param name="oldState">The state requesting the transition.</param>
-    /// <param name="newState">The target state to transition to.</param>
-    /// <param name="urgent">If true, bypasses CanExit() and ExitHandshake().</param>
     event State.TransitionStateEventHandler TransitionState;
 
     /// <summary>

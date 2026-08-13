@@ -6,7 +6,7 @@ using System.Collections.Generic;
 /// <summary>
 /// Caches the result of allocating a native handle for a string, returning the same handle for
 /// repeated strings. Separates the intern <em>policy</em> from the allocation <em>mechanism</em>
-/// (the injected <paramref name="alloc"/> delegate) so the policy is pure-CLR testable while the
+/// (the injected <c>alloc</c> delegate) so the policy is pure-CLR testable while the
 /// real allocation (e.g. <c>CString.FromString</c>) stays an untested adapter detail.
 ///
 /// <para>Tracy stores plot / frame-mark name pointers <b>by reference, not by copy</b>, so the

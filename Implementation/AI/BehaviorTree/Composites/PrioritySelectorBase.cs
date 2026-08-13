@@ -75,9 +75,9 @@ public abstract partial class PrioritySelectorBase : CompositeTask
     /// <see cref="_runningChildIdx"/> before the child ticks.
     /// <para>
     /// Subclasses that swap the running slot are responsible for unsubscribing the outgoing
-    /// child's <see cref="BehaviorTask.TaskStatusChanged"/> and subscribing the incoming child's,
+    /// child's <c>TaskStatusChanged</c> and subscribing the incoming child's,
     /// in that order, to avoid re-entrant callbacks during the implicit Status mutations in
-    /// <see cref="BehaviorTask.Exit"/> and <see cref="BehaviorTask.Enter"/>.
+    /// <c>Exit</c> and <c>Enter</c>.
     /// </para>
     /// </summary>
     protected virtual void OnTickStart() { }

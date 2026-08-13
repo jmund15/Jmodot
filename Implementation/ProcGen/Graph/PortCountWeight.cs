@@ -29,7 +29,7 @@ public sealed partial class PortCountWeight : SlotWeight
     /// <summary>
     ///     Pure scoring core: <c>max(1, 1 + perPortBonus·(ports − 1))</c>. Floored at 1 so a degenerate
     ///     input (0-port template, negative bonus) can never produce the zero/negative weight the
-    ///     generator's <c>WeightedPick</c> rejects.
+    ///     generator's <see cref="Jmodot.Core.Shared.WeightedPick"/> rejects.
     /// </summary>
     internal static int WeightForPortCount(int ports, int perPortBonus)
         => Math.Max(1, 1 + (perPortBonus * (ports - 1)));

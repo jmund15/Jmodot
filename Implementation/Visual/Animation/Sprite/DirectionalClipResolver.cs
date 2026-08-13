@@ -8,8 +8,6 @@ using Godot;
 /// <summary>
 /// Pure resolution of which concrete clip an animator should play for a directional request,
 /// degrading through up to three tiers per the caller's <see cref="SlotFallbackPolicy"/>.
-/// Extracted from <c>AnimationOrchestrator</c> so both the orchestrator (single leaf target)
-/// and <c>CompositeAnimatorComponent</c> (per-slave fan-out) share one resolution rule.
 /// </summary>
 public static class DirectionalClipResolver
 {

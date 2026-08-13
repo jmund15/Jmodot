@@ -17,14 +17,11 @@ using Core.Stats;
 /// Getup). <c>ClearStrategyOverride</c> returns the processor to its <c>Default</c>.
 /// </para>
 /// <para>
-/// <b>Interaction with impulses (v6.1):</b> XZ-component impulses are discarded by
+/// <b>Interaction with impulses:</b> XZ-component impulses are discarded by
 /// design (the halt semantic). Y-component impulses (vertical knockback, gravity)
 /// pass through — the impulse-modified Y from
-/// <see cref="Jmodot.Core.Actors.IMovementProcessor3D.ApplyImpulse"/> reaches the
-/// receiver intact. Pre-v6.1 this strategy returned <see cref="Vector3.Zero"/>
-/// unconditionally, silently discarding upward knockback impulses applied in the
-/// same frame and breaking the airborne-state pipeline that wires this strategy as
-/// the control-loss override.
+/// <see cref="Jmodot.Core.Actors.IImpulseReceiver3D.ApplyImpulse"/> reaches the
+/// receiver intact.
 /// </para>
 /// <para>
 /// No stat bindings required — the strategy has no tunable numeric parameters. Subclass

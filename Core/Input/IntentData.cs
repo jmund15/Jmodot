@@ -21,7 +21,7 @@ public readonly struct IntentData
     /// <summary>
     /// Semantic tag for Vector2 payloads. Default <see cref="VectorInputSemantic.Directional"/>
     /// for non-vector payloads or legacy construction paths; set by
-    /// <see cref="VectorBindingBase.Semantic"/> via <c>PlayerIntentSource</c>.
+    /// <see cref="VectorBindingBase.Semantic"/> via <see cref="Jmodot.Implementation.Input.PlayerIntentSource"/>.
     /// </summary>
     public VectorInputSemantic VectorSemantic => _vecSemantic;
 

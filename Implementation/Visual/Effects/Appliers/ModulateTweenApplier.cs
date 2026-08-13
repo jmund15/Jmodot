@@ -6,15 +6,15 @@ using Godot;
 
 /// <summary>
 /// Default <see cref="IEffectApplier"/> for Modulate-based tween effects
-/// (<c>FlashEffect</c>, <c>TintEffect</c>, etc.). Wraps the existing
-/// <see cref="VisualEffect.ConfigureTween"/> mechanism — behavior is identical to
-/// the pre-4.4 inline tween setup in <c>VisualEffectController.PlayEffect</c>.
+/// (<see cref="Jmodot.Implementation.Visual.Effects.FlashEffect"/>,
+/// <see cref="Jmodot.Implementation.Visual.Effects.TintEffect"/>, etc.). Wraps the
+/// <see cref="VisualEffect.ConfigureTween"/> mechanism.
 /// </summary>
 /// <remarks>
 /// The applier owns exactly two Godot objects: the <see cref="Tween"/> and the
 /// <see cref="VisualEffectHandle"/>. Both are released by <see cref="End"/>. The
-/// tween's <c>Finished</c> signal is routed through <paramref name="onFinished"/>
-/// (passed to <see cref="Begin"/>) so the controller gets notified when a
+/// tween's <c>Finished</c> signal is routed through the <c>onFinished</c> callback
+/// passed to <see cref="Begin"/>, so the controller is notified when a
 /// natural completion occurs.
 /// </remarks>
 public sealed class ModulateTweenApplier : IEffectApplier

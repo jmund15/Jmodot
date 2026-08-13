@@ -11,7 +11,7 @@ using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Combat effect that produces a <see cref="KnockbackResult"/> implementing
-/// <see cref="IForceCarrier"/>. Final force is resolved by <c>KnockbackForceResolver</c>
+/// <see cref="IForceCarrier"/>. Final force is resolved by <see cref="KnockbackForceResolver"/>
 /// from <see cref="BaseForce"/>, optional spatial curves
 /// (<see cref="DistanceFalloff"/>/<see cref="ConeAngleFalloff"/> + their normalizers),
 /// and <see cref="VelocityScaling"/>. Direction is the normalized vector from

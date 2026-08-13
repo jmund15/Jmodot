@@ -20,12 +20,11 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
 {
     #region Exported Parameters
 
-    [ExportGroup("Stat Configuration")]
-
     /// <summary>
     /// The attribute that determines the consideration's influence range.
-    /// If not set or stats unavailable, falls back to DefaultInfluenceRange.
+    /// If not set or stats unavailable, falls back to <see cref="DefaultInfluenceRange"/>.
     /// </summary>
+    [ExportGroup("Stat Configuration")]
     [Export]
     public Attribute? InfluenceRangeAttribute { get; set; }
 
@@ -35,12 +34,11 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
     [Export(PropertyHint.Range, "1.0, 100.0, 0.5")]
     public float DefaultInfluenceRange { get; set; } = 15.0f;
 
-    [ExportGroup("Steering Behavior")]
-
     /// <summary>
     /// Distance at which the agent is considered "arrived" at target.
     /// Within this radius, no steering force is applied.
     /// </summary>
+    [ExportGroup("Steering Behavior")]
     [Export(PropertyHint.Range, "0.5, 5.0, 0.1")]
     private float _arrivalRadius = 1.5f;
 

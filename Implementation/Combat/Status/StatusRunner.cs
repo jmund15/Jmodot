@@ -117,7 +117,7 @@ public abstract partial class StatusRunner : Node
     /// <summary>
     /// Per-runner roll source for one spread evaluation: draws a fresh seed from this runner's spread
     /// sequence (advancing it) and returns a JmoRng seeded from it — so each evaluation is deterministic
-    /// AND disjoint from sibling runners sharing the same <c>StatusSpreadConfig</c> Resource (the
+    /// AND disjoint from sibling runners sharing the same <see cref="StatusSpreadConfig"/> Resource (the
     /// cross-stomp the old per-config <c>_rng</c> caused). Unseeded runners fall back to UnseededByDesign
     /// (silent — a hit-applied status is already covered by the hurtbox's ResolveHitSeed warn).
     /// <c>internal</c> because <c>StatusSpreadConfig.TryEvaluate</c> is the only caller; one call per

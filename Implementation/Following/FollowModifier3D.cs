@@ -12,7 +12,7 @@ using Godot;
 /// <b>Impulse-additive contract:</b> modifiers return a replacement impulse
 /// (typically <c>baseImpulse + contribution</c>, but may also scale, rotate,
 /// or clamp). The returned vector is then passed to the NEXT modifier in the
-/// array (if any) as its <paramref name="baseImpulse"/>. Order matters.
+/// array (if any) as its <c>baseImpulse</c>. Order matters.
 /// </para>
 ///
 /// <para>

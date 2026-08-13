@@ -2,7 +2,7 @@ namespace Jmodot.Core.Shared;
 
 /// <summary>
 ///     Deterministic uniform sampler over an inclusive <see cref="IntRange" />. Fully data-driven:
-///     the randomness (the <paramref name="roll" />) is passed as data, so the primitive is pure —
+///     the randomness (the <c>roll</c>) is passed as data, so the primitive is pure —
 ///     no injected delegate, no RNG dependency, no Godot runtime coupling. A caller produces the
 ///     roll with its own seeded RNG (e.g. <c>rng.GetRndLong(range.Max - range.Min + 1)</c>),
 ///     mirroring the <see cref="WeightedPick" /> data-param precedent in this folder and keeping

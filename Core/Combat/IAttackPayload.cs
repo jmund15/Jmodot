@@ -21,7 +21,7 @@ public interface IAttackPayload
     IReadOnlyList<ICombatEffect> Effects { get; }
 
     /// <summary>
-    /// The attacker's stat provider (e.g., the spell's <c>StatController</c>), exposed so
+    /// The attacker's stat provider (e.g., the spell's <see cref="StatController"/>), exposed so
     /// downstream consumers — capacity providers, reaction resolvers, payload interceptors —
     /// can read the attacker's runtime stats without re-resolving the attacker. May be
     /// <c>null</c> for attackers that have no stat provider; consumers MUST null-check.
