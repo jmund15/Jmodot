@@ -21,6 +21,16 @@ public readonly record struct ClaimHold(StringName? Held, int MissFrames);
 public static class LocomotionAnimResolver
 {
     /// <summary>
+    /// The horizontal movement direction the fallback tier feeds the orchestrator's SetDirection.
+    /// The vertical component is dropped so a pure-vertical velocity reads as a zero direction and
+    /// the orchestrator early-returns instead of snapping vertical motion to an arbitrary bucket.
+    /// </summary>
+    public static Vector3 DirectionFromVelocity(Vector3 velocity)
+    {
+        return new Vector3(velocity.X, 0f, velocity.Z);
+    }
+
+    /// <summary>
     /// Hysteresis band over squared flat speed. A single threshold chatters while an entity hovers
     /// at the boundary, and every flip costs a clip restart, so entering movement and leaving it
     /// use separate thresholds and the previous state carries through the band between them.
