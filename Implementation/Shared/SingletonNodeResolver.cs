@@ -44,9 +44,13 @@ public static class SingletonNodeResolver
         return null;
     }
 
+    #region Test Helpers
+#if TOOLS
     /// <summary>Clear the warn-once ledger so a test run cannot swallow the warning a later test asserts on.</summary>
     internal static void Reset()
     {
         WarnedPairs.Clear();
     }
+#endif
+    #endregion
 }
