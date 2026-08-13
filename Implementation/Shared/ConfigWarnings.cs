@@ -22,11 +22,23 @@ public static class ConfigWarnings
     /// </remarks>
     public static string? RequireEntitySibling<T>(Node self, string warning) where T : Node
     {
+        return TryFindEntitySibling<T>(self, out _) ? null : warning;
+    }
+
+    /// <summary>
+    /// Finds the first node of type <typeparamref name="T"/> under the entity that owns
+    /// <paramref name="self"/>, using the same ancestor walk
+    /// <see cref="RequireEntitySibling{T}"/> performs. Editor-time only, and first-match: on an
+    /// entity carrying two candidates the runtime's blackboard-resolved instance and this one can
+    /// differ, which is already a scene-authoring defect the entity initializer warns about.
+    /// </summary>
+    public static bool TryFindEntitySibling<T>(Node self, out T? found) where T : Node
+    {
         for (var ancestor = self.GetParent(); ancestor != null; ancestor = ancestor.GetParent())
         {
-            if (ancestor.TryGetFirstChildOfType<T>(out _))
+            if (ancestor.TryGetFirstChildOfType<T>(out found))
             {
-                return null;
+                return true;
             }
 
             if (ancestor.TryGetFirstChildOfInterface<IBlackboard>(out _, includeSubChildren: false))
@@ -35,6 +47,7 @@ public static class ConfigWarnings
             }
         }
 
-        return warning;
+        found = null;
+        return false;
     }
 }
