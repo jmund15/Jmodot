@@ -180,6 +180,14 @@ public partial class FacingFlipController : Node
         {
             warnings.AddRange(SpriteTargetSet3D.DescribeExplicitListProblems(this.Sprites));
         }
+        else if (mirror == null && this.Sprites.Count > 0)
+        {
+            // A populated list is an explicit intent signal, so dormancy here reads as a misconfiguration
+            // rather than the template-mount case the silence above protects. Without this the author gets
+            // nothing: the list is never resolved (so no bad-slot rows, no runtime error) and the
+            // missing-profile row above only fires for an orchestrator source that resolves directions.
+            warnings.Add("Sprites is populated but no MirrorFacingConfig is active, so this controller is dormant and will flip nothing. Assign a FacingProfile3D carrying a Mirror channel, or clear Sprites.");
+        }
 
         if (FacingProfile?.ValidateConfiguration() is { } profileProblem)
         {
