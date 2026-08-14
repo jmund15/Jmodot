@@ -47,6 +47,7 @@ public partial class AudioDirectorBase : Node, IAudioDirector
     private Node3D? _listenerOverride;
     private bool _warnedNullStreams;
     private bool _warnedUnresolvableBus;
+    private bool _warnedUnresolvableApplyBus;
 
     /// <summary>
     /// Maps an audio volume setting key to its target bus. Returns null for any key that is not
@@ -91,6 +92,7 @@ public partial class AudioDirectorBase : Node, IAudioDirector
         int index = AudioServer.GetBusIndex(bus);
         if (index == -1)
         {
+            WarnOnce(ref _warnedUnresolvableApplyBus, $"Audio bus '{bus}' does not exist; volume setting not applied.");
             return;
         }
         AudioServer.SetBusVolumeLinear(index, _settings.GetSetting<float>(key));
