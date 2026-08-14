@@ -147,6 +147,12 @@ public partial class AudioDirectorBase : Node, IAudioDirector
             return;
         }
         var voice = positional ? _positionalVoices[handle.SlotIndex] : _plainVoices[handle.SlotIndex];
+        if (voice != null && voice.IsBusy)
+        {
+            // Evicted by the allocator's steal path: stop its streams before reassignment, or a
+            // busy voice would accumulate streams up to its polyphony ceiling.
+            voice.StopAllStreams();
+        }
         voice?.Play(profile, request.Position);
     }
 
@@ -229,6 +235,19 @@ public partial class AudioDirectorBase : Node, IAudioDirector
         JmoLogger.Warning(this, message);
     }
 
+    #region Test Helpers
+#if TOOLS
+    internal void _TestPlayOnVoice(SoundProfile profile, int voiceIndex)
+        => _positionalVoices[voiceIndex]?.Play(profile, Vector3.Zero);
+
+    internal int _TestVoiceLastStreamId(int voiceIndex)
+        => _positionalVoices[voiceIndex]?._TestActiveStreamId() ?? -1;
+
+    internal bool _TestVoiceIsStreamPlaying(int voiceIndex, int streamId)
+        => _positionalVoices[voiceIndex]?._TestIsStreamPlaying(streamId) ?? false;
+#endif
+    #endregion
+
     /// <summary>
     /// The thin node adapter that maps a <see cref="VoiceHandle"/> back to a live voice node and
     /// feeds stream-finish state back to the director. Each voice runs an
@@ -239,22 +258,26 @@ public partial class AudioDirectorBase : Node, IAudioDirector
     {
         private readonly AudioStreamPlayer3D? _positional;
         private readonly AudioStreamPlayer? _plain;
+        private readonly AudioStreamPolyphonic _polyphonic;
         private AudioStreamPlaybackPolyphonic? _playback;
         private int _activeStreamId = -1;
+        private bool _warnedInvalidId;
 
         public VoiceChannel(AudioStreamPlayer3D? positional, AudioStreamPlayer? plain)
         {
             _positional = positional;
             _plain = plain;
-            var polyphonic = new AudioStreamPolyphonic { Polyphony = 4 };
+            _polyphonic = new AudioStreamPolyphonic { Polyphony = 4 };
             if (positional != null)
             {
-                positional.Stream = polyphonic;
+                positional.Stream = _polyphonic;
                 positional.MaxPolyphony = 4;
+                positional.Playing = true;
             }
             else
             {
-                plain!.Stream = polyphonic;
+                plain!.Stream = _polyphonic;
+                plain!.Playing = true;
             }
         }
 
@@ -272,18 +295,43 @@ public partial class AudioDirectorBase : Node, IAudioDirector
             {
                 _positional.Position = position;
             }
-            _activeStreamId = (int)_playback.PlayStream(profile.Streams!, 0, profile.VolumeDb, 1.0f,
+            int streamId = (int)_playback.PlayStream(profile.Streams!, 0, profile.VolumeDb, 1.0f,
                 AudioServer.PlaybackType.Default, profile.Bus);
+            if (streamId == -1)
+            {
+                WarnOnceInvalidId();
+                return;
+            }
+            _activeStreamId = streamId;
             IsBusy = true;
+        }
+
+        private void WarnOnceInvalidId()
+        {
+            if (_warnedInvalidId)
+            {
+                return;
+            }
+            _warnedInvalidId = true;
+            JmoLogger.Warning(this, "Voice polyphony exhausted; request dropped.");
         }
 
         public bool IsStreamActive()
         {
-            if (_positional != null)
+            if (_playback == null)
             {
-                return _positional.Playing;
+                return false;
             }
-            return _plain!.Playing;
+            // A polyphonic player's Playing stays true until stopped, so stream activity must be
+            // observed per-stream: a slot id reports playing only while its stream is live.
+            for (int id = 0; id < _polyphonic.Polyphony; id++)
+            {
+                if (_playback.IsStreamPlaying(id))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public void StopAllStreams()
@@ -301,5 +349,13 @@ public partial class AudioDirectorBase : Node, IAudioDirector
             StopAllStreams();
             _playback = null;
         }
+
+        #region Test Helpers
+#if TOOLS
+        internal int _TestActiveStreamId() => _activeStreamId;
+
+        internal bool _TestIsStreamPlaying(int streamId) => _playback?.IsStreamPlaying(streamId) ?? false;
+#endif
+        #endregion
     }
 }

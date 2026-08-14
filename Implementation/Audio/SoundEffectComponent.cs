@@ -19,10 +19,12 @@ using Jmodot.Implementation.Shared;
 /// throw.
 /// </summary>
 /// <remarks>
-/// Deps: <see cref="BBDataSig.AnimationComponent"/> is hard (fail loud — a component that cannot
-/// resolve it is misconfigured); <see cref="BBDataSig.HealthComponent"/> is soft (anim-only
-/// entities degrade). The director is read lazily from <see cref="AudioSeam"/> at play-time, never
-/// cached at init — which is what lets a test swap a spy director through the seam after load.
+/// Deps are both soft. An absent <see cref="BBDataSig.AnimationOrchestrator"/> leaves the anim side
+/// inert; an absent <see cref="BBDataSig.HealthComponent"/> leaves no health subscription.
+/// <see cref="Initialize"/> returns false only when NEITHER resolves — a component with nothing
+/// to drive is the one true misconfiguration. The director is read lazily from
+/// <see cref="AudioSeam"/> at play-time, never cached at init, which is what lets a test swap a spy
+/// director through the seam after load.
 /// Subscriptions land in <see cref="OnPostInitialize"/> and are idempotency-safe (unsubscribe
 /// then subscribe) because the underlying events are C# events.
 /// </remarks>
@@ -45,15 +47,19 @@ public partial class SoundEffectComponent : Node, IComponent
 
     public bool Initialize(IBlackboard bb)
     {
-        if (!bb.TryGet<IAnimationOrchestrator>(BBDataSig.AnimationComponent, out var anim) || anim == null)
+        if (bb.TryGet<IAnimationOrchestrator>(BBDataSig.AnimationOrchestrator, out var anim) && anim != null)
         {
-            JmoLogger.Debug(this, "Required dependency BBDataSig.AnimationComponent not found");
-            return false;
+            _animationOrchestrator = anim;
         }
-        _animationOrchestrator = anim;
         if (bb.TryGet<IHealth>(BBDataSig.HealthComponent, out var health) && health != null)
         {
             _health = health;
+        }
+        if (_animationOrchestrator == null && _health == null)
+        {
+            // ENCI owns the single Error on a false return; the component supplies the which-key detail at Debug.
+            JmoLogger.Debug(this, "[Audio] Neither BBDataSig.AnimationOrchestrator nor BBDataSig.HealthComponent resolved; component has nothing to drive.");
+            return false;
         }
         IsInitialized = true;
         Initialized();
@@ -61,6 +67,19 @@ public partial class SoundEffectComponent : Node, IComponent
     }
 
     public void OnPostInitialize() => Subscribe();
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        UnsubscribeOrchestrator();
+        UnsubscribeHealth();
+        if (_cadenceTimer != null)
+        {
+            _cadenceTimer.Stop();
+            _cadenceTimer.QueueFree();
+            _cadenceTimer = null;
+        }
+    }
 
     public Node GetUnderlyingNode() => this;
 
@@ -80,6 +99,28 @@ public partial class SoundEffectComponent : Node, IComponent
             _health.OnDied -= OnDied;
             _health.OnDied += OnDied;
         }
+    }
+
+    private void UnsubscribeOrchestrator()
+    {
+        var anim = _animationOrchestrator;
+        if (anim == null || (anim is GodotObject go && !GodotObject.IsInstanceValid(go)))
+        {
+            return;
+        }
+        anim.AnimStarted -= OnAnimStarted;
+        anim.AnimStopped -= OnAnimStopped;
+    }
+
+    private void UnsubscribeHealth()
+    {
+        var health = _health;
+        if (health == null || (health is GodotObject healthGo && !GodotObject.IsInstanceValid(healthGo)))
+        {
+            return;
+        }
+        health.OnHealthChanged -= OnHealthChanged;
+        health.OnDied -= OnDied;
     }
 
     private void OnAnimStarted(StringName animName)
