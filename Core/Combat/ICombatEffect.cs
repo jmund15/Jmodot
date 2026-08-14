@@ -18,8 +18,10 @@ public interface ICombatEffect
     /// <summary>
     /// Applies the logic to the target and returns a snapshot of what happened.
     /// Returns null if the effect failed or did nothing.
+    /// <paramref name="incomingMagnitudeScale"/> scales the effect's damage contribution for this
+    /// application (per-application operand; <c>1.0f</c> neutral).
     /// </summary>
-    CombatResult? Apply(ICombatant target, HitContext context);
+    CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f);
 
     /// <summary>
     /// Tags associated with this effect (e.g., "Fire", "HeavyHit").

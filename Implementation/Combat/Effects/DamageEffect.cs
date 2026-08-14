@@ -98,7 +98,7 @@ public class DamageEffect : ICombatEffect
         Visual = visual;
     }
 
-    public CombatResult? Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         if (!target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health) || health == null)
         {
@@ -128,7 +128,7 @@ public class DamageEffect : ICombatEffect
             appliedDamage = isCritical ? DamageAmount * CritMultiplier : DamageAmount;
         }
 
-        health.TakeDamage(appliedDamage, context.Attacker, context.Kind, context.ImpactDirection);
+        health.TakeDamage(appliedDamage * incomingMagnitudeScale, context.Attacker, context.Kind, context.ImpactDirection);
 
         return new DamageResult
         {

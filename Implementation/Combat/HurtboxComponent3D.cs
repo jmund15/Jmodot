@@ -172,9 +172,15 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         // No resolver wired → null returned → fall through to forward original payload.
         var payloadToForward = ConsultReactionResolver(payload, context);
 
+        // 3.6. Effectiveness-resolution consultation
+        // If the project wired CombatFactoryDefaults.EffectivenessResolver, resolve the incoming
+        // magnitude scale for this (attacker, defender) pair once. Null resolver → 1.0f (neutral).
+        float magnitudeScale = ResolveEffectivenessScale(payload, context);
+
         // 4. Forward to Brain
         // The Combatant executes the logic defined in the (possibly filtered) effects.
-        _combatant.ProcessPayload(payloadToForward, context);
+        // incomingMagnitudeScale scales the damage-bearing effects for this hit.
+        _combatant.ProcessPayload(payloadToForward, context, magnitudeScale);
 
         // 5. Feedback
         // Notify with the ORIGINAL payload — interceptor/resolver-side filtering must not
@@ -216,21 +222,30 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             context);
     }
 
-    /// <summary>Walk up the tree from <paramref name="node"/> looking for the first ancestor
-    /// implementing <see cref="IIdentifiable"/>. Returns null if none found.</summary>
-    private static Identity? ResolveIdentity(Node? node)
+    /// <summary>
+    /// Resolve the incoming-magnitude scale for the hit from
+    /// <see cref="CombatFactoryDefaults.EffectivenessResolver"/>. Null resolver or an
+    /// unresolvable identity pair → <c>1.0f</c> (neutral intrinsic).
+    /// </summary>
+    private float ResolveEffectivenessScale(IAttackPayload payload, HitContext context)
     {
-        var current = node;
-        while (current != null)
-        {
-            if (current is IIdentifiable identifiable)
-            {
-                return identifiable.GetIdentity();
-            }
-            current = current.GetParent();
-        }
-        return null;
+        var resolver = CombatFactoryDefaults.EffectivenessResolver;
+        if (resolver == null) { return 1.0f; }
+
+        var attackerIdentity = ResolveIdentity(payload.Attacker);
+        if (attackerIdentity == null) { return 1.0f; }
+
+        var defenderNode = _combatant.OwnerNode;
+        var defenderIdentity = ResolveIdentity(defenderNode);
+        if (defenderIdentity == null) { return 1.0f; }
+
+        return resolver.Resolve(attackerIdentity, defenderIdentity, payload.Attacker, defenderNode);
     }
+
+    /// <summary>Resolve the identity of <paramref name="node"/> via the shared upward ancestor walk
+    /// (<see cref="NodeExts.TryResolveIdentifiable"/>). Returns null if no provider is found.</summary>
+    private static Identity? ResolveIdentity(Node? node)
+        => node.TryResolveIdentifiable()?.GetIdentity();
 
     /// <summary>Aggregate the defender's currently-active <see cref="CombatTag"/>s from its
     /// <see cref="StatusEffectComponent"/> (looked up via the combatant's blackboard). Returns

@@ -70,7 +70,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     public Node OwnerNode => GetOwner();
     public Jmodot.Core.AI.BB.IBlackboard Blackboard { get; private set; } = null!;
 
-    public void ProcessPayload(IAttackPayload payload, HitContext context)
+    public void ProcessPayload(IAttackPayload payload, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         if (payload.Effects == null || payload.Effects.Count == 0)
         {
@@ -78,7 +78,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         }
         foreach (var effect in payload.Effects)
         {
-            ApplyEffect(effect, context);
+            ApplyEffect(effect, context, incomingMagnitudeScale);
         }
     }
 
@@ -87,7 +87,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     /// </summary>
     /// <param name="effect"></param>
     /// <param name="context"></param>
-    public void ApplyEffect(ICombatEffect effect, HitContext context)
+    public void ApplyEffect(ICombatEffect effect, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         if (effect == null)
         {
@@ -97,7 +97,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         // 1. EXECUTE
         // The Effect contains the logic (Calculation, Armor Check, Health Modification).
         // The Combatant just provides the context (itself).
-        CombatResult? result = effect.Apply(this, context);
+        CombatResult? result = effect.Apply(this, context, incomingMagnitudeScale);
 
         // 2. VISUALS
         // Trigger any associated visual effect on the target. Controller is cached on first access
