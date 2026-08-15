@@ -3,7 +3,6 @@ namespace Jmodot.Implementation.Audio;
 using System;
 using Godot;
 using Jmodot.Core.Audio;
-using Jmodot.Core.Pooling;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
@@ -133,9 +132,11 @@ public partial class AudioDirectorBase : Node, IAudioDirector
             WarnOnce(ref _warnedNullStreams, "SoundProfile.Streams is null; request dropped.");
             return;
         }
-        if (AudioServer.GetBusIndex(profile.Bus) == -1)
+        StringName bus = profile.Bus;
+        if (AudioServer.GetBusIndex(bus) == -1)
         {
-            WarnOnce(ref _warnedUnresolvableBus, $"Audio bus '{profile.Bus}' does not exist; falling back to Master.");
+            WarnOnce(ref _warnedUnresolvableBus, $"Audio bus '{bus}' does not exist; falling back to Master.");
+            bus = "Master";
         }
 
         bool positional = profile.SpatialMode == SpatialMode.Positional;
@@ -153,7 +154,13 @@ public partial class AudioDirectorBase : Node, IAudioDirector
             // busy voice would accumulate streams up to its polyphony ceiling.
             voice.StopAllStreams();
         }
-        voice?.Play(profile, request.Position);
+        if (!(voice?.Play(profile, request.Position, bus) ?? false))
+        {
+            // PlayStream rejected the request (polyphony exhausted); return the slot so it is not
+            // leaked — ReleaseFinishedVoices only reclaims slots whose voice is IsBusy.
+            if (positional) { _positionalAllocator.Release(handle); }
+            else { _plainAllocator.Release(handle); }
+        }
     }
 
     public override void _EnterTree()
@@ -238,7 +245,7 @@ public partial class AudioDirectorBase : Node, IAudioDirector
     #region Test Helpers
 #if TOOLS
     internal void _TestPlayOnVoice(SoundProfile profile, int voiceIndex)
-        => _positionalVoices[voiceIndex]?.Play(profile, Vector3.Zero);
+        => _positionalVoices[voiceIndex]?.Play(profile, Vector3.Zero, profile.Bus);
 
     internal int _TestVoiceLastStreamId(int voiceIndex)
         => _positionalVoices[voiceIndex]?._TestActiveStreamId() ?? -1;
@@ -254,7 +261,7 @@ public partial class AudioDirectorBase : Node, IAudioDirector
     /// <see cref="AudioStreamPolyphonic"/> with polyphony 4 (the authoritative per-voice gate);
     /// a voice returns to the free list when its stream ends.
     /// </summary>
-    private sealed class VoiceChannel : IPoolResetable
+    private sealed class VoiceChannel
     {
         private readonly AudioStreamPlayer3D? _positional;
         private readonly AudioStreamPlayer? _plain;
@@ -283,7 +290,7 @@ public partial class AudioDirectorBase : Node, IAudioDirector
 
         public bool IsBusy { get; set; }
 
-        public void Play(SoundProfile profile, Vector3 position)
+        public bool Play(SoundProfile profile, Vector3 position, StringName bus)
         {
             if (_playback == null)
             {
@@ -296,14 +303,15 @@ public partial class AudioDirectorBase : Node, IAudioDirector
                 _positional.Position = position;
             }
             int streamId = (int)_playback.PlayStream(profile.Streams!, 0, profile.VolumeDb, 1.0f,
-                AudioServer.PlaybackType.Default, profile.Bus);
+                AudioServer.PlaybackType.Default, bus);
             if (streamId == -1)
             {
                 WarnOnceInvalidId();
-                return;
+                return false;
             }
             _activeStreamId = streamId;
             IsBusy = true;
+            return true;
         }
 
         private void WarnOnceInvalidId()
@@ -342,12 +350,6 @@ public partial class AudioDirectorBase : Node, IAudioDirector
             }
             _activeStreamId = -1;
             IsBusy = false;
-        }
-
-        public void OnPoolReset()
-        {
-            StopAllStreams();
-            _playback = null;
         }
 
         #region Test Helpers
