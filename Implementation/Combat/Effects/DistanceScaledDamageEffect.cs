@@ -103,7 +103,17 @@ public struct DistanceScaledDamageEffect : ICombatEffect
             return null;
         }
 
-        health.TakeDamage(finalDamage * incomingMagnitudeScale, context.Attacker, context.Kind, context.ImpactDirection);
+        if (incomingMagnitudeScale == 0f)
+        {
+            // Absolute immunity suppresses the damage AND its health events (Invariant 20): the
+            // operand is 0, so any TakeDamage would be 0 and early-return. Signal the suppression
+            // separately so presentation can show "Immune".
+            health.NotifyHitSuppressed(context.Attacker, context.Kind);
+        }
+        else
+        {
+            health.TakeDamage(finalDamage * incomingMagnitudeScale, context.Attacker, context.Kind, context.ImpactDirection, incomingMagnitudeScale);
+        }
 
         // 5. Return result
         return new DamageResult

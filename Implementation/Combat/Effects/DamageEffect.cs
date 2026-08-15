@@ -128,7 +128,17 @@ public class DamageEffect : ICombatEffect
             appliedDamage = isCritical ? DamageAmount * CritMultiplier : DamageAmount;
         }
 
-        health.TakeDamage(appliedDamage * incomingMagnitudeScale, context.Attacker, context.Kind, context.ImpactDirection);
+        if (incomingMagnitudeScale == 0f)
+        {
+            // Absolute immunity suppresses the damage AND its health events (Invariant 20): the
+            // operand is 0, so any TakeDamage would be 0 and early-return. Signal the suppression
+            // separately so presentation can show "Immune".
+            health.NotifyHitSuppressed(context.Attacker, context.Kind);
+        }
+        else
+        {
+            health.TakeDamage(appliedDamage * incomingMagnitudeScale, context.Attacker, context.Kind, context.ImpactDirection, incomingMagnitudeScale);
+        }
 
         return new DamageResult
         {
