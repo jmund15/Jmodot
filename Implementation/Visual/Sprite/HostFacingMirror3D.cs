@@ -7,6 +7,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Core.Components;
 using Jmodot.Core.Interaction;
 using Jmodot.Core.Visual.Animation.Sprite;
+using Jmodot.Core.Visual.Sprite;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Interaction.Attachment;
 using Jmodot.Implementation.Visual.Animation.Sprite;
@@ -46,8 +47,14 @@ public partial class HostFacingMirror3D : Node, IComponent
     // instantiated at runtime, and every rider that uses this is a spawned entity.
     [Export] public GCol.Array<Node> Sprites = new();
 
-    /// <summary>The direction the rider's attach art faces unflipped. FlipH applies whenever the host's facing opposes this.</summary>
-    [Export] public bool ArtFacesRight { get; set; } = true;
+    /// <summary>
+    /// The rider's facing profile. This node reads ONLY its mirror channel, and leaving it empty is a
+    /// working configuration: the attach art then mirrors as right-facing art, which is what every mount
+    /// authored before profiles existed already did.
+    /// </summary>
+    [Export] public FacingProfile3D? FacingProfile { get; set; }
+
+    private bool EffectiveArtFacesRight => this.FacingProfile?.Mirror?.ArtFacesRight ?? true;
 
     private readonly SpriteTargetSet3D _targets = new();
     private AttachmentRiderComponent3D? _rider;
@@ -64,6 +71,18 @@ public partial class HostFacingMirror3D : Node, IComponent
         }
 
         warnings.AddRange(SpriteTargetSet3D.DescribeExplicitListProblems(this.Sprites));
+
+        if (this.FacingProfile != null && this.FacingProfile.Mirror == null)
+        {
+            warnings.Add("The assigned FacingProfile3D carries no MirrorFacingConfig. This node reads only "
+                + "the mirror channel, so the profile does nothing here. Add a Mirror channel, or clear the "
+                + "profile to keep the default right-facing behavior.");
+        }
+
+        if (this.FacingProfile?.ValidateConfiguration() is { } profileProblem)
+        {
+            warnings.Add(profileProblem);
+        }
 
         if (this.GetParent() != null && !this.HasRiderInEntity())
         {
@@ -144,6 +163,15 @@ public partial class HostFacingMirror3D : Node, IComponent
 
     public Node GetUnderlyingNode() => this;
 
+    public override void _ExitTree()
+    {
+        if (this._rider != null)
+        {
+            this._rider.AttachmentStarted -= this.OnAttachmentStarted;
+            this._rider.AttachmentEnded -= this.OnAttachmentEnded;
+        }
+    }
+
     #endregion
 
     private void OnAttachmentStarted(IAttachmentHost host)
@@ -208,7 +236,7 @@ public partial class HostFacingMirror3D : Node, IComponent
     {
         // Shared mirror convention (single source in JmoMath): null == pure-vertical → hold current, so a
         // host walking straight up-screen keeps the last horizontal facing rather than snapping.
-        var mirror = JmoMath.ShouldMirrorHorizontal(request.Direction.X, this.ArtFacesRight);
+        var mirror = JmoMath.ShouldMirrorHorizontal(request.Direction.X, this.EffectiveArtFacesRight);
         if (mirror == null) { return; }
 
         this.ApplyFlip(mirror.Value);
