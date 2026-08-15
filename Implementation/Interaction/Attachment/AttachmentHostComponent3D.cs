@@ -312,6 +312,11 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         {
             foreach (var outcome in plan.Damaged)
             {
+                // A shed rider's hurtbox already took this swing's payload directly — the shed
+                // damage application would be a second hit on the same swing (measured: punch-off
+                // one-shot a two-punch creature). Shed riders get the fling only; damage-only
+                // riders (scope AllAttached, grip held) keep the application.
+                if (outcome.WasShed) { continue; }
                 if (!IsRiderAlive(outcome.Record.Rider)) { continue; }
 
                 // The fling takes the resolved direction because it always needs one and falls back to a
