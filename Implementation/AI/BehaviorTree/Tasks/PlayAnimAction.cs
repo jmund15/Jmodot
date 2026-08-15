@@ -93,6 +93,9 @@ public partial class PlayAnimAction : BehaviorAction, IAnimatedState
 
         this._animator.AnimFinished += this.OnAnimFinished;
         this._subscribed = true;
+        // The claim never re-resolves for a re-entered action (its Clip is unchanged), so the
+        // resolver-side gate can't fire to re-drive a finished clip — drive it here before Running.
+        if (!this.Clip.IsEmpty) { this._animator.StartAnimIfChanged(this.Clip); }
         this.Status = TaskStatus.Running;
     }
 
@@ -124,7 +127,35 @@ public partial class PlayAnimAction : BehaviorAction, IAnimatedState
                 + "the clip it waits on never plays. Add a resolver under the entity's Visuals node.");
         }
 
+        if (!this.Clip.IsEmpty && this.TryFindOrchestrator(out var orchestrator) && orchestrator != null
+            && !orchestrator.HasAnimationBase(this.Clip))
+        {
+            warnings.Add(
+                $"This action claims clip '{this.Clip}', which this entity's animator does not provide. "
+                + "The missing-clip failsafe then synthesizes Success for a clip that never played — "
+                + "author a clip the animator owns, or correct the claim.");
+        }
+
         return warnings.ToArray();
+    }
+
+    private bool TryFindOrchestrator(out IAnimationOrchestrator? orchestrator)
+    {
+        for (var ancestor = this.GetParent(); ancestor != null; ancestor = ancestor.GetParent())
+        {
+            if (ancestor.TryGetFirstChildOfInterface<IAnimationOrchestrator>(out orchestrator) && orchestrator != null)
+            {
+                return true;
+            }
+
+            if (ancestor.TryGetFirstChildOfInterface<IBlackboard>(out _, includeSubChildren: false))
+            {
+                break;
+            }
+        }
+
+        orchestrator = null;
+        return false;
     }
 
     private void OnAnimFinished(StringName finished)

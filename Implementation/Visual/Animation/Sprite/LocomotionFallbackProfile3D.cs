@@ -55,7 +55,12 @@ public partial class LocomotionFallbackProfile3D : AnimationFallbackProfile3D
 
     public override string? ValidateConfiguration()
     {
-        if (this.MoveExitSpeed > this.MoveEnterSpeed)
+        if (this.MoveEnterSpeed <= 0f)
+        {
+            return $"MoveEnterSpeed ({this.MoveEnterSpeed}) must be positive; a non-positive enter threshold "
+                   + "degenerates the hysteresis band and the body never enters the move state.";
+        }
+        if (this.MoveExitSpeed * this.MoveExitSpeed > this.MoveEnterSpeed * this.MoveEnterSpeed)
         {
             return $"MoveExitSpeed ({this.MoveExitSpeed}) exceeds MoveEnterSpeed ({this.MoveEnterSpeed}); "
                    + "the hysteresis band is inverted and the body will read as permanently moving.";

@@ -163,6 +163,15 @@ public partial class HostFacingMirror3D : Node, IComponent
 
     public Node GetUnderlyingNode() => this;
 
+    public override void _ExitTree()
+    {
+        if (this._rider != null)
+        {
+            this._rider.AttachmentStarted -= this.OnAttachmentStarted;
+            this._rider.AttachmentEnded -= this.OnAttachmentEnded;
+        }
+    }
+
     #endregion
 
     private void OnAttachmentStarted(IAttachmentHost host)

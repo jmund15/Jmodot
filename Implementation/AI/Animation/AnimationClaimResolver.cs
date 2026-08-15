@@ -99,30 +99,35 @@ public partial class AnimationClaimResolver : Node, IComponent
         {
             if (!bb.TryGet<ICharacterController3D>(BBDataSig.CharacterController, out var controller) || controller == null)
             {
+                // Degrade to arbitration-only rather than failing the whole resolver: the claim tiers
+                // are unaffected by a missing controller, so only the fallback tier loses its driver.
                 JmoLogger.Error(this,
                     "[Visual] AnimationClaimResolver carries a FallbackProfile but found no CharacterController "
-                    + "on the entity blackboard; the fallback tier cannot read the body's speed.");
-                return false;
+                    + "on the entity blackboard; the fallback tier cannot read the body's speed. "
+                    + "The resolver runs arbitration-only.");
             }
-            this._controller = controller;
-
-            var invalid = this.FallbackProfile.ValidateConfiguration();
-            if (invalid != null)
+            else
             {
-                // Both channels deliberately: a .tres-only edit never opens the scene that would show
-                // the dock warning, and a headless run never opens a scene at all.
-                JmoLogger.Error(this, $"[Visual] AnimationClaimResolver FallbackProfile is misconfigured: {invalid}");
-            }
+                this._controller = controller;
 
-            foreach (var clip in this.FallbackProfile.AuthoredClips)
-            {
-                if (this._anim.HasAnimationBase(clip))
+                var invalid = this.FallbackProfile.ValidateConfiguration();
+                if (invalid != null)
                 {
-                    continue;
+                    // Both channels deliberately: a .tres-only edit never opens the scene that would show
+                    // the dock warning, and a headless run never opens a scene at all.
+                    JmoLogger.Error(this, $"[Visual] AnimationClaimResolver FallbackProfile is misconfigured: {invalid}");
                 }
-                JmoLogger.Error(this,
-                    $"[Visual] AnimationClaimResolver FallbackProfile authors clip '{clip}', which this entity's "
-                    + "animator does not provide.");
+
+                foreach (var clip in this.FallbackProfile.AuthoredClips)
+                {
+                    if (this._anim.HasAnimationBase(clip))
+                    {
+                        continue;
+                    }
+                    JmoLogger.Error(this,
+                        $"[Visual] AnimationClaimResolver FallbackProfile authors clip '{clip}', which this entity's "
+                        + "animator does not provide.");
+                }
             }
         }
 
@@ -303,7 +308,9 @@ public partial class AnimationClaimResolver : Node, IComponent
     ///     BehaviorTree per BTState, so "the active tree" is undefined without it. The tree lookup is a
     ///     scene-tree query that marshals a fresh child array out of native, so it is cached and redone
     ///     only when the HSM hands the body to a different state; the descent below reads the cached
-    ///     ChildTasks lists and allocates nothing.
+    ///     ChildTasks lists and allocates nothing. Claiming tasks in parallel topologies are not
+    ///     supported: ParallelComposite ticks all children, but this descent honors only the first
+    ///     running child's claim.
     /// </summary>
     private BehaviorTask? ResolveActiveTaskLeaf(State? stateLeaf)
     {

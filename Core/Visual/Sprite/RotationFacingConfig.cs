@@ -17,7 +17,7 @@ public partial class RotationFacingConfig : Resource
     /// Degrees the source art's nose sits away from screen-right when unrotated. Added to the computed
     /// facing angle, so art drawn nose-up authors 90 here.
     /// </summary>
-    [Export] public float ArtBaseAngleOffsetDegrees { get; private set; } = 0f;
+    [Export(PropertyHint.Range, "-180,180,1,degrees")] public float ArtBaseAngleOffsetDegrees { get; private set; } = 0f;
 
     #region Test Helpers
 #if TOOLS
