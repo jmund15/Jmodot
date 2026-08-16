@@ -34,10 +34,27 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 [Tool]
 public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
 {
-    private readonly DocSummaryResolver _resolver;
+    private readonly DocSummaryResolver _resolver = null!;
 
     // Set while a coalesced apply pass is pending, so N _ParseEnd firings schedule ONE pass.
     private bool _applyScheduled;
+
+    /// <summary>
+    /// Required by the engine, never used by this addon.
+    /// </summary>
+    /// <remarks>
+    /// Godot recreates a managed instance for every script-bearing object when it reloads the
+    /// assembly, and it does so through <c>ScriptManagerBridge</c>, which can only call a
+    /// PARAMETERLESS constructor. A <see cref="GodotObject"/>-derived script class without one
+    /// throws <c>MissingMemberException</c> on that path and takes the editor down with it — the
+    /// crash is a native fault during reload, so nothing points back here. Every type in this
+    /// folder therefore keeps a parameterless constructor, whatever its real construction path.
+    /// The instance it produces is inert: <see cref="_resolver"/> stays null, and the engine
+    /// discards it.
+    /// </remarks>
+    public DocTooltipInspectorPlugin()
+    {
+    }
 
     public DocTooltipInspectorPlugin(DocSummaryResolver resolver)
     {
@@ -61,6 +78,10 @@ public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
     {
         // One stat per parsed object, never one per property lookup — TryGetSummary never stats.
         this._resolver.Refresh();
+
+        // The engine's reload-recreated instance (see the parameterless constructor) carries no
+        // resolver and must never reach the pass.
+        if (this._resolver == null) { return; }
 
         // _ParseEnd fires once per parsed object — the edited object plus every inlined sub-resource,
         // since _CanHandle accepts all. Each Apply walks whole inspector trees, so scheduling one per
