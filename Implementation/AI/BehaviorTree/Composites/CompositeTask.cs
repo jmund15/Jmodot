@@ -18,7 +18,11 @@ public abstract partial class CompositeTask : BehaviorTask
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _childTasks = this.GetChildrenOfType<BehaviorTask>().ToList();
+        // Direct children only: a composite's children are the tasks authored directly under it.
+        // A recursive walk leaks a nested leaf (e.g. a CowerAction under a gated Sequence) into its
+        // ANCESTOR's child list, where a selector can pick the leaf directly and bypass every gate
+        // between it and the ancestor.
+        _childTasks = this.GetChildrenOfType<BehaviorTask>(includeSubChildren: false).ToList();
         foreach (var childTask in _childTasks)
         {
             childTask.Init(agent, bb);
