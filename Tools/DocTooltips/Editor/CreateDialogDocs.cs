@@ -50,9 +50,17 @@ internal sealed partial class CreateDialogDocs : GodotObject
 
     private const Surface DefaultSurface = Surface.DescriptionPanel;
 
-    private readonly ClassSummaryLookup _lookup;
+    private readonly ClassSummaryLookup _lookup = null!;
     private readonly List<ICreateDialogDocSurface> _attached = new();
     private bool _watchingSettings;
+
+    /// <summary>
+    /// Required by the engine's reload path, never used by this addon — see
+    /// <see cref="DocTooltipInspectorPlugin()"/> for why omitting it crashes the editor.
+    /// </summary>
+    public CreateDialogDocs()
+    {
+    }
 
     internal CreateDialogDocs(ClassSummaryLookup lookup)
     {

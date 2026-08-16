@@ -19,8 +19,16 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 [Tool]
 internal sealed partial class MatchListTooltipSurface : GodotObject, ICreateDialogDocSurface
 {
-    private readonly ClassSummaryLookup _lookup;
+    private readonly ClassSummaryLookup _lookup = null!;
     private CreateDialogParts? _parts;
+
+    /// <summary>
+    /// Required by the engine's reload path, never used by this addon — see
+    /// <see cref="DocTooltipInspectorPlugin()"/> for why omitting it crashes the editor.
+    /// </summary>
+    public MatchListTooltipSurface()
+    {
+    }
 
     internal MatchListTooltipSurface(ClassSummaryLookup lookup)
     {
