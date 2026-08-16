@@ -68,6 +68,15 @@ internal sealed partial class CreateDialogDocs : GodotObject
     }
 
     /// <summary>
+    /// True on the instance the engine recreates through the parameterless constructor. Both public
+    /// entry points below are addressable by ObjectID — <see cref="Attach"/> as a deferred call and
+    /// <see cref="OnSettingsChanged"/> from the ProjectSettings singleton, which outlives every
+    /// assembly load — so either can land here after a reload. Surfaces are only ever built past
+    /// this check, which is what keeps a null lookup from reaching them.
+    /// </summary>
+    private bool IsInert => this._lookup == null;
+
+    /// <summary>
     /// Declares the setting so it appears in Project Settings with a named dropdown instead of a
     /// bare integer. Writes <c>project.godot</c> only on the run that first introduces it.
     /// </summary>
@@ -100,6 +109,8 @@ internal sealed partial class CreateDialogDocs : GodotObject
     /// </summary>
     public void Attach()
     {
+        if (this.IsInert) { return; }
+
         if (!this._watchingSettings)
         {
             ProjectSettings.Singleton.Connect(
@@ -136,6 +147,8 @@ internal sealed partial class CreateDialogDocs : GodotObject
     /// </remarks>
     public void OnSettingsChanged()
     {
+        if (this.IsInert) { return; }
+
         this.DetachSurfaces();
         this.AttachSurfaces();
     }
