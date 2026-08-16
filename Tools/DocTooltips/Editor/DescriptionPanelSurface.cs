@@ -37,7 +37,8 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 /// eaten as markup. No manual wrapping either — unlike the plain Label behind a tooltip, this label
 /// autowraps.
 /// </remarks>
-internal sealed class DescriptionPanelSurface : ICreateDialogDocSurface
+[Tool]
+internal sealed partial class DescriptionPanelSurface : GodotObject, ICreateDialogDocSurface
 {
     private readonly ClassSummaryLookup _lookup;
     private CreateDialogParts? _parts;
@@ -52,8 +53,8 @@ internal sealed class DescriptionPanelSurface : ICreateDialogDocSurface
         if (parts.Description == null) { return false; }
 
         this._parts = parts;
-        parts.Matches.CellSelected += this.OnCellSelected;
-        parts.Dialog.AboutToPopup += this.OnAboutToPopup;
+        parts.Matches.Connect(Tree.SignalName.CellSelected, this.SelectionWatch());
+        parts.Dialog.Connect(Window.SignalName.AboutToPopup, this.PopupWatch());
         return true;
     }
 
@@ -63,18 +64,39 @@ internal sealed class DescriptionPanelSurface : ICreateDialogDocSurface
         this._parts = null;
         if (parts == null) { return; }
 
-        if (GodotObject.IsInstanceValid(parts.Matches)) { parts.Matches.CellSelected -= this.OnCellSelected; }
-        if (GodotObject.IsInstanceValid(parts.Dialog)) { parts.Dialog.AboutToPopup -= this.OnAboutToPopup; }
+        if (GodotObject.IsInstanceValid(parts.Matches))
+        {
+            parts.Matches.Disconnect(Tree.SignalName.CellSelected, this.SelectionWatch());
+        }
+
+        if (GodotObject.IsInstanceValid(parts.Dialog))
+        {
+            parts.Dialog.Disconnect(Window.SignalName.AboutToPopup, this.PopupWatch());
+        }
     }
 
-    // Immediate: the engine's handler on this same signal has already run and written the panel.
-    private void OnCellSelected() => this.Apply();
+    // ObjectID-bound per the folder invariant (see DocTooltipInstallation): these emitters are
+    // editor-lifetime, so a delegate-backed connection outlives this assembly and faults on dispatch.
+    private Callable SelectionWatch() => new(this, MethodName.Apply);
 
-    // Deferred: the dialog restores its previous selection while popping up, and that path does not
-    // necessarily re-emit cell_selected.
-    private void OnAboutToPopup() => Callable.From(this.Apply).CallDeferred();
+    private Callable PopupWatch() => new(this, MethodName.ApplyDeferred);
 
-    private void Apply()
+    /// <summary>
+    /// Repaint scheduled a frame out, for the popup path only: the dialog restores its previous
+    /// selection while popping up, and that path does not necessarily re-emit <c>cell_selected</c>.
+    /// Public for ObjectID addressing; never call it directly.
+    /// </summary>
+    public void ApplyDeferred() => this.CallDeferred(MethodName.Apply);
+
+    /// <summary>
+    /// Repaints the panel for the current selection. Public so both connections can address it by
+    /// ObjectID; never call it directly.
+    /// </summary>
+    /// <remarks>
+    /// Safe to reach immediately from <c>cell_selected</c>: the engine's own handler on that signal
+    /// has already run and written the panel, so this overwrites rather than races.
+    /// </remarks>
+    public void Apply()
     {
         CreateDialogParts? parts = this._parts;
         if (parts?.Description == null

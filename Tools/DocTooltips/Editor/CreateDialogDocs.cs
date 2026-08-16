@@ -22,8 +22,13 @@ using GCol = Godot.Collections;
 ///
 /// The surface is authored rather than inferred because the two differ in risk, not just in looks —
 /// see <see cref="ICreateDialogDocSurface"/>. Switching the setting re-applies live.
+///
+/// A <see cref="GodotObject"/> so the engine addresses its settings-watch and its deferred attach by
+/// ObjectID; see <see cref="DocTooltipInstallation"/> for the folder invariant that requires it. The
+/// owner frees this instance, so it must not be referenced after <see cref="Detach"/>.
 /// </remarks>
-internal sealed class CreateDialogDocs
+[Tool]
+internal sealed partial class CreateDialogDocs : GodotObject
 {
     /// <summary>Which surface carries the class description, or none.</summary>
     internal enum Surface
@@ -81,11 +86,16 @@ internal sealed class CreateDialogDocs
         }
     }
 
-    internal void Attach()
+    /// <summary>
+    /// Watches the setting and attaches the authored surface. Public and instance-bound because the
+    /// engine addresses it by ObjectID as a deferred call from <see cref="DocTooltipInstallation"/>.
+    /// </summary>
+    public void Attach()
     {
         if (!this._watchingSettings)
         {
-            ProjectSettings.Singleton.SettingsChanged += this.OnSettingsChanged;
+            ProjectSettings.Singleton.Connect(
+                ProjectSettings.SignalName.SettingsChanged, this.SettingsWatch());
             this._watchingSettings = true;
         }
 
@@ -96,16 +106,27 @@ internal sealed class CreateDialogDocs
     {
         if (this._watchingSettings)
         {
-            ProjectSettings.Singleton.SettingsChanged -= this.OnSettingsChanged;
+            ProjectSettings.Singleton.Disconnect(
+                ProjectSettings.SignalName.SettingsChanged, this.SettingsWatch());
             this._watchingSettings = false;
         }
 
         this.DetachSurfaces();
     }
 
-    // ProjectSettings fires this for ANY setting, so the whole re-apply has to be cheap and
-    // idempotent rather than conditional on which key moved — the signal carries no key.
-    private void OnSettingsChanged()
+    // ProjectSettings outlives every assembly load, so this connection is the one most able to
+    // outlive US — it is ObjectID-bound per the folder invariant, never a delegate.
+    private Callable SettingsWatch() => new(this, MethodName.OnSettingsChanged);
+
+    /// <summary>
+    /// Re-applies the authored surface. Public so the settings connection can address it by
+    /// ObjectID; never call it directly.
+    /// </summary>
+    /// <remarks>
+    /// ProjectSettings fires for ANY setting, so the whole re-apply has to be cheap and idempotent
+    /// rather than conditional on which key moved — the signal carries no key.
+    /// </remarks>
+    public void OnSettingsChanged()
     {
         this.DetachSurfaces();
         this.AttachSurfaces();
@@ -116,6 +137,7 @@ internal sealed class CreateDialogDocs
         foreach (ICreateDialogDocSurface surface in this._attached)
         {
             surface.Detach();
+            surface.Free();
         }
 
         this._attached.Clear();

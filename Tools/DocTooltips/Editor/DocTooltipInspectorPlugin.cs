@@ -22,7 +22,9 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 ///
 /// Second, the rows do not exist when <c>_ParseProperty</c> runs — the built-in editors are built
 /// afterwards. The apply pass is deferred twice; one frame is not enough for the rows to be inside
-/// the tree.
+/// the tree. Both hops defer through <see cref="GodotObject.CallDeferred(StringName, Variant[])"/>
+/// on this object rather than a <see cref="Callable"/> over a lambda — see
+/// <see cref="DocTooltipInstallation"/> for why a delegate-backed callable crashes the editor.
 ///
 /// Summaries are resolved at apply time from each row's own <see cref="EditorProperty.GetEditedObject"/>
 /// rather than from a name map built during parsing. An inlined sub-resource is edited by its own
@@ -68,12 +70,20 @@ public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
         if (this._applyScheduled) { return; }
 
         this._applyScheduled = true;
-        DocSummaryResolver resolver = this._resolver;
-        Callable.From(() => Callable.From(() =>
-        {
-            this._applyScheduled = false;
-            Apply(resolver);
-        }).CallDeferred()).CallDeferred();
+        this.CallDeferred(MethodName.DeferApplyPass);
+    }
+
+    /// <summary>
+    /// Second hop of the two-frame delay described above. Addressed by the engine through this
+    /// object's ID, so it must stay public and instance-bound; never call it directly.
+    /// </summary>
+    public void DeferApplyPass() => this.CallDeferred(MethodName.RunApplyPass);
+
+    /// <summary>Runs the coalesced pass and reopens scheduling. Public for the same reason.</summary>
+    public void RunApplyPass()
+    {
+        this._applyScheduled = false;
+        Apply(this._resolver);
     }
 
     /// <summary>

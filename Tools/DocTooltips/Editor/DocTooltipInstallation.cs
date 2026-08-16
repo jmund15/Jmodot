@@ -28,8 +28,21 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 /// <see cref="Uninstall"/> releases the whole chain. Deliberately NOT statics: the editor unloads and
 /// reloads the .NET assembly on every rebuild, and a static would outlive that, stranding a
 /// multi-megabyte parsed dictionary and rooting the AssemblyLoadContext. For the same reason teardown
-/// is synchronous and nothing here subscribes to an editor-lifetime singleton — staleness is polled by
-/// timestamp instead.
+/// is synchronous.
+///
+/// INVARIANT for every type in this folder — nothing the engine retains may be delegate-backed.
+/// A callable built from a C# delegate (<c>Callable.From(...)</c>, and the <c>signal += handler</c>
+/// sugar that compiles to it) is a CUSTOM callable, and per the 4.7.1 contract for
+/// <c>Callable.is_valid()</c> a custom callable reports valid UNCONDITIONALLY — the engine cannot
+/// tell that its managed target died. Anything the engine still holds when this assembly unloads is
+/// therefore invoked rather than skipped, faulting inside the engine's own dispatch
+/// (observed: repeated editor access violations at one fixed offset, only ever on a build). Both
+/// retention paths matter: the deferred-call queue, and a signal Connection on an editor-lifetime
+/// emitter, which survives a <c>-=</c> at teardown (godot#86244). So every surface here derives from
+/// <see cref="GodotObject"/>, connects with <c>new Callable(this, MethodName.X)</c>, defers with
+/// <see cref="GodotObject.CallDeferred(StringName, Variant[])"/>, and is
+/// <see cref="GodotObject.Free"/>d synchronously —
+/// giving the engine an ObjectID it revalidates before every dispatch.
 ///
 /// Contract: call <see cref="Install"/> from the host's <c>_EnterTree</c> and <see cref="Uninstall"/>
 /// from its <c>_ExitTree</c>. Installing twice without an intervening uninstall strands the first
@@ -72,14 +85,21 @@ public sealed class DocTooltipInstallation
             new ClassSummaryLookup(new DocSummaryResolver(index), GlobalClasses(assembly)));
 
         // Deferred so the editor's docks — which own the dialogs — are guaranteed built and inside
-        // the tree, whatever order plugin enabling lands in relative to them.
+        // the tree, whatever order plugin enabling lands in relative to them. Addressed by ObjectID
+        // per the folder invariant, which also makes Uninstall authoritative: freeing the target is
+        // what cancels a still-queued Attach, so teardown can no longer be undone by its own install.
         CreateDialogDocs docs = installation._createDialogDocs;
-        Callable.From(docs.Attach).CallDeferred();
+        docs.CallDeferred(CreateDialogDocs.MethodName.Attach);
 
         return installation;
     }
 
     /// <summary>Detaches both surfaces and releases the parsed index.</summary>
+    /// <remarks>
+    /// Frees synchronously rather than through <c>QueueFree</c>: a deferred free leaves the object
+    /// reachable — and its ObjectID valid — for exactly the window in which the assembly unloads,
+    /// which is the state the folder invariant exists to prevent.
+    /// </remarks>
     public void Uninstall()
     {
         if (this._inspectorPlugin != null)
@@ -87,7 +107,14 @@ public sealed class DocTooltipInstallation
             this._host.RemoveInspectorPlugin(this._inspectorPlugin);
         }
 
-        this._createDialogDocs?.Detach();
+        if (this._createDialogDocs != null)
+        {
+            this._createDialogDocs.Detach();
+            if (GodotObject.IsInstanceValid(this._createDialogDocs))
+            {
+                this._createDialogDocs.Free();
+            }
+        }
 
         this._inspectorPlugin = null;
         this._createDialogDocs = null;
