@@ -16,10 +16,19 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 /// Repaints on a whole-tree pass rather than per row, because the engine REBUILDS the tree on every
 /// search keystroke; there is no per-row hook to hang a tooltip on that would survive that.
 /// </remarks>
-internal sealed class MatchListTooltipSurface : ICreateDialogDocSurface
+[Tool]
+internal sealed partial class MatchListTooltipSurface : GodotObject, ICreateDialogDocSurface
 {
-    private readonly ClassSummaryLookup _lookup;
+    private readonly ClassSummaryLookup _lookup = null!;
     private CreateDialogParts? _parts;
+
+    /// <summary>
+    /// Required by the engine's reload path, never used by this addon — see
+    /// <see cref="DocTooltipInspectorPlugin()"/> for why omitting it crashes the editor.
+    /// </summary>
+    public MatchListTooltipSurface()
+    {
+    }
 
     internal MatchListTooltipSurface(ClassSummaryLookup lookup)
     {
@@ -29,8 +38,8 @@ internal sealed class MatchListTooltipSurface : ICreateDialogDocSurface
     public bool TryAttach(CreateDialogParts parts)
     {
         this._parts = parts;
-        parts.Dialog.AboutToPopup += this.OnAboutToPopup;
-        parts.Search.TextChanged += this.OnSearchTextChanged;
+        parts.Dialog.Connect(Window.SignalName.AboutToPopup, this.PopupWatch());
+        parts.Search.Connect(LineEdit.SignalName.TextChanged, this.SearchWatch());
         return true;
     }
 
@@ -40,20 +49,41 @@ internal sealed class MatchListTooltipSurface : ICreateDialogDocSurface
         this._parts = null;
         if (parts == null) { return; }
 
-        if (GodotObject.IsInstanceValid(parts.Dialog)) { parts.Dialog.AboutToPopup -= this.OnAboutToPopup; }
-        if (GodotObject.IsInstanceValid(parts.Search)) { parts.Search.TextChanged -= this.OnSearchTextChanged; }
+        if (GodotObject.IsInstanceValid(parts.Dialog))
+        {
+            parts.Dialog.Disconnect(Window.SignalName.AboutToPopup, this.PopupWatch());
+        }
+
+        if (GodotObject.IsInstanceValid(parts.Search))
+        {
+            parts.Search.Disconnect(LineEdit.SignalName.TextChanged, this.SearchWatch());
+        }
     }
 
-    private void OnAboutToPopup() => this.ScheduleRepaint();
+    // ObjectID-bound per the folder invariant (see DocTooltipInstallation): these emitters are
+    // editor-lifetime, so a delegate-backed connection outlives this assembly and faults on dispatch.
+    private Callable PopupWatch() => new(this, MethodName.ScheduleRepaint);
 
-    private void OnSearchTextChanged(string _) => this.ScheduleRepaint();
+    private Callable SearchWatch() => new(this, MethodName.OnSearchTextChanged);
 
-    // Deferred so the pass always runs after the engine has finished rebuilding the tree, whatever
-    // order the handlers for a given signal happen to fire in. A tooltip needs a held hover to
-    // appear, so a frame of latency is not observable.
-    private void ScheduleRepaint() => Callable.From(this.Repaint).CallDeferred();
+    /// <summary>
+    /// Discards the search text the signal carries and repaints. Public for ObjectID addressing;
+    /// never call it directly.
+    /// </summary>
+    public void OnSearchTextChanged(string _) => this.ScheduleRepaint();
 
-    private void Repaint()
+    /// <summary>
+    /// Queues the repaint. Public for ObjectID addressing; never call it directly.
+    /// </summary>
+    /// <remarks>
+    /// Deferred so the pass always runs after the engine has finished rebuilding the tree, whatever
+    /// order the handlers for a given signal happen to fire in. A tooltip needs a held hover to
+    /// appear, so a frame of latency is not observable.
+    /// </remarks>
+    public void ScheduleRepaint() => this.CallDeferred(MethodName.Repaint);
+
+    /// <summary>Repaints every row's tooltip. Public for ObjectID addressing.</summary>
+    public void Repaint()
     {
         CreateDialogParts? parts = this._parts;
         if (parts == null || !GodotObject.IsInstanceValid(parts.Matches)) { return; }

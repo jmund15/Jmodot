@@ -52,8 +52,15 @@ public partial class AnimationVisibilityCoordinator : Node
         set { _nodePrefix = value; UpdateConfigurationWarnings(); }
     }
     /// <summary>
-    /// Allows names such as 'Vis_Run_Front' and 'Vis_Run_Back' (assuming 'Vis' is the 'NodePrefix') to both trigger when the animation 'Run' plays!
+    /// Selects how a node's name maps to its animation key — mutually exclusive per coordinator.
+    /// <c>true</c> (part-composition authoring): strips the suffix after the first underscore, so
+    /// 'Vis_Run_Front' and 'Vis_Run_Back' both key to "run" and show together whenever the "run"
+    /// animation plays. <c>false</c> (full-name direction-node keys): keeps the whole name after the
+    /// prefix, so 'Vis_WallSmack_Up' keys to "wallsmack_up" and shows only when that exact clip plays
+    /// (exact-first matching beats the suffix-stripped base). One coordinator cannot author both styles
+    /// today.
     /// </summary>
+    // Future dual-mode support (part-composition + direction nodes in one coordinator) is a tracked worklog item.
     [Export] public bool IgnoreNodeNameAfterUnderscore { get; set; } = true;
 
 
@@ -363,19 +370,32 @@ public partial class AnimationVisibilityCoordinator : Node
             SetNodeVisible(node, false);
         }
 
-        // 2. Normalize Input (run_left -> run)
+        // 2. Normalize Input
         string nameStr = animName.ToString().ToLower();
 
-        // Strip Suffix
-        if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
+        // 3. Exact-first: a node registered under the FULL clip name (e.g. "wallsmack_up" via
+        // IgnoreNodeNameAfterUnderscore=false) wins; do NOT also show base-keyed nodes.
+        StringName exactKey = new StringName(nameStr);
+        if (_visibilityCache.TryGetValue(exactKey, out var exactNodes))
         {
-            int idx = nameStr.LastIndexOf(AnimNameSuffixSeparator);
-            if (idx > 0) { nameStr = nameStr.Substring(0, idx); }
+            foreach (var node in exactNodes)
+            {
+                SetNodeVisible(node, true);
+            }
+            VisibleNodesChanged.Invoke();
+            return;
         }
 
-        StringName key = new StringName(nameStr);
+        // 4. Fall back to the suffix-stripped base key (run_left -> run), matching today's behavior.
+        string baseNameStr = nameStr;
+        if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
+        {
+            int idx = baseNameStr.LastIndexOf(AnimNameSuffixSeparator);
+            if (idx > 0) { baseNameStr = baseNameStr.Substring(0, idx); }
+        }
 
-        // 3. Show Matching
+        StringName key = new StringName(baseNameStr);
+
         if (_visibilityCache.TryGetValue(key, out var nodesToShow))
         {
             foreach (var node in nodesToShow)
@@ -386,7 +406,6 @@ public partial class AnimationVisibilityCoordinator : Node
 
         // Notify listeners that visible nodes have changed
         VisibleNodesChanged.Invoke();
-        //GD.Print($"[AnimVis] Animation started: {animName}, showing nodes: {nodesToShow.Count}");
     }
 
     #region Public Node Access

@@ -22,8 +22,13 @@ using GCol = Godot.Collections;
 ///
 /// The surface is authored rather than inferred because the two differ in risk, not just in looks —
 /// see <see cref="ICreateDialogDocSurface"/>. Switching the setting re-applies live.
+///
+/// A <see cref="GodotObject"/> so the engine addresses its settings-watch and its deferred attach by
+/// ObjectID; see <see cref="DocTooltipInstallation"/> for the folder invariant that requires it. The
+/// owner frees this instance, so it must not be referenced after <see cref="Detach"/>.
 /// </remarks>
-internal sealed class CreateDialogDocs
+[Tool]
+internal sealed partial class CreateDialogDocs : GodotObject
 {
     /// <summary>Which surface carries the class description, or none.</summary>
     internal enum Surface
@@ -45,14 +50,31 @@ internal sealed class CreateDialogDocs
 
     private const Surface DefaultSurface = Surface.DescriptionPanel;
 
-    private readonly ClassSummaryLookup _lookup;
+    private readonly ClassSummaryLookup _lookup = null!;
     private readonly List<ICreateDialogDocSurface> _attached = new();
     private bool _watchingSettings;
+
+    /// <summary>
+    /// Required by the engine's reload path, never used by this addon — see
+    /// <see cref="DocTooltipInspectorPlugin()"/> for why omitting it crashes the editor.
+    /// </summary>
+    public CreateDialogDocs()
+    {
+    }
 
     internal CreateDialogDocs(ClassSummaryLookup lookup)
     {
         this._lookup = lookup;
     }
+
+    /// <summary>
+    /// True on the instance the engine recreates through the parameterless constructor. Both public
+    /// entry points below are addressable by ObjectID — <see cref="Attach"/> as a deferred call and
+    /// <see cref="OnSettingsChanged"/> from the ProjectSettings singleton, which outlives every
+    /// assembly load — so either can land here after a reload. Surfaces are only ever built past
+    /// this check, which is what keeps a null lookup from reaching them.
+    /// </summary>
+    private bool IsInert => this._lookup == null;
 
     /// <summary>
     /// Declares the setting so it appears in Project Settings with a named dropdown instead of a
@@ -81,11 +103,18 @@ internal sealed class CreateDialogDocs
         }
     }
 
-    internal void Attach()
+    /// <summary>
+    /// Watches the setting and attaches the authored surface. Public and instance-bound because the
+    /// engine addresses it by ObjectID as a deferred call from <see cref="DocTooltipInstallation"/>.
+    /// </summary>
+    public void Attach()
     {
+        if (this.IsInert) { return; }
+
         if (!this._watchingSettings)
         {
-            ProjectSettings.Singleton.SettingsChanged += this.OnSettingsChanged;
+            ProjectSettings.Singleton.Connect(
+                ProjectSettings.SignalName.SettingsChanged, this.SettingsWatch());
             this._watchingSettings = true;
         }
 
@@ -96,17 +125,30 @@ internal sealed class CreateDialogDocs
     {
         if (this._watchingSettings)
         {
-            ProjectSettings.Singleton.SettingsChanged -= this.OnSettingsChanged;
+            ProjectSettings.Singleton.Disconnect(
+                ProjectSettings.SignalName.SettingsChanged, this.SettingsWatch());
             this._watchingSettings = false;
         }
 
         this.DetachSurfaces();
     }
 
-    // ProjectSettings fires this for ANY setting, so the whole re-apply has to be cheap and
-    // idempotent rather than conditional on which key moved — the signal carries no key.
-    private void OnSettingsChanged()
+    // ProjectSettings outlives every assembly load, so this connection is the one most able to
+    // outlive US — it is ObjectID-bound per the folder invariant, never a delegate.
+    private Callable SettingsWatch() => new(this, MethodName.OnSettingsChanged);
+
+    /// <summary>
+    /// Re-applies the authored surface. Public so the settings connection can address it by
+    /// ObjectID; never call it directly.
+    /// </summary>
+    /// <remarks>
+    /// ProjectSettings fires for ANY setting, so the whole re-apply has to be cheap and idempotent
+    /// rather than conditional on which key moved — the signal carries no key.
+    /// </remarks>
+    public void OnSettingsChanged()
     {
+        if (this.IsInert) { return; }
+
         this.DetachSurfaces();
         this.AttachSurfaces();
     }
@@ -116,6 +158,7 @@ internal sealed class CreateDialogDocs
         foreach (ICreateDialogDocSurface surface in this._attached)
         {
             surface.Detach();
+            surface.Free();
         }
 
         this._attached.Clear();

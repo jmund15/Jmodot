@@ -40,8 +40,24 @@ using GColl = Godot.Collections;
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
-public partial class BehaviorSuppressedState : State
+public partial class BehaviorSuppressedState : State, IAnimatedState
 {
+    /// <summary>
+    /// The suppression profile's animation override, so the animation authority reads this state as
+    /// a claimant while it is suppressing with a clip and as silent otherwise — a profile with no
+    /// override leaves the entity's fallback tier, where present, correctly in charge.
+    /// </summary>
+    public StringName? AnimationName => this._activeProfile?.AnimationOverride;
+
+    /// <inheritdoc />
+    public bool IsAnimated => this.AnimationName is { IsEmpty: false };
+
+    /// <summary>
+    /// This state performs its own clip in <c>OnEnter</c> for frame-exactness, so it carries a live
+    /// performance handle. Arbitration never reads it.
+    /// </summary>
+    public IAnimationOrchestrator? AnimationOrchestrator => this._animationOrchestrator;
+
     /// <summary>
     /// Per-trigger-tag profile. The state finds the first key whose tag is currently
     /// active on the StatusEffectComponent and uses its mapped profile. If no key

@@ -22,7 +22,9 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 ///
 /// Second, the rows do not exist when <c>_ParseProperty</c> runs — the built-in editors are built
 /// afterwards. The apply pass is deferred twice; one frame is not enough for the rows to be inside
-/// the tree.
+/// the tree. Both hops defer through <see cref="GodotObject.CallDeferred(StringName, Variant[])"/>
+/// on this object rather than a <see cref="Callable"/> over a lambda — see
+/// <see cref="DocTooltipInstallation"/> for why a delegate-backed callable crashes the editor.
 ///
 /// Summaries are resolved at apply time from each row's own <see cref="EditorProperty.GetEditedObject"/>
 /// rather than from a name map built during parsing. An inlined sub-resource is edited by its own
@@ -32,10 +34,27 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 [Tool]
 public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
 {
-    private readonly DocSummaryResolver _resolver;
+    private readonly DocSummaryResolver _resolver = null!;
 
     // Set while a coalesced apply pass is pending, so N _ParseEnd firings schedule ONE pass.
     private bool _applyScheduled;
+
+    /// <summary>
+    /// Required by the engine, never used by this addon.
+    /// </summary>
+    /// <remarks>
+    /// Godot recreates a managed instance for every script-bearing object when it reloads the
+    /// assembly, and it does so through <c>ScriptManagerBridge</c>, which can only call a
+    /// PARAMETERLESS constructor. A <see cref="GodotObject"/>-derived script class without one
+    /// throws <c>MissingMemberException</c> on that path and takes the editor down with it — the
+    /// crash is a native fault during reload, so nothing points back here. Every type in this
+    /// folder therefore keeps a parameterless constructor, whatever its real construction path.
+    /// The instance it produces is inert: <see cref="_resolver"/> stays null, and the engine
+    /// discards it.
+    /// </remarks>
+    public DocTooltipInspectorPlugin()
+    {
+    }
 
     public DocTooltipInspectorPlugin(DocSummaryResolver resolver)
     {
@@ -57,6 +76,11 @@ public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
 
     public override void _ParseEnd(GodotObject @object)
     {
+        // The engine's reload-recreated instance (see the parameterless constructor) carries no
+        // resolver, yet stays registered in the inspector's plugin list and keeps receiving this
+        // call — so this is a hot path, not a defensive nicety, and must lead the method.
+        if (this._resolver == null) { return; }
+
         // One stat per parsed object, never one per property lookup — TryGetSummary never stats.
         this._resolver.Refresh();
 
@@ -68,12 +92,20 @@ public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
         if (this._applyScheduled) { return; }
 
         this._applyScheduled = true;
-        DocSummaryResolver resolver = this._resolver;
-        Callable.From(() => Callable.From(() =>
-        {
-            this._applyScheduled = false;
-            Apply(resolver);
-        }).CallDeferred()).CallDeferred();
+        this.CallDeferred(MethodName.DeferApplyPass);
+    }
+
+    /// <summary>
+    /// Second hop of the two-frame delay described above. Addressed by the engine through this
+    /// object's ID, so it must stay public and instance-bound; never call it directly.
+    /// </summary>
+    public void DeferApplyPass() => this.CallDeferred(MethodName.RunApplyPass);
+
+    /// <summary>Runs the coalesced pass and reopens scheduling. Public for the same reason.</summary>
+    public void RunApplyPass()
+    {
+        this._applyScheduled = false;
+        Apply(this._resolver);
     }
 
     /// <summary>

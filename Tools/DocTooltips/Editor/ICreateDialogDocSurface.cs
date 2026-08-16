@@ -22,6 +22,10 @@ namespace Jmodot.Tools.DocTooltips.Editor;
 /// after the dialog's nodes have been freed. It is the only teardown hook; the editor reloads this
 /// assembly on every rebuild, so a surface that leaves a signal connected strands the whole
 /// object graph behind it.</item>
+/// <item>Every implementation is a <see cref="Godot.GodotObject"/> and connects by ObjectID rather
+/// than by delegate — see <see cref="DocTooltipInstallation"/> for the invariant and what breaks
+/// without it. That is what makes <see cref="Free"/> part of this contract: the ObjectID must stop
+/// resolving, or a still-queued call outlives teardown.</item>
 /// </list>
 /// </remarks>
 internal interface ICreateDialogDocSurface
@@ -34,5 +38,12 @@ internal interface ICreateDialogDocSurface
 
     /// <summary>Disconnects everything <see cref="TryAttach"/> connected. Idempotent.</summary>
     void Detach();
+
+    /// <summary>
+    /// Releases the engine-side object, invalidating its ObjectID. Satisfied by
+    /// <see cref="Godot.GodotObject.Free"/>. Call only after <see cref="Detach"/>, once — the owner
+    /// drops its reference in the same step.
+    /// </summary>
+    void Free();
 }
 #endif

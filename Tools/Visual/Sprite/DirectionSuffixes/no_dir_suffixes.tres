@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="NoDirAnimationSuffixes" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://82683tyy2fkb" path="res://Jmodot/Tools/Visual/Sprite/DirectionSuffixes/NoDirAnimationSuffixes.cs" id="1_nodir"]
+
+[resource]
+script = ExtResource("1_nodir")
+metadata/_custom_type_script = "uid://82683tyy2fkb"
