@@ -260,7 +260,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <inheritdoc />
-    public void OnShed(Vector3 direction, float spentForce, Node? attributedSource)
+    public void OnShed(Vector3 direction, float spentForce, float attackKnockbackForce, Node? attributedSource)
     {
         // Only a shed arms the cooldown. A deliberate detach — death, an aborted approach, the owner
         // letting go — is not the entity being thrown off, so it must not be punished with a wait.
@@ -270,7 +270,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         // so an impulse applied before the release is discarded rather than queued.
         this.ReleaseAttachment(DetachCause.Shed);
 
-        var impulse = spentForce * this.FlingForceScale;
+        // The fling scales the ATTACK's knockback when the attacker provides one — the blow the
+        // player threw is what throws the rider, and grip only decides WHO comes off. The spent
+        // force stays the fallback so hosts that shake riders off without an authored knockback
+        // keep their behaviour.
+        var flingBase = attackKnockbackForce > 0f ? attackKnockbackForce : spentForce;
+        var impulse = flingBase * this.FlingForceScale;
         if (impulse <= 0f) { return; }
         if (this._knockback == null) { return; }
 

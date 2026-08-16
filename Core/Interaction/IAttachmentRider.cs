@@ -60,13 +60,16 @@ public interface IAttachmentRider : IGodotNodeInterface
     void OnAttached(IAttachmentHost host, Vector3 localAnchor);
 
     /// <summary>
-    /// Grip was exhausted: release positional authority FIRST, then convert
-    /// <paramref name="spentForce"/> into a launch impulse along <paramref name="direction"/>,
-    /// attributed to <paramref name="attributedSource"/>. Ordering is load-bearing — an impulse
-    /// applied while movement is still suspended is discarded.
+    /// Grip was exhausted: release positional authority FIRST, then convert the fling base into a
+    /// launch impulse along <paramref name="direction"/>, attributed to
+    /// <paramref name="attributedSource"/>. Ordering is load-bearing — an impulse applied while
+    /// movement is still suspended is discarded.
     /// </summary>
+    /// <param name="spentForce">How much of the blow's force this rider's grip absorbed.</param>
+    /// <param name="attackKnockbackForce">The attack's own knockback force, when the attacker provides
+    /// one — the fling scales from this. Zero falls back to <paramref name="spentForce"/>.</param>
     /// <param name="attributedSource">Who gets credit for the fling: the shed's instigator when one was named, else the host.</param>
-    void OnShed(Vector3 direction, float spentForce, Node? attributedSource);
+    void OnShed(Vector3 direction, float spentForce, float attackKnockbackForce, Node? attributedSource);
 
     /// <summary>The attachment ended for a reason other than a shed; release every claim and resume normal AI.</summary>
     void OnDetached(DetachCause cause);

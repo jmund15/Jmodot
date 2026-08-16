@@ -335,7 +335,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             // below skips it. Its fling direction was resolved above only to aim the hit it took.
             if (!IsRiderAlive(rider)) { continue; }
 
-            rider.OnShed(directions[rider], outcome.ForceSpent, attribution);
+            rider.OnShed(directions[rider], outcome.ForceSpent, request.AttackKnockbackForce, attribution);
         }
 
         return plan;
