@@ -472,91 +472,115 @@ public partial class AnimationVisibilityCoordinator : Node
 
         // 2. Get List via Interface (Polymorphic!)
         string[] availableAnims = animComp.GetAnimationList();
+        var parent = GetParent();
 
-        if (AutoRegisterNodes && availableAnims.Length > 0)
+        // Every key a managed node registers under, and the keys no clip can ever reach.
+        // Config-warning surface only (scene-dock triangle) — an ERROR log here fires on every
+        // editor import for every scene with an intentionally-unused Vis_ node (e.g. a template
+        // Vis_Hit with no hit clip authored yet).
+        var registeredKeys = new HashSet<string>();
+        var unreachableSlots = new List<string>();
+
+        if (AutoRegisterNodes && parent != null)
         {
-            var parent = GetParent();
-            if (parent != null)
+            foreach (var child in parent.GetChildrenOfType<Node>())
             {
-                foreach (var child in parent.GetChildrenOfType<Node>())
+                string childName = child.Name.ToString();
+                if (!childName.StartsWith(NodePrefix)) { continue; }
+
+                string expectedKey = ExtractAnimKeyFromNodeName(childName);
+                registeredKeys.Add(expectedKey);
+
+                if (availableAnims.Length > 0 && !AnyAnimResolvesKey(expectedKey, availableAnims))
                 {
-                    // Only check nodes matching the prefix
-                    string childName = child.Name.ToString();
-                    if (!childName.StartsWith(NodePrefix)) { continue; }
-
-                    string expectedKey = ExtractAnimKeyFromNodeName(childName);
-
-                    bool matchFound = false;
-                    foreach (var anim in availableAnims)
-                    {
-                        string processedAnim = anim.ToLower();
-
-                        // Suffix Stripping Logic
-                        if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
-                        {
-                            int idx = processedAnim.LastIndexOf(AnimNameSuffixSeparator);
-                            if (idx > 0) { processedAnim = processedAnim.Substring(0, idx); }
-                        }
-
-                        if (processedAnim == expectedKey)
-                        {
-                            matchFound = true;
-                            break;
-                        }
-                    }
-
-                    // Config-warning surface only (scene-dock triangle) — an ERROR log here fires
-                    // on every editor import for every scene with an intentionally-unused Vis_ node
-                    // (e.g. a template Vis_Hit with no hit clip authored yet).
-                    if (!matchFound)
-                    {
-                        warnings.Add($"Node '{childName}' expects animation key '{expectedKey}', but the target IAnimComponent has no matching animation.");
-                    }
+                    unreachableSlots.Add($"'{childName}' (key '{expectedKey}')");
                 }
             }
         }
 
-        if (ManualVisibilityMap.Count > 0)
+        foreach (var (rawKey, paths) in ManualVisibilityMap)
         {
-            var manualParent = GetParent();
-            foreach (var (rawKey, paths) in ManualVisibilityMap)
+            string expectedKey = rawKey.ToString().ToLower();
+            registeredKeys.Add(expectedKey);
+
+            if (availableAnims.Length > 0 && !AnyAnimResolvesKey(expectedKey, availableAnims))
             {
-                string expectedKey = rawKey.ToString().ToLower();
+                unreachableSlots.Add($"ManualVisibilityMap key '{rawKey}'");
+            }
 
-                if (availableAnims.Length > 0 && !ManualKeyMatchesAnyAnim(expectedKey, availableAnims))
+            if (parent == null) { continue; }
+            foreach (var path in paths)
+            {
+                if (path == null || path.IsEmpty || GetNodeOrNull(path) == null)
                 {
-                    warnings.Add($"ManualVisibilityMap key '{rawKey}' expects animation base '{expectedKey}', but the target IAnimComponent has no matching animation.");
-                }
-
-                if (manualParent == null) { continue; }
-                foreach (var path in paths)
-                {
-                    if (path == null || path.IsEmpty || GetNodeOrNull(path) == null)
-                    {
-                        warnings.Add($"ManualVisibilityMap key '{rawKey}' has an unresolvable NodePath '{path}'.");
-                    }
+                    warnings.Add($"ManualVisibilityMap key '{rawKey}' has an unresolvable NodePath '{path}'.");
                 }
             }
         }
+
+        if (unreachableSlots.Count > 0)
+        {
+            warnings.Add($"No animation on the target animator resolves these visibility slots: {string.Join(", ", unreachableSlots)}.");
+        }
+
+        // The other direction: a clip with no slot node plays to an empty screen, and is invisible
+        // to a slot-to-clip check. Only meaningful once at least one slot exists — a coordinator
+        // managing nothing is not yet authored, not misconfigured.
+        if (registeredKeys.Count > 0)
+        {
+            var unshownAnims = new List<string>();
+            foreach (var anim in availableAnims)
+            {
+                if (IsScaffoldingAnim(anim)) { continue; }
+                if (!AnyKeyResolvesAnim(anim, registeredKeys)) { unshownAnims.Add(anim); }
+            }
+
+            if (unshownAnims.Count > 0)
+            {
+                warnings.Add($"No visibility slot is shown by these animations: {string.Join(", ", unshownAnims)} — they will play with no sprite.");
+            }
+        }
+
         return warnings.ToArray();
     }
 
     /// <summary>
-    /// Matches a manual-map key (already lower-cased, suffix-free) against the animator's clip list,
-    /// applying the same lower-case + directional-suffix strip the auto-key check uses.
+    /// True when playing <paramref name="anim"/> would show a node registered under
+    /// <paramref name="key"/>, applying the same two tiers <see cref="OnAnimStarted"/> resolves in:
+    /// the full clip name first, then the directional-suffix-stripped base.
     /// </summary>
-    private bool ManualKeyMatchesAnyAnim(string expectedKey, string[] availableAnims)
+    private bool AnimResolvesKey(string anim, string key)
+    {
+        string lowered = anim.ToLower();
+        if (lowered == key) { return true; }
+
+        if (string.IsNullOrEmpty(AnimNameSuffixSeparator)) { return false; }
+        int idx = lowered.LastIndexOf(AnimNameSuffixSeparator);
+        return idx > 0 && lowered.Substring(0, idx) == key;
+    }
+
+    private bool AnyAnimResolvesKey(string key, string[] availableAnims)
     {
         foreach (var anim in availableAnims)
         {
-            string processedAnim = anim.ToLower();
-            if (!string.IsNullOrEmpty(AnimNameSuffixSeparator))
-            {
-                int idx = processedAnim.LastIndexOf(AnimNameSuffixSeparator);
-                if (idx > 0) { processedAnim = processedAnim.Substring(0, idx); }
-            }
-            if (processedAnim == expectedKey) { return true; }
+            if (AnimResolvesKey(anim, key)) { return true; }
         }
         return false;
     }
+
+    private bool AnyKeyResolvesAnim(string anim, HashSet<string> registeredKeys)
+    {
+        foreach (var key in registeredKeys)
+        {
+            if (AnimResolvesKey(anim, key)) { return true; }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// RESET is Godot's authoring-time default-pose clip; it is never started as a state animation,
+    /// so demanding a slot for it would fire on every correctly-authored scene.
+    /// </summary>
+    private static bool IsScaffoldingAnim(string anim)
+        => anim.EndsWith("RESET", StringComparison.OrdinalIgnoreCase);
 }
