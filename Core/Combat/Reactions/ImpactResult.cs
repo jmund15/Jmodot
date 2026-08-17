@@ -1,6 +1,8 @@
 namespace Jmodot.Core.Combat.Reactions;
 
+using System;
 using Godot;
+using Implementation.Actors;
 
 /// <summary>
 /// Result type produced by <see cref="Jmodot.Implementation.Actors.ImpactDetector"/> on each rising-edge slide-collision contact
@@ -10,18 +12,31 @@ using Godot;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>SpeedAlongNormal</c> is the perpendicular-component impact severity, clamped to ≥0
-/// — NOT the body's total kinetic magnitude. A grunt sliding horizontally on a floor
-/// reports near-zero SpeedAlongNormal for the floor contact (velocity perpendicular to
-/// floor normal). See <c>ImpactInfo.ComputeSpeedAlongNormal</c> for the math.
+/// <c>Info</c> is the same <see cref="ImpactInfo"/> the detector publishes on its event channel,
+/// so both channels describe one contact with one value — the log channel cannot grow a fact its
+/// event twin lacks. Geometry (<c>IsWall</c>, <c>IsCeiling</c>) and identity (<c>Collider</c>)
+/// are queried through it.
 /// </para>
 /// <para>
-/// <c>Normal</c> follows Godot convention: points AWAY from the surface, out toward the
-/// colliding body. Consumers query surface kind (wall/floor/ceiling) via dot-product math
-/// against <c>Vector3.Up</c>.
+/// <c>ApproachSpeed</c> is the body's TOTAL pre-collision speed, which
+/// <see cref="ImpactInfo.SpeedAlongNormal"/> is the perpendicular component of. The pair is what
+/// separates angle from severity: a fast glancing scrape and a slow head-on hit are
+/// indistinguishable from <c>SpeedAlongNormal</c> alone.
 /// </para>
 /// </remarks>
-public sealed record ImpactResult(
-    Node3D Collider,
-    Vector3 Normal,
-    float SpeedAlongNormal) : CombatResult;
+public sealed record ImpactResult(ImpactInfo Info, float ApproachSpeed) : CombatResult
+{
+    /// <summary>
+    /// Angle between the body's travel and the contact normal, in degrees: 0° is dead-on, 90° a
+    /// parallel graze. Never NaN — an absent approach speed reports 90° and an over-unity ratio
+    /// saturates at 0°, so a consumer may compare it without guarding either case.
+    /// </summary>
+    /// <remarks>
+    /// The zero-approach-speed answer is 90°, not 0° and not "skip the gate": a missing approach
+    /// speed must fail closed on the graze side. Reading it as a perfect hit would let every
+    /// contact through the widest gate an author could set.
+    /// </remarks>
+    public float ApproachDegrees => ApproachSpeed <= 0f
+        ? 90f
+        : Mathf.RadToDeg(MathF.Acos(Math.Clamp(Info.SpeedAlongNormal / ApproachSpeed, 0f, 1f)));
+}

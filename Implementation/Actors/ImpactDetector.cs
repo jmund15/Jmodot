@@ -161,7 +161,7 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
             // Dual-channel publish: event for sibling damage systems (per-frame subscribe);
             // CombatLog for HSM-side queryable lookback (TransitionCondition.CheckEvent reads).
             // Mirrors KnockbackComponent3D pattern: emit signal AND log CombatResult.
-            _combatLog?.Log(new ImpactResult(collider, normal, speedAlongNormal));
+            _combatLog?.Log(new ImpactResult(info, preMoveSpeed));
         }
 
         (_inContactLastFrame, _newContactsThisFrame) = (_newContactsThisFrame, _inContactLastFrame);
@@ -195,14 +195,14 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>Speed</c> semantics: the magnitude of the pre-move velocity component
-/// along the contact normal (perpendicular impact severity), clamped to ≥0.
-/// A grunt sliding horizontally on the floor reports near-zero Speed because
-/// the velocity is perpendicular to the floor normal. Use
+/// <c>SpeedAlongNormal</c> semantics: the magnitude of the pre-move velocity component
+/// along the contact normal (perpendicular impact severity), clamped to ≥0 — NOT the body's
+/// total speed. A grunt sliding horizontally on the floor reports near-zero
+/// SpeedAlongNormal because the velocity is perpendicular to the floor normal. Use
 /// <see cref="ComputeSpeedAlongNormal"/> at construction time.
 /// </para>
 /// </remarks>
-public readonly record struct ImpactInfo(float Speed, Godot.Vector3 Normal, Node3D Collider)
+public readonly record struct ImpactInfo(float SpeedAlongNormal, Godot.Vector3 Normal, Node3D Collider)
 {
     /// <summary>
     /// Projects <paramref name="preMoveVelocity"/> onto the inverted contact normal

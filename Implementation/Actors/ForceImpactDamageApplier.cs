@@ -188,7 +188,7 @@ public partial class ForceImpactDamageApplier : Node, IComponent
             return;
         }
 
-        var damage = DamageProfile.CalculateDamage(info.Speed);
+        var damage = DamageProfile.CalculateDamage(info.SpeedAlongNormal);
         if (damage <= 0f)
         {
             // VelocityThreshold inside the profile gates severity; the attribution gate

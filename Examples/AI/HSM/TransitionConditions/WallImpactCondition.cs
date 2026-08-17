@@ -5,7 +5,6 @@ using Core.Combat.Reactions;
 using Core.Identification;
 using Godot;
 using Implementation.Shared;
-using System;
 
 /// <summary>
 /// Fires when a wall-shaped <see cref="ImpactResult"/> with sufficient perpendicular
@@ -25,6 +24,11 @@ using System;
 /// Wall geometry: <c>|Normal · Vector3.Up| &lt; WallNormalThreshold</c> (lower threshold =
 /// stricter wall). Floor (normal ≈ up) and ceiling (normal ≈ down) are rejected;
 /// horizontal walls pass.
+/// </para>
+/// <para>
+/// Approach angle: <see cref="MinImpactSpeed"/> alone fuses angle with severity, so a fast
+/// glancing scrape clears a bar a slow head-on hit fails. <see cref="MaxApproachAngleDegrees"/>
+/// gates the geometry separately, off <see cref="ImpactResult.ApproachDegrees"/>.
 /// </para>
 /// <para>
 /// Category exclusion: when <see cref="ExcludeCategory"/> is set, contacts whose collider
@@ -48,6 +52,10 @@ public partial class WallImpactCondition : CombatLogCondition
     [Export(PropertyHint.Range, "0.0,2.0,0.05")]
     public float LookbackSeconds { get; private set; } = 0.1f;
 
+    /// <summary>Widest approach angle that still counts, where 0° is dead-on and 90° a parallel graze. Reject glancing scrapes by lowering it; the default 90° cannot reject anything, so an instance that never authors it behaves as if there were no angle gate.</summary>
+    [Export(PropertyHint.Range, "0,90,1,suffix:°")]
+    public float MaxApproachAngleDegrees { get; private set; } = 90f;
+
     /// <summary>Optional category whose colliders should NOT trigger the transition. Typically the project's entity category, so body-checking other characters doesn't fire WallHit.</summary>
     [Export] public Category? ExcludeCategory { get; private set; }
 
@@ -55,9 +63,10 @@ public partial class WallImpactCondition : CombatLogCondition
     {
         foreach (var r in log.GetAllCombatResultsWithinCombatTime<ImpactResult>(LookbackSeconds))
         {
-            if (r.SpeedAlongNormal < MinImpactSpeed) { continue; }
-            if (Math.Abs(r.Normal.Dot(Vector3.Up)) >= WallNormalThreshold) { continue; }
-            if (r.Collider.HasCategory(ExcludeCategory)) { continue; }
+            if (r.Info.SpeedAlongNormal < MinImpactSpeed) { continue; }
+            if (!r.Info.IsWall(WallNormalThreshold)) { continue; }
+            if (r.ApproachDegrees > MaxApproachAngleDegrees) { continue; }
+            if (r.Info.Collider.HasCategory(ExcludeCategory)) { continue; }
             return true;
         }
         return false;
@@ -65,12 +74,13 @@ public partial class WallImpactCondition : CombatLogCondition
 
     #region Test Helpers
 #if TOOLS
-    internal void SetTestExports(float wallNormalThreshold, float minImpactSpeed, float lookbackSeconds, Category? excludeCategory)
+    internal void SetTestExports(float wallNormalThreshold, float minImpactSpeed, float lookbackSeconds, Category? excludeCategory, float maxApproachAngleDegrees)
     {
         WallNormalThreshold = wallNormalThreshold;
         MinImpactSpeed = minImpactSpeed;
         LookbackSeconds = lookbackSeconds;
         ExcludeCategory = excludeCategory;
+        MaxApproachAngleDegrees = maxApproachAngleDegrees;
     }
 #endif
     #endregion
