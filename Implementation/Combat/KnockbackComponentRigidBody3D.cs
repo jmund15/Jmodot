@@ -176,7 +176,11 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 	public override void _ExitTree()
 	{
-		if (_combatant != null)
+		// Disposal-race guard, mirroring KnockbackComponent3D: CombatantComponent is a Godot
+		// Node and sibling free-order during teardown is not guaranteed, so it may already be
+		// freed. A freed Node's managed wrapper stays non-null, so the null check alone does not
+		// see it and the unsubscribe throws ObjectDisposedException.
+		if (_combatant != null && GodotObject.IsInstanceValid(_combatant))
 		{
 			_combatant.CombatResultEvent -= OnCombatResult;
 		}
