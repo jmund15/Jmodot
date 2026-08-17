@@ -76,12 +76,13 @@ public partial class DocTooltipInspectorPlugin : EditorInspectorPlugin
 
     public override void _ParseEnd(GodotObject @object)
     {
+        // The engine's reload-recreated instance (see the parameterless constructor) carries no
+        // resolver, yet stays registered in the inspector's plugin list and keeps receiving this
+        // call — so this is a hot path, not a defensive nicety, and must lead the method.
+        if (this._resolver == null) { return; }
+
         // One stat per parsed object, never one per property lookup — TryGetSummary never stats.
         this._resolver.Refresh();
-
-        // The engine's reload-recreated instance (see the parameterless constructor) carries no
-        // resolver and must never reach the pass.
-        if (this._resolver == null) { return; }
 
         // _ParseEnd fires once per parsed object — the edited object plus every inlined sub-resource,
         // since _CanHandle accepts all. Each Apply walks whole inspector trees, so scheduling one per
