@@ -296,10 +296,12 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// Raises <see cref="OnHitSuppressed"/> for a hit whose damage was fully suppressed by an
     /// absolute-immunity resolution. Obligation: call ONLY when the hit's damage is fully
     /// suppressed — a false immune on a merely-resisted hit must not be expressible.
+    /// Subscribers may rely on the args carrying <c>IncomingMagnitudeScale = 0</c>, matching
+    /// the suppression this channel reports.
     /// </summary>
     public void NotifyHitSuppressed(object source, DamageKind kind)
     {
-        var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind);
+        var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind, null, 0f);
         OnHitSuppressed.Invoke(args);
     }
 

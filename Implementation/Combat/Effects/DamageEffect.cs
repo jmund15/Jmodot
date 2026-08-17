@@ -128,11 +128,12 @@ public class DamageEffect : ICombatEffect
             appliedDamage = isCritical ? DamageAmount * CritMultiplier : DamageAmount;
         }
 
-        if (incomingMagnitudeScale == 0f)
+        if (incomingMagnitudeScale <= 0f)
         {
-            // Absolute immunity suppresses the damage AND its health events (Invariant 20): the
-            // operand is 0, so any TakeDamage would be 0 and early-return. Signal the suppression
-            // separately so presentation can show "Immune".
+            // A non-positive operand suppresses the damage AND its health events (Invariant 20).
+            // 0 is absolute immunity; a negative operand is out of contract but would otherwise
+            // hit TakeDamage's amount <= 0 early-return and vanish with no event at all. Both
+            // route here so the hit stays observable and presentation can show "Immune".
             health.NotifyHitSuppressed(context.Attacker, context.Kind);
         }
         else
