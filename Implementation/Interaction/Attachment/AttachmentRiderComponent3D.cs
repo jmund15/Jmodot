@@ -74,6 +74,20 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     [Export, RequiredExport] public BaseFloatValueDefinition ReattachCooldownDefinition { get; private set; } = null!;
 
     /// <summary>
+    /// Degrees to tilt a shed fling up from the blow's own direction. 0 keeps the flat launch. Any
+    /// value above 0 also marks the impulse as deliberately vertical, so the receiving knockback
+    /// component's flatten safety net leaves the arc intact instead of zeroing it.
+    /// </summary>
+    [Export] public BaseFloatValueDefinition? FlingUpwardAngleDefinition { get; private set; }
+
+    /// <summary>
+    /// Random spread in degrees applied either side of the fling's upward angle, so several riders
+    /// shed by one blow scatter instead of leaving on a single repeated arc. 0 makes every fling
+    /// identical.
+    /// </summary>
+    [Export] public BaseFloatValueDefinition? FlingUpwardAngleJitterDefinition { get; private set; }
+
+    /// <summary>
     /// The attach visuals this rider's art provides. Unset leaves the pose-less behaviour: no pose is
     /// booked and the ride position stays the host's placed anchor.
     /// </summary>
@@ -102,6 +116,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private Node? _hostNode;
     private bool _holdsSuspension;
     private ulong _shedAtMsec;
+    private JmoRng? _flingRng;
 
     private CollisionObject3D? _body;
     private bool _bodyCollisionSuspended;
@@ -128,6 +143,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse. Read only by this rider.</summary>
     public float FlingForceScale => this.FlingForceScaleDefinition?.ResolveFloatValue(this._stats) ?? 0f;
+
+    /// <summary>Degrees a shed fling tilts up from the blow's direction, before jitter. Read only by this rider.</summary>
+    public float FlingUpwardAngle => this.FlingUpwardAngleDefinition?.ResolveFloatValue(this._stats) ?? 0f;
+
+    /// <summary>Random spread either side of <see cref="FlingUpwardAngle"/>, in degrees. Read only by this rider.</summary>
+    public float FlingUpwardAngleJitter => this.FlingUpwardAngleJitterDefinition?.ResolveFloatValue(this._stats) ?? 0f;
 
     /// <summary>
     /// Damage one failed-attach contact deals to the host. Stat-resolvable like every other attachment
@@ -260,7 +281,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <inheritdoc />
-    public void OnShed(Vector3 direction, float spentForce, Node? attributedSource)
+    public void OnShed(Vector3 direction, float spentForce, float attackKnockbackForce, Node? attributedSource)
     {
         // Only a shed arms the cooldown. A deliberate detach — death, an aborted approach, the owner
         // letting go — is not the entity being thrown off, so it must not be punished with a wait.
@@ -270,11 +291,45 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         // so an impulse applied before the release is discarded rather than queued.
         this.ReleaseAttachment(DetachCause.Shed);
 
-        var impulse = spentForce * this.FlingForceScale;
+        // The fling scales the ATTACK's knockback when the attacker provides one — the blow the
+        // player threw is what throws the rider, and grip only decides WHO comes off. The spent
+        // force stays the fallback so hosts that shake riders off without an authored knockback
+        // keep their behaviour.
+        var flingBase = attackKnockbackForce > 0f ? attackKnockbackForce : spentForce;
+        var impulse = flingBase * this.FlingForceScale;
         if (impulse <= 0f) { return; }
         if (this._knockback == null) { return; }
 
-        this._knockback.ApplyKnockback(direction, impulse, attributedSource);
+        var (flingDirection, preserveVertical) = this.ResolveFlingArc(direction);
+        this._knockback.ApplyKnockback(flingDirection, impulse, attributedSource, preserveVertical);
+    }
+
+    /// <summary>
+    /// Tilts a shed's direction up by the authored arc plus its jitter.
+    /// </summary>
+    /// <returns>
+    /// The launch direction, and whether it carries a vertical the receiver must not flatten. Both
+    /// halves are load-bearing together: the receiving knockback component zeroes Y by default, so a
+    /// tilted direction sent without the flag is silently discarded one step before it is used.
+    /// </returns>
+    /// <remarks>
+    /// A jittered angle that lands at or below zero returns the flat launch rather than aiming the
+    /// rider into the floor, which makes jitter safe to author wider than the base arc.
+    /// </remarks>
+    private (Vector3 Direction, bool PreserveVertical) ResolveFlingArc(Vector3 direction)
+    {
+        var degrees = this.FlingUpwardAngle;
+        var jitter = this.FlingUpwardAngleJitter;
+        if (jitter > 0f)
+        {
+            this._flingRng ??= JmoRng.NonDeterministic();
+            degrees += this._flingRng.GetRndInRange(-jitter, jitter);
+        }
+
+        if (degrees <= 0f) { return (direction, false); }
+
+        var rad = Mathf.DegToRad(degrees);
+        return ((direction * Mathf.Cos(rad) + Vector3.Up * Mathf.Sin(rad)).Normalized(), true);
     }
 
     /// <inheritdoc />
@@ -411,21 +466,19 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this.AttachmentEnded.Invoke(cause);
     }
 
-    /// <summary>
-    /// True while a shed still bars this rider from claiming a host. Readable from outside because the
-    /// attach funnel peeks at it FIRST — the peek is side-effect-free, where every step behind it is not.
-    /// </summary>
+    /// <inheritdoc />
+    public float SecondsSinceShed
+        => this._shedAtMsec == 0uL
+            ? float.PositiveInfinity
+            : (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
+
+    /// <inheritdoc />
     public bool IsReattachOnCooldown
     {
         get
         {
-            if (this._shedAtMsec == 0uL) { return false; }
-
             var cooldown = this.ReattachCooldownDefinition?.ResolveFloatValue(this._stats) ?? 0f;
-            if (cooldown <= 0f) { return false; }
-
-            var elapsed = (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
-            return elapsed < cooldown;
+            return cooldown > 0f && this.SecondsSinceShed < cooldown;
         }
     }
 
@@ -574,6 +627,15 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     internal void SetReattachCooldownSeconds(float seconds)
         => this.ReattachCooldownDefinition = new ConstantFloatDefinition(seconds);
+
+    internal void SetFlingUpwardAngle(float degrees, float jitterDegrees = 0f)
+    {
+        this.FlingUpwardAngleDefinition = new ConstantFloatDefinition(degrees);
+        this.FlingUpwardAngleJitterDefinition = new ConstantFloatDefinition(jitterDegrees);
+    }
+
+    internal (Vector3 Direction, bool PreserveVertical) _TestResolveFlingArc(Vector3 direction)
+        => this.ResolveFlingArc(direction);
 
     internal void SetContactDamage(float amount)
         => this.ContactDamageDefinition = new ConstantFloatDefinition(amount);

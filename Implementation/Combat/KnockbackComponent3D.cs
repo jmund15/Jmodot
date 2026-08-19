@@ -64,8 +64,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region COMPONENT_VARIABLES
 
 	/// <summary>
-	/// If true, the Y component of the resulting velocity-delta is zeroed out (typical for
-	/// grounded characters that should be pushed horizontally, not lifted).
+	/// Safety net against sloppy producers: when true, the Y component of the resulting
+	/// velocity-delta is zeroed (typical for grounded characters that should be pushed
+	/// horizontally, not lifted). It is NOT a veto — a producer that stamps
+	/// <see cref="Jmodot.Core.Combat.Reactions.KnockbackResult.PreserveVertical"/> declares its
+	/// Y intentional and wins, and a direct
+	/// <see cref="ApplyKnockback(Vector3, float, Node, bool)"/> caller passing
+	/// <c>preserveVertical: true</c> does the same.
 	/// </summary>
 	[ExportGroup("Behavior")]
 	[Export] public bool FlattenKnockback { get; private set; } = true;
@@ -161,8 +166,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		// MovementProcessor3D.ApplyImpulse expects m/s velocity-delta, not N·s impulse.
 		_movementProcessor.ApplyImpulse(velocityDelta);
+
+		// Report the direction the body actually received, not the pre-flatten input. Falling back to
+		// `direction` on a zero delta matters: normalizing zero yields zero, which reads as
+		// "no direction" rather than "no magnitude".
+		var appliedDirection = velocityDelta.IsZeroApprox() ? direction : velocityDelta.Normalized();
 		var deltaMagnitude = velocityDelta.Length();
-		EmitSignal(SignalName.KnockbackApplied, direction, deltaMagnitude, attributedSource);
+		EmitSignal(SignalName.KnockbackApplied, appliedDirection, deltaMagnitude, attributedSource);
 
 		// Audit-log the post-resistance impulse so HSM transition conditions (KnockbackCondition)
 		// can gate launch/stagger/ragdoll states. KnockbackResult carries Direction + Force in the
@@ -172,12 +182,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		{
 			Source = attributedSource,
 			Target = this,
-			Direction = direction,
+			Direction = appliedDirection,
 			Force = deltaMagnitude,
 			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
 		});
 
-		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={direction}, |Δv|={deltaMagnitude:F2}");
+		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={appliedDirection}, |Δv|={deltaMagnitude:F2}");
 	}
 
 	public override void _ExitTree()

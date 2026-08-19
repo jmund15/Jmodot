@@ -62,8 +62,13 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 	[Export, RequiredExport] public RigidBody3D TargetRigidBody { get; set; } = null!;
 
 	/// <summary>
-	/// If true, the Y component of the impulse is zeroed before <see cref="RigidBody3D.ApplyCentralImpulse"/> —
-	/// keeps the entity grounded under horizontal pushes.
+	/// Safety net against sloppy producers: when true, the Y component of the impulse is zeroed
+	/// before <see cref="RigidBody3D.ApplyCentralImpulse"/>, keeping the body grounded under
+	/// horizontal pushes. It is NOT a veto — a producer that stamps
+	/// <see cref="Jmodot.Core.Combat.Reactions.KnockbackResult.PreserveVertical"/> declares its
+	/// Y intentional and wins, and a direct
+	/// <see cref="ApplyKnockback(Vector3, float, Node, bool)"/> caller passing
+	/// <c>preserveVertical: true</c> does the same.
 	/// </summary>
 	[ExportGroup("Behavior")]
 	[Export] public bool FlattenKnockback { get; private set; } = true;
@@ -92,19 +97,33 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 	#region COMPONENT_LOGIC
 
+	/// <remarks>
+	/// <c>PreserveVertical</c> is read off <see cref="KnockbackResult"/> when present and forwarded
+	/// to <see cref="ApplyKnockback(Vector3, float, Node, bool)"/>, mirroring
+	/// <see cref="KnockbackComponent3D"/> — identical authored data must behave identically on
+	/// either body regime. Other <see cref="IForceCarrier"/> types default to false and continue
+	/// to flatten when <see cref="FlattenKnockback"/> is true.
+	/// </remarks>
 	private void OnCombatResult(CombatResult result)
 	{
-		if (result is IForceCarrier carrier && carrier.Force > 0f)
-		{
-			ApplyKnockback(carrier.Direction, carrier.Force, result.Source);
-		}
+		if (result is not IForceCarrier carrier || carrier.Force <= 0f) { return; }
+
+		var preserveVertical = (result as KnockbackResult)?.PreserveVertical ?? false;
+		ApplyKnockback(carrier.Direction, carrier.Force, result.Source, preserveVertical);
 	}
 
 	/// <summary>
 	/// Applies a knockback impulse (RigidBody regime: <see cref="RigidBody3D.ApplyCentralImpulse"/>
 	/// receives N·s and divides by mass internally — no manual mass-division here).
 	/// </summary>
-	public void ApplyKnockback(Vector3 direction, float incomingForce, Node? attributedSource = null)
+	/// <param name="direction">Normalized direction of the knockback.</param>
+	/// <param name="incomingForce">Impulse magnitude in N·s.</param>
+	/// <param name="attributedSource">Originating cause for HSM transition / VFX / audio chain attribution.</param>
+	/// <param name="preserveVertical">
+	/// When true, the receiver's <see cref="FlattenKnockback"/> safety-net flatten is bypassed —
+	/// the source has stamped Direction.Y as intentional (e.g., a rock pillar's rising pop).
+	/// </param>
+	public void ApplyKnockback(Vector3 direction, float incomingForce, Node? attributedSource = null, bool preserveVertical = false)
 	{
 		if (_rigidBody == null)
 		{
@@ -120,7 +139,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 
 		var stability = Stability?.ResolveFloatValue(_statProvider) ?? 0f;
 		var stabilityScaled = StabilityScaling.ScaleForce(direction * incomingForce, stability);
-		if (FlattenKnockback)
+		if (FlattenKnockback && !preserveVertical)
 		{
 			stabilityScaled = new Vector3(stabilityScaled.X, 0f, stabilityScaled.Z);
 		}
@@ -129,9 +148,14 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		var impulseInNewtonSeconds = stabilityScaled;
 		_rigidBody.ApplyCentralImpulse(impulseInNewtonSeconds);
 
+		// Report the direction the body actually received, not the pre-flatten input. Falling back to
+		// `direction` on a zero impulse matters: normalizing zero yields zero, which reads as
+		// "no direction" rather than "no magnitude".
+		var appliedDirection = impulseInNewtonSeconds.IsZeroApprox() ? direction : impulseInNewtonSeconds.Normalized();
+
 		// Signal payload reports velocity-magnitude (m/s) for unit-consistency with the CharacterBody regime.
 		var resultingVelocityDelta = impulseInNewtonSeconds.Length() / Mathf.Max(_rigidBody.Mass, 0.001f);
-		EmitSignal(SignalName.KnockbackApplied, direction, resultingVelocityDelta, attributedSource);
+		EmitSignal(SignalName.KnockbackApplied, appliedDirection, resultingVelocityDelta, attributedSource);
 
 		// Audit-log the post-resistance velocity-delta so HSM transition conditions
 		// (KnockbackCondition) gate launch/stagger states off the same magnitude the
@@ -142,17 +166,21 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent
 		{
 			Source = attributedSource,
 			Target = this,
-			Direction = direction,
+			Direction = appliedDirection,
 			Force = resultingVelocityDelta,
 			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
 		});
 
-		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={direction}, |Δv|={resultingVelocityDelta:F2}");
+		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={appliedDirection}, |Δv|={resultingVelocityDelta:F2}");
 	}
 
 	public override void _ExitTree()
 	{
-		if (_combatant != null)
+		// Disposal-race guard, mirroring KnockbackComponent3D: CombatantComponent is a Godot
+		// Node and sibling free-order during teardown is not guaranteed, so it may already be
+		// freed. A freed Node's managed wrapper stays non-null, so the null check alone does not
+		// see it and the unsubscribe throws ObjectDisposedException.
+		if (_combatant != null && GodotObject.IsInstanceValid(_combatant))
 		{
 			_combatant.CombatResultEvent -= OnCombatResult;
 		}

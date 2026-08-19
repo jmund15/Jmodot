@@ -312,6 +312,11 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         {
             foreach (var outcome in plan.Damaged)
             {
+                // Shed riders take the payload here — the shed is the deterministic damage path for
+                // a swing that shakes a rider off. A swing whose hitbox ALSO overlaps the rider (one
+                // riding the attacker's own host sits inside the hitbox's reach) must suppress that
+                // direct hit itself, through the hitbox-side IPayloadInterceptor3D seam, or the two
+                // applications stack into a double hit.
                 if (!IsRiderAlive(outcome.Record.Rider)) { continue; }
 
                 // The fling takes the resolved direction because it always needs one and falls back to a
@@ -330,7 +335,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             // below skips it. Its fling direction was resolved above only to aim the hit it took.
             if (!IsRiderAlive(rider)) { continue; }
 
-            rider.OnShed(directions[rider], outcome.ForceSpent, attribution);
+            rider.OnShed(directions[rider], outcome.ForceSpent, request.AttackKnockbackForce, attribution);
         }
 
         return plan;
