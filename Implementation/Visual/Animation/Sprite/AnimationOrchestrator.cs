@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Visual.Animation.Sprite;
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Core.AI.BB;
+using Core.Components;
 using Core.Movement;
 using Core.Visual.Animation.Sprite;
 using Godot;
@@ -15,7 +16,7 @@ using Jmodot.Core.Shared.Attributes;
 /// Combines a Base Name (State) with a Direction Suffix.
 /// </summary>
 [GlobalClass, Tool]
-public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlackboardProvider, IDirectionalResolutionSource
+public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComponent, IBlackboardProvider, IDirectionalResolutionSource
 {
     /// <summary>
     /// Published in Phase 0 so states resolving the orchestrator through its interface do not
@@ -43,7 +44,34 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
         { new Vector3(-1, 0, 1).Normalized(), "downLeft" }
     };
 
+    /// <summary>
+    /// What this entity's ART varies for one logical state — a second hurt clip, an equipment style.
+    /// Each source contributes a component to the BASE name before direction is resolved, in
+    /// ascending <see cref="AnimVariantSource.Order"/>. Unset (empty) leaves every base name exactly
+    /// as the requesting state authored it.
+    /// </summary>
+    [Export] public Array<AnimVariantSource> VariantSources { get; set; } = new();
+
+    /// <summary>
+    /// How <see cref="VariantSources"/> contributions are joined onto the base name. Unset (null)
+    /// suffixes them with this orchestrator's own <see cref="DirectionSuffixSeparator"/>, so the
+    /// varied stem and the direction suffix read alike. Ignored when no source contributes.
+    /// </summary>
+    [Export] public AnimationNamingConvention? NamingConvention { get; set; }
+
     private IAnimComponent _targetAnimator = null!;
+
+    /// <summary>
+    /// The plain stem the requesting state asked for, before variation — "hurt", never "hurt_1".
+    /// Kept separate from <see cref="BaseAnimName"/> so a direction change re-requests the SAME
+    /// varied name instead of composing a variant on top of a variant.
+    /// </summary>
+    private StringName _stemAnimName = "idle";
+
+    private SuffixNamingConvention? _defaultNamingConvention;
+    private bool _rngDistributed;
+    private bool _warnedMissingSeed;
+
     public StringName BaseAnimName { get; private set; } = "idle";
     public string CurrentDirectionLabel { get; private set; } = "down";
     public Vector3 CurrentAnimationDirection { get; private set; }
@@ -86,6 +114,77 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
         _targetAnimator.AnimFinished += OnTargetAnimFinished;
         _targetAnimator.AnimStopped += OnTargetAnimStopped;
         SubscribeTargetResolution();
+
+        if (RequiresSeededRng())
+        {
+            // Deferred, so the entity root's own _Ready (which runs the component init pass) has
+            // already had its chance. A silent miss here is the worst outcome available: every draw
+            // would return row 0 and the entity would play variant 1 forever with no warning.
+            Callable.From(VerifySeededRngArrived).CallDeferred();
+        }
+    }
+
+    #region IComponent
+
+    public bool IsInitialized { get; private set; }
+    public event Action Initialized = delegate { };
+
+    /// <summary>
+    /// Hands each <see cref="VariantSources"/> entry that names a seed-stream kind its per-entity
+    /// <see cref="Core.Shared.IRng"/>. Never fails: an orchestrator whose art varies nothing has no
+    /// blackboard dependency at all, and failing here would retract the Phase-0 provision every
+    /// animated state resolves through.
+    /// </summary>
+    public bool Initialize(IBlackboard bb)
+    {
+        foreach (var source in VariantSources)
+        {
+            var kind = source?.RngSeedKind;
+            if (kind == null)
+            {
+                continue;
+            }
+
+            source!.SetRng(EntityRngResolver.Resolve(bb, kind, this, ref _warnedMissingSeed));
+        }
+
+        _rngDistributed = true;
+        IsInitialized = true;
+        Initialized.Invoke();
+        return true;
+    }
+
+    public void OnPostInitialize() { }
+
+    #endregion
+
+    private bool RequiresSeededRng()
+    {
+        foreach (var source in VariantSources)
+        {
+            if (source?.RngSeedKind != null)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void VerifySeededRngArrived()
+    {
+        if (_rngDistributed)
+        {
+            return;
+        }
+
+        var message =
+            $"Orchestrator '{Name}': a VariantSources entry needs a seeded RNG stream, but no entity "
+            + "initialization pass reached this node, so no stream was ever handed to it. Every draw "
+            + "would return row 0 and the entity would play its first variant forever. Mount this "
+            + "orchestrator under an entity that runs EntityNodeComponentsInitializer, or clear "
+            + "VariantSources.";
+        JmoLogger.Error(this, message);
+        throw new InvalidOperationException(message);
     }
 
     public override void _EnterTree()
@@ -170,7 +269,9 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
             CurrentDirectionLabel = newLabel;
 
             bool wasNotPlaying = !IsPlaying();
-            UpdateAnim(BaseAnimName, AnimUpdateMode.MaintainTime);
+            // The STEM, not the composed name: re-requesting BaseAnimName here would feed "hurt_1"
+            // back in as a stem and compose "hurt_1_2" on the next entry.
+            UpdateAnim(_stemAnimName, AnimUpdateMode.MaintainTime);
             if (wasNotPlaying && IsPlaying())
             {
                 // Animation had completed (e.g., charge form fully formed).
@@ -194,7 +295,17 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
 
     public void UpdateAnim(StringName baseName, AnimUpdateMode mode = AnimUpdateMode.MaintainTime)
     {
-        BaseAnimName = baseName;
+        // Recompose on a hard entry or a new stem; hold the standing variant through a
+        // MaintainTime re-request of the stem already playing (a direction change), because a
+        // fresh draw there would swap the clip mid-play. With VariantSources empty the composed
+        // name IS the stem, so this is byte-identical to the old unconditional assignment.
+        bool stemChanged = baseName != _stemAnimName;
+        _stemAnimName = baseName;
+        if (stemChanged || mode == AnimUpdateMode.Reset)
+        {
+            BaseAnimName = AnimationBaseNameComposer.Compose(baseName, VariantSources, ActiveNamingConvention());
+        }
+
         var finalName = BuildFinalName();
 
         // Composite targets resolve per-slave (each slave degrades under its own policy), so
@@ -281,6 +392,11 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IBlac
 
     // When DirectionSet is null the orchestrator plays undirected: no label, and a zero facing so
     // the resolver's nearest-directional tier is skipped — mirroring the old BuildFinalName gate.
+    // Built from DirectionSuffixSeparator rather than the "_" SuffixNamingConvention default so an
+    // orchestrator authored with a different separator composes variants and direction alike.
+    private AnimationNamingConvention ActiveNamingConvention()
+        => NamingConvention ?? (_defaultNamingConvention ??= new SuffixNamingConvention { Separator = DirectionSuffixSeparator });
+
     private string ActiveDirectionLabel() => DirectionSet == null ? string.Empty : CurrentDirectionLabel;
     private Vector3 ActiveDirection() => DirectionSet == null ? Vector3.Zero : CurrentAnimationDirection;
 
