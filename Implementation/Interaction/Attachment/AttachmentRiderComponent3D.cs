@@ -168,9 +168,13 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         {
             if (this.Host == null) { return null; }
 
-            foreach (var record in this.Host.Attachments)
+            // Indexed, not foreach: Attachments is an IReadOnlyList, so foreach boxes an enumerator
+            // onto the heap — this is the higher-frequency of the two, sampled every physics frame by
+            // every animated-claim reader (ActivePose → ActiveRideClip / ActiveAttackClip / ActiveAttackHoldSeconds).
+            var attachments = this.Host.Attachments;
+            for (var i = 0; i < attachments.Count; i++)
             {
-                if (ReferenceEquals(record.Rider, this)) { return record.Pose; }
+                if (ReferenceEquals(attachments[i].Rider, this)) { return attachments[i].Pose; }
             }
 
             return null;
@@ -494,9 +498,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
             if (ancestor.IsQueuedForDeletion()) { return false; }
         }
 
-        foreach (var record in this.Host.Attachments)
+        // Indexed, not foreach: Attachments is an IReadOnlyList, so foreach boxes an enumerator
+        // onto the heap — this runs every physics frame, and AssignedPose runs several times more.
+        var attachments = this.Host.Attachments;
+        for (var i = 0; i < attachments.Count; i++)
         {
-            if (ReferenceEquals(record.Rider, this)) { return true; }
+            if (ReferenceEquals(attachments[i].Rider, this)) { return true; }
         }
 
         return false;
