@@ -47,6 +47,11 @@ public static partial class BBDataSig
     public static readonly StringName KnockbackComponent = new("KnockbackComponent");
     #endregion
 
+    #region Body
+    public static readonly StringName SegmentedBody = new("SegmentedBody");
+    public static readonly StringName BodySegment = new("BodySegment");
+    #endregion
+
     #region ROBBER_PROPERTIES
 
     public static readonly StringName RobberBag = new("RobberBag");

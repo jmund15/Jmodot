@@ -347,6 +347,42 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     }
 
     /// <summary>
+    /// Seeds current health outright — for a body that has just come into existence carrying a
+    /// state, not for anything that happened to it. Clamps into [0, MaxHealth] and raises
+    /// <see cref="OnHealthChanged"/> and nothing else: no damage or heal feedback fires, so a
+    /// freshly spawned entity does not flash or squash on its first frame, and no death transition
+    /// is performed.
+    /// </summary>
+    /// <param name="value">
+    /// The health to start from. Pass a value above zero for an entity meant to be alive — a zero
+    /// leaves it at zero health and still ALIVE, because this verb deliberately never kills.
+    /// </param>
+    /// <param name="source">The object responsible for the seeding, carried to subscribers.</param>
+    /// <remarks>
+    /// Ignored before <see cref="Initialize"/>, like every sibling verb: MaxHealth is unresolved
+    /// until then, so a clamp would be against nothing.
+    /// </remarks>
+    public void SetCurrentHealth(float value, object source)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        float previousHealth = _currentHealth;
+        float maxHealth = MaxHealth;
+        _currentHealth = Mathf.Clamp(value, 0, maxHealth);
+
+        if (Mathf.IsEqualApprox(_currentHealth, previousHealth))
+        {
+            return;
+        }
+
+        OnHealthChanged.Invoke(new HealthChangeEventArgs(
+            _currentHealth, previousHealth, maxHealth, source, DamageKind.Reaction));
+    }
+
+    /// <summary>
     /// Resets health to maximum. Works whether alive or dead.
     /// If dead, resurrects with full health. If alive, heals to max.
     /// </summary>
