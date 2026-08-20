@@ -55,7 +55,9 @@ public partial class SinusoidalLateralConsideration3D : BaseAIConsideration3D
         IBlackboard blackboard,
         AIConsiderationRuntime? runtime)
     {
-        var scores = directions.Directions.ToDictionary(dir => dir, _ => 0f);
+        // Per-physics-frame path: the foreach below fully populates via the indexer, so a zero-fill
+        // pre-pass (ToDictionary + closure) is pure allocation waste here.
+        var scores = new Dictionary<Vector3, float>();
 
         // A missing runtime means this consideration was evaluated outside a processor: sample the
         // unseeded origin rather than parking per-agent state on the shared Resource or allocating a

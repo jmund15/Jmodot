@@ -22,11 +22,8 @@ using Implementation.Shared.GodotExceptions;
 /// holds units when it readies skips its own initial spawn — adopting afterwards would leave the
 /// progeny wearing a fresh random body on top of the one it inherited.
 /// </remarks>
-internal sealed class ChainPromotion
+internal static class ChainPromotion
 {
-    private ChainPromotion()
-    {
-    }
 
     /// <summary>
     /// The seed a progeny enters the world with: a child of its parent's own stream, distinguished
@@ -94,7 +91,15 @@ internal sealed class ChainPromotion
                 headRoot);
         }
 
-        var progeny = ResourceLoader.Load<PackedScene>(scenePath).Instantiate<Node3D>();
+        var scene = ResourceLoader.Load<PackedScene>(scenePath);
+        if (scene == null)
+        {
+            throw new NodeConfigurationException(
+                $"The head's scene path '{scenePath}' did not load as a PackedScene — promotion cannot re-instantiate the head.",
+                headRoot);
+        }
+
+        var progeny = scene.Instantiate<Node3D>();
         var front = fragment[0];
 
         progeny.Transform = container is Node3D anchor

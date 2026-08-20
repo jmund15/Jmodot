@@ -256,25 +256,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             warnings.Add("SegmentScene is unset — this chain has nothing to instance.");
         }
 
-        if (this.MinLength < 2)
-        {
-            warnings.Add("MinLength must be at least 2: a body shorter than a head plus one unit is just the head.");
-        }
-
-        if (this.InitialSegmentsMin > this.InitialSegmentsMax)
-        {
-            warnings.Add("InitialSegmentsMin is above InitialSegmentsMax.");
-        }
-
-        if (this.InitialSegmentsMax > this.MaxSegments)
-        {
-            warnings.Add("InitialSegmentsMax is above MaxSegments, so a fresh body could never reach it.");
-        }
-
-        if (this.MaxSegments < this.MinLength - 1)
-        {
-            warnings.Add("MaxSegments is below MinLength - 1, so a full-length body would already be under its death threshold.");
-        }
+        warnings.AddRange(this.RangeRuleViolations());
 
         if (this.GetParent() is not Node3D)
         {
@@ -291,27 +273,43 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
     }
 
-    /// <exception cref="NodeConfigurationException">Any authored range is self-contradictory.</exception>
-    private void ValidateRanges()
+    /// <summary>
+    /// The ONE home for the four range rules: the editor warnings and the load-time throws both
+    /// consume this list, so the two tiers can never silently disagree about what is legal.
+    /// </summary>
+    private List<string> RangeRuleViolations()
     {
+        var violations = new List<string>();
         if (this.MinLength < 2)
         {
-            throw new NodeConfigurationException("MinLength must be at least 2.", this);
+            violations.Add("MinLength must be at least 2: a body shorter than a head plus one unit is just the head.");
         }
 
         if (this.InitialSegmentsMin > this.InitialSegmentsMax)
         {
-            throw new NodeConfigurationException("InitialSegmentsMin must not exceed InitialSegmentsMax.", this);
+            violations.Add("InitialSegmentsMin must not exceed InitialSegmentsMax.");
         }
 
         if (this.InitialSegmentsMax > this.MaxSegments)
         {
-            throw new NodeConfigurationException("InitialSegmentsMax must not exceed MaxSegments.", this);
+            violations.Add("InitialSegmentsMax must not exceed MaxSegments — a fresh body could never reach it.");
         }
 
         if (this.MaxSegments < this.MinLength - 1)
         {
-            throw new NodeConfigurationException("MaxSegments must be at least MinLength - 1.", this);
+            violations.Add("MaxSegments must be at least MinLength - 1 — a full-length body would already be under its death threshold.");
+        }
+
+        return violations;
+    }
+
+    /// <exception cref="NodeConfigurationException">Any authored range is self-contradictory.</exception>
+    private void ValidateRanges()
+    {
+        var violations = this.RangeRuleViolations();
+        if (violations.Count > 0)
+        {
+            throw new NodeConfigurationException(string.Join(" ", violations), this);
         }
     }
 
@@ -360,21 +358,26 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     }
 
     /// <summary>
-    /// The head's own entity seed when its spawn source injected one before parenting, so a body's
-    /// length replays; an unseeded draw otherwise, which is the same tier a scene-placed entity gets.
+    /// The head's own entity seed when its spawn source injected one before parenting. One home for
+    /// the head→blackboard→EntitySeed walk; the two callers keep their own degradation policies
+    /// (an unseeded draw vs a zero-plus-warning).
     /// </summary>
-    private JmoRng ResolveRng()
+    private bool TryResolveHeadSeed(out int seed)
     {
-        if (this._head != null
+        seed = 0;
+        return this._head != null
+            && GodotObject.IsInstanceValid(this._head)
             && this._head.TryGetFirstChildOfInterface<IBlackboard>(out var bb)
             && bb != null
-            && bb.TryGet<int>(BBDataSig.EntitySeed, out var seed))
-        {
-            return new JmoRng(seed);
-        }
-
-        return JmoRng.UnseededByDesign();
+            && bb.TryGet<int>(BBDataSig.EntitySeed, out seed);
     }
+
+    /// <summary>
+    /// A seeded draw when the head carries an entity seed, so a body's length replays; an unseeded
+    /// draw otherwise, which is the same tier a scene-placed entity gets.
+    /// </summary>
+    private JmoRng ResolveRng()
+        => this.TryResolveHeadSeed(out var seed) ? new JmoRng(seed) : JmoRng.UnseededByDesign();
 
     private void Adopt(BodySegment3D segment, int index)
     {
@@ -530,14 +533,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
     private int ResolveParentSeed()
     {
-        if (this._head != null
-            && GodotObject.IsInstanceValid(this._head)
-            && this._head.TryGetFirstChildOfInterface<IBlackboard>(out var bb)
-            && bb != null
-            && bb.TryGet<int>(BBDataSig.EntitySeed, out var seed))
-        {
-            return seed;
-        }
+        if (this.TryResolveHeadSeed(out var seed)) { return seed; }
 
         JmoLogger.Warning(this,
             "[Lineage] A segmented body promoted a fragment from an unseeded head, so the progeny derives its stream from zero.");
