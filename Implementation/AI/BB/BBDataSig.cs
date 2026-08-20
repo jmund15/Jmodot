@@ -36,7 +36,6 @@ public static partial class BBDataSig
     public static readonly StringName MovementSM = new("MovementSM");
     public static readonly StringName AISM = new("AISM");
     public static readonly StringName QueuedNextAttack = new("QueuedNextAttack");
-    public static readonly StringName SelfInteruptible = new("SelfInteruptible");
 
     #endregion
 
