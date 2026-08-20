@@ -370,6 +370,13 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
             property.RemoveAllModifiersFromSource(owner);
         }
     }
+    /// <summary>
+    /// The contexts currently applied, in no particular order. Mirrors
+    /// <c>MovementQuirkProcessor3D.ActiveQuirks</c>: a scoped hold is only auditable if what
+    /// is held can be read back.
+    /// </summary>
+    public IReadOnlyCollection<StatContext> ActiveContexts => _activeContexts;
+
     public void AddActiveContext(StatContext context)
     {
         _activeContexts.Add(context);
