@@ -22,8 +22,11 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     /// Published in Phase 0 so states resolving the orchestrator through its interface do not
     /// depend on the entity root republishing it by hand.
     /// </summary>
-    public (StringName Key, object Value)? Provision => (AI.BB.BBDataSig.AnimationOrchestrator, this);
+    public (StringName Key, object Value)? Provision => this.PublishToBlackboard
+        ? (AI.BB.BBDataSig.AnimationOrchestrator, this)
+        : null;
 
+    [Export] public bool PublishToBlackboard { get; set; } = true;
     [Export, RequiredExport] private Node _targetAnimatorNode = null!;
     [Export] public string DirectionSuffixSeparator { get; set; } = "_";
 

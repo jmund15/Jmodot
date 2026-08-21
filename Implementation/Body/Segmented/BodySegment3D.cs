@@ -55,8 +55,12 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
         {
             this._facing = value;
             this._orchestrator?.SetDirection(value);
+            this.FacingChanged(value);
         }
     }
+
+    /// <summary>Raised after the host writes a new travel direction to this unit.</summary>
+    public event Action<Vector3> FacingChanged = delegate { };
 
     /// <summary>This unit's own health. Required — resolved from its own blackboard at initialization.</summary>
     public IHealth Health => this._health
