@@ -15,8 +15,8 @@ using Jmodot.Implementation.Shared.GodotExceptions;
 /// in the CombatLog; consumers must keep the hurt state's minimum duration longer than
 /// <see cref="WindowSeconds"/>. This is an HSM transition surface, distinct from the
 /// <c>HealthRatioCondition : BTCondition</c> surface rather than a parallel abstraction.
-/// A missing CombatLog keeps <see cref="CombatLogCondition"/>'s warning-and-false posture;
-/// a missing health component is a configuration error and throws.
+/// A missing health component or CombatLog is a configuration error and throws — an omitted
+/// logger must never read as "no crossing".
 /// </summary>
 [GlobalClass, Tool]
 public partial class HealthFractionCrossedCondition : CombatLogCondition
@@ -35,6 +35,15 @@ public partial class HealthFractionCrossedCondition : CombatLogCondition
         {
             throw new ResourceConfigurationException(
                 $"Required blackboard dependency '{BBDataSig.HealthComponent}' was not provided.", this);
+        }
+
+        // Both reads are hard deps for THIS condition: an omitted CombatLogger would otherwise
+        // read as a legitimate "no crossing" every frame. The base keeps its warn-false posture
+        // for siblings whose log read is genuinely optional.
+        if (!bb.TryGet(BBDataSig.CombatLog, out CombatLog? log) || log == null)
+        {
+            throw new ResourceConfigurationException(
+                $"Required blackboard dependency '{BBDataSig.CombatLog}' was not provided.", this);
         }
 
         return base.Check(agent, bb);
