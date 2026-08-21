@@ -47,6 +47,14 @@ using Shared.GodotExceptions;
         [ExportGroup("Movement Override")]
         [Export] protected BaseMovementStrategy3D? MovementStrategyOverride;
 
+        /// <summary>
+        /// True while this state claims the movement processor's single strategy-override slot.
+        /// Read by <see cref="Jmodot.Implementation.Movement.Strategies.MovementOverrideNesting"/> so a
+        /// descendant that also claims the slot can warn at authoring time instead of silently
+        /// clearing this state's override on its own exit.
+        /// </summary>
+        public bool ClaimsMovementOverride => MovementStrategyOverride != null;
+
         private BehaviorTree _tree = null!; // Set in OnInit, exception thrown if missing
         private IMovementProcessor3D? _movementProcessor;
 

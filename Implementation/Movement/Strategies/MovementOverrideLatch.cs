@@ -19,7 +19,7 @@ using Core.Movement.Strategies;
 /// </para>
 /// <para>
 /// A struct, and a field on the owning action rather than a static on
-/// <see cref="AttackActionHelpers"/>: the flag is per-action mutable state, so a static forwarder
+/// <c>AttackActionHelpers</c>: the flag is per-action mutable state, so a static forwarder
 /// would be a shared mutable slot dressed as a helper. Declare it as a plain field
 /// (<c>private MovementOverrideLatch _latch;</c>) — mutating through a property or a <c>readonly</c>
 /// field would mutate a copy.
