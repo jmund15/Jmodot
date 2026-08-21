@@ -272,6 +272,8 @@ public partial class State : Node, IState
         MovementQuirks.Add(quirk);
         _quirkRegistration.Resolve(BB, MovementQuirks, this);
     }
+
+    internal void _TestAddTransition(StateTransition transition) => Transitions.Add(transition);
 #endif
     #endregion
 
@@ -305,8 +307,37 @@ public partial class State : Node, IState
             {
                 warnings.Add($"Transition '{transition.ResourceName}' (index {i}) points to a node ('{path}') that is not a valid State.");
             }
+            else if (!IsCommittableTarget(GetNode(path), transition.CanPropagateUp))
+            {
+                warnings.Add(transition.CanPropagateUp
+                    ? $"Transition '{transition.ResourceName}' (index {i}) targets '{path}', which no ancestor " +
+                      "CompoundState holds as a direct child. CanPropagateUp forwards the transition upward, but " +
+                      "some ancestor must own the target to commit it, so this one is rejected at the frame it fires."
+                    : $"Transition '{transition.ResourceName}' (index {i}) targets '{path}', which is not a sibling of " +
+                      "this state. A transition commits on the parent CompoundState, which can only move between its own " +
+                      "children, so this one is rejected at the frame it fires. Retarget it or set CanPropagateUp.");
+            }
         }
 
         return warnings.ToArray();
+    }
+
+    /// <summary>
+    /// Whether a transition to <paramref name="target"/> can ever commit from this state. A transition
+    /// commits on a CompoundState that owns the target as a direct child: the immediate parent when the
+    /// transition does not propagate, or any ancestor of it when it does.
+    /// </summary>
+    private bool IsCommittableTarget(Node target, bool canPropagateUp)
+    {
+        var owner = target.GetParent();
+        if (owner == GetParent()) { return true; }
+        if (!canPropagateUp || owner is not CompoundState) { return false; }
+
+        for (var ancestor = GetParent(); ancestor != null; ancestor = ancestor.GetParent())
+        {
+            if (ancestor == owner) { return true; }
+        }
+
+        return false;
     }
 }
