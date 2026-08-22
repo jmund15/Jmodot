@@ -338,6 +338,17 @@ public partial class AnimationVisibilityCoordinator : Node
             _targetAnimComponent = animComp;
             _targetAnimComponent.AnimStarted += OnAnimStarted;
             _targetAnimComponent.AnimStopped += OnAnimStopped;
+
+            // Catch up on a clip that started before this subscription existed. Native `autoplay`
+            // emits its started signal while the AnimationPlayer enters the tree, which is before
+            // this component's _Ready connects the relay — so registration force-hides every slot
+            // and the event that would reveal one has already gone by. OnChildEnteredTree performs
+            // this same reconciliation for nodes added later; without it here, every autoplay
+            // entity stays invisible for its entire life.
+            if (_targetAnimComponent.IsPlaying())
+            {
+                OnAnimStarted(_targetAnimComponent.GetCurrAnimation());
+            }
         }
         else
         {
