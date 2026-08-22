@@ -15,10 +15,13 @@ public static class DirectionalClipResolver
     /// Resolves the clip name to play, or null when nothing resolves.
     /// Tier 1 (both policies): the exact "{baseName}{separator}{directionLabel}".
     /// Tier 2 (<see cref="SlotFallbackPolicy.NearestDirectional"/> only): the nearest existing
-    /// directional variant by max dot product with <paramref name="currentDirection"/>; skipped
-    /// when the direction is zero-approx or no labels are supplied. Equidistant ties resolve to
-    /// insertion order (strict greater-than), matching the retired FindClosestAvailableDirectional.
-    /// Tier 3 (both policies): the undirected <paramref name="baseName"/>.
+    /// directional variant with a POSITIVE dot product against <paramref name="currentDirection"/>;
+    /// skipped when the direction is zero-approx or no labels are supplied. Equidistant ties resolve to
+    /// insertion order (strict greater-than).
+    /// Tier 3 (both policies): the undirected <paramref name="baseName"/> — a perpendicular or opposed
+    /// variant is never nearer than the side-view base the facing mirror already handles.
+    /// Tier 4 (NearestDirectional only): any existing variant by max dot, so a request with no base
+    /// and only off-axis art still shows something rather than nothing.
     /// </summary>
     public static StringName? Resolve(
         Func<StringName, bool> hasAnimation,
@@ -37,7 +40,7 @@ public static class DirectionalClipResolver
 
         if (policy == SlotFallbackPolicy.NearestDirectional)
         {
-            var nearest = FindClosestAvailableDirectional(hasAnimation, baseName, currentDirection, directionLabels, separator);
+            var nearest = FindClosestAvailableDirectional(hasAnimation, baseName, currentDirection, directionLabels, separator, requirePositiveDot: true);
             if (nearest != null)
             {
                 return nearest;
@@ -49,10 +52,18 @@ public static class DirectionalClipResolver
             return baseName;
         }
 
+        if (policy == SlotFallbackPolicy.NearestDirectional)
+        {
+            return FindClosestAvailableDirectional(hasAnimation, baseName, currentDirection, directionLabels, separator, requirePositiveDot: false);
+        }
+
         return null;
     }
 
-    private static StringName BuildFinalName(StringName baseName, string directionLabel, string separator)
+    /// <summary>
+    /// Combines an undirected base name with a non-empty directional label.
+    /// </summary>
+    public static StringName BuildFinalName(StringName baseName, string directionLabel, string separator)
     {
         if (string.IsNullOrEmpty(directionLabel))
         {
@@ -66,7 +77,8 @@ public static class DirectionalClipResolver
         StringName baseName,
         Vector3 currentDirection,
         IReadOnlyDictionary<Vector3, string> directionLabels,
-        string separator)
+        string separator,
+        bool requirePositiveDot)
     {
         if (currentDirection.IsZeroApprox() || directionLabels == null)
         {
@@ -84,6 +96,11 @@ public static class DirectionalClipResolver
             }
 
             var dot = kvp.Key.Dot(currentDirection);
+            if (requirePositiveDot && !(dot > 0f))
+            {
+                continue;
+            }
+
             if (dot > bestDot)
             {
                 bestDot = dot;
