@@ -19,6 +19,13 @@ using Implementation.Shared.GodotExceptions;
 /// side of it.
 /// </summary>
 /// <remarks>
+/// On post-initialization this unit starts its idle clip THROUGH the wired C# relay rather than
+/// relying on native autoplay: an autoplay's AnimationStarted fires while the AnimationPlayer enters
+/// the tree, before any subscriber exists, and a visibility coordinator that force-hides slots on
+/// registration never sees the event — the unit spawns invisible. Starting here means the reveal
+/// happens after every component is wired.
+/// </remarks>
+/// <remarks>
 /// <para>
 /// Required blackboard key: <see cref="BBDataSig.HealthComponent"/>. A segment that cannot report
 /// its own death cannot be split around, so its absence is a configuration warning in the editor
@@ -34,6 +41,8 @@ using Implementation.Shared.GodotExceptions;
 [GlobalClass, Tool]
 public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
 {
+    private static readonly StringName IdleAnim = new("idle");
+
     private Vector3 _facing = Vector3.Forward;
     private IHealth? _health;
     private IAnimationOrchestrator? _orchestrator;
@@ -131,6 +140,9 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
 
         this._health.OnDied -= this.OnHealthDied;
         this._health.OnDied += this.OnHealthDied;
+
+        // The idle reveal (class doc): start through the relay now that every subscriber exists.
+        this._orchestrator?.StartAnim(IdleAnim);
     }
 
     public Node GetUnderlyingNode() => this;

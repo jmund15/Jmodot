@@ -69,7 +69,15 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     /// Kept separate from <see cref="BaseAnimName"/> so a direction change re-requests the SAME
     /// varied name instead of composing a variant on top of a variant.
     /// </summary>
-    private StringName _stemAnimName = "idle";
+    /// <summary>
+    /// The plain stem the requesting state asked for, before variation — "hurt", never "hurt_1".
+    /// Kept separate from <see cref="BaseAnimName"/> so a direction change re-requests the SAME
+    /// varied name instead of composing a variant on top of a variant. Null until some caller
+    /// actually starts a clip: a direction update that arrives before any StartAnim (an overlay
+    /// whose library carries only directional clips, facing its first SetDirection) has no stem to
+    /// re-resolve, and treating the null as "idle" would demand a clip the animator may not carry.
+    /// </summary>
+    private StringName? _stemAnimName;
 
     private SuffixNamingConvention? _defaultNamingConvention;
     private bool _rngDistributed;
@@ -268,8 +276,12 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
         if (newLabel != CurrentDirectionLabel)
         {
             CurrentAnimationDirection = closestDir;
-            //GD.Print($"Direction changed from '{_currentDirectionLabel}' to '{newLabel}'");
             CurrentDirectionLabel = newLabel;
+
+            // No clip has been started on this animator yet — record the direction for the first
+            // StartAnim's composition and stop. Re-requesting the default stem would demand
+            // "idle" from charge-only overlay libraries.
+            if (_stemAnimName == null) { return; }
 
             bool wasNotPlaying = !IsPlaying();
             // The STEM, not the composed name: re-requesting BaseAnimName here would feed "hurt_1"
