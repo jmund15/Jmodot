@@ -17,6 +17,7 @@ using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Combat;
 using Jmodot.Implementation.Shared;
+using Jmodot.Implementation.Visual;
 
 /// <summary>
 /// Latches its entity onto an <see cref="IAttachmentHost"/> and rides it. The entity is never
@@ -292,7 +293,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this._shedAtMsec = Time.GetTicksMsec();
 
         // Ordering is load-bearing: a suspended processor CLEARS its pending impulses every tick,
-        // so an impulse applied before the release is discarded rather than queued.
+        // so an impulse applied before the release is discarded rather than queued. The direction
+        // rides along so the body clears the host's silhouette along the same arc it is flung.
+        this.ReleasePositionalAuthority(direction);
         this.ReleaseAttachment(DetachCause.Shed);
 
         // The fling scales the ATTACK's knockback when the attacker provides one — the blow the
@@ -398,15 +401,65 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         return true;
     }
 
-    /// <summary>Give positional authority back. Safe to call when the claim is not held.</summary>
-    public void ReleasePositionalAuthority()
+    /// <summary>
+    /// Give positional authority back. Safe to call when the claim is not held.
+    ///
+    /// <para>
+    /// <paramref name="exitDirection"/> — the horizontal direction this detach leaves along, when the
+    /// caller knows it (a shed passes its fling direction). While riding, the body is teleported to
+    /// the host's origin every frame — a posed rider sits INSIDE the host's collider with collision
+    /// suspended. Restoring layers there hands depenetration a lottery: move_and_slide ejects the
+    /// body along whichever direction resolves the penetration, often straight up the host's dome,
+    /// parking a flung rider on its host's head. The body is placed clear of the host's measured
+    /// silhouette BEFORE collision restores, along the exit direction; with no direction given, the
+    /// resolver's stable Back fallback applies. A plain detach that never held the claim is untouched.
+    /// </para>
+    /// </summary>
+    public void ReleasePositionalAuthority(Vector3? exitDirection = null)
     {
         if (!this._holdsSuspension) { return; }
 
         this._holdsSuspension = false;
+
+        // Teleport while the layers are still down — moving a collidable body by hand would be
+        // swept and could collide mid-move, which is exactly the lottery this placement removes.
+        this.PlaceClearOfHost(exitDirection);
         this.RestoreBodyCollision();
         this._movement?.ReleaseSuspension(Name);
     }
+
+    /// <summary>
+    /// Move the body outside the host's measured silhouette along <paramref name="exitDirection"/>,
+    /// or Back when none resolves. Distance derives from what the art measures (half-width plus the
+    /// rider's own half-width estimate), so it scales with entity size for free; unmeasurable art
+    /// falls back to a fixed radius rather than skipping the placement.
+    /// </summary>
+    private void PlaceClearOfHost(Vector3? exitDirection)
+    {
+        // No _body gate here: the move goes through the CONTROLLER's Teleport, and a rider whose
+        // controller has no physics body still needs to end up outside its host.
+        if (this.Host == null || this._hostNode == null || !GodotObject.IsInstanceValid(this._hostNode)) { return; }
+        if (this._hostNode is not Node3D hostRoot) { return; }
+
+        var flatDirection = AttachmentShedResolver.ResolveFlingDirection(
+            this.GlobalPosition, hostRoot.GlobalPosition, exitDirection);
+
+        var bounds = EntityVisualBounds3D.Measure(hostRoot);
+        // Half-width + margin covers the planar art shipped today; Depth joins Largest the moment
+        // non-planar art exists, so no edit lands here when it does.
+        var clearRadius = bounds.IsMeasured ? bounds.Width * 0.5f : DefaultClearRadius;
+        // The rider's own footprint stands in for its body extent — the same number capacity
+        // budgets with, so clearance grows with the rider instead of assuming a roach-sized body.
+        clearRadius += this.Footprint;
+
+        var anchor = this.Host.TryGetAnchorWorldPosition(this, out var worldAnchor)
+            ? worldAnchor
+            : hostRoot.GlobalPosition;
+        this._controller.Teleport(anchor + new Vector3(flatDirection.X, 0f, flatDirection.Z) * clearRadius);
+    }
+
+    /// <summary>Fallback clearance when the host's silhouette cannot be measured.</summary>
+    private const float DefaultClearRadius = 1f;
 
     /// <summary>
     /// While authority is held the body is teleported through the host's collider every frame; a live
@@ -464,9 +517,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         if (this.Host == null && !this.IsAttached) { return; }
 
         this.IsAttached = false;
+        // Authority release BEFORE Host/_hostNode clear: PlaceClearOfHost reads the host to measure
+        // its silhouette, so a detach that still holds the claim must place the body clear of the
+        // host before those references go. The shed path releases earlier still, with a direction.
+        this.ReleasePositionalAuthority();
         this.Host = null;
         this._hostNode = null;
-        this.ReleasePositionalAuthority();
         this.AttachmentEnded.Invoke(cause);
     }
 

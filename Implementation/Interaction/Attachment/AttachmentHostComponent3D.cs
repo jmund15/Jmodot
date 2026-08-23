@@ -293,7 +293,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
         if (riding.Count == 0) { return ShedPlan.Empty; }
 
-        var plan = AttachmentShedResolver.Resolve(riding, request.Force, request.Scope);
+        var plan = AttachmentShedResolver.Resolve(riding, request.Force, request.Scope, request.MaxSheds);
         var attribution = request.Instigator ?? this.GetUnderlyingNode();
 
         // Aim before anything is removed — the anchor is gone once the record is. Resolved for every

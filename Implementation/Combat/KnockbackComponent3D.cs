@@ -148,6 +148,11 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			JmoLogger.Warning(this, $"Knockback skipped: invalid force={incomingForce:F2}.");
 			return;
 		}
+		// A suspended movement processor DISCARDS every queued impulse — applying one, or logging
+		// the KnockbackResult HSM launch conditions read, would report a launch that never happened.
+		// Suspension's only production claimant is an attached rider; a shed releases suspension
+		// BEFORE applying the fling, so genuine flings are untouched by this guard.
+		if (_movementProcessor.IsSuspended) { return; }
 		var stability = Stability?.ResolveFloatValue(_statProvider) ?? 0f; // 0 = no resistance default
 		var mass = Mass?.ResolveFloatValue(_statProvider) ?? 1f;           // 1.0 preserves existing feel
 		if (mass <= 0f)
