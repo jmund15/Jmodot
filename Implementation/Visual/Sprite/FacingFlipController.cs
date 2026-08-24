@@ -229,8 +229,19 @@ public partial class FacingFlipController : Node
         ApplyFlip(animator, mirror.Value);
     }
 
+    private bool? _lastAppliedFlip;
+
     private void ApplyFlip(IAnimComponent animator, bool flip)
     {
+        // [DIAG-flip] state-change only: proves the facing pipeline reached the sprite. A playtest
+        // with movement in both X directions and no pair of these lines = the pipeline is starved
+        // upstream (no SetDirection / no DirectionSet), not a flip bug.
+        if (this._lastAppliedFlip != flip)
+        {
+            this._lastAppliedFlip = flip;
+            JmoLogger.Info(this, $"[DIAG-flip] '{this.Owner?.Name}' FlipH -> {flip}");
+        }
+
         if (this.Sprites.Count > 0)
         {
             // Authored list IS the target set — one knob, one axis. The composer/animator paths are
