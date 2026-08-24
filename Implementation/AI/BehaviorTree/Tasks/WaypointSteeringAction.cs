@@ -93,8 +93,9 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
         }
     }
 
-    protected override void OnProcessPhysics(float delta)
+    protected override void OnProcessSteeringPhysics(float delta)
     {
+        if (!CadenceAllowsSteering) { return; }
         if (!_navActive || _navAgent == null) { return; }
 
         if (_pendingFirstTarget)

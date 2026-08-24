@@ -24,12 +24,19 @@ public partial class SteeringBehaviorAction : BehaviorAction
     [ExportGroup("Navigation Path Override")]
     [Export] private NavigationPath3DConsideration? _navPathOverride;
 
+    /// <summary>Optional move/pause cadence. Null means continuous steering.</summary>
+    [ExportGroup("Movement Cadence")]
+    [Export] public MovementCadenceResource? Cadence { get; private set; }
+
     /// <summary>Optional per-action synthesis strategy claimed on enter (owned-slot, owner = task Name)
     /// and released on exit. A conflicting concurrent claim is rejected+warned by the processor.</summary>
     [ExportGroup("Synthesis Override")]
     [Export] private SteeringSynthesisStrategy3D? _synthesisOverride;
 
     private AISteeringProcessor3D? _cachedSteering;
+    private bool _cadencePaused;
+    private float _cadenceTimer;
+    private bool _cadenceClaimed;
 
     /// <summary>
     /// Enter() skips OnEnter() when the task's condition check fails, but Exit() runs OnExit()
@@ -41,6 +48,9 @@ public partial class SteeringBehaviorAction : BehaviorAction
     protected override void OnEnter()
     {
         base.OnEnter();
+
+        _cadencePaused = false;
+        _cadenceTimer = Cadence?.MoveSeconds ?? 0f;
 
         if (!TryGetSteering(out var steering))
         {
@@ -67,8 +77,60 @@ public partial class SteeringBehaviorAction : BehaviorAction
         _considerationsRegistered = true;
     }
 
+    protected sealed override void OnProcessPhysics(float delta)
+    {
+        var steeringAllowed = TickCadence(delta);
+        UpdateCadenceControl(steeringAllowed);
+        OnProcessSteeringPhysics(delta);
+    }
+
+    /// <summary>Runs action-specific steering and lifecycle work after cadence state updates.</summary>
+    protected virtual void OnProcessSteeringPhysics(float delta) { }
+
+    /// <summary>True when the cadence permits a destination or consideration update this tick.</summary>
+    protected bool CadenceAllowsSteering => !_cadencePaused;
+
+    private bool TickCadence(float delta)
+    {
+        if (Cadence == null || !(Cadence.MoveSeconds > 0f))
+        {
+            _cadencePaused = false;
+            return true;
+        }
+
+        var moving = MovementCadenceResource.AdvanceCadence(
+            _cadencePaused, _cadenceTimer, Cadence.MoveSeconds, Cadence.PauseSeconds, delta,
+            out _cadencePaused, out _cadenceTimer);
+        return moving;
+    }
+
+    private void UpdateCadenceControl(bool steeringAllowed)
+    {
+        if (steeringAllowed)
+        {
+            if (_cadenceClaimed && _cachedSteering != null)
+            {
+                _cachedSteering.ReleaseControl(this.Name);
+                _cadenceClaimed = false;
+            }
+            return;
+        }
+
+        if (_cadenceClaimed || !TryGetSteering(out var steering)) { return; }
+        if (!steering.TryClaimControl(this.Name, SteeringControlMode.DirectionOverride, Godot.Vector3.Zero)) { return; }
+        _cadenceClaimed = true;
+    }
+
     protected override void OnExit()
     {
+        if (_cadenceClaimed && _cachedSteering != null)
+        {
+            _cachedSteering.ReleaseControl(this.Name);
+            _cadenceClaimed = false;
+        }
+        _cadencePaused = false;
+        _cadenceTimer = 0f;
+
         base.OnExit();
 
         if (!_considerationsRegistered) { return; }

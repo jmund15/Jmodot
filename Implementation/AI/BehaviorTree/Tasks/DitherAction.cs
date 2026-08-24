@@ -60,23 +60,13 @@ public partial class DitherAction : BehaviorAction
     /// </summary>
     [Export] public DitherPickStrategy? PickStrategy { get; private set; }
 
-    /// <summary>
-    /// How the picked direction becomes velocity. Null leaves the processor's default locomotion in
-    /// charge. Nesting this action under a <see cref="HSM.BTState"/> that also sets one is a
-    /// configuration warning — the slot is single-writer.
-    /// </summary>
-    [ExportGroup("Movement Override")]
-    [Export] public BaseMovementStrategy3D? MovementStrategyOverride { get; private set; }
-
     /// <summary>The direction picked for the current flip, or <see cref="Vector3.Zero"/> before enter.</summary>
     public Vector3 CurrentDirection { get; private set; }
 
     /// <summary>How many flips have happened since the last enter.</summary>
     public int FlipIndex { get; private set; }
 
-    private MovementOverrideLatch _latch;
     private bool _steeringClaimed;
-    private IMovementProcessor3D? _movement;
     private AISteeringProcessor3D? _steering;
     private IRng _rng = null!;
     private float _elapsed;
@@ -124,13 +114,6 @@ public partial class DitherAction : BehaviorAction
             JmoLogger.Warning(this, $"[BT] DitherAction '{this.Name}' found no EntitySeed; its weave is unseeded.");
         }
 
-        bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out this._movement);
-        if (this.MovementStrategyOverride != null && this._movement == null)
-        {
-            throw new NodeConfigurationException(
-                $"DitherAction '{this.Name}' has a MovementStrategyOverride but BB.MovementProcessor is not registered.", this);
-        }
-
         if (!bb.TryGet<AISteeringProcessor3D>(BBDataSig.SteeringComp, out this._steering) || this._steering == null)
         {
             throw new NodeConfigurationException(
@@ -150,7 +133,6 @@ public partial class DitherAction : BehaviorAction
         this._hold = RollInRange(this.HoldMin, this.HoldMax, this._rng.GetRndFloat());
         this._flipInterval = RollInRange(this.FlipIntervalMin, this.FlipIntervalMax, this._rng.GetRndFloat());
 
-        this._latch.Apply(this._movement, this.MovementStrategyOverride);
         this.CommitDirection();
 
         if (this._hold <= 0f)
@@ -181,7 +163,6 @@ public partial class DitherAction : BehaviorAction
 
     protected override void OnExit()
     {
-        this._latch.Restore();
         // Owner-checked release: releasing a slot this action never claimed is a warned no-op, so
         // only release what the claim actually took.
         if (this._steeringClaimed)
@@ -259,11 +240,6 @@ public partial class DitherAction : BehaviorAction
             warnings.Add($"FlipIntervalMin ({this.FlipIntervalMin}) exceeds FlipIntervalMax ({this.FlipIntervalMax}); the flip band is inverted.");
         }
 
-        if (this.MovementStrategyOverride != null && MovementOverrideNesting.DescribeConflict(this) is { } conflict)
-        {
-            warnings.Add(conflict);
-        }
-
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }
 
@@ -273,7 +249,6 @@ public partial class DitherAction : BehaviorAction
     internal void SetFlipInterval(float min, float max) { this.FlipIntervalMin = min; this.FlipIntervalMax = max; }
     internal void SetDirections(DirectionSet3D? directions) => this.Directions = directions;
     internal void SetPickStrategy(DitherPickStrategy? strategy) => this.PickStrategy = strategy;
-    internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => this.MovementStrategyOverride = strategy;
 #endif
     #endregion
 }

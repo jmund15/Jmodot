@@ -5,8 +5,10 @@ using System.Linq;
 using BB;
 using Core.AI.BB;
 using Core.AI.BehaviorTree;
+using Core.Actors;
 using Core.Movement.Quirks;
 using Movement.Quirks;
+using Movement.Strategies;
 using Shared;
 using Shared.GodotExceptions;
 using GColl = Godot.Collections;
@@ -28,21 +30,39 @@ public abstract partial class BehaviorAction : BehaviorTask
 
     private MovementQuirkRegistration _quirkRegistration;
 
+    /// <summary>
+    /// Optional movement strategy held for the whole action. Actions that phase-latch their own
+    /// movement override must leave this unset; authoring both scopes would make the claims fight.
+    /// </summary>
+    [ExportGroup("Movement Override")]
+    [Export] public BaseMovementStrategy3D? MovementStrategyOverride { get; private set; }
+
+    private MovementOverrideLatch _movementOverrideLatch;
+
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
         _quirkRegistration.Resolve(bb, MovementQuirks, this);
+        bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
+        if (this.MovementStrategyOverride != null && movement == null)
+        {
+            throw new NodeConfigurationException(
+                $"BehaviorAction '{this.Name}' has a MovementStrategyOverride but BB.MovementProcessor is not registered.", this);
+        }
     }
 
     protected override void OnEnter()
     {
         base.OnEnter();
-        _quirkRegistration.Register();
+        this.BB.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
+        this._movementOverrideLatch.Apply(movement, this.MovementStrategyOverride);
+        this._quirkRegistration.Register();
     }
 
     protected override void OnExit()
     {
-        _quirkRegistration.Release();
+        this._movementOverrideLatch.Restore();
+        this._quirkRegistration.Release();
 
         base.OnExit();
     }
@@ -54,6 +74,17 @@ public abstract partial class BehaviorAction : BehaviorTask
         {
             warnings.Add("BehaviorAction must be a leaf node and cannot have BehaviorTask children.");
         }
+        if (this.MovementStrategyOverride != null && MovementOverrideNesting.DescribeConflict(this) is { } conflict)
+        {
+            warnings.Add(conflict);
+        }
+
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => this.MovementStrategyOverride = strategy;
+#endif
+    #endregion
 }
