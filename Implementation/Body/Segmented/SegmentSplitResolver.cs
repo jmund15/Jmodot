@@ -17,33 +17,24 @@ public static class SegmentSplitResolver
     /// </summary>
     /// <param name="deadIndices">Indices of the units that died, all within the roster.</param>
     /// <param name="segmentCount">Size of the roster the indices address.</param>
-    /// <param name="minLength">
-    /// Shortest total body — head included — that stays alive. Validated here so every caller shares
-    /// one precondition; classifying each returned run against it is the caller's own step, because
-    /// the head's run and a severed tail spend it differently.
-    /// </param>
     /// <returns>
     /// Runs whose lengths, summed with <paramref name="deadIndices"/>, always equal
     /// <paramref name="segmentCount"/> — checked before returning, so a unit can never go missing
-    /// silently between the roster and the split.
+    /// silently between the roster and the split. Classifying each run against the body's minimum
+    /// length is the caller's own step, because the head's run and a severed tail spend it
+    /// differently.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="segmentCount"/> is negative, <paramref name="minLength"/> is below two, or an
-    /// index in <paramref name="deadIndices"/> falls outside the roster.
+    /// <paramref name="segmentCount"/> is negative, or an index in <paramref name="deadIndices"/>
+    /// falls outside the roster.
     /// </exception>
     /// <exception cref="InvalidOperationException">The resolved runs do not account for every unit.</exception>
-    public static IReadOnlyList<Range> Resolve(IReadOnlySet<int> deadIndices, int segmentCount, int minLength)
+    public static IReadOnlyList<Range> Resolve(IReadOnlySet<int> deadIndices, int segmentCount)
     {
         ArgumentNullException.ThrowIfNull(deadIndices);
         if (segmentCount < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(segmentCount), segmentCount, "A roster cannot have negative size.");
-        }
-
-        if (minLength < 2)
-        {
-            throw new ArgumentOutOfRangeException(nameof(minLength), minLength,
-                "A body shorter than a head plus one unit is just the head.");
         }
 
         foreach (var index in deadIndices)

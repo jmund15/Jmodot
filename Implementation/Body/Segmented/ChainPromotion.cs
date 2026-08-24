@@ -102,9 +102,16 @@ internal static class ChainPromotion
         var progeny = scene.Instantiate<Node3D>();
         var front = fragment[0];
 
+        // Position and travel yaw come from the front unit; the promoted head keeps its own
+        // authored basis. Inheriting the unit's full world basis would re-scale the head and carry
+        // any ancestor rotation into an entity root (the sideways-lean class).
+        var frontWorld = front.Body.GlobalTransform;
+        var yaw = frontWorld.Basis.GetEuler().Y;
+        var world = new Transform3D(
+            Basis.FromEuler(new Vector3(0f, yaw, 0f)) * progeny.Transform.Basis, frontWorld.Origin);
         progeny.Transform = container is Node3D anchor
-            ? anchor.GlobalTransform.AffineInverse() * front.GlobalTransform
-            : front.GlobalTransform;
+            ? anchor.GlobalTransform.AffineInverse() * world
+            : world;
 
         progeny.TryGetFirstChildOfInterface<IBlackboard>(out var bb);
         bb?.Set(BBDataSig.EntitySeed, DeriveProgenySeed(parentSeed, ordinal));
@@ -130,7 +137,7 @@ internal static class ChainPromotion
             if (seeded.HasValue) { health.SetCurrentHealth(seeded.Value, source); }
         }
 
-        var frontRoot = front.Owner ?? (Node)front;
+        var frontRoot = front.Body;
         if (GodotObject.IsInstanceValid(frontRoot) && !frontRoot.IsQueuedForDeletion())
         {
             frontRoot.QueueFree();

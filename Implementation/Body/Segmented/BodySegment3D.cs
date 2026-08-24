@@ -54,6 +54,14 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
     public SegmentedBodyComponent3D? Host { get; private set; }
 
     /// <summary>
+    /// The node a host writes this unit's world pose to: the unit's own scene root, which is what
+    /// carries its art, its hurtbox and its out-of-bounds fail-safe. Writing the pose to this
+    /// component node instead moves an empty child and leaves everything a player can see, hit or
+    /// lose behind at the position the unit was instanced at.
+    /// </summary>
+    public Node3D Body => this.Owner as Node3D ?? this;
+
+    /// <summary>
     /// The direction this unit is travelling, written by its host every frame. Assigning it pushes
     /// the direction to this unit's own animation orchestrator.
     /// </summary>
@@ -142,7 +150,16 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
         this._health.OnDied += this.OnHealthDied;
 
         // The idle reveal (class doc): start through the relay now that every subscriber exists.
-        this._orchestrator?.StartAnim(IdleAnim);
+        // This is the segment's ONLY un-hide path — the visibility coordinator force-hides slots on
+        // registration, so a silent miss here is a permanently invisible segment.
+        if (this._orchestrator == null)
+        {
+            JmoLogger.Error(this, "No IAnimationOrchestrator on the blackboard — the idle reveal "
+                + "cannot fire and this segment stays hidden by the visibility coordinator.");
+            return;
+        }
+
+        this._orchestrator.StartAnim(IdleAnim);
     }
 
     public Node GetUnderlyingNode() => this;
