@@ -16,6 +16,7 @@ using Jmodot.Core.Stats;
 using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Combat;
+using Jmodot.Implementation.Physics;
 using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Visual;
 
@@ -120,6 +121,10 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private JmoRng? _flingRng;
 
     private CollisionObject3D? _body;
+    private PhysicsBody3D? _collisionExceptionHost;
+    private ulong _collisionExceptionStartedMsec;
+    private float _collisionExceptionRequiredDistance;
+    private bool _collisionExceptionExpiryLogged;
     private bool _bodyCollisionSuspended;
     private uint _savedCollisionLayer;
     private uint _savedCollisionMask;
@@ -227,6 +232,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
+        this.PollCollisionException();
         if (this.Host == null) { return; }
         if (this.HostStillHoldsRecord()) { return; }
 
@@ -260,6 +266,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     public override void _ExitTree()
     {
+        this.ClearCollisionException();
         if (this._health != null) { this._health.OnDied -= this.OnOwnDeath; }
         if (this.Host == null) { return; }
 
@@ -444,22 +451,120 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         var flatDirection = AttachmentShedResolver.ResolveFlingDirection(
             this.GlobalPosition, hostRoot.GlobalPosition, exitDirection);
 
-        var bounds = EntityVisualBounds3D.Measure(hostRoot);
-        // Half-width + margin covers the planar art shipped today; Depth joins Largest the moment
-        // non-planar art exists, so no edit lands here when it does.
-        var clearRadius = bounds.IsMeasured ? bounds.Width * 0.5f : DefaultClearRadius;
-        // The rider's own footprint stands in for its body extent — the same number capacity
-        // budgets with, so clearance grows with the rider instead of assuming a roach-sized body.
-        clearRadius += this.Footprint;
-
         var anchor = this.Host.TryGetAnchorWorldPosition(this, out var worldAnchor)
             ? worldAnchor
             : hostRoot.GlobalPosition;
-        this._controller.Teleport(anchor + new Vector3(flatDirection.X, 0f, flatDirection.Z) * clearRadius);
+        var currentPosition = this._controller.GetUnderlyingNode() is Node3D bodyNode
+            ? bodyNode.GlobalPosition
+            : this.GlobalPosition;
+        var requiredDistance = this.MeasureRequiredSeparation(hostRoot, currentPosition);
+        var currentDistance = new Vector2(currentPosition.X - anchor.X, currentPosition.Z - anchor.Z).Length();
+        var deficit = Mathf.Max(0f, requiredDistance - currentDistance);
+        this._collisionExceptionRequiredDistance = requiredDistance;
+        this.BeginCollisionException(hostRoot);
+        if (deficit <= 0f) { return; }
+
+        this._controller.Teleport(anchor + new Vector3(flatDirection.X, 0f, flatDirection.Z) * deficit);
     }
 
-    /// <summary>Fallback clearance when the host's silhouette cannot be measured.</summary>
+    private float MeasureRequiredSeparation(Node3D hostRoot, Vector3 currentPosition)
+    {
+        var hostRadius = DefaultClearRadius;
+        var hostBody = hostRoot as CollisionObject3D;
+        for (Node? ancestor = hostRoot.GetParent(); hostBody == null && ancestor != null; ancestor = ancestor.GetParent())
+        {
+            hostBody = ancestor as CollisionObject3D;
+        }
+
+        if (hostBody != null)
+        {
+            hostRadius = this.MeasureBodyRadius(hostBody, currentPosition);
+        }
+
+        var riderRadius = this._body == null
+            ? DefaultClearRadius
+            : this.MeasureBodyRadius(this._body, currentPosition);
+        return hostRadius + riderRadius;
+    }
+
+    private float MeasureBodyRadius(CollisionObject3D body, Vector3 queryPoint)
+    {
+        var radius = 0f;
+        foreach (var child in body.GetChildren())
+        {
+            if (child is not CollisionShape3D { Shape: not null } shapeNode) { continue; }
+
+            var center = body.GlobalTransform * shapeNode.Position;
+            var surface = ShapeProximityCalculator.GetClosestSurfacePoint(
+                queryPoint, center, body.GlobalTransform.Basis, shapeNode.Shape);
+            radius = Mathf.Max(radius, surface.DistanceTo(body.GlobalPosition));
+        }
+
+        return radius > 0f ? radius : DefaultClearRadius;
+    }
+
+    private void BeginCollisionException(Node hostNode)
+    {
+        var hostBody = hostNode as PhysicsBody3D;
+        for (Node? ancestor = hostNode.GetParent(); hostBody == null && ancestor != null; ancestor = ancestor.GetParent())
+        {
+            hostBody = ancestor as PhysicsBody3D;
+        }
+
+        if (this._body is not PhysicsBody3D riderBody || hostBody == null) { return; }
+        if (!GodotObject.IsInstanceValid(riderBody) || !GodotObject.IsInstanceValid(hostBody)) { return; }
+
+        riderBody.AddCollisionExceptionWith(hostBody);
+        this._collisionExceptionHost = hostBody;
+        this._collisionExceptionStartedMsec = Time.GetTicksMsec();
+        this._collisionExceptionExpiryLogged = false;
+    }
+
+    private void PollCollisionException()
+    {
+        if (this._collisionExceptionHost == null) { return; }
+        if (this._body == null
+            || !GodotObject.IsInstanceValid(this._body)
+            || !GodotObject.IsInstanceValid(this._collisionExceptionHost))
+        {
+            this.ClearCollisionException();
+            return;
+        }
+
+        var flatDistance = new Vector2(
+            this._body.GlobalPosition.X - this._collisionExceptionHost.GlobalPosition.X,
+            this._body.GlobalPosition.Z - this._collisionExceptionHost.GlobalPosition.Z).Length();
+        var expired = Time.GetTicksMsec() - this._collisionExceptionStartedMsec >= CollisionExceptionBudgetMsec;
+        if (flatDistance >= this._collisionExceptionRequiredDistance || expired)
+        {
+            if (expired && flatDistance < this._collisionExceptionRequiredDistance && !this._collisionExceptionExpiryLogged)
+            {
+                JmoLogger.Warning(this, "[Attachment] collision exception budget expired before host separation");
+                this._collisionExceptionExpiryLogged = true;
+            }
+
+            this.ClearCollisionException();
+        }
+    }
+
+    private void ClearCollisionException()
+    {
+        if (this._body is PhysicsBody3D riderBody
+            && this._collisionExceptionHost != null
+            && GodotObject.IsInstanceValid(riderBody)
+            && GodotObject.IsInstanceValid(this._collisionExceptionHost))
+        {
+            riderBody.RemoveCollisionExceptionWith(this._collisionExceptionHost);
+        }
+
+        this._collisionExceptionHost = null;
+        this._collisionExceptionStartedMsec = 0uL;
+        this._collisionExceptionRequiredDistance = 0f;
+    }
+
+    /// <summary>Fallback radius when the host or rider has no owned collision shape.</summary>
     private const float DefaultClearRadius = 1f;
+    private const ulong CollisionExceptionBudgetMsec = 500uL;
 
     /// <summary>
     /// While authority is held the body is teleported through the host's collider every frame; a live

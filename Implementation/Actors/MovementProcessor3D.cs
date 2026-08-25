@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
+using Godot;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
@@ -173,8 +174,34 @@ public class MovementProcessor3D : IMovementProcessor3D
         // We extract what collision changed and apply that to the base velocity,
         // discarding the offset cleanly without corrupting post-collision velocity.
         var postCollision = _controller.Velocity;
+        this.WarnOnLaunch(characterVelocity, combined, postCollision);
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
+    }
+
+    /// <summary>
+    /// Warns when post-move speed exceeds twice the resolved speed, with a 30 m/s floor.
+    /// </summary>
+    private void WarnOnLaunch(Vector3 resolvedVelocity, Vector3 preMoveVelocity, Vector3 postMoveVelocity)
+    {
+        var resolvedMaxSpeed = new Vector3(resolvedVelocity.X, 0f, resolvedVelocity.Z).Length();
+        var threshold = Mathf.Max(30f, 2f * resolvedMaxSpeed);
+        if (!(postMoveVelocity.Length() > threshold)) { return; }
+
+        var collisions = new List<string>();
+        if (this._owner is CharacterBody3D body)
+        {
+            for (var i = 0; i < body.GetSlideCollisionCount(); i++)
+            {
+                var collider = body.GetSlideCollision(i).GetCollider();
+                collisions.Add(collider is Node node ? node.Name : collider?.GetType().Name ?? "<null>");
+            }
+        }
+
+        JmoLogger.Warning(this,
+            $"[Movement] launch speed={postMoveVelocity.Length():F2} threshold={threshold:F2} "
+            + $"pre={preMoveVelocity} post={postMoveVelocity} floor={this._controller.IsOnFloor} "
+            + $"slides={collisions.Count} colliders=[{string.Join(", ", collisions)}]");
     }
 
     /// <summary>

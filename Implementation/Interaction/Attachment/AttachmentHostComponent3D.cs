@@ -39,7 +39,7 @@ using Jmodot.Implementation.Visual;
 /// <see cref="BBDataSig.Stats"/>, <see cref="BBDataSig.EntitySeed"/>.</para>
 /// </summary>
 [GlobalClass]
-public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentHost
+public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentHost, IEntityBodyGraph
 {
     /// <summary>Rule deciding how much rider footprint this host carries at once.</summary>
     [Export, RequiredExport] public AttachmentCapacityProvider3D CapacityProvider { get; private set; } = null!;
@@ -84,6 +84,21 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
     /// <inheritdoc />
     public IReadOnlyList<AttachmentRecord> Attachments => this._records;
+
+    /// <inheritdoc />
+    public IEnumerable<Node> BodyGraphNodes
+    {
+        get
+        {
+            var seen = new HashSet<ulong>();
+            foreach (var record in this._records)
+            {
+                var node = record.Rider.GetUnderlyingNode();
+                if (!GodotObject.IsInstanceValid(node)) { continue; }
+                if (seen.Add(node.GetInstanceId())) { yield return node; }
+            }
+        }
+    }
 
     /// <inheritdoc />
     public Node3D HostEntity => GodotObject.IsInstanceValid(this._entity) ? this._entity : this;
