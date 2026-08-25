@@ -34,6 +34,12 @@ public class MovementProcessor3D : IMovementProcessor3D
 
     private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
 
+    /// <summary>Speed a launch must clear before it is worth reporting at all, in m/s.</summary>
+    private const float LaunchSpeedFloor = 30f;
+
+    /// <summary>How much faster than it entered a move a body must leave it to count as launched.</summary>
+    private const float LaunchGainFactor = 2f;
+
     public MovementProcessor3D(
         ICharacterController3D controller,
         IStatProvider statsProvider,
@@ -174,34 +180,38 @@ public class MovementProcessor3D : IMovementProcessor3D
         // We extract what collision changed and apply that to the base velocity,
         // discarding the offset cleanly without corrupting post-collision velocity.
         var postCollision = _controller.Velocity;
-        this.WarnOnLaunch(characterVelocity, combined, postCollision);
+        this.WarnOnLaunch(combined, postCollision);
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
     /// <summary>
-    /// Warns when post-move speed exceeds twice the resolved speed, with a 30 m/s floor.
+    /// Warns when collision resolution ADDED speed to the move — the only way a body leaves a
+    /// move faster than it entered it. Gravity passes any absolute speed floor within seconds
+    /// while touching nothing, so the slide count is what separates a launch from free fall.
     /// </summary>
-    private void WarnOnLaunch(Vector3 resolvedVelocity, Vector3 preMoveVelocity, Vector3 postMoveVelocity)
+    private void WarnOnLaunch(Vector3 preMoveVelocity, Vector3 postMoveVelocity)
     {
-        var resolvedMaxSpeed = new Vector3(resolvedVelocity.X, 0f, resolvedVelocity.Z).Length();
-        var threshold = Mathf.Max(30f, 2f * resolvedMaxSpeed);
-        if (!(postMoveVelocity.Length() > threshold)) { return; }
+        if (this._owner is not CharacterBody3D body) { return; }
+
+        var slideCount = body.GetSlideCollisionCount();
+        if (slideCount == 0) { return; }
+
+        var postSpeed = postMoveVelocity.Length();
+        var threshold = Mathf.Max(LaunchSpeedFloor, LaunchGainFactor * preMoveVelocity.Length());
+        if (postSpeed <= threshold) { return; }
 
         var collisions = new List<string>();
-        if (this._owner is CharacterBody3D body)
+        for (var i = 0; i < slideCount; i++)
         {
-            for (var i = 0; i < body.GetSlideCollisionCount(); i++)
-            {
-                var collider = body.GetSlideCollision(i).GetCollider();
-                collisions.Add(collider is Node node ? node.Name : collider?.GetType().Name ?? "<null>");
-            }
+            var collider = body.GetSlideCollision(i).GetCollider();
+            collisions.Add(collider is Node node ? node.Name : collider?.GetType().Name ?? "<null>");
         }
 
         JmoLogger.Warning(this,
-            $"[Movement] launch speed={postMoveVelocity.Length():F2} threshold={threshold:F2} "
+            $"[Movement] launch speed={postSpeed:F2} threshold={threshold:F2} "
             + $"pre={preMoveVelocity} post={postMoveVelocity} floor={this._controller.IsOnFloor} "
-            + $"slides={collisions.Count} colliders=[{string.Join(", ", collisions)}]");
+            + $"slides={slideCount} colliders=[{string.Join(", ", collisions)}]");
     }
 
     /// <summary>
