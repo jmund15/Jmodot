@@ -1,6 +1,8 @@
 namespace Jmodot.Implementation.Actors;
 
 using Godot;
+using Jmodot.Core.Combat.EffectDefinitions;
+using Jmodot.Core.Stats;
 
 /// <summary>
 /// Per-entity policy bundling control-loss thresholds. Consumed by HSM transition
@@ -53,12 +55,23 @@ public partial class ForceControlPolicy : Resource
     [Export(PropertyHint.Range, "0.0,50.0,0.1")] public float OffsetRegainThreshold { get; set; } = 0.5f;
 
     /// <summary>
-    /// Scales effective force/offset magnitudes before they are compared against the
-    /// thresholds above. 1.0 = full effect; lower values = entity resists capture forces;
-    /// 0.0 = effective immunity.
+    /// Scales effective force magnitudes before they are compared against the thresholds above.
+    /// 1.0 = full effect; lower values = entity resists capture forces; 0.0 = effective immunity.
+    /// Assign a <see cref="ConstantFloatDefinition"/> for flat tuning, or an
+    /// <see cref="AttributeFloatDefinition"/> to drive resistance from a per-entity stat. Null → 1.0.
     /// </summary>
-    // Reserved seam: when IStatProvider infrastructure lands, replace this static knob with a
-    // stat-driven lookup rather than adding a parallel stat-scaling surface beside it.
-    [ExportGroup("Future: Stability Integration")]
-    [Export(PropertyHint.Range, "0.0,2.0,0.05")] public float StabilityMultiplier { get; set; } = 1.0f;
+    /// <remarks>
+    /// The graded form is deliberate: a heavy or armoured entity resists capture proportionally with
+    /// no per-entity code, where a binary immunity switch would need an enumerated exception list.
+    /// </remarks>
+    [ExportGroup("Stability")]
+    [Export] public BaseFloatValueDefinition? StabilityMultiplier { get; set; }
+
+    /// <summary>
+    /// Resolves <see cref="StabilityMultiplier"/> against <paramref name="stats"/>, falling back to
+    /// 1.0 (full effect) when unauthored. Every consumer resolves through here so the fallback has
+    /// one home and the two capture conditions cannot drift apart on it.
+    /// </summary>
+    public float ResolveStabilityMultiplier(IStatProvider? stats) =>
+        this.StabilityMultiplier?.ResolveFloatValue(stats) ?? 1.0f;
 }
