@@ -41,7 +41,7 @@ public partial class ImpactCollisionStrategy : CollisionPhysicsStrategy
             && selfImpactable != null
             && selfImpactable.ParticipatesInElasticCollisions;
 
-        ImpactResult result;
+        ImpactSolveResult result;
 
         if (targetIsElastic)
         {

@@ -7,7 +7,7 @@ using Godot;
 /// Contains post-collision velocities and impact force magnitudes for both participants.
 /// Use <see cref="None"/> when entities are separating (no collision to resolve).
 /// </summary>
-public readonly struct ImpactResult
+public readonly struct ImpactSolveResult
 {
     public Vector3 NewVelocityA { get; }
     public Vector3 NewVelocityB { get; }
@@ -21,7 +21,7 @@ public readonly struct ImpactResult
     /// <summary>False when entities are separating or collision was invalid.</summary>
     public bool IsValid { get; }
 
-    public ImpactResult(
+    public ImpactSolveResult(
         Vector3 newVelocityA, Vector3 newVelocityB,
         float impactForceOnA, float impactForceOnB)
     {
@@ -33,5 +33,5 @@ public readonly struct ImpactResult
     }
 
     /// <summary>Sentinel for non-collisions (separating entities, zero closing speed).</summary>
-    public static ImpactResult None => default;
+    public static ImpactSolveResult None => default;
 }

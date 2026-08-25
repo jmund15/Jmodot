@@ -15,7 +15,7 @@ public static class ImpactPhysics
     /// <summary>
     /// Resolves an elastic collision between two entities.
     /// Uses mass derived from stability: mass = 1 + stability.
-    /// Returns <see cref="ImpactResult.None"/> when entities are separating.
+    /// Returns <see cref="ImpactSolveResult.None"/> when entities are separating.
     /// </summary>
     /// <param name="velocityA">Velocity of entity A (the resolving entity).</param>
     /// <param name="velocityB">Velocity of entity B (the target).</param>
@@ -23,7 +23,7 @@ public static class ImpactPhysics
     /// <param name="stabilityB">Stability of B (float.MaxValue for immovable walls).</param>
     /// <param name="normal">Collision normal pointing from B toward A (Godot convention).</param>
     /// <param name="restitution">Pre-combined COR. 1.0 = elastic, 0 = inelastic.</param>
-    public static ImpactResult ResolveElasticCollision(
+    public static ImpactSolveResult ResolveElasticCollision(
         Vector3 velocityA, Vector3 velocityB,
         float stabilityA, float stabilityB,
         Vector3 normal, float restitution = 0.8f)
@@ -32,7 +32,7 @@ public static class ImpactPhysics
         float closingSpeed = (velocityA - velocityB).Dot(-normal);
         if (closingSpeed <= 0f)
         {
-            return ImpactResult.None;
+            return ImpactSolveResult.None;
         }
 
         // Mass from stability: stability=0 → mass=1, stability=3 → mass=4
@@ -49,7 +49,7 @@ public static class ImpactPhysics
         Vector3 impulseOnA = normal * (scaledClosing * ratioB);
         Vector3 impulseOnB = -normal * (scaledClosing * ratioA);
 
-        return new ImpactResult(
+        return new ImpactSolveResult(
             newVelocityA: velocityA + impulseOnA,
             newVelocityB: velocityB + impulseOnB,
             impactForceOnA: impulseOnA.Length(),
