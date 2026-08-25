@@ -220,7 +220,11 @@ public partial class ForceImpactDamageApplier : Node, IComponent
         var mass = Mass?.ResolveFloatValue(_launcherStats) ?? 1f;
         var absorption = Absorption?.ResolveFloatValue(ResolveTargetStatProvider(target)) ?? 0.5f;
 
-        if (mass <= 0f)
+        // Finiteness is load-bearing, not belt-and-braces: `mass <= 0f` is FALSE for NaN, so a NaN
+        // mass would reach ComputeNewVelocity and write a NaN velocity onto the body — poisoning it
+        // for every later frame, including the PreMoveVelocity the impact detector reads. Mass comes
+        // from a designer-authored BaseFloatValueDefinition, so it is not compiler-guaranteed finite.
+        if (!float.IsFinite(mass) || mass <= 0f)
         {
             JmoLogger.Warning(this, $"VelocityLoss skipped: invalid mass={mass:F2}.");
             return;
