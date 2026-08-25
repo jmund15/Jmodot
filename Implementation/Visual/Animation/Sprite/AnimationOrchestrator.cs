@@ -481,7 +481,21 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     }
 
     // --- IAnimComponent Pass-through ---
-    public void StopAnim() => _targetAnimator.StopAnim();
+
+    /// <summary>
+    /// Stops the target animator AND retires the standing stem. Retiring it is the load-bearing half:
+    /// <see cref="SetDirection"/> re-requests the stem so the new facing resolves a clip, so a stem
+    /// that outlives its stop makes the very next facing change restart the stopped clip — and,
+    /// because nothing was playing, seek it to its final frame. On a transient overlay (a charge
+    /// telegraph on a body that is still turning) that reads as a visual that will not go away.
+    /// A clip that ends on its OWN keeps its stem: only an explicit stop retires it.
+    /// </summary>
+    public void StopAnim()
+    {
+        _stemAnimName = null;
+        _targetAnimator.StopAnim();
+    }
+
     public void PauseAnim() => _targetAnimator.PauseAnim();
 
     // UpdateAnim is now implemented above
@@ -513,4 +527,13 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     }
 
     public Node GetUnderlyingNode() => this;
+
+    #region Test Helpers
+#if TOOLS
+    // Substitutes the animator _Ready would have resolved, so a case can drive the orchestrator's
+    // own resolution and stem logic against a double without a scene. Compiler-checked, unlike the
+    // reflection this replaces: renaming the field breaks the build rather than the run.
+    internal void SetTargetAnimator(IAnimComponent animator) => _targetAnimator = animator;
+#endif
+    #endregion
 }
