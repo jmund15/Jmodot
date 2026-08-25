@@ -109,7 +109,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private IBlackboard _bb = null!;
     private ICharacterController3D _controller = null!;
     private IMovementProcessor3D? _movement;
-    private KnockbackComponent3D? _knockback;
+    private IKnockbackReceiver3D? _knockback;
     private HurtboxComponent3D? _hurtbox;
     private IHealth? _health;
     private IStatProvider? _stats;
@@ -740,7 +740,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this._controller = controller;
         this._body = controller.GetUnderlyingNode() as CollisionObject3D;
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out this._movement);
-        bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
+        bb.TryGet<IKnockbackReceiver3D>(BBDataSig.KnockbackComponent, out this._knockback);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
         bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
         bb.TryGet<IAnimationOrchestrator>(BBDataSig.AnimationOrchestrator, out this._orchestrator);
@@ -758,7 +758,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
         if (this._knockback == null)
         {
-            JmoLogger.Warning(this, "[Attachment] No KnockbackComponent3D on the blackboard — sheds will not fling this rider.");
+            JmoLogger.Warning(this, "[Attachment] No IKnockbackReceiver3D on the blackboard — sheds will not fling this rider.");
         }
 
         if (this._health == null) { return; }

@@ -5,6 +5,7 @@ using System.Linq;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Actors;
+using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.AI.BB;
@@ -29,7 +30,7 @@ namespace Jmodot.Implementation.Combat;
 /// Registers on the shared BBDataSig.KnockbackComponent key.
 /// </summary>
 [GlobalClass]
-public partial class KnockbackComponent2D : Node2D, IComponent, IBlackboardProvider
+public partial class KnockbackComponent2D : Node2D, IComponent, IBlackboardProvider, IKnockbackReceiver2D
 {
     #region IBlackboardProvider Implementation
     public (StringName Key, object Value)? Provision => (BBDataSig.KnockbackComponent, this);

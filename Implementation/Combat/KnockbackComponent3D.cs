@@ -34,7 +34,7 @@ namespace Jmodot.Implementation.Combat;
 ///   routing simply skip the audit-log write.
 /// </summary>
 [GlobalClass]
-public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider
+public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider, IKnockbackReceiver3D
 {
 	#region IBlackboardProvider Implementation
 	public (StringName Key, object Value)? Provision => (BBDataSig.KnockbackComponent, this);
@@ -64,16 +64,18 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	#region COMPONENT_VARIABLES
 
 	/// <summary>
-	/// Safety net against sloppy producers: when true, the Y component of the resulting
-	/// velocity-delta is zeroed (typical for grounded characters that should be pushed
-	/// horizontally, not lifted). It is NOT a veto — a producer that stamps
-	/// <see cref="Jmodot.Core.Combat.Reactions.KnockbackResult.PreserveVertical"/> declares its
-	/// Y intentional and wins, and a direct
-	/// <see cref="ApplyKnockback(Vector3, float, Node, bool)"/> caller passing
-	/// <c>preserveVertical: true</c> does the same.
+	/// When true this receiver keeps the Y component of the resulting velocity-delta. Default
+	/// false zeroes it — the safety net against sloppy producers, typical for grounded characters
+	/// that should be pushed horizontally, not lifted.
+	///
+	/// Shares its name and polarity with
+	/// <see cref="Jmodot.Core.Combat.Reactions.KnockbackResult.PreserveVertical"/> and the
+	/// <c>preserveVertical</c> parameter of
+	/// <see cref="ApplyKnockback(Vector3, float, Node, bool)"/>: all three are ORed, so either the
+	/// receiver or the producer may assert the vertical and neither can veto it.
 	/// </summary>
 	[ExportGroup("Behavior")]
-	[Export] public bool FlattenKnockback { get; private set; } = true;
+	[Export] public bool PreserveVertical { get; private set; }
 
 	/// <summary>
 	/// Resistance to knockback forces. Resolved via the polymorphic
@@ -119,7 +121,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// to <see cref="ApplyKnockback"/> — producers like <see cref="Jmodot.Implementation.Combat.Effects.KnockbackEffect"/> with
 	/// <c>UpwardAngleDegrees</c> &gt; 0 (rising rock pillar) stamp this to signal Direction.Y
 	/// is intentional. Other <see cref="IForceCarrier"/> types (DamageResult, future) default
-	/// to false and continue to flatten when <see cref="FlattenKnockback"/> is true.
+	/// to false and continue to flatten unless <see cref="PreserveVertical"/> is set on the receiver.
 	/// </remarks>
 	private void OnCombatResult(CombatResult result)
 	{
@@ -137,9 +139,9 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// <param name="incomingForce">Impulse magnitude in N·s.</param>
 	/// <param name="attributedSource">Originating cause for HSM transition / VFX / audio chain attribution.</param>
 	/// <param name="preserveVertical">
-	/// When true, the receiver's <see cref="FlattenKnockback"/> safety-net flatten is bypassed
-	/// — the source has stamped Direction.Y as intentional (e.g., rock pillar's rising-pop).
-	/// When false (default), FlattenKnockback (if true) zeros the Y component as before.
+	/// When true, the safety-net flatten is bypassed — the source has stamped Direction.Y as
+	/// intentional (e.g., rock pillar's rising-pop). ORed with the receiver's own
+	/// <see cref="PreserveVertical"/>: false here still preserves Y if the receiver asks for it.
 	/// </param>
 	public void ApplyKnockback(Vector3 direction, float incomingForce, Node? attributedSource = null, bool preserveVertical = false)
 	{
@@ -161,38 +163,18 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			return;
 		}
 
-		var stabilityScaled = StabilityScaling.ScaleForce(direction * incomingForce, stability);
+		var resolved = KnockbackPolicy.Resolve(direction, incomingForce, stability, PreserveVertical || preserveVertical);
 		// CharacterBody regime: input is N·s; manual mass-division to convert to velocity-delta (m/s).
-		var velocityDelta = stabilityScaled / mass;
-		if (FlattenKnockback && !preserveVertical)
-		{
-			velocityDelta = new Vector3(velocityDelta.X, 0f, velocityDelta.Z);
-		}
+		var velocityDelta = resolved.Impulse / mass;
 
 		// MovementProcessor3D.ApplyImpulse expects m/s velocity-delta, not N·s impulse.
 		_movementProcessor.ApplyImpulse(velocityDelta);
 
-		// Report the direction the body actually received, not the pre-flatten input. Falling back to
-		// `direction` on a zero delta matters: normalizing zero yields zero, which reads as
-		// "no direction" rather than "no magnitude".
-		var appliedDirection = velocityDelta.IsZeroApprox() ? direction : velocityDelta.Normalized();
 		var deltaMagnitude = velocityDelta.Length();
-		EmitSignal(SignalName.KnockbackApplied, appliedDirection, deltaMagnitude, attributedSource);
+		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, attributedSource);
+		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude);
 
-		// Audit-log the post-resistance impulse so HSM transition conditions (KnockbackCondition)
-		// can gate launch/stagger/ragdoll states. KnockbackResult carries Direction + Force in the
-		// receiver's velocity-delta units (m/s), independent of the original combat-effect amplitude.
-		// Source attribution preserves the originating cause for VFX/audio chains.
-		_combatLog?.Log(new KnockbackResult
-		{
-			Source = attributedSource,
-			Target = this,
-			Direction = appliedDirection,
-			Force = deltaMagnitude,
-			Tags = System.Array.Empty<Jmodot.Core.Combat.CombatTag>()
-		});
-
-		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={appliedDirection}, |Δv|={deltaMagnitude:F2}");
+		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
 	}
 
 	public override void _ExitTree()
@@ -267,14 +249,14 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	// Logic-Domain tests construct the component without going through the BB wiring
 	// pipeline (Initialize). These setters allow direct injection so the
-	// FlattenKnockback × PreserveVertical × stat-driven gates can be exercised
+	// receiver-side × producer-side PreserveVertical × stat-driven gates can be exercised
 	// without a full CombatantComponent + Blackboard fixture. Compiled out of release
 	// builds via #if TOOLS.
 	internal void SetMovementProcessorForTesting(IMovementProcessor3D processor) =>
 		_movementProcessor = processor;
 	internal void SetStability(BaseFloatValueDefinition? value) => Stability = value;
 	internal void SetMass(BaseFloatValueDefinition? value) => Mass = value;
-	internal void SetFlattenKnockback(bool value) => FlattenKnockback = value;
+	internal void SetPreserveVertical(bool value) => PreserveVertical = value;
 
 	#endregion
 #endif

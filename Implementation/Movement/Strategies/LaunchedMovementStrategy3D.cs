@@ -36,8 +36,13 @@ public partial class LaunchedMovementStrategy3D : BaseMovementStrategy3D
     /// passes through unchanged so gravity / jump-arc / wave-lift integrators in the
     /// movement pipeline can keep operating. If false, all three axes decay uniformly
     /// (use for fully-airborne ragdoll-style coasting).
+    ///
+    /// Names the operation, not gravity: this strategy neither applies nor reads gravity, it only
+    /// chooses which axes drag decays. Unrelated to the impulse-side
+    /// <see cref="Jmodot.Core.Combat.Reactions.KnockbackResult.PreserveVertical"/> family, which
+    /// decides whether an impulse's Y is zeroed on receipt.
     /// </summary>
-    [Export] public bool RespectGravity { get; private set; } = true;
+    [Export] public bool HorizontalDragOnly { get; private set; } = true;
 
     public override Vector3 CalculateVelocity(
         Vector3 currentVelocity,
@@ -52,7 +57,7 @@ public partial class LaunchedMovementStrategy3D : BaseMovementStrategy3D
         // — a known "negative-friction" bug in naive linear-drag integrators).
         var factor = Mathf.Max(0f, 1f - drag * delta);
 
-        if (RespectGravity)
+        if (HorizontalDragOnly)
         {
             return new Vector3(currentVelocity.X * factor, currentVelocity.Y, currentVelocity.Z * factor);
         }
@@ -63,7 +68,7 @@ public partial class LaunchedMovementStrategy3D : BaseMovementStrategy3D
     #region Test Helpers
 #if TOOLS
     internal void SetLinearDrag(BaseFloatValueDefinition value) => LinearDrag = value;
-    internal void SetRespectGravity(bool value) => RespectGravity = value;
+    internal void SetHorizontalDragOnly(bool value) => HorizontalDragOnly = value;
 #endif
     #endregion
 }
