@@ -290,9 +290,11 @@ public partial class FacingFlipController : Node
         // non-looping clip that already ended gets restarted and seeked to its last frame by that
         // re-resolve — a frozen sprite that reads as "no animation" rather than as a facing bug.
         JmoLogger.Warning(this,
-            $"Base clip '{resolvedName}' is not configured to loop, but it is being driven under a mirror "
-            + "channel. Once it finishes, each facing change restarts it at its last frame and the sprite "
-            + "freezes. Mark the clip looping on the animator.");
+            $"Base clip '{resolvedName}' is driven under a mirror channel but does not loop. Once it "
+            + "finishes, every facing change re-resolves it and holds it on its final frame. That is "
+            + "correct for a one-shot ending in a held pose (hurt, land) and wrong for a clip that should "
+            + "still be animating (idle, run). If this clip is the latter, mark it looping; if it is the "
+            + "former, stop driving facing once it completes — do NOT loop it.");
     }
 
     private void WarnUnflippableAnimatorOnce(IAnimComponent animator)
