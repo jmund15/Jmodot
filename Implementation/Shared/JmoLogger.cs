@@ -20,6 +20,7 @@ public enum LogLevel
 public static class JmoLogger
 {
     private const string DEBUG_ENABLED_SETTING = "debug/jmodot/debug_logging_enabled";
+    private const string MIN_LEVEL_SETTING = "debug/jmodot/minimum_log_level";
 
     #region Test Helpers
 #if TOOLS
@@ -45,47 +46,87 @@ public static class JmoLogger
 #endif
     #endregion
 
-    // Cache to avoid ProjectSettings lookup on every Debug() call
-    private static bool? _debugEnabledCache;
+    // Cache to avoid a ProjectSettings lookup on every call.
+    private static LogLevel? _minimumLevelCache;
 
     /// <summary>
-    /// Controls whether Debug() messages are output. Disabled by default.
-    /// Enable during development to see verbose diagnostic information.
-    /// Can be configured via Project Settings → Debug → Jmodot → Debug Logging Enabled.
+    /// The most verbose level that is emitted. <see cref="LogLevel"/> ascends in verbosity
+    /// (Error → Debug), so a level is written when it is at or below this value.
+    /// <see cref="LogLevel.Error"/> is never gated whatever this is set to.
     /// </summary>
-    public static bool DebugEnabled
+    /// <remarks>
+    /// Configure via Project Settings → Debug → Jmodot → Minimum Log Level. Defaults to
+    /// <see cref="LogLevel.Info"/>, which is the pre-threshold behavior; drop it to
+    /// <see cref="LogLevel.Warning"/> for a play session that should not pay for per-event output.
+    /// </remarks>
+    public static LogLevel MinimumLevel
     {
-        get => _debugEnabledCache ??= (bool)ProjectSettings.GetSetting(DEBUG_ENABLED_SETTING, false);
+        get => _minimumLevelCache ??= ResolveMinimumLevel();
         set
         {
-            _debugEnabledCache = value;
-            ProjectSettings.SetSetting(DEBUG_ENABLED_SETTING, value);
+            _minimumLevelCache = value;
+            ProjectSettings.SetSetting(MIN_LEVEL_SETTING, (int)value);
         }
     }
 
     /// <summary>
-    /// Registers the debug setting with ProjectSettings so it appears in the editor UI.
-    /// Call this once during project initialization (e.g., from Global autoload).
+    /// Whether <see cref="Debug"/> messages are emitted — a view over <see cref="MinimumLevel"/>,
+    /// not independent state. Setting it false returns the threshold to <see cref="LogLevel.Info"/>
+    /// rather than silencing Info as well, matching what the flag meant before the threshold existed.
     /// </summary>
-    public static void RegisterProjectSettings()
+    public static bool DebugEnabled
     {
-        // Set default value if not already present
-        if (!ProjectSettings.HasSetting(DEBUG_ENABLED_SETTING))
+        get => MinimumLevel >= LogLevel.Debug;
+        set => MinimumLevel = value ? LogLevel.Debug : LogLevel.Info;
+    }
+
+    /// <summary>Whether a call at <paramref name="level"/> will be written.</summary>
+    public static bool IsEnabled(LogLevel level) => level <= MinimumLevel;
+
+    // Migration fallback only. The bool is no longer registered as a visible setting (two editor
+    // controls for one axis means whichever loses precedence looks broken), but a project that still
+    // authors it keeps working until it adopts the threshold.
+    private static LogLevel ResolveMinimumLevel()
+    {
+        if (ProjectSettings.HasSetting(MIN_LEVEL_SETTING))
         {
-            ProjectSettings.SetSetting(DEBUG_ENABLED_SETTING, false);
+            return (LogLevel)(int)ProjectSettings.GetSetting(MIN_LEVEL_SETTING, (int)LogLevel.Info);
         }
 
-        // Register property info so it appears with proper UI (checkbox)
-        var propertyInfo = new Godot.Collections.Dictionary
-        {
-            { "name", DEBUG_ENABLED_SETTING },
-            { "type", (int)Variant.Type.Bool }
-        };
-        ProjectSettings.AddPropertyInfo(propertyInfo);
-        ProjectSettings.SetAsBasic(DEBUG_ENABLED_SETTING, true);
+        return (bool)ProjectSettings.GetSetting(DEBUG_ENABLED_SETTING, false)
+            ? LogLevel.Debug
+            : LogLevel.Info;
+    }
 
-        // Refresh cache from saved setting
-        _debugEnabledCache = (bool)ProjectSettings.GetSetting(DEBUG_ENABLED_SETTING, false);
+    /// <summary>
+    /// Registers <see cref="MinimumLevel"/> with ProjectSettings so it appears in the editor UI.
+    /// Call this once during project initialization (e.g., from Global autoload).
+    /// </summary>
+    /// <remarks>
+    /// The legacy <c>debug_logging_enabled</c> bool is deliberately NOT registered: two editor
+    /// controls over one axis means whichever loses precedence looks broken to whoever ticked it.
+    /// It is still read as a fallback for a project that has not adopted the threshold.
+    /// </remarks>
+    public static void RegisterProjectSettings()
+    {
+        if (!ProjectSettings.HasSetting(MIN_LEVEL_SETTING))
+        {
+            ProjectSettings.SetSetting(MIN_LEVEL_SETTING, (int)LogLevel.Info);
+        }
+
+        // Enum hint order must match LogLevel's declaration order — the setting stores the int.
+        var levelInfo = new Godot.Collections.Dictionary
+        {
+            { "name", MIN_LEVEL_SETTING },
+            { "type", (int)Variant.Type.Int },
+            { "hint", (int)PropertyHint.Enum },
+            { "hint_string", "Error,Warning,Info,Debug" }
+        };
+        ProjectSettings.AddPropertyInfo(levelInfo);
+        ProjectSettings.SetAsBasic(MIN_LEVEL_SETTING, true);
+
+        // Refresh cache from saved settings
+        _minimumLevelCache = ResolveMinimumLevel();
     }
     /// <summary>
     /// The core private helper that builds the standardized log message string based on the context object's type.
@@ -214,6 +255,10 @@ public static class JmoLogger
         [CallerLineNumber] int callerLineNumber = 0,
         [CallerMemberName] string callerMemberName = "")
     {
+        if (!IsEnabled(LogLevel.Warning))
+        {
+            return;
+        }
         GD.PushWarning(BuildLogMessage("WARNING", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
 #if TOOLS
         EmitTestSignal(LogLevel.Warning, context, message);
@@ -244,6 +289,10 @@ public static class JmoLogger
         [CallerLineNumber] int callerLineNumber = 0,
         [CallerMemberName] string callerMemberName = "")
     {
+        if (!IsEnabled(LogLevel.Info))
+        {
+            return;
+        }
         GD.Print(BuildLogMessage("INFO", context, message, owner, callerFilePath, callerLineNumber, callerMemberName));
 #if TOOLS
         EmitTestSignal(LogLevel.Info, context, message);
@@ -255,10 +304,11 @@ public static class JmoLogger
     #region Debug Logging (For High-Frequency Development Diagnostics)
 
     /// <summary>
-    /// Logs a debug message for development diagnostics. These messages are disabled by default
-    /// and only appear when DebugEnabled is set to true. Use for high-frequency or verbose
-    /// diagnostics that would clutter normal output.
-    /// The early-return pattern avoids string building cost when disabled.
+    /// Logs a debug message for development diagnostics. Disabled by default — emitted only when
+    /// <see cref="MinimumLevel"/> reaches <see cref="LogLevel.Debug"/> (equivalently,
+    /// <see cref="DebugEnabled"/> is true). Use for high-frequency or verbose diagnostics that
+    /// would clutter normal output.
+    /// The early-return pattern avoids message-formatting cost when disabled.
     /// </summary>
     /// <param name="context">The object (Node, Resource, etc.) that is the source of the message.</param>
     /// <param name="message">The debug message. Use string interpolation for dynamic values.</param>
@@ -274,7 +324,7 @@ public static class JmoLogger
         [CallerLineNumber] int callerLineNumber = 0,
         [CallerMemberName] string callerMemberName = "")
     {
-        if (!DebugEnabled)
+        if (!IsEnabled(LogLevel.Debug))
         {
             return;
         }

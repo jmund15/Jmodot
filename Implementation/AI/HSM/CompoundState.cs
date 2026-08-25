@@ -188,9 +188,6 @@ using Shared.GodotExceptions;
 
         public virtual void TransitionFiniteSubState(State oldSubState, State newSubState, bool urgent = false, bool canPropagateUp = false)
         {
-            // Info, not Debug: the state chain an entity actually walked is the first question every
-            // AI investigation asks, and debug logging is off in the shipped project settings.
-            JmoLogger.Info(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState?.Name}' (urgent={urgent}, propagate={canPropagateUp})");
             if (!newSubState.IsValid())
             {
                 JmoLogger.Error(this, $"Attempted to transition from '{oldSubState.Name}' to a null or invalid state.");
@@ -236,6 +233,10 @@ using Shared.GodotExceptions;
                     $"The transition resource likely needs CanPropagateUp=true. Transition rejected.");
                 return;
             }
+
+            // Below every guard: above them it announced transitions that were then rejected, so a
+            // reader reconstructing an entity's state chain from the log saw motion that never happened.
+            JmoLogger.Debug(this, $"[HSM] Transition: '{oldSubState?.Name}' → '{newSubState.Name}' (urgent={urgent}, propagate={canPropagateUp})");
 
             PrimarySubState.Exit();
             FiniteSubStates[PrimarySubState] = false;
