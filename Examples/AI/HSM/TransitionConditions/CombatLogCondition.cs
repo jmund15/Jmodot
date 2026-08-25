@@ -20,9 +20,15 @@ public abstract partial class CombatLogCondition : TransitionCondition
     /// </summary>
     protected Node? CurrentAgent { get; private set; }
 
+    /// <summary>
+    /// The blackboard of the agent currently being checked. Available during CheckEvent calls.
+    /// </summary>
+    protected IBlackboard? CurrentBlackboard { get; private set; }
+
     public override bool Check(Node agent, IBlackboard bb)
     {
         CurrentAgent = agent;
+        CurrentBlackboard = bb;
 
         // 1. Safe Retrieval
         // We use the constant key from the Integrator to ensure type safety.

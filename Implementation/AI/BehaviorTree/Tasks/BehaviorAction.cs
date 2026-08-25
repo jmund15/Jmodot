@@ -5,8 +5,10 @@ using System.Linq;
 using BB;
 using Core.AI.BB;
 using Core.AI.BehaviorTree;
+using Core.Actors;
 using Core.Movement.Quirks;
 using Movement.Quirks;
+using Movement.Strategies;
 using Shared;
 using Shared.GodotExceptions;
 using GColl = Godot.Collections;
@@ -19,81 +21,51 @@ using GColl = Godot.Collections;
 public abstract partial class BehaviorAction : BehaviorTask
 {
     /// <summary>
-    /// Modifies the agent's 'SelfInterruptible' property on the blackboard when this task is active.
-    /// </summary>
-    [Export] protected InterruptibleChange SelfInterruptible = InterruptibleChange.NoChange;
-
-    /// <summary>
     /// Movement quirks registered on the entity's quirk processor while this action is active.
     /// Registration is refcounted, so a quirk shared with a State or another action survives until
     /// every holder releases it.
     /// </summary>
     [ExportGroup("Movement Quirks")]
-    [Export] protected GColl.Array<MovementQuirk3D> ActionQuirks { get; private set; } = new();
+    [Export] protected GColl.Array<MovementQuirk3D> MovementQuirks { get; private set; } = new();
 
-    private MovementQuirkProcessor3D? _quirkProcessor;
+    private MovementQuirkRegistration _quirkRegistration;
 
     /// <summary>
-    /// Enter() skips OnEnter() when the task's condition check fails, but Exit() runs OnExit()
-    /// regardless. Without this latch the unpaired unregister would decrement a refcount this
-    /// action never incremented, dropping another owner's live registration.
+    /// Optional movement strategy held for the whole action. Actions that phase-latch their own
+    /// movement override must leave this unset; authoring both scopes would make the claims fight.
     /// </summary>
-    private bool _quirksRegistered;
+    [ExportGroup("Movement Override")]
+    [Export] public BaseMovementStrategy3D? MovementStrategyOverride { get; private set; }
+
+    private MovementOverrideLatch _movementOverrideLatch;
 
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-
-        if (ActionQuirks.Count == 0) { return; }
-
-        if (!bb.TryGet<MovementQuirkProcessor3D>(BBDataSig.MovementQuirkProcessor, out var quirkProcessor)
-            || quirkProcessor == null)
+        _quirkRegistration.Resolve(bb, MovementQuirks, this);
+        bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
+        if (this.MovementStrategyOverride != null && movement == null)
         {
             throw new NodeConfigurationException(
-                "ActionQuirks are assigned but the agent has no MovementQuirkProcessor3D.", this);
+                $"BehaviorAction '{this.Name}' has a MovementStrategyOverride but BB.MovementProcessor is not registered.", this);
         }
-        _quirkProcessor = quirkProcessor;
     }
 
     protected override void OnEnter()
     {
         base.OnEnter();
-        switch (this.SelfInterruptible)
-        {
-            case InterruptibleChange.True:
-                this.BB.Set(BBDataSig.SelfInteruptible, true);
-                break;
-            case InterruptibleChange.False:
-                this.BB.Set(BBDataSig.SelfInteruptible, false);
-                break;
-        }
-
-        foreach (var quirk in ActionQuirks)
-        {
-            _quirkProcessor?.RegisterQuirk(quirk);
-        }
-        _quirksRegistered = true;
+        this.BB.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
+        this._movementOverrideLatch.Apply(movement, this.MovementStrategyOverride);
+        this._quirkRegistration.Register();
     }
 
     protected override void OnExit()
     {
-        if (_quirksRegistered)
-        {
-            foreach (var quirk in ActionQuirks)
-            {
-                _quirkProcessor?.UnregisterQuirk(quirk);
-            }
-            _quirksRegistered = false;
-        }
+        this._movementOverrideLatch.Restore();
+        this._quirkRegistration.Release();
 
         base.OnExit();
     }
-
-    #region Test Helpers
-#if TOOLS
-    internal void AddActionQuirk(MovementQuirk3D quirk) => ActionQuirks.Add(quirk);
-#endif
-    #endregion
 
     public override string[] _GetConfigurationWarnings()
     {
@@ -102,6 +74,17 @@ public abstract partial class BehaviorAction : BehaviorTask
         {
             warnings.Add("BehaviorAction must be a leaf node and cannot have BehaviorTask children.");
         }
+        if (this.MovementStrategyOverride != null && MovementOverrideNesting.DescribeConflict(this) is { } conflict)
+        {
+            warnings.Add(conflict);
+        }
+
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => this.MovementStrategyOverride = strategy;
+#endif
+    #endregion
 }

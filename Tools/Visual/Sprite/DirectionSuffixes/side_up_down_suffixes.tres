@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="SideUpDownAnimationSuffixes" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Jmodot/Tools/Visual/Sprite/DirectionSuffixes/SideUpDownAnimationSuffixes.cs" id="1_side_up_down"]
+
+[resource]
+script = ExtResource("1_side_up_down")

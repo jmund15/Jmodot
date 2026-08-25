@@ -9,6 +9,7 @@ using Core.Stats;
 
 using Core.Movement.Quirks;
 using Movement.Quirks;
+using Stats;
 
 using GColl = Godot.Collections;
 using System.Collections.Generic;
@@ -43,11 +44,6 @@ public partial class State : Node, IState
     private Dictionary<StateTransition, State> _resolvedTransitions = new();
 
     /// <summary>
-    /// Modifies the agent's 'SelfInterruptible' property on the blackboard when this state is active.
-    /// </summary>
-    [Export] protected InterruptibleChange SelfInteruptible = InterruptibleChange.NoChange;
-
-    /// <summary>
     /// Optional stat context applied while this state is active.
     /// Modifiers defined on the context are applied on enter and removed on exit.
     /// </summary>
@@ -59,9 +55,10 @@ public partial class State : Node, IState
     /// until every holder releases it.
     /// </summary>
     [ExportGroup("Movement Quirks")]
-    [Export] protected GColl.Array<MovementQuirk3D> StateQuirks { get; private set; } = new();
+    [Export] protected GColl.Array<MovementQuirk3D> MovementQuirks { get; private set; } = new();
 
-    private MovementQuirkProcessor3D? _quirkProcessor;
+    private MovementQuirkRegistration _quirkRegistration;
+    private StatContextRegistration _statContextRegistration;
 
     public IBlackboard BB { get; protected set; }
     public Node Agent { get; protected set; }
@@ -116,16 +113,8 @@ public partial class State : Node, IState
             }
         }
 
-        if (StateQuirks.Count > 0)
-        {
-            if (!BB.TryGet<MovementQuirkProcessor3D>(BBDataSig.MovementQuirkProcessor, out var quirkProcessor)
-                || quirkProcessor == null)
-            {
-                throw new NodeConfigurationException(
-                    "StateQuirks are assigned but the agent has no MovementQuirkProcessor3D.", this);
-            }
-            _quirkProcessor = quirkProcessor;
-        }
+        _statContextRegistration.Resolve(BB, ActiveStatContext);
+        _quirkRegistration.Resolve(BB, MovementQuirks, this);
 
         OnInit();
 
@@ -137,24 +126,8 @@ public partial class State : Node, IState
     /// </summary>
     public void Enter()
     {
-        switch (SelfInteruptible)
-        {
-            case InterruptibleChange.True:
-                BB.Set(BBDataSig.SelfInteruptible, true); break;
-            case InterruptibleChange.False:
-                BB.Set(BBDataSig.SelfInteruptible, false); break;
-        }
-
-        if (ActiveStatContext != null
-            && BB.TryGet<IStatProvider>(BBDataSig.Stats, out var statProvider))
-        {
-            statProvider!.AddActiveContext(ActiveStatContext);
-        }
-
-        foreach (var quirk in StateQuirks)
-        {
-            _quirkProcessor?.RegisterQuirk(quirk);
-        }
+        _statContextRegistration.Apply();
+        _quirkRegistration.Register();
 
         OnEnter();
         IsActive = true;
@@ -167,16 +140,8 @@ public partial class State : Node, IState
     {
         IsActive = false;
 
-        if (ActiveStatContext != null
-            && BB.TryGet<IStatProvider>(BBDataSig.Stats, out var statProvider))
-        {
-            statProvider!.RemoveActiveContext(ActiveStatContext);
-        }
-
-        foreach (var quirk in StateQuirks)
-        {
-            _quirkProcessor?.UnregisterQuirk(quirk);
-        }
+        _statContextRegistration.Remove();
+        _quirkRegistration.Release();
 
         OnExit();
     }
@@ -302,7 +267,13 @@ public partial class State : Node, IState
 
     #region Test Helpers
 #if TOOLS
-    internal void SetStateQuirks(GColl.Array<MovementQuirk3D> quirks) => StateQuirks = quirks;
+    internal void AddMovementQuirk(MovementQuirk3D quirk)
+    {
+        MovementQuirks.Add(quirk);
+        _quirkRegistration.Resolve(BB, MovementQuirks, this);
+    }
+
+    internal void _TestAddTransition(StateTransition transition) => Transitions.Add(transition);
 #endif
     #endregion
 
@@ -336,8 +307,37 @@ public partial class State : Node, IState
             {
                 warnings.Add($"Transition '{transition.ResourceName}' (index {i}) points to a node ('{path}') that is not a valid State.");
             }
+            else if (!IsCommittableTarget(GetNode(path), transition.CanPropagateUp))
+            {
+                warnings.Add(transition.CanPropagateUp
+                    ? $"Transition '{transition.ResourceName}' (index {i}) targets '{path}', which no ancestor " +
+                      "CompoundState holds as a direct child. CanPropagateUp forwards the transition upward, but " +
+                      "some ancestor must own the target to commit it, so this one is rejected at the frame it fires."
+                    : $"Transition '{transition.ResourceName}' (index {i}) targets '{path}', which is not a sibling of " +
+                      "this state. A transition commits on the parent CompoundState, which can only move between its own " +
+                      "children, so this one is rejected at the frame it fires. Retarget it or set CanPropagateUp.");
+            }
         }
 
         return warnings.ToArray();
+    }
+
+    /// <summary>
+    /// Whether a transition to <paramref name="target"/> can ever commit from this state. A transition
+    /// commits on a CompoundState that owns the target as a direct child: the immediate parent when the
+    /// transition does not propagate, or any ancestor of it when it does.
+    /// </summary>
+    private bool IsCommittableTarget(Node target, bool canPropagateUp)
+    {
+        var owner = target.GetParent();
+        if (owner == GetParent()) { return true; }
+        if (!canPropagateUp || owner is not CompoundState) { return false; }
+
+        for (var ancestor = GetParent(); ancestor != null; ancestor = ancestor.GetParent())
+        {
+            if (ancestor == owner) { return true; }
+        }
+
+        return false;
     }
 }

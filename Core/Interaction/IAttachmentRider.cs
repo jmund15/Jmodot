@@ -51,6 +51,31 @@ public interface IAttachmentRider : IGodotNodeInterface
     bool IsAttached { get; }
 
     /// <summary>
+    /// Seconds since this rider was last shed, or <see cref="float.PositiveInfinity"/> if it never has
+    /// been. Only a shed sets it; a deliberate detach does not, and re-attaching does not clear it.
+    /// </summary>
+    /// <remarks>
+    /// Exposed as elapsed time rather than as a one-shot flag so the reader owns the window it cares
+    /// about. A shed is the entity being thrown, which is a different fact from the size of the impulse
+    /// that threw it — anything routing off "was thrown" must be able to ask directly, or it ends up
+    /// inferring the event from a force threshold and silently stops firing when that force is tuned
+    /// below the line.
+    /// </remarks>
+    float SecondsSinceShed { get; }
+
+    /// <summary>
+    /// True while a shed still bars this rider from claiming a host again. Only a shed arms it; a
+    /// deliberate detach does not.
+    /// </summary>
+    /// <remarks>
+    /// On the interface because the rider's OWN behaviour must be able to read it, not just the attach
+    /// funnel that enforces it. A rider whose attach attempts are being silently refused has to route
+    /// itself somewhere for the duration, and an AI that cannot see the refusal reason can only stand
+    /// there re-attempting — the cooldown reads as a hang rather than as a recoil.
+    /// </remarks>
+    bool IsReattachOnCooldown { get; }
+
+    /// <summary>
     /// The host booked <paramref name="localAnchor"/> (host-local, planar) for this rider. It may now
     /// fly there, but it is NOT attached yet — nothing that keys off riding may flip here.
     /// </summary>
@@ -60,13 +85,16 @@ public interface IAttachmentRider : IGodotNodeInterface
     void OnAttached(IAttachmentHost host, Vector3 localAnchor);
 
     /// <summary>
-    /// Grip was exhausted: release positional authority FIRST, then convert
-    /// <paramref name="spentForce"/> into a launch impulse along <paramref name="direction"/>,
-    /// attributed to <paramref name="attributedSource"/>. Ordering is load-bearing — an impulse
-    /// applied while movement is still suspended is discarded.
+    /// Grip was exhausted: release positional authority FIRST, then convert the fling base into a
+    /// launch impulse along <paramref name="direction"/>, attributed to
+    /// <paramref name="attributedSource"/>. Ordering is load-bearing — an impulse applied while
+    /// movement is still suspended is discarded.
     /// </summary>
+    /// <param name="spentForce">How much of the blow's force this rider's grip absorbed.</param>
+    /// <param name="attackKnockbackForce">The attack's own knockback force, when the attacker provides
+    /// one — the fling scales from this. Zero falls back to <paramref name="spentForce"/>.</param>
     /// <param name="attributedSource">Who gets credit for the fling: the shed's instigator when one was named, else the host.</param>
-    void OnShed(Vector3 direction, float spentForce, Node? attributedSource);
+    void OnShed(Vector3 direction, float spentForce, float attackKnockbackForce, Node? attributedSource);
 
     /// <summary>The attachment ended for a reason other than a shed; release every claim and resume normal AI.</summary>
     void OnDetached(DetachCause cause);

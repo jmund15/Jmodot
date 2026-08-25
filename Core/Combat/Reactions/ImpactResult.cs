@@ -1,6 +1,6 @@
 namespace Jmodot.Core.Combat.Reactions;
 
-using Godot;
+using Implementation.Actors;
 
 /// <summary>
 /// Result type produced by <see cref="Jmodot.Implementation.Actors.ImpactDetector"/> on each rising-edge slide-collision contact
@@ -9,19 +9,10 @@ using Godot;
 /// requiring HSM consumers to subscribe to the detector's transient event stream.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <c>SpeedAlongNormal</c> is the perpendicular-component impact severity, clamped to ≥0
-/// — NOT the body's total kinetic magnitude. A grunt sliding horizontally on a floor
-/// reports near-zero SpeedAlongNormal for the floor contact (velocity perpendicular to
-/// floor normal). See <c>ImpactInfo.ComputeSpeedAlongNormal</c> for the math.
-/// </para>
-/// <para>
-/// <c>Normal</c> follows Godot convention: points AWAY from the surface, out toward the
-/// colliding body. Consumers query surface kind (wall/floor/ceiling) via dot-product math
-/// against <c>Vector3.Up</c>.
-/// </para>
+/// A pure <see cref="CombatResult"/> adapter over <see cref="ImpactInfo"/> — it carries no fact
+/// of its own, so the log channel cannot describe a contact differently from the event channel
+/// the detector publishes alongside it. Severity (<c>SpeedAlongNormal</c>, <c>ApproachSpeed</c>),
+/// angle (<c>ApproachDegrees</c>), geometry (<c>IsWall</c>, <c>IsCeiling</c>) and identity
+/// (<c>Collider</c>) are all queried through <see cref="Info"/>.
 /// </remarks>
-public sealed record ImpactResult(
-    Node3D Collider,
-    Vector3 Normal,
-    float SpeedAlongNormal) : CombatResult;
+public sealed record ImpactResult(ImpactInfo Info) : CombatResult;

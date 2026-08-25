@@ -173,7 +173,7 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
         // Since target reached threshold can let a target "reach" the target position without it actually
         // being there, we should adjust the last calced position for accuracy.
         _lastCalculatedTargetPath = _ownerAgent.GlobalPosition;
-        JmoLogger.Info(this, "[Navigator] Target reached.");
+        JmoLogger.Debug(this, "[Navigator] Target reached.");
     }
 
     /// <summary>

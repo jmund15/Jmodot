@@ -4,8 +4,8 @@ using Core.Combat;
 using Core.Combat.Reactions;
 using Core.Identification;
 using Godot;
+using Implementation.Actors;
 using Implementation.Shared;
-using System;
 
 /// <summary>
 /// Fires when a wall-shaped <see cref="ImpactResult"/> with sufficient perpendicular
@@ -27,6 +27,11 @@ using System;
 /// horizontal walls pass.
 /// </para>
 /// <para>
+/// Approach angle: <see cref="MinSpeedAlongNormal"/> alone fuses angle with severity, so a fast
+/// glancing scrape clears a bar a slow head-on hit fails. <see cref="MaxApproachAngleDegrees"/>
+/// gates the geometry separately, off <see cref="ImpactInfo.ApproachDegrees"/>.
+/// </para>
+/// <para>
 /// Category exclusion: when <see cref="ExcludeCategory"/> is set, contacts whose collider
 /// is in that category (e.g., other characters body-checking the captured actor) are
 /// skipped. A wave-captured wizard slamming into another character should stay Captured,
@@ -40,13 +45,22 @@ public partial class WallImpactCondition : CombatLogCondition
     [Export(PropertyHint.Range, "0.0,1.0,0.05")]
     public float WallNormalThreshold { get; private set; } = 0.3f;
 
-    /// <summary>Minimum perpendicular impact speed (m/s) required to fire. Below this, the contact is treated as a gentle bump.</summary>
+    /// <summary>
+    /// Minimum speed ALONG THE CONTACT NORMAL (m/s) required to fire — the perpendicular
+    /// severity of the hit, not how fast the body was travelling. Below this, the contact is a
+    /// gentle bump. Distinct from <see cref="ImpactDetector"/>'s own <c>MinImpactSpeed</c>, which
+    /// gates the body's TOTAL speed upstream: a fast scrape can clear the detector and fail here.
+    /// </summary>
     [Export(PropertyHint.Range, "0.1,100,0.1")]
-    public float MinImpactSpeed { get; private set; } = 6f;
+    public float MinSpeedAlongNormal { get; private set; } = 6f;
 
     /// <summary>Time window (seconds, combat-time) the condition scans back. Wide enough to absorb same-frame ordering between the detector tick and HSM tick; tight enough that stale impacts from prior captures don't re-fire on state re-entry.</summary>
     [Export(PropertyHint.Range, "0.0,2.0,0.05")]
     public float LookbackSeconds { get; private set; } = 0.1f;
+
+    /// <summary>Widest approach angle that still counts, where 0° is dead-on and 90° a parallel graze. Reject glancing scrapes by lowering it; the default 90° cannot reject anything, so an instance that never authors it behaves as if there were no angle gate.</summary>
+    [Export(PropertyHint.Range, "0,90,1,suffix:°")]
+    public float MaxApproachAngleDegrees { get; private set; } = 90f;
 
     /// <summary>Optional category whose colliders should NOT trigger the transition. Typically the project's entity category, so body-checking other characters doesn't fire WallHit.</summary>
     [Export] public Category? ExcludeCategory { get; private set; }
@@ -55,9 +69,10 @@ public partial class WallImpactCondition : CombatLogCondition
     {
         foreach (var r in log.GetAllCombatResultsWithinCombatTime<ImpactResult>(LookbackSeconds))
         {
-            if (r.SpeedAlongNormal < MinImpactSpeed) { continue; }
-            if (Math.Abs(r.Normal.Dot(Vector3.Up)) >= WallNormalThreshold) { continue; }
-            if (r.Collider.HasCategory(ExcludeCategory)) { continue; }
+            if (r.Info.SpeedAlongNormal < MinSpeedAlongNormal) { continue; }
+            if (!r.Info.IsWall(WallNormalThreshold)) { continue; }
+            if (r.Info.ApproachDegrees > MaxApproachAngleDegrees) { continue; }
+            if (r.Info.Collider.HasCategory(ExcludeCategory)) { continue; }
             return true;
         }
         return false;
@@ -65,12 +80,13 @@ public partial class WallImpactCondition : CombatLogCondition
 
     #region Test Helpers
 #if TOOLS
-    internal void SetTestExports(float wallNormalThreshold, float minImpactSpeed, float lookbackSeconds, Category? excludeCategory)
+    internal void SetTestExports(float wallNormalThreshold, float minSpeedAlongNormal, float lookbackSeconds, Category? excludeCategory, float maxApproachAngleDegrees)
     {
         WallNormalThreshold = wallNormalThreshold;
-        MinImpactSpeed = minImpactSpeed;
+        MinSpeedAlongNormal = minSpeedAlongNormal;
         LookbackSeconds = lookbackSeconds;
         ExcludeCategory = excludeCategory;
+        MaxApproachAngleDegrees = maxApproachAngleDegrees;
     }
 #endif
     #endregion

@@ -24,6 +24,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     private readonly Attribute? _stabilityAttr;
 
     private Vector2 _frameImpulses = Vector2.Zero;
+    private bool _frameImpulsesReplace;
     private Vector2 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
 
@@ -58,7 +59,7 @@ public class MovementProcessor2D : IMovementProcessor2D
 
         // Impulses are discarded, not queued: without this drain, every knockback landed while
         // suspended would sum in _frameImpulses and discharge as one launch on release.
-        _frameImpulses = Vector2.Zero;
+        ClearImpulses();
         if (velocityPolicy == SuspensionVelocityPolicy.Zero) { _controller.SetVelocity(Vector2.Zero); }
 
         return true;
@@ -73,7 +74,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     {
         if (IsSuspended)
         {
-            _frameImpulses = Vector2.Zero;
+            ClearImpulses();
             return;
         }
 
@@ -102,8 +103,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         _controller.SetVelocity(characterVelocity);
 
         // --- 2. Apply Impulses (stored in velocity) ---
-        _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector2.Zero;
+        DrainImpulses();
 
         // --- 3. Apply External Forces (stored - will be affected by friction next frame) ---
         ApplyExternalForces(delta);
@@ -133,14 +133,13 @@ public class MovementProcessor2D : IMovementProcessor2D
     {
         if (IsSuspended)
         {
-            _frameImpulses = Vector2.Zero;
+            ClearImpulses();
             return;
         }
 
         // No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
         // 1. Still apply any impulses that might occur
-        _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector2.Zero;
+        DrainImpulses();
 
         // 2. Apply external forces
         this.ApplyExternalForces(delta);
@@ -166,9 +165,39 @@ public class MovementProcessor2D : IMovementProcessor2D
     ///     This is the primary method for all impulse-based mechanics.
     /// </summary>
     /// <param name="impulse">The velocity vector to add to the character's current velocity.</param>
-    public void ApplyImpulse(Vector2 impulse)
+    /// <param name="mode">
+    /// <see cref="ImpulseMode.Replace"/> discards any impulse already queued this frame and latches
+    /// the frame to SET rather than add, so the strategy's velocity is overridden too. A later Add
+    /// in the same frame composes on top of the replaced value; a later Replace wins outright.
+    /// </param>
+    public void ApplyImpulse(Vector2 impulse, ImpulseMode mode = ImpulseMode.Add)
     {
+        if (mode == ImpulseMode.Replace)
+        {
+            _frameImpulses = impulse;
+            _frameImpulsesReplace = true;
+            return;
+        }
+
         _frameImpulses += impulse;
+    }
+
+    /// <summary>
+    /// Hands the frame's accumulated impulse to the controller and clears it. Replace overrides
+    /// whatever the strategy just wrote; Add composes on top of it.
+    /// </summary>
+    private void DrainImpulses()
+    {
+        if (_frameImpulsesReplace)
+        {
+            _controller.SetVelocity(_frameImpulses);
+        }
+        else
+        {
+            _controller.AddVelocity(_frameImpulses);
+        }
+
+        ClearImpulses();
     }
 
     /// <summary>
@@ -178,6 +207,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     public void ClearImpulses()
     {
         _frameImpulses = Vector2.Zero;
+        _frameImpulsesReplace = false;
     }
 
     private void ApplyExternalForces(float delta)

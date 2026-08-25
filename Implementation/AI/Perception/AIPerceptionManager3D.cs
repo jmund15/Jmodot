@@ -239,7 +239,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             var newInfo = new Perception3DInfo(fusedPercept);
             this._memoryByTarget.Add(target, newInfo);
             this.AddToCategoryCache(newInfo);
-            JmoLogger.Info(this, $"[Perception] '{identity.IdentityName}' detected (confidence={fusedConfidence:F2})");
+            JmoLogger.Debug(this, $"[Perception] '{identity.IdentityName}' detected (confidence={fusedConfidence:F2})");
             this.MemoryAddedEventHandler.Invoke(this, newInfo);
         }
     }
@@ -318,7 +318,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
                 continue;
             }
 
-            JmoLogger.Info(this, $"[Perception] '{info.Identity?.IdentityName}' forgotten");
+            JmoLogger.Debug(this, $"[Perception] '{info.Identity?.IdentityName}' forgotten");
             this.MemoryForgottenEventHandler.Invoke(this, info);
             this.RemoveFromCategoryCache(info);
             this._memoryByTarget.Remove(key);

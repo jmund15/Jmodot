@@ -16,9 +16,11 @@ public static class AttachmentShedResolver
     /// first with ties broken by attach sequence, and report the result for every rider.
     /// Force that outlives the roster is discarded rather than carried, and
     /// <paramref name="scope"/> selects the damage set without ever changing how force is spent.
+    /// <paramref name="maxSheds"/> caps how many riders one resolve may shake off (0 = unbounded);
+    /// once the cap is hit, no further rider has force spent against it at all.
     /// </summary>
     public static ShedPlan Resolve(
-        IReadOnlyList<AttachmentRecord> records, float force, ShedDamageScope scope)
+        IReadOnlyList<AttachmentRecord> records, float force, ShedDamageScope scope, int maxSheds = 0)
     {
         if (records == null || records.Count == 0) { return ShedPlan.Empty; }
 
@@ -29,15 +31,20 @@ public static class AttachmentShedResolver
 
         var damagesEveryone = scope == ShedDamageScope.AllAttached;
         var available = Mathf.Max(force, 0f);
+        // A negative cap reads as unbounded rather than "shed nobody" — callers that compute a cap
+        // arithmetically cannot smuggle a silent no-op through a sign slip.
+        var shedsRemaining = maxSheds > 0 ? maxSheds : int.MaxValue;
         var outcomes = new List<ShedOutcome>(ordered.Count);
 
         foreach (var record in ordered)
         {
             var grip = Mathf.Max(record.RemainingGrip, 0f);
-            var spent = Mathf.Min(available, grip);
+            var capped = shedsRemaining <= 0;
+            var spent = capped ? 0f : Mathf.Min(available, grip);
 
             // Zero force must shed nothing, so a rider is only shed by force that actually reached it.
-            var wasShed = available > 0f && grip - spent <= 0f;
+            var wasShed = !capped && available > 0f && grip - spent <= 0f;
+            if (wasShed) { shedsRemaining--; }
 
             outcomes.Add(new ShedOutcome(
                 record,

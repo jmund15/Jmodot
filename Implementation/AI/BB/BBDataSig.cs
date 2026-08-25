@@ -36,7 +36,6 @@ public static partial class BBDataSig
     public static readonly StringName MovementSM = new("MovementSM");
     public static readonly StringName AISM = new("AISM");
     public static readonly StringName QueuedNextAttack = new("QueuedNextAttack");
-    public static readonly StringName SelfInteruptible = new("SelfInteruptible");
 
     #endregion
 
@@ -45,6 +44,11 @@ public static partial class BBDataSig
     public static readonly StringName CombatLogger = new("CombatLogger");
     public static readonly StringName CombatLog = new("CombatLog");
     public static readonly StringName KnockbackComponent = new("KnockbackComponent");
+    #endregion
+
+    #region Body
+    public static readonly StringName SegmentedBody = new("SegmentedBody");
+    public static readonly StringName BodySegment = new("BodySegment");
     #endregion
 
     #region ROBBER_PROPERTIES

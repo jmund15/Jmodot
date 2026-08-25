@@ -39,6 +39,12 @@ public partial class StateTransition : Resource
 
     [Export] public bool CanPropagateUp { get; private set; } = false;
 
+    #region Test Helpers
+#if TOOLS
+    internal void _TestSetTargetStatePath(NodePath path) => TargetStatePath = path;
+#endif
+    #endregion
+
     /// <summary>
     /// If true, this transition bypasses the old state's CanExit() and ExitHandshake().
     /// Use for urgent transitions like being hit, damaged, or interrupted.

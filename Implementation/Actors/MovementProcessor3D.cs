@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Actors;
 
 using System.Collections.Generic;
+using Godot;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
@@ -24,6 +25,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     private readonly Attribute? _stabilityAttr;
 
     private Vector3 _frameImpulses = Vector3.Zero;
+    private bool _frameImpulsesReplace;
     private Vector3 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
 
@@ -31,6 +33,12 @@ public class MovementProcessor3D : IMovementProcessor3D
     private IMovementStrategy3D? _override;
 
     private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
+
+    /// <summary>Speed a launch must clear before it is worth reporting at all, in m/s.</summary>
+    private const float LaunchSpeedFloor = 30f;
+
+    /// <summary>How much faster than it entered a move a body must leave it to count as launched.</summary>
+    private const float LaunchGainFactor = 2f;
 
     public MovementProcessor3D(
         ICharacterController3D controller,
@@ -84,7 +92,7 @@ public class MovementProcessor3D : IMovementProcessor3D
 
         // Impulses are discarded, not queued: without this drain, every knockback landed while
         // suspended would sum in _frameImpulses and discharge as one launch on release.
-        _frameImpulses = Vector3.Zero;
+        ClearImpulses();
         if (velocityPolicy == SuspensionVelocityPolicy.Zero) { _controller.SetVelocity(Vector3.Zero); }
 
         return true;
@@ -99,7 +107,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     {
         if (IsSuspended)
         {
-            _frameImpulses = Vector3.Zero;
+            ClearImpulses();
             return;
         }
 
@@ -121,7 +129,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     {
         if (IsSuspended)
         {
-            _frameImpulses = Vector3.Zero;
+            ClearImpulses();
             return;
         }
 
@@ -150,8 +158,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         _controller.SetVelocity(characterVelocity);
 
         // --- 2. Apply Impulses (stored in velocity) ---
-        _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector3.Zero;
+        DrainImpulses();
 
         // --- 3. Apply External Forces (stored - will be affected by friction next frame) ---
         ApplyExternalForces(delta);
@@ -173,8 +180,38 @@ public class MovementProcessor3D : IMovementProcessor3D
         // We extract what collision changed and apply that to the base velocity,
         // discarding the offset cleanly without corrupting post-collision velocity.
         var postCollision = _controller.Velocity;
+        this.WarnOnLaunch(combined, postCollision);
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
+    }
+
+    /// <summary>
+    /// Warns when collision resolution ADDED speed to the move — the only way a body leaves a
+    /// move faster than it entered it. Gravity passes any absolute speed floor within seconds
+    /// while touching nothing, so the slide count is what separates a launch from free fall.
+    /// </summary>
+    private void WarnOnLaunch(Vector3 preMoveVelocity, Vector3 postMoveVelocity)
+    {
+        if (this._owner is not CharacterBody3D body) { return; }
+
+        var slideCount = body.GetSlideCollisionCount();
+        if (slideCount == 0) { return; }
+
+        var postSpeed = postMoveVelocity.Length();
+        var threshold = Mathf.Max(LaunchSpeedFloor, LaunchGainFactor * preMoveVelocity.Length());
+        if (postSpeed <= threshold) { return; }
+
+        var collisions = new List<string>();
+        for (var i = 0; i < slideCount; i++)
+        {
+            var collider = body.GetSlideCollision(i).GetCollider();
+            collisions.Add(collider is Node node ? node.Name : collider?.GetType().Name ?? "<null>");
+        }
+
+        JmoLogger.Warning(this,
+            $"[Movement] launch speed={postSpeed:F2} threshold={threshold:F2} "
+            + $"pre={preMoveVelocity} post={postMoveVelocity} floor={this._controller.IsOnFloor} "
+            + $"slides={slideCount} colliders=[{string.Join(", ", collisions)}]");
     }
 
     /// <summary>
@@ -185,14 +222,13 @@ public class MovementProcessor3D : IMovementProcessor3D
     {
         if (IsSuspended)
         {
-            _frameImpulses = Vector3.Zero;
+            ClearImpulses();
             return;
         }
 
         // No strategy is run. We respect the velocity set by other systems (e.g., knockback impulse).
         // 1. Still apply any impulses that might occur
-        _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector3.Zero;
+        DrainImpulses();
 
         // 2. Apply external forces
         this.ApplyExternalForces(delta);
@@ -222,12 +258,11 @@ public class MovementProcessor3D : IMovementProcessor3D
     {
         if (IsSuspended)
         {
-            _frameImpulses = Vector3.Zero;
+            ClearImpulses();
             return;
         }
 
-        _controller.AddVelocity(_frameImpulses);
-        _frameImpulses = Vector3.Zero;
+        DrainImpulses();
         _controller.Move();
     }
 
@@ -236,14 +271,45 @@ public class MovementProcessor3D : IMovementProcessor3D
     ///     This is the primary method for all impulse-based mechanics.
     /// </summary>
     /// <param name="impulse">The velocity vector to add to the character's current velocity.</param>
-    public void ApplyImpulse(Vector3 impulse)
+    /// <param name="mode">
+    /// <see cref="ImpulseMode.Replace"/> discards any impulse already queued this frame and latches
+    /// the frame to SET rather than add, so the strategy's velocity is overridden too. A later Add
+    /// in the same frame composes on top of the replaced value; a later Replace wins outright.
+    /// </param>
+    public void ApplyImpulse(Vector3 impulse, ImpulseMode mode = ImpulseMode.Add)
     {
+        if (mode == ImpulseMode.Replace)
+        {
+            _frameImpulses = impulse;
+            _frameImpulsesReplace = true;
+            return;
+        }
+
         _frameImpulses += impulse;
     }
 
     public void ClearImpulses()
     {
         _frameImpulses = Vector3.Zero;
+        _frameImpulsesReplace = false;
+    }
+
+    /// <summary>
+    /// Hands the frame's accumulated impulse to the controller and clears it. Replace overrides
+    /// whatever the strategy just wrote; Add composes on top of it.
+    /// </summary>
+    private void DrainImpulses()
+    {
+        if (_frameImpulsesReplace)
+        {
+            _controller.SetVelocity(_frameImpulses);
+        }
+        else
+        {
+            _controller.AddVelocity(_frameImpulses);
+        }
+
+        ClearImpulses();
     }
 
     private void ApplyExternalForces(float delta)

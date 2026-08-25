@@ -9,6 +9,10 @@ using Shared;
 /// so anchor Y stops being a load-bearing convention that a too-low value embeds and a too-high one
 /// turns into a visible settle drop.
 /// </summary>
+/// <remarks>
+/// Character bodies are never valid support. Static, animatable, rigid and node-less server-RID
+/// colliders remain valid support; adding another standable body type is an authoring decision.
+/// </remarks>
 public static class BodyGroundSnapper
 {
     private const float ProbeUpOffset = 0.25f;
@@ -41,6 +45,7 @@ public static class BodyGroundSnapper
 
         Godot.Collections.Dictionary hit = body.GetWorld3D().DirectSpaceState.IntersectRay(query);
         if (hit.Count == 0) { return false; }
+        if (hit["collider"].AsGodotObject() is CharacterBody3D) { return false; }
 
         float supportY = ((Vector3)hit["position"]).Y;
         grounded = new Transform3D(desired.Basis, new Vector3(origin.X, supportY - lowestLocalY, origin.Z));

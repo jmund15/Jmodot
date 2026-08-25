@@ -16,7 +16,9 @@ using Jmodot.Core.Stats;
 using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Combat;
+using Jmodot.Implementation.Physics;
 using Jmodot.Implementation.Shared;
+using Jmodot.Implementation.Visual;
 
 /// <summary>
 /// Latches its entity onto an <see cref="IAttachmentHost"/> and rides it. The entity is never
@@ -74,6 +76,20 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     [Export, RequiredExport] public BaseFloatValueDefinition ReattachCooldownDefinition { get; private set; } = null!;
 
     /// <summary>
+    /// Degrees to tilt a shed fling up from the blow's own direction. 0 keeps the flat launch. Any
+    /// value above 0 also marks the impulse as deliberately vertical, so the receiving knockback
+    /// component's flatten safety net leaves the arc intact instead of zeroing it.
+    /// </summary>
+    [Export] public BaseFloatValueDefinition? FlingUpwardAngleDefinition { get; private set; }
+
+    /// <summary>
+    /// Random spread in degrees applied either side of the fling's upward angle, so several riders
+    /// shed by one blow scatter instead of leaving on a single repeated arc. 0 makes every fling
+    /// identical.
+    /// </summary>
+    [Export] public BaseFloatValueDefinition? FlingUpwardAngleJitterDefinition { get; private set; }
+
+    /// <summary>
     /// The attach visuals this rider's art provides. Unset leaves the pose-less behaviour: no pose is
     /// booked and the ride position stays the host's placed anchor.
     /// </summary>
@@ -93,7 +109,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private IBlackboard _bb = null!;
     private ICharacterController3D _controller = null!;
     private IMovementProcessor3D? _movement;
-    private KnockbackComponent3D? _knockback;
+    private IKnockbackReceiver3D? _knockback;
     private HurtboxComponent3D? _hurtbox;
     private IHealth? _health;
     private IStatProvider? _stats;
@@ -102,8 +118,13 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private Node? _hostNode;
     private bool _holdsSuspension;
     private ulong _shedAtMsec;
+    private JmoRng? _flingRng;
 
     private CollisionObject3D? _body;
+    private PhysicsBody3D? _collisionExceptionHost;
+    private ulong _collisionExceptionStartedMsec;
+    private float _collisionExceptionRequiredDistance;
+    private bool _collisionExceptionExpiryLogged;
     private bool _bodyCollisionSuspended;
     private uint _savedCollisionLayer;
     private uint _savedCollisionMask;
@@ -129,6 +150,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// <summary>Multiplier converting the force spent shedding this rider into its launch impulse. Read only by this rider.</summary>
     public float FlingForceScale => this.FlingForceScaleDefinition?.ResolveFloatValue(this._stats) ?? 0f;
 
+    /// <summary>Degrees a shed fling tilts up from the blow's direction, before jitter. Read only by this rider.</summary>
+    public float FlingUpwardAngle => this.FlingUpwardAngleDefinition?.ResolveFloatValue(this._stats) ?? 0f;
+
+    /// <summary>Random spread either side of <see cref="FlingUpwardAngle"/>, in degrees. Read only by this rider.</summary>
+    public float FlingUpwardAngleJitter => this.FlingUpwardAngleJitterDefinition?.ResolveFloatValue(this._stats) ?? 0f;
+
     /// <summary>
     /// Damage one failed-attach contact deals to the host. Stat-resolvable like every other attachment
     /// number, so a buffed roach hits harder on a bounce without a second authored surface.
@@ -147,9 +174,13 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         {
             if (this.Host == null) { return null; }
 
-            foreach (var record in this.Host.Attachments)
+            // Indexed, not foreach: Attachments is an IReadOnlyList, so foreach boxes an enumerator
+            // onto the heap — this is the higher-frequency of the two, sampled every physics frame by
+            // every animated-claim reader (ActivePose → ActiveRideClip / ActiveAttackClip / ActiveAttackHoldSeconds).
+            var attachments = this.Host.Attachments;
+            for (var i = 0; i < attachments.Count; i++)
             {
-                if (ReferenceEquals(record.Rider, this)) { return record.Pose; }
+                if (ReferenceEquals(attachments[i].Rider, this)) { return attachments[i].Pose; }
             }
 
             return null;
@@ -201,6 +232,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
+        this.PollCollisionException();
         if (this.Host == null) { return; }
         if (this.HostStillHoldsRecord()) { return; }
 
@@ -234,6 +266,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     public override void _ExitTree()
     {
+        this.ClearCollisionException();
         if (this._health != null) { this._health.OnDied -= this.OnOwnDeath; }
         if (this.Host == null) { return; }
 
@@ -260,21 +293,57 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     }
 
     /// <inheritdoc />
-    public void OnShed(Vector3 direction, float spentForce, Node? attributedSource)
+    public void OnShed(Vector3 direction, float spentForce, float attackKnockbackForce, Node? attributedSource)
     {
         // Only a shed arms the cooldown. A deliberate detach — death, an aborted approach, the owner
         // letting go — is not the entity being thrown off, so it must not be punished with a wait.
         this._shedAtMsec = Time.GetTicksMsec();
 
         // Ordering is load-bearing: a suspended processor CLEARS its pending impulses every tick,
-        // so an impulse applied before the release is discarded rather than queued.
+        // so an impulse applied before the release is discarded rather than queued. The direction
+        // rides along so the body clears the host's silhouette along the same arc it is flung.
+        this.ReleasePositionalAuthority(direction);
         this.ReleaseAttachment(DetachCause.Shed);
 
-        var impulse = spentForce * this.FlingForceScale;
+        // The fling scales the ATTACK's knockback when the attacker provides one — the blow the
+        // player threw is what throws the rider, and grip only decides WHO comes off. The spent
+        // force stays the fallback so hosts that shake riders off without an authored knockback
+        // keep their behaviour.
+        var flingBase = attackKnockbackForce > 0f ? attackKnockbackForce : spentForce;
+        var impulse = flingBase * this.FlingForceScale;
         if (impulse <= 0f) { return; }
         if (this._knockback == null) { return; }
 
-        this._knockback.ApplyKnockback(direction, impulse, attributedSource);
+        var (flingDirection, preserveVertical) = this.ResolveFlingArc(direction);
+        this._knockback.ApplyKnockback(flingDirection, impulse, attributedSource, preserveVertical);
+    }
+
+    /// <summary>
+    /// Tilts a shed's direction up by the authored arc plus its jitter.
+    /// </summary>
+    /// <returns>
+    /// The launch direction, and whether it carries a vertical the receiver must not flatten. Both
+    /// halves are load-bearing together: the receiving knockback component zeroes Y by default, so a
+    /// tilted direction sent without the flag is silently discarded one step before it is used.
+    /// </returns>
+    /// <remarks>
+    /// A jittered angle that lands at or below zero returns the flat launch rather than aiming the
+    /// rider into the floor, which makes jitter safe to author wider than the base arc.
+    /// </remarks>
+    private (Vector3 Direction, bool PreserveVertical) ResolveFlingArc(Vector3 direction)
+    {
+        var degrees = this.FlingUpwardAngle;
+        var jitter = this.FlingUpwardAngleJitter;
+        if (jitter > 0f)
+        {
+            this._flingRng ??= JmoRng.NonDeterministic();
+            degrees += this._flingRng.GetRndInRange(-jitter, jitter);
+        }
+
+        if (degrees <= 0f) { return (direction, false); }
+
+        var rad = Mathf.DegToRad(degrees);
+        return ((direction * Mathf.Cos(rad) + Vector3.Up * Mathf.Sin(rad)).Normalized(), true);
     }
 
     /// <inheritdoc />
@@ -339,15 +408,163 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         return true;
     }
 
-    /// <summary>Give positional authority back. Safe to call when the claim is not held.</summary>
-    public void ReleasePositionalAuthority()
+    /// <summary>
+    /// Give positional authority back. Safe to call when the claim is not held.
+    ///
+    /// <para>
+    /// <paramref name="exitDirection"/> — the horizontal direction this detach leaves along, when the
+    /// caller knows it (a shed passes its fling direction). While riding, the body is teleported to
+    /// the host's origin every frame — a posed rider sits INSIDE the host's collider with collision
+    /// suspended. Restoring layers there hands depenetration a lottery: move_and_slide ejects the
+    /// body along whichever direction resolves the penetration, often straight up the host's dome,
+    /// parking a flung rider on its host's head. The body is placed clear of the host's measured
+    /// silhouette BEFORE collision restores, along the exit direction; with no direction given, the
+    /// resolver's stable Back fallback applies. A plain detach that never held the claim is untouched.
+    /// </para>
+    /// </summary>
+    public void ReleasePositionalAuthority(Vector3? exitDirection = null)
     {
         if (!this._holdsSuspension) { return; }
 
         this._holdsSuspension = false;
+
+        // Teleport while the layers are still down — moving a collidable body by hand would be
+        // swept and could collide mid-move, which is exactly the lottery this placement removes.
+        this.PlaceClearOfHost(exitDirection);
         this.RestoreBodyCollision();
         this._movement?.ReleaseSuspension(Name);
     }
+
+    /// <summary>
+    /// Move the body outside the host's measured silhouette along <paramref name="exitDirection"/>,
+    /// or Back when none resolves. Distance derives from what the art measures (half-width plus the
+    /// rider's own half-width estimate), so it scales with entity size for free; unmeasurable art
+    /// falls back to a fixed radius rather than skipping the placement.
+    /// </summary>
+    private void PlaceClearOfHost(Vector3? exitDirection)
+    {
+        // No _body gate here: the move goes through the CONTROLLER's Teleport, and a rider whose
+        // controller has no physics body still needs to end up outside its host.
+        if (this.Host == null || this._hostNode == null || !GodotObject.IsInstanceValid(this._hostNode)) { return; }
+        if (this._hostNode is not Node3D hostRoot) { return; }
+
+        var flatDirection = AttachmentShedResolver.ResolveFlingDirection(
+            this.GlobalPosition, hostRoot.GlobalPosition, exitDirection);
+
+        var anchor = this.Host.TryGetAnchorWorldPosition(this, out var worldAnchor)
+            ? worldAnchor
+            : hostRoot.GlobalPosition;
+        var currentPosition = this._controller.GetUnderlyingNode() is Node3D bodyNode
+            ? bodyNode.GlobalPosition
+            : this.GlobalPosition;
+        var requiredDistance = this.MeasureRequiredSeparation(hostRoot, currentPosition);
+        var currentDistance = new Vector2(currentPosition.X - anchor.X, currentPosition.Z - anchor.Z).Length();
+        var deficit = Mathf.Max(0f, requiredDistance - currentDistance);
+        this._collisionExceptionRequiredDistance = requiredDistance;
+        this.BeginCollisionException(hostRoot);
+        if (deficit <= 0f) { return; }
+
+        this._controller.Teleport(anchor + new Vector3(flatDirection.X, 0f, flatDirection.Z) * deficit);
+    }
+
+    private float MeasureRequiredSeparation(Node3D hostRoot, Vector3 currentPosition)
+    {
+        var hostRadius = DefaultClearRadius;
+        var hostBody = hostRoot as CollisionObject3D;
+        for (Node? ancestor = hostRoot.GetParent(); hostBody == null && ancestor != null; ancestor = ancestor.GetParent())
+        {
+            hostBody = ancestor as CollisionObject3D;
+        }
+
+        if (hostBody != null)
+        {
+            hostRadius = this.MeasureBodyRadius(hostBody, currentPosition);
+        }
+
+        var riderRadius = this._body == null
+            ? DefaultClearRadius
+            : this.MeasureBodyRadius(this._body, currentPosition);
+        return hostRadius + riderRadius;
+    }
+
+    private float MeasureBodyRadius(CollisionObject3D body, Vector3 queryPoint)
+    {
+        var radius = 0f;
+        foreach (var child in body.GetChildren())
+        {
+            if (child is not CollisionShape3D { Shape: not null } shapeNode) { continue; }
+
+            var center = body.GlobalTransform * shapeNode.Position;
+            var surface = ShapeProximityCalculator.GetClosestSurfacePoint(
+                queryPoint, center, body.GlobalTransform.Basis, shapeNode.Shape);
+            radius = Mathf.Max(radius, surface.DistanceTo(body.GlobalPosition));
+        }
+
+        return radius > 0f ? radius : DefaultClearRadius;
+    }
+
+    private void BeginCollisionException(Node hostNode)
+    {
+        var hostBody = hostNode as PhysicsBody3D;
+        for (Node? ancestor = hostNode.GetParent(); hostBody == null && ancestor != null; ancestor = ancestor.GetParent())
+        {
+            hostBody = ancestor as PhysicsBody3D;
+        }
+
+        if (this._body is not PhysicsBody3D riderBody || hostBody == null) { return; }
+        if (!GodotObject.IsInstanceValid(riderBody) || !GodotObject.IsInstanceValid(hostBody)) { return; }
+
+        riderBody.AddCollisionExceptionWith(hostBody);
+        this._collisionExceptionHost = hostBody;
+        this._collisionExceptionStartedMsec = Time.GetTicksMsec();
+        this._collisionExceptionExpiryLogged = false;
+    }
+
+    private void PollCollisionException()
+    {
+        if (this._collisionExceptionHost == null) { return; }
+        if (this._body == null
+            || !GodotObject.IsInstanceValid(this._body)
+            || !GodotObject.IsInstanceValid(this._collisionExceptionHost))
+        {
+            this.ClearCollisionException();
+            return;
+        }
+
+        var flatDistance = new Vector2(
+            this._body.GlobalPosition.X - this._collisionExceptionHost.GlobalPosition.X,
+            this._body.GlobalPosition.Z - this._collisionExceptionHost.GlobalPosition.Z).Length();
+        var expired = Time.GetTicksMsec() - this._collisionExceptionStartedMsec >= CollisionExceptionBudgetMsec;
+        if (flatDistance >= this._collisionExceptionRequiredDistance || expired)
+        {
+            if (expired && flatDistance < this._collisionExceptionRequiredDistance && !this._collisionExceptionExpiryLogged)
+            {
+                JmoLogger.Warning(this, "[Attachment] collision exception budget expired before host separation");
+                this._collisionExceptionExpiryLogged = true;
+            }
+
+            this.ClearCollisionException();
+        }
+    }
+
+    private void ClearCollisionException()
+    {
+        if (this._body is PhysicsBody3D riderBody
+            && this._collisionExceptionHost != null
+            && GodotObject.IsInstanceValid(riderBody)
+            && GodotObject.IsInstanceValid(this._collisionExceptionHost))
+        {
+            riderBody.RemoveCollisionExceptionWith(this._collisionExceptionHost);
+        }
+
+        this._collisionExceptionHost = null;
+        this._collisionExceptionStartedMsec = 0uL;
+        this._collisionExceptionRequiredDistance = 0f;
+    }
+
+    /// <summary>Fallback radius when the host or rider has no owned collision shape.</summary>
+    private const float DefaultClearRadius = 1f;
+    private const ulong CollisionExceptionBudgetMsec = 500uL;
 
     /// <summary>
     /// While authority is held the body is teleported through the host's collider every frame; a live
@@ -405,27 +622,28 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         if (this.Host == null && !this.IsAttached) { return; }
 
         this.IsAttached = false;
+        // Authority release BEFORE Host/_hostNode clear: PlaceClearOfHost reads the host to measure
+        // its silhouette, so a detach that still holds the claim must place the body clear of the
+        // host before those references go. The shed path releases earlier still, with a direction.
+        this.ReleasePositionalAuthority();
         this.Host = null;
         this._hostNode = null;
-        this.ReleasePositionalAuthority();
         this.AttachmentEnded.Invoke(cause);
     }
 
-    /// <summary>
-    /// True while a shed still bars this rider from claiming a host. Readable from outside because the
-    /// attach funnel peeks at it FIRST — the peek is side-effect-free, where every step behind it is not.
-    /// </summary>
+    /// <inheritdoc />
+    public float SecondsSinceShed
+        => this._shedAtMsec == 0uL
+            ? float.PositiveInfinity
+            : (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
+
+    /// <inheritdoc />
     public bool IsReattachOnCooldown
     {
         get
         {
-            if (this._shedAtMsec == 0uL) { return false; }
-
             var cooldown = this.ReattachCooldownDefinition?.ResolveFloatValue(this._stats) ?? 0f;
-            if (cooldown <= 0f) { return false; }
-
-            var elapsed = (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
-            return elapsed < cooldown;
+            return cooldown > 0f && this.SecondsSinceShed < cooldown;
         }
     }
 
@@ -441,9 +659,12 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
             if (ancestor.IsQueuedForDeletion()) { return false; }
         }
 
-        foreach (var record in this.Host.Attachments)
+        // Indexed, not foreach: Attachments is an IReadOnlyList, so foreach boxes an enumerator
+        // onto the heap — this runs every physics frame, and AssignedPose runs several times more.
+        var attachments = this.Host.Attachments;
+        for (var i = 0; i < attachments.Count; i++)
         {
-            if (ReferenceEquals(record.Rider, this)) { return true; }
+            if (ReferenceEquals(attachments[i].Rider, this)) { return true; }
         }
 
         return false;
@@ -519,7 +740,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this._controller = controller;
         this._body = controller.GetUnderlyingNode() as CollisionObject3D;
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out this._movement);
-        bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out this._knockback);
+        bb.TryGet<IKnockbackReceiver3D>(BBDataSig.KnockbackComponent, out this._knockback);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
         bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
         bb.TryGet<IAnimationOrchestrator>(BBDataSig.AnimationOrchestrator, out this._orchestrator);
@@ -537,7 +758,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
         if (this._knockback == null)
         {
-            JmoLogger.Warning(this, "[Attachment] No KnockbackComponent3D on the blackboard — sheds will not fling this rider.");
+            JmoLogger.Warning(this, "[Attachment] No IKnockbackReceiver3D on the blackboard — sheds will not fling this rider.");
         }
 
         if (this._health == null) { return; }
@@ -574,6 +795,15 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     internal void SetReattachCooldownSeconds(float seconds)
         => this.ReattachCooldownDefinition = new ConstantFloatDefinition(seconds);
+
+    internal void SetFlingUpwardAngle(float degrees, float jitterDegrees = 0f)
+    {
+        this.FlingUpwardAngleDefinition = new ConstantFloatDefinition(degrees);
+        this.FlingUpwardAngleJitterDefinition = new ConstantFloatDefinition(jitterDegrees);
+    }
+
+    internal (Vector3 Direction, bool PreserveVertical) _TestResolveFlingArc(Vector3 direction)
+        => this.ResolveFlingArc(direction);
 
     internal void SetContactDamage(float amount)
         => this.ContactDamageDefinition = new ConstantFloatDefinition(amount);

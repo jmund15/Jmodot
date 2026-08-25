@@ -39,7 +39,7 @@ using Jmodot.Implementation.Visual;
 /// <see cref="BBDataSig.Stats"/>, <see cref="BBDataSig.EntitySeed"/>.</para>
 /// </summary>
 [GlobalClass]
-public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentHost
+public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentHost, IEntityBodyGraph
 {
     /// <summary>Rule deciding how much rider footprint this host carries at once.</summary>
     [Export, RequiredExport] public AttachmentCapacityProvider3D CapacityProvider { get; private set; } = null!;
@@ -84,6 +84,21 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
     /// <inheritdoc />
     public IReadOnlyList<AttachmentRecord> Attachments => this._records;
+
+    /// <inheritdoc />
+    public IEnumerable<Node> BodyGraphNodes
+    {
+        get
+        {
+            var seen = new HashSet<ulong>();
+            foreach (var record in this._records)
+            {
+                var node = record.Rider.GetUnderlyingNode();
+                if (!GodotObject.IsInstanceValid(node)) { continue; }
+                if (seen.Add(node.GetInstanceId())) { yield return node; }
+            }
+        }
+    }
 
     /// <inheritdoc />
     public Node3D HostEntity => GodotObject.IsInstanceValid(this._entity) ? this._entity : this;
@@ -293,7 +308,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
         if (riding.Count == 0) { return ShedPlan.Empty; }
 
-        var plan = AttachmentShedResolver.Resolve(riding, request.Force, request.Scope);
+        var plan = AttachmentShedResolver.Resolve(riding, request.Force, request.Scope, request.MaxSheds);
         var attribution = request.Instigator ?? this.GetUnderlyingNode();
 
         // Aim before anything is removed — the anchor is gone once the record is. Resolved for every
@@ -312,6 +327,11 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         {
             foreach (var outcome in plan.Damaged)
             {
+                // Shed riders take the payload here — the shed is the deterministic damage path for
+                // a swing that shakes a rider off. A swing whose hitbox ALSO overlaps the rider (one
+                // riding the attacker's own host sits inside the hitbox's reach) must suppress that
+                // direct hit itself, through the hitbox-side IPayloadInterceptor3D seam, or the two
+                // applications stack into a double hit.
                 if (!IsRiderAlive(outcome.Record.Rider)) { continue; }
 
                 // The fling takes the resolved direction because it always needs one and falls back to a
@@ -330,7 +350,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             // below skips it. Its fling direction was resolved above only to aim the hit it took.
             if (!IsRiderAlive(rider)) { continue; }
 
-            rider.OnShed(directions[rider], outcome.ForceSpent, attribution);
+            rider.OnShed(directions[rider], outcome.ForceSpent, request.AttackKnockbackForce, attribution);
         }
 
         return plan;

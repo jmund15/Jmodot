@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Visual.Sprite;
 
 using Core.Visual.Sprite;
 using Godot;
+using Jmodot.Implementation.Visual.Animation.Sprite;
 using Tools.Visual.Sprite;
 
 /// <summary>
@@ -133,7 +134,8 @@ public partial class Sprite3DComponent : Sprite3D, ISpriteComponent
                 ? DirectionSuffixes.DirectionSuffixes[suffixIndex]
                 : $"dir{suffixIndex}";
 
-            string finalAnimName = $"{BaseAnimationName}{SeparationSuffix}{directionName}";
+            string finalAnimName = DirectionalClipResolver.BuildFinalName(
+                new StringName(BaseAnimationName), directionName, SeparationSuffix).ToString();
             bool animExists = library.HasAnimation(finalAnimName);
 
             if (animExists && AppendToExisting)

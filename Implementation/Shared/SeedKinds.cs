@@ -28,8 +28,13 @@ public static class SeedKinds
     [SeedStreamKey("selector")] public const string Selector = "selector";
     [SeedStreamKey("utility_selector")] public const string UtilitySelector = "utility_selector";
     [SeedStreamKey("wander")] public const string Wander = "wander";
+    [SeedStreamKey("sine_lateral")] public const string SineLateral = "sine_lateral";
     [SeedStreamKey("composite_consideration")] public const string CompositeConsideration = "composite_consideration";
     [SeedStreamKey("zone_shape")] public const string ZoneShape = "zone_shape";
     [SeedStreamKey("movement_quirk")] public const string MovementQuirk = "movement_quirk";
     [SeedStreamKey("attachment")] public const string Attachment = "attachment";
+
+    // A body split off an existing one derives from its parent's entity seed plus its ordinal, so
+    // several fragments promoting in one frame diverge from the parent and from each other.
+    [SeedStreamKey("progeny")] public const string Progeny = "progeny";
 }

@@ -49,6 +49,24 @@ using AI.BB;
 
         public event Action OnAttackStarted = delegate { };
         public event Action OnAttackFinished = delegate { };
+
+        /// <summary>
+        /// Fired as an attack window closes, carrying how many distinct hurtboxes it registered.
+        /// Zero means this hitbox reached nothing — the signal a miss/whiff response hangs on.
+        /// <para>
+        /// This reports what the HITBOX observed, not whether the attack connected: those differ
+        /// whenever a consumer damages through another path. A punch that shakes an attached rider
+        /// loose registers zero hits here because the interceptor suppresses the direct hit the shed
+        /// already accounted for. Owning the "did it connect" predicate is the consumer's job;
+        /// this event supplies the fact it reasons from.
+        /// </para>
+        /// <para>
+        /// Fires after <see cref="Deactivate"/> and before <see cref="OnAttackFinished"/>, once per
+        /// <see cref="EndAttack"/> that had an active window. Cleared by <see cref="OnPoolReset"/>
+        /// like every other event here, so a pooled hitbox's subscribers must be re-attached per use.
+        /// </para>
+        /// </summary>
+        public event Action<int> OnAttackResolved = delegate { };
         #endregion
 
         #region Configuration
@@ -334,6 +352,10 @@ using AI.BB;
         {
             if (!IsInitialized || !IsActive) { return; }
 
+            // Captured before the clear — subscribers of OnAttackFinished cannot read the count,
+            // which is why the outcome needs its own signal rather than a property.
+            int hitsThisAttack = _hitHurtboxes.Count;
+
             CurrentPayload = null;
             _hitHurtboxes.Clear();
             _acceptedHits = 0;
@@ -341,6 +363,7 @@ using AI.BB;
 
             Deactivate();
 
+            OnAttackResolved?.Invoke(hitsThisAttack);
             OnAttackFinished?.Invoke();
         }
 
@@ -358,6 +381,7 @@ using AI.BB;
             OnHitRegistered = delegate { };
             OnAttackStarted = delegate { };
             OnAttackFinished = delegate { };
+            OnAttackResolved = delegate { };
 
             // Clear interceptor for clean pool state.
             // Game-layer components (e.g., ReactionComponent) re-wire on each pool cycle.

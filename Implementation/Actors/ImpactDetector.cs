@@ -155,13 +155,13 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
             _newContactsThisFrame.Add(id);
             var normal = col.GetNormal();
             var speedAlongNormal = ImpactInfo.ComputeSpeedAlongNormal(_controller.PreMoveVelocity, normal);
-            var info = new ImpactInfo(speedAlongNormal, normal, collider);
+            var info = new ImpactInfo(speedAlongNormal, preMoveSpeed, normal, collider);
             Impacted.Invoke(info);
 
             // Dual-channel publish: event for sibling damage systems (per-frame subscribe);
             // CombatLog for HSM-side queryable lookback (TransitionCondition.CheckEvent reads).
             // Mirrors KnockbackComponent3D pattern: emit signal AND log CombatResult.
-            _combatLog?.Log(new ImpactResult(collider, normal, speedAlongNormal));
+            _combatLog?.Log(new ImpactResult(info));
         }
 
         (_inContactLastFrame, _newContactsThisFrame) = (_newContactsThisFrame, _inContactLastFrame);
@@ -195,15 +195,47 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>Speed</c> semantics: the magnitude of the pre-move velocity component
-/// along the contact normal (perpendicular impact severity), clamped to ≥0.
-/// A grunt sliding horizontally on the floor reports near-zero Speed because
-/// the velocity is perpendicular to the floor normal. Use
+/// <c>SpeedAlongNormal</c> semantics: the magnitude of the pre-move velocity component
+/// along the contact normal (perpendicular impact severity), clamped to ≥0 — NOT the body's
+/// total speed. A grunt sliding horizontally on the floor reports near-zero
+/// SpeedAlongNormal because the velocity is perpendicular to the floor normal. Use
 /// <see cref="ComputeSpeedAlongNormal"/> at construction time.
 /// </para>
+/// <para>
+/// <c>ApproachSpeed</c> is the body's TOTAL pre-collision speed, which
+/// <c>SpeedAlongNormal</c> is the perpendicular component of. The pair is what separates
+/// angle from severity — a fast glancing scrape and a slow head-on hit are
+/// indistinguishable from <c>SpeedAlongNormal</c> alone — and it lives here rather than on
+/// the log-channel record so both of the detector's channels describe the contact with the
+/// same facts. An event-side consumer can compute <see cref="ApproachDegrees"/> without
+/// reaching for the CombatLog.
+/// </para>
 /// </remarks>
-public readonly record struct ImpactInfo(float Speed, Godot.Vector3 Normal, Node3D Collider)
+public readonly record struct ImpactInfo(
+    float SpeedAlongNormal,
+    float ApproachSpeed,
+    Godot.Vector3 Normal,
+    Node3D Collider)
 {
+    /// <summary>
+    /// Angle between the body's travel and the contact normal, in degrees: 0° is dead-on, 90° a
+    /// parallel graze. Never NaN and never infinite — a non-finite or non-positive approach
+    /// speed reports 90°, a non-finite perpendicular component reports 90°, and an over-unity
+    /// ratio saturates at 0° — so a consumer may compare it without guarding any of those.
+    /// </summary>
+    /// <remarks>
+    /// Every degenerate input answers 90°, i.e. a graze, because the only consumers are gates
+    /// shaped <c>ApproachDegrees &gt; MaxAllowed</c>. Reading a degenerate contact as a perfect
+    /// hit would let it through the widest cone an author can set; answering NaN is worse still,
+    /// since <c>NaN &gt; x</c> is false and the comparison silently stops rejecting anything.
+    /// The sign test is written <c>!(x &gt; 0f)</c> rather than <c>x &lt;= 0f</c> precisely
+    /// because the latter is FALSE for NaN and would fall through to the trig.
+    /// </remarks>
+    public float ApproachDegrees
+        => !(ApproachSpeed > 0f) || !float.IsFinite(ApproachSpeed) || !float.IsFinite(SpeedAlongNormal)
+            ? 90f
+            : Mathf.RadToDeg(MathF.Acos(Math.Clamp(SpeedAlongNormal / ApproachSpeed, 0f, 1f)));
+
     /// <summary>
     /// Projects <paramref name="preMoveVelocity"/> onto the inverted contact normal
     /// (the direction the body was moving into the surface) and clamps to ≥0.

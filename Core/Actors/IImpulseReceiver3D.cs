@@ -9,5 +9,10 @@ namespace Jmodot.Core.Actors;
 /// </summary>
 public interface IImpulseReceiver3D
 {
-    void ApplyImpulse(Vector3 impulse);
+    /// <param name="impulse">Velocity-delta in m/s, not an N·s impulse.</param>
+    /// <param name="mode">
+    /// Whether this composes with the frame's other velocity or replaces it. See
+    /// <see cref="ImpulseMode" /> — the Replace case cannot be arranged from the call site.
+    /// </param>
+    void ApplyImpulse(Vector3 impulse, ImpulseMode mode = ImpulseMode.Add);
 }
