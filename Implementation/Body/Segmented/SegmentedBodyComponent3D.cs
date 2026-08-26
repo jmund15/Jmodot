@@ -427,7 +427,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     }
 
     /// <summary>
-    /// The Y a unit standing at <paramref name="point"/> would have, resolved through the HEAD's own
+    /// The Y a unit standing at <paramref name="frontPos"/> would have, resolved through the HEAD's own
     /// grounding: the head's collider decides the height and the head's collision mask decides what
     /// counts as ground, so a body needs no ground tunable of its own and cannot disagree with the
     /// creature it belongs to. A head that is not a physics body has no ground contract to borrow, so
