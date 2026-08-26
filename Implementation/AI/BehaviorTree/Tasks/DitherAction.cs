@@ -77,7 +77,7 @@ public partial class DitherAction : BehaviorAction
     /// <inheritdoc />
     /// <exception cref="NodeConfigurationException">
     /// <see cref="Directions"/> or <see cref="PickStrategy"/> is unset, or
-    /// <see cref="MovementStrategyOverride"/> is set while the blackboard carries no movement
+    /// <see cref="BehaviorAction.MovementStrategyOverride"/> is set while the blackboard carries no movement
     /// processor. Mirrors <see cref="HSM.BTState.OnInit"/>: a required slot fails loud once, never as
     /// a per-use warning.
     /// </exception>
