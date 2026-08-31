@@ -18,6 +18,14 @@ public static partial class BBDataSig
     public static readonly StringName VisualEffectController = new("VisualEffectController");
     public static readonly StringName VisualEffectService = new("VisualEffectService");
     public static readonly StringName IntentSource = new("IntentSource");
+
+    /// <summary>
+    /// Typed component reference for the actor's
+    /// <see cref="Jmodot.Implementation.Interaction.InteractorComponent3D"/>. Consumers read
+    /// <c>CurrentTarget</c> live off the cached reference; the component provisions itself in Phase 0.
+    /// </summary>
+    public static readonly StringName Interactor = new("Interactor");
+
     public static readonly StringName CurrentTarget = new("CurrentTarget");
     public static readonly StringName CharacterController = new("CharacterController");
     public static readonly StringName MovementProcessor = new("MovementProcessor");
