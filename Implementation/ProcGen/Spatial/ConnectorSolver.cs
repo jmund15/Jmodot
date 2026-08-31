@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.ProcGen.Spatial;
 
 /// <summary>Deterministic axis-aligned connector-path search used when a loop edge cannot abut directly.</summary>
@@ -11,14 +12,23 @@ internal static class ConnectorSolver
 {
     private readonly record struct Path(IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes, int Length, int FirstCorner);
 
-    /// <summary>Finds the first collision-free corridor path between two world ports, or null when none fits.</summary>
+    /// <summary>
+    ///     Finds the first collision-free corridor path between two world ports, or null when none fits.
+    ///     <paramref name="policy" /> gates exactly one path family: the BACK-TO-BACK wrap-around, offered
+    ///     only under <see cref="ConnectorPolicy.ClosableWraparound" />. Every other family — including the
+    ///     wrap that joins two ports facing the SAME direction — is offered under
+    ///     <see cref="ConnectorPolicy.Closable" /> as well. Callers pass
+    ///     <see cref="ConnectorPolicy.AbutmentOnly" /> nowhere — that policy is expected to short-circuit
+    ///     before reaching the solver at all.
+    /// </summary>
     internal static IReadOnlyList<(Vector3I Origin, Vector3I Size)>? Solve(
         WorldPort from,
         WorldPort to,
         OccupancyIndex committed,
         IReadOnlyList<(Vector3I Origin, Vector3I Size)> candidateLocalObstacles,
         Vector3I envelopeSize,
-        int maxLengthCells)
+        int maxLengthCells,
+        ConnectorPolicy policy = ConnectorPolicy.Closable)
     {
         ArgumentNullException.ThrowIfNull(committed);
         ArgumentNullException.ThrowIfNull(candidateLocalObstacles);
@@ -29,7 +39,7 @@ internal static class ConnectorSolver
         }
 
         int width = from.WidthCells;
-        foreach (Path path in EnumeratePaths(from, to, width, maxLengthCells))
+        foreach (Path path in EnumeratePaths(from, to, width, maxLengthCells, policy))
         {
             if (path.Length > maxLengthCells || !FitsEnvelope(path.Boxes, candidateLocalObstacles, envelopeSize))
             {
@@ -45,36 +55,26 @@ internal static class ConnectorSolver
         return null;
     }
 
-    private static IEnumerable<Path> EnumeratePaths(WorldPort from, WorldPort to, int width, int maxLength)
+    private static IEnumerable<Path> EnumeratePaths(
+        WorldPort from,
+        WorldPort to,
+        int width,
+        int maxLength,
+        ConnectorPolicy policy)
     {
         bool sameAxis = Axis(from.Face) == Axis(to.Face);
         bool opposite = Sign(from.Face) == -Sign(to.Face);
         bool facing = FacesTowardEachOther(from, to);
 
-        if (sameAxis && opposite && facing && SameTangent(from, to, width))
-        {
-            List<(Vector3I Origin, Vector3I Size)> straight = Straight(from, to, width);
-            yield return new Path(straight, SegmentLength(straight, width), 0);
-        }
-
-        if (!facing && sameAxis && opposite)
-        {
-            yield break;
-        }
-
-        if (!sameAxis && facing)
-        {
-            Path? l = LPath(from, to, width);
-            if (l.HasValue)
-            {
-                yield return l.Value;
-            }
-
-            yield break;
-        }
-
         if (sameAxis && opposite && facing)
         {
+            if (SameTangent(from, to, width))
+            {
+                Vector3I[] straightPoints = { from.AnchorCells, to.AnchorCells };
+                yield return new Path(
+                    BuildBoxes(straightPoints, width), PolylineLength(straightPoints), 0);
+            }
+
             foreach (Path path in ZPaths(from, to, width, maxLength))
             {
                 yield return path;
@@ -83,31 +83,175 @@ internal static class ConnectorSolver
             yield break;
         }
 
-        if (sameAxis && !opposite)
+        if (sameAxis && opposite)
+        {
+            // Back-to-back ports can only join by wrapping a corridor all the way around behind one
+            // room. That ring commits a large contiguous span the later placements cannot reuse, so
+            // it is opt-in: on a tight envelope it closes this loop and starves the rest.
+            if (policy != ConnectorPolicy.ClosableWraparound)
+            {
+                yield break;
+            }
+
+            foreach (Path path in WrapPaths(from, to, width, maxLength))
+            {
+                yield return path;
+            }
+
+            yield break;
+        }
+
+        if (sameAxis)
         {
             foreach (Path path in UPaths(from, to, width, maxLength))
             {
                 yield return path;
             }
+
+            foreach (Path path in WrapPaths(from, to, width, maxLength))
+            {
+                yield return path;
+            }
+
+            yield break;
+        }
+
+        if (facing)
+        {
+            Path? l = LPath(from, to, width);
+            if (l.HasValue)
+            {
+                yield return l.Value;
+            }
+
+            Path? lAtB = LPathAtB(from, to, width);
+            if (lAtB.HasValue)
+            {
+                yield return lAtB.Value;
+            }
+
+            foreach (Path path in LDetourPaths(from, to, width, maxLength))
+            {
+                yield return path;
+            }
+
+            yield break;
+        }
+
+        foreach (Path path in AroundCornerPaths(from, to, width, maxLength))
+        {
+            yield return path;
         }
     }
 
     private static Path? LPath(WorldPort from, WorldPort to, int width)
     {
         int fromAxis = Axis(from.Face);
-        int toAxis = Axis(to.Face);
         Vector3I corner = fromAxis == 0
             ? new Vector3I(to.AnchorCells.X, from.AnchorCells.Y, from.AnchorCells.Z)
             : new Vector3I(from.AnchorCells.X, from.AnchorCells.Y, to.AnchorCells.Z);
-        var boxes = new List<(Vector3I Origin, Vector3I Size)>();
-        AddSegment(boxes, from.AnchorCells, corner, fromAxis, width);
-        AddSegment(boxes, corner, to.AnchorCells, toAxis, width);
+        Vector3I[] points = { from.AnchorCells, corner, to.AnchorCells };
+        List<(Vector3I Origin, Vector3I Size)> boxes = BuildBoxes(points, width);
         if (boxes.Count == 0)
         {
             return null;
         }
 
-        return new Path(boxes, SegmentLength(boxes, width), FirstCornerDistance(from.AnchorCells, corner, fromAxis));
+        return new Path(boxes, PolylineLength(points), FirstCornerDistance(from.AnchorCells, corner, fromAxis));
+    }
+
+    private static Path? LPathAtB(WorldPort from, WorldPort to, int width)
+    {
+        int fromAxis = Axis(from.Face);
+        Vector3I corner = fromAxis == 0
+            ? new Vector3I(from.AnchorCells.X, from.AnchorCells.Y, to.AnchorCells.Z)
+            : new Vector3I(to.AnchorCells.X, from.AnchorCells.Y, from.AnchorCells.Z);
+        Vector3I[] points = { from.AnchorCells, corner, to.AnchorCells };
+        List<(Vector3I Origin, Vector3I Size)> boxes = BuildBoxes(points, width);
+        return boxes.Count == 0 ? null : new Path(boxes, PolylineLength(points), 0);
+    }
+
+    private static IEnumerable<Path> WrapPaths(WorldPort from, WorldPort to, int width, int maxLength)
+    {
+        int axis = Axis(from.Face);
+        int tangent = TangentAxis(from.Face);
+        int exit = AxisValue(from.AnchorCells, axis) + Sign(from.Face) * width;
+        int entry = AxisValue(to.AnchorCells, axis) + Sign(to.Face) * width;
+        int lane = TangentValue(from.AnchorCells, tangent);
+
+        // The crossing lane must clear the departure corridor, so the nearest usable
+        // offset is one full corridor width off the port's own tangent coordinate.
+        for (int offset = width; offset <= maxLength; offset++)
+        {
+            foreach (int sign in new[] { -1, 1 })
+            {
+                int laneCoordinate = lane + sign * offset;
+                Vector3I exitPoint = SetAxis(from.AnchorCells, axis, exit);
+                Vector3I laneStart = SetTangent(exitPoint, tangent, laneCoordinate);
+                Vector3I laneEnd = SetAxis(SetTangent(to.AnchorCells, tangent, laneCoordinate), axis, entry);
+                Vector3I entryPoint = SetAxis(to.AnchorCells, axis, entry);
+                Vector3I[] points =
+                {
+                    from.AnchorCells, exitPoint, laneStart, laneEnd, entryPoint, to.AnchorCells,
+                };
+                List<(Vector3I Origin, Vector3I Size)> boxes = BuildBoxes(points, width);
+                if (boxes.Count > 0)
+                {
+                    yield return new Path(boxes, PolylineLength(points), width);
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<Path> LDetourPaths(WorldPort from, WorldPort to, int width, int maxLength)
+    {
+        int fromAxis = Axis(from.Face);
+        int elbow = AxisValue(to.AnchorCells, fromAxis);
+        int direction = Sign(from.Face);
+        for (int offset = 1; offset <= maxLength; offset++)
+        {
+            foreach (int sign in new[] { -1, 1 })
+            {
+                Path? path = PerpendicularDetour(from, to, width, elbow + sign * direction * offset, offset);
+                if (path.HasValue)
+                {
+                    yield return path.Value;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<Path> AroundCornerPaths(WorldPort from, WorldPort to, int width, int maxLength)
+    {
+        int fromAxis = Axis(from.Face);
+        int start = AxisValue(from.AnchorCells, fromAxis);
+        int direction = Sign(from.Face);
+        for (int offset = 1; offset <= maxLength; offset++)
+        {
+            Path? path = PerpendicularDetour(from, to, width, start + direction * offset, offset);
+            if (path.HasValue)
+            {
+                yield return path.Value;
+            }
+        }
+    }
+
+    private static Path? PerpendicularDetour(WorldPort from, WorldPort to, int width, int corner, int approachOffset)
+    {
+        int fromAxis = Axis(from.Face);
+        int toAxis = Axis(to.Face);
+        if (Math.Sign(corner - AxisValue(from.AnchorCells, fromAxis)) != Sign(from.Face))
+        {
+            return null;
+        }
+
+        int approach = AxisValue(to.AnchorCells, toAxis) + Sign(to.Face) * approachOffset;
+        Vector3I first = SetAxis(from.AnchorCells, fromAxis, corner);
+        Vector3I second = SetAxis(first, toAxis, approach);
+        Vector3I third = SetAxis(second, fromAxis, AxisValue(to.AnchorCells, fromAxis));
+        Vector3I[] points = { from.AnchorCells, first, second, third, to.AnchorCells };
+        List<(Vector3I Origin, Vector3I Size)> boxes = BuildBoxes(points, width);
+        return boxes.Count == 0 ? null : new Path(boxes, PolylineLength(points), approachOffset);
     }
 
     private static IEnumerable<Path> ZPaths(WorldPort from, WorldPort to, int width, int maxLength)
@@ -127,16 +271,17 @@ internal static class ConnectorSolver
         {
             int turn = start + direction * offset;
             Vector3I firstCorner = SetAxis(from.AnchorCells, axis, turn);
-            var boxes = new List<(Vector3I Origin, Vector3I Size)>();
-            AddSegment(boxes, from.AnchorCells, firstCorner, axis, width);
-            AddSegment(boxes, firstCorner, SetAxis(to.AnchorCells, axis, turn), tangent, width);
-            AddSegment(boxes, SetAxis(to.AnchorCells, axis, turn), to.AnchorCells, axis, width);
+            Vector3I[] points =
+            {
+                from.AnchorCells, firstCorner, SetAxis(to.AnchorCells, axis, turn), to.AnchorCells,
+            };
+            List<(Vector3I Origin, Vector3I Size)> boxes = BuildBoxes(points, width);
             if (boxes.Count == 0)
             {
                 continue;
             }
 
-            yield return new Path(boxes, SegmentLength(boxes, width), offset);
+            yield return new Path(boxes, PolylineLength(points), offset);
         }
 
         if (!SameTangent(from, to, width))
@@ -151,15 +296,14 @@ internal static class ConnectorSolver
         Vector3I firstDetour = SetAxis(SetTangent(from.AnchorCells, tangent, detourTangent), axis, turnPoint);
         Vector3I secondDetour = SetAxis(SetTangent(to.AnchorCells, tangent, detourTangent), axis, endpointTurn);
         Vector3I secondDrop = SetTangent(secondDetour, tangent, TangentValue(to.AnchorCells, tangent));
-        var detour = new List<(Vector3I Origin, Vector3I Size)>();
-        AddSegment(detour, from.AnchorCells, first, axis, width);
-        AddSegment(detour, first, firstDetour, tangent, width);
-        AddSegment(detour, firstDetour, secondDetour, axis, width);
-        AddSegment(detour, secondDetour, secondDrop, tangent, width);
-        AddSegment(detour, secondDrop, to.AnchorCells, axis, width);
+        Vector3I[] detourPoints =
+        {
+            from.AnchorCells, first, firstDetour, secondDetour, secondDrop, to.AnchorCells,
+        };
+        List<(Vector3I Origin, Vector3I Size)> detour = BuildBoxes(detourPoints, width);
         if (detour.Count > 0)
         {
-            yield return new Path(detour, SegmentLength(detour, width), 1);
+            yield return new Path(detour, PolylineLength(detourPoints), 1);
         }
     }
 
@@ -186,50 +330,83 @@ internal static class ConnectorSolver
 
         Vector3I firstCorner = SetAxis(from.AnchorCells, axis, outside);
         Vector3I secondCorner = SetAxis(to.AnchorCells, axis, outside);
-        var boxes = new List<(Vector3I Origin, Vector3I Size)>();
-        AddSegment(boxes, from.AnchorCells, firstCorner, axis, width);
-        AddSegment(boxes, firstCorner, secondCorner, tangent, width);
-        AddSegment(boxes, secondCorner, to.AnchorCells, axis, width);
+        Vector3I[] points = { from.AnchorCells, firstCorner, secondCorner, to.AnchorCells };
+        List<(Vector3I Origin, Vector3I Size)> boxes = BuildBoxes(points, width);
         if (boxes.Count > 0)
         {
-            yield return new Path(boxes, SegmentLength(boxes, width), Math.Abs(outside - aAxis));
+            yield return new Path(boxes, PolylineLength(points), Math.Abs(outside - aAxis));
         }
     }
 
-    private static List<(Vector3I Origin, Vector3I Size)> Straight(WorldPort from, WorldPort to, int width)
+    /// <summary>
+    ///     Turns an axis-aligned polyline of junction points into one box per non-degenerate leg. Each
+    ///     leg's axis is the coordinate the two points differ on, and legs whose endpoints coincide are
+    ///     dropped so the surviving neighbours are the ones treated as adjacent.
+    /// </summary>
+    private static List<(Vector3I Origin, Vector3I Size)> BuildBoxes(IReadOnlyList<Vector3I> points, int width)
     {
-        var boxes = new List<(Vector3I Origin, Vector3I Size)>();
-        AddSegment(boxes, from.AnchorCells, to.AnchorCells, Axis(from.Face), width);
+        var legs = new List<(Vector3I Start, Vector3I End, int Axis)>(points.Count);
+        for (int i = 1; i < points.Count; i++)
+        {
+            Vector3I start = points[i - 1];
+            Vector3I end = points[i];
+            if (start.X == end.X && start.Z == end.Z)
+            {
+                continue;
+            }
+
+            legs.Add((start, end, start.X != end.X ? 0 : 1));
+        }
+
+        var boxes = new List<(Vector3I Origin, Vector3I Size)>(legs.Count);
+        for (int i = 0; i < legs.Count; i++)
+        {
+            boxes.Add(Segment(legs[i].Start, legs[i].End, legs[i].Axis, width, i > 0, i < legs.Count - 1));
+        }
+
         return boxes;
     }
 
-    private static void AddSegment(
-        List<(Vector3I Origin, Vector3I Size)> boxes,
+    private static (Vector3I Origin, Vector3I Size) Segment(
         Vector3I start,
         Vector3I end,
         int axis,
-        int width)
+        int width,
+        bool startIsJunction,
+        bool endIsJunction)
     {
-        int length = axis == 0 ? Math.Abs(end.X - start.X) : Math.Abs(end.Z - start.Z);
-        if (length <= 0)
+        int from = AxisValue(start, axis);
+        int to = AxisValue(end, axis);
+        int low = to > from ? from : to + 1;
+        int high = to > from ? to - 1 : from;
+
+        // A junction's corner is a width×width block anchored at the junction point, and BOTH legs
+        // must run through all of it: abutting on the anchor line leaves the bend's outer corner
+        // covered by neither box at width ≥ 2. The double cover is the contract — the renderer dedupes
+        // the union and ConnectorGridGeometry.RegionBoxes trims the block onto the earlier segment.
+        if (startIsJunction)
         {
-            return;
+            low = Math.Min(low, from);
+            high = Math.Max(high, from + width - 1);
         }
 
-        Vector3I origin;
-        Vector3I size;
-        if (axis == 0)
+        if (endIsJunction)
         {
-            origin = new Vector3I(Math.Min(start.X, end.X), start.Y, start.Z);
-            size = new Vector3I(length, 1, width);
+            low = Math.Min(low, to);
+            high = Math.Max(high, to + width - 1);
         }
         else
         {
-            origin = new Vector3I(start.X, start.Y, Math.Min(start.Z, end.Z));
-            size = new Vector3I(width, 1, length);
+            // The base interval is half-open toward the destination because the NEXT leg's junction
+            // block re-covers the handover cell. The final leg has no next leg, so it closes on the
+            // destination anchor — otherwise the port plane keeps no corridor cell and no mouth exists.
+            low = Math.Min(low, to);
+            high = Math.Max(high, to);
         }
 
-        boxes.Add((origin, size));
+        return axis == 0
+            ? (new Vector3I(low, start.Y, start.Z), new Vector3I(high - low + 1, 1, width))
+            : (new Vector3I(start.X, start.Y, low), new Vector3I(width, 1, high - low + 1));
     }
 
     private static bool IsClear(
@@ -297,12 +474,15 @@ internal static class ConnectorSolver
             && aOrigin.Y < bOrigin.Y + bSize.Y && bOrigin.Y < aOrigin.Y + aSize.Y
             && aOrigin.Z < bOrigin.Z + bSize.Z && bOrigin.Z < aOrigin.Z + aSize.Z;
 
-    private static int SegmentLength(IReadOnlyList<(Vector3I Origin, Vector3I Size)> boxes, int width)
+    // Measured on the polyline rather than the emitted boxes: a box carries its junction corner
+    // blocks, so summing box extents would charge every bend twice against the length cap. The result
+    // is junction-to-junction distance — one cell short of the run the boxes actually cover.
+    private static int PolylineLength(IReadOnlyList<Vector3I> points)
     {
         int length = 0;
-        foreach ((Vector3I _, Vector3I size) in boxes)
+        for (int i = 1; i < points.Count; i++)
         {
-            length += size.X == width && size.Z != width ? size.Z : size.X;
+            length += Math.Abs(points[i].X - points[i - 1].X) + Math.Abs(points[i].Z - points[i - 1].Z);
         }
 
         return length;

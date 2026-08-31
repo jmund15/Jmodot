@@ -922,7 +922,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     break;
                 }
 
-                if (state.Policy != ConnectorPolicy.Closable || edge.Provenance.Kind != EdgeProvenanceKind.Loop ||
+                if (state.Policy == ConnectorPolicy.AbutmentOnly || edge.Provenance.Kind != EdgeProvenanceKind.Loop ||
                     !otherInfo.Template.CanRealizeConnectorAt(otherPort) || !info.Template.CanRealizeConnectorAt(myPort))
                 {
                     continue;
@@ -931,7 +931,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 WorldPort myWorld = SpatialPoseMath.WorldPortOf(pose, info.Footprint, myPort);
                 int maxLengthCells = Math.Max(state.EnvelopeSize.X, state.EnvelopeSize.Z);
                 IReadOnlyList<(Vector3I Origin, Vector3I Size)>? boxes = ConnectorSolver.Solve(
-                    otherWorld, myWorld, state.Occupancy, candidateLocalObstacles, state.EnvelopeSize, maxLengthCells);
+                    otherWorld, myWorld, state.Occupancy, candidateLocalObstacles, state.EnvelopeSize, maxLengthCells,
+                    state.Policy);
                 if (boxes == null)
                 {
                     continue;
