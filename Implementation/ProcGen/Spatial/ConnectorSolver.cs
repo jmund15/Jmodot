@@ -508,8 +508,7 @@ internal static class ConnectorSolver
 
     private static bool SameTangent(WorldPort from, WorldPort to, int width)
     {
-        int axis = Axis(from.Face);
-        int tangent = axis == 0 ? 2 : 0;
+        int tangent = TangentAxis(from.Face);
         return TangentValue(from.AnchorCells, tangent) == TangentValue(to.AnchorCells, tangent) &&
             from.WidthCells == width && to.WidthCells == width;
     }

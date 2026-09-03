@@ -1198,7 +1198,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         for (int i = 0; i < candidate.Realizations.Count; i++)
         {
             (IGraphEdge edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> boxes) = candidate.Realizations[i];
-            StringName connectorId = new($"conn_{edge.From.Id}_{edge.To.Id}_{i}");
+            StringName connectorId = RealizationId(edge, i);
             foreach ((Vector3I origin, Vector3I connectorSize) in boxes)
             {
                 state.Occupancy.Add(connectorId, origin, connectorSize);
@@ -1214,7 +1214,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         for (int i = 0; i < candidate.Realizations.Count; i++)
         {
             (IGraphEdge edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> _) = candidate.Realizations[i];
-            StringName connectorId = new($"conn_{edge.From.Id}_{edge.To.Id}_{i}");
+            StringName connectorId = RealizationId(edge, i);
             state.Occupancy.Remove(connectorId);
             state.Regions.RemoveAll(r => r.Id == connectorId);
             state.PendingRealizations.Remove(edge);
@@ -1301,6 +1301,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     // node's adjacency), so the non-null result is guaranteed.
     private static StringName OtherEnd(IGraphEdge edge, StringName nodeId)
         => edge.NodeAcrossEdge(nodeId)!.Id;
+
+    private static StringName RealizationId(IGraphEdge edge, int ordinal)
+        => new($"conn_{edge.From.Id}_{edge.To.Id}_{ordinal}");
 
     private static ISpatialPort PortByName(NodeInfo info, StringName portName)
     {
