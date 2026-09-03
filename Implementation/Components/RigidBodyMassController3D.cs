@@ -99,9 +99,17 @@ public partial class RigidBodyMassController3D : Node, IComponent, IPoolResetabl
 
     private void OnMassChanged(Variant newValue)
     {
-        if (newValue.VariantType == Variant.Type.Float)
+        switch (newValue.VariantType)
         {
-            WriteMass(newValue.AsSingle());
+            case Variant.Type.Float:
+            case Variant.Type.Int:
+                WriteMass(newValue.AsSingle());
+                break;
+            default:
+                JmoLogger.Warning(this,
+                    $"RigidBodyMassController3D received a Mass stat change of unexpected Variant " +
+                    $"type ({newValue.VariantType}) — the previously written Mass stands.");
+                break;
         }
     }
 
