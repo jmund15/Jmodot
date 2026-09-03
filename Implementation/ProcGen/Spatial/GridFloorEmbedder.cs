@@ -29,7 +29,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph topology,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
     {
         ValidateEmbedArgs(topology, envelope, settings);
         var infos = BuildNodeInfos(topology);
@@ -47,7 +47,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
         => new LayoutSession(this, backbone, envelope, settings, policy);
 
     /// <summary>
@@ -62,7 +62,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
     {
         ValidateEmbedArgs(backbone, envelope, settings);
         var infos = BuildNodeInfos(backbone);
@@ -86,7 +86,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph fullGraph,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(state);
         ValidateEmbedArgs(fullGraph, envelope, settings);

@@ -30,7 +30,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(embedder);
         ArgumentNullException.ThrowIfNull(backbone);
