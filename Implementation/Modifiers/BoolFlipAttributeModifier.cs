@@ -1,6 +1,5 @@
 namespace Jmodot.Core.Modifiers;
 
-using Godot.Collections;
 using Jmodot.Core.Modifiers.StageRules;
 
 /// <summary>
@@ -8,18 +7,11 @@ using Jmodot.Core.Modifiers.StageRules;
 ///     <see cref="Value" /> is unused by the flip rule but present to satisfy the IBoolModifier contract.
 /// </summary>
 [GlobalClass, Tool]
-public partial class BoolFlipAttributeModifier : Resource, IBoolModifier, ITaggableModifier
+public partial class BoolFlipAttributeModifier : AttributeModifier, IBoolModifier
 {
-    [Export] public BoolModifierStageRule StageRule { get; private set; }
-
     [Export] public bool Value { get; private set; }
-    [Export] public int Priority { get; private set; }
 
-    [ExportGroup("EffectTags & Cancellation")]
-    [Export] public Array<string> EffectTags { get; private set; } = new();
-    [Export] public Array<string> CancelsEffectTags { get; private set; } = new();
-    [Export] public Array<string> ContextTags { get; private set; } = new();
-    [Export] public Array<string> RequiredContextTags { get; private set; } = new();
+    [Export] public BoolModifierStageRule StageRule { get; private set; }
 
     public BoolFlipAttributeModifier()
     {
