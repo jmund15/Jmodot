@@ -87,6 +87,14 @@ public partial class RigidBodyMassController2D : Node, IComponent, IPoolResetabl
 
     public void OnPostInitialize() { }
 
+    public override void _ExitTree()
+    {
+        if (_stats != null && MassAttribute != null)
+        {
+            _stats.Unsubscribe(MassAttribute, OnMassChanged);
+        }
+    }
+
     public Node GetUnderlyingNode() => this;
 
     private void OnMassChanged(Variant newValue)
