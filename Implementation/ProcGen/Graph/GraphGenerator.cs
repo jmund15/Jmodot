@@ -74,6 +74,9 @@ internal static class GraphGenerator
     internal static bool IsAnchorPairEligible(int dx, int dy, int minSep, int maxSep)
         => dx + minSep <= dy && (maxSep <= 0 || dy - dx <= maxSep);
 
+    private static int ResolveMaxAnchorSeparation(AlternateRouteSpec spec)
+        => spec.MaxAnchorSeparation > 0 ? spec.MaxAnchorSeparation : spec.Length?.Max ?? int.MaxValue;
+
     /// <summary>
     ///     Adjusts a drawn route length so the resulting loop CYCLE has an EVEN edge count and can close
     ///     on the integer grid. A loop's cycle edges = route-side (<c>routeLen + 1</c>) + spine-side
@@ -102,6 +105,64 @@ internal static class GraphGenerator
         }
 
         return drawnLength;
+    }
+
+#if TOOLS
+    internal static bool HasCompatibleOpenPortPair(
+        INodeTemplate x,
+        INodeTemplate y,
+        Func<StringName, bool> isPortOpen)
+    {
+        return HasCompatibleOpenPortPair(
+            x.Ports,
+            y.Ports,
+            port => isPortOpen(port.Name),
+            port => isPortOpen(port.Name));
+    }
+#endif
+
+    private static bool HasCompatibleOpenPortPair(
+        IReadOnlyList<IGraphPort> xPorts,
+        IReadOnlyList<IGraphPort> yPorts,
+        Func<IGraphPort, bool> isXPortOpen,
+        Func<IGraphPort, bool> isYPortOpen)
+    {
+        bool sawAnyOpenPair = false;
+        bool sawSpatialPair = false;
+        foreach (IGraphPort xPort in xPorts)
+        {
+            if (!isXPortOpen(xPort))
+            {
+                continue;
+            }
+
+            foreach (IGraphPort yPort in yPorts)
+            {
+                if (!isYPortOpen(yPort))
+                {
+                    continue;
+                }
+
+                sawAnyOpenPair = true;
+                if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
+                {
+                    sawSpatialPair = true;
+                    if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
+                    {
+                        return true;
+                    }
+
+                    continue;
+                }
+
+                if (xPort.Type == yPort.Type)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return sawAnyOpenPair && !sawSpatialPair;
     }
 
     /// <summary>
@@ -348,7 +409,7 @@ internal static class GraphGenerator
                 return this.LayGuaranteedLoopsValidated(spec, guaranteed, minSep, out cause);
             }
 
-            List<AnchorPair> pairs = this.PickAnchorPairs("guaranteed", guaranteed, minSep, spec.MaxAnchorSeparation, spec.EffectiveAttachmentWeights);
+            List<AnchorPair> pairs = this.PickAnchorPairs("guaranteed", guaranteed, minSep, ResolveMaxAnchorSeparation(spec), spec.EffectiveAttachmentWeights);
 
             foreach (AnchorPair pair in pairs)
             {
@@ -407,7 +468,7 @@ internal static class GraphGenerator
                 return false;
             }
 
-            List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep, spec.MaxAnchorSeparation)
+            List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep, ResolveMaxAnchorSeparation(spec))
                 .OrderBy(p => this._advisor.GridStepDistance(p.X.Id, p.Y.Id) ?? int.MaxValue)
                 .ToList();
 
@@ -572,40 +633,13 @@ internal static class GraphGenerator
 
         private bool HasCompatibleOpenPortPair(GraphNode x, GraphNode y)
         {
-            bool sawSpatialPair = false;
-            foreach (IGraphPort xPort in x.Template.Ports)
-            {
-                if (!this.IsPortOpen(x.Id, xPort.Name) || this._anchorReservedPorts.Contains(PortKey(x.Id, xPort.Name)))
-                {
-                    continue;
-                }
-
-                foreach (IGraphPort yPort in y.Template.Ports)
-                {
-                    if (!this.IsPortOpen(y.Id, yPort.Name) || this._anchorReservedPorts.Contains(PortKey(y.Id, yPort.Name)))
-                    {
-                        continue;
-                    }
-
-                    if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
-                    {
-                        sawSpatialPair = true;
-                        if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
-                        {
-                            return true;
-                        }
-
-                        continue;
-                    }
-
-                    if (xPort.Type == yPort.Type)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return !sawSpatialPair;
+            return GraphGenerator.HasCompatibleOpenPortPair(
+                x.Template.Ports,
+                y.Template.Ports,
+                port => this.IsPortOpen(x.Id, port.Name)
+                    && !this._anchorReservedPorts.Contains(PortKey(x.Id, port.Name)),
+                port => this.IsPortOpen(y.Id, port.Name)
+                    && !this._anchorReservedPorts.Contains(PortKey(y.Id, port.Name)));
         }
 
         /// <summary>
@@ -873,7 +907,7 @@ internal static class GraphGenerator
                 return;
             }
 
-            List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, spec.MinAnchorSeparation, spec.MaxAnchorSeparation, spec.EffectiveAttachmentWeights);
+            List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, spec.MinAnchorSeparation, ResolveMaxAnchorSeparation(spec), spec.EffectiveAttachmentWeights);
             int laid = 0;
             foreach (AnchorPair pair in pairs)
             {

@@ -54,7 +54,7 @@ public static class FloorPipeline
         embedder ??= new GridFloorEmbedder();
 
         bool parityUniform = PoolIsParityUniform(config.TemplatePool);
-        ConnectorPolicy connectorPolicy = config.AlternateRoutes?.ConnectorPolicy ?? ConnectorPolicy.Closable;
+        ConnectorPolicy connectorPolicy = config.AlternateRoutes?.ConnectorPolicy ?? AlternateRouteSpec.DefaultConnectorPolicy;
 
         IReadOnlyList<Violation> lastViolations = new List<Violation>
         {

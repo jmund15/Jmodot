@@ -18,9 +18,12 @@ using Jmodot.Implementation.Shared.GodotExceptions;
 [GlobalClass, Tool]
 public sealed partial class AlternateRouteSpec : Resource
 {
+    /// <summary>The one authored default for connector policy; a pipeline with no route spec reads this.</summary>
+    public const ConnectorPolicy DefaultConnectorPolicy = ConnectorPolicy.Closable;
+
     /// <summary>Whether loop edges may use synthesized connector corridors.</summary>
     [Export]
-    public ConnectorPolicy ConnectorPolicy { get; private set; } = ConnectorPolicy.Closable;
+    public ConnectorPolicy ConnectorPolicy { get; private set; } = DefaultConnectorPolicy;
 
     /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × MinAnchorSeparation + 3.</summary>
     [ExportGroup("Topology")]
@@ -39,8 +42,7 @@ public sealed partial class AlternateRouteSpec : Resource
     ///     MAXIMUM spine separation between a loop's divergence X and rejoin Y. Caps how far apart the
     ///     anchors can be so the route can actually SPAN the gap and close on the grid — a far-apart
     ///     anchor pair handed a short route produces a cycle that passes topology but cannot embed
-    ///     (NoBinding), forcing a re-roll. <c>0</c> = unbounded (legacy behavior). Set it near the route
-    ///     <see cref="Length" /> Max so committed loops are always closable.
+    ///     (NoBinding), forcing a re-roll. <c>0</c> derives the cap from <see cref="Length"/> Max.
     /// </summary>
     [Export(PropertyHint.Range, "0,16,or_greater")] public int MaxAnchorSeparation { get; private set; }
 
@@ -95,7 +97,7 @@ public sealed partial class AlternateRouteSpec : Resource
         if (this.MaxAnchorSeparation < 0)
         {
             throw new ResourceConfigurationException(
-                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} must be >= 0 (0 = unbounded).", this);
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} must be >= 0.", this);
         }
         if (this.MaxAnchorSeparation > 0 && this.MaxAnchorSeparation < this.MinAnchorSeparation)
         {
