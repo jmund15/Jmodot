@@ -4,11 +4,11 @@ using Jmodot.Core.Shared.Attributes;
 using Stats;
 
 /// <summary>
-/// A pair of an Attribute and an AttributeOperation.
-/// Used by <see cref="ModifiedFloatDefinition"/> to define how each attribute modifies the value.
+/// A pair of an Attribute and an AttributeOperation — one operand of a <see cref="ModifiedFloatDefinition"/>,
+/// defining how that attribute modifies the value.
 /// </summary>
 [GlobalClass, Tool]
-public partial class AttributeModifier : Resource
+public partial class AttributeOperand : Resource
 {
     [Export, RequiredExport] public Attribute Attribute { get; set; } = null!;
     [Export] public AttributeOperation Operation { get; set; } = AttributeOperation.Add;
