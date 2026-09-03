@@ -221,6 +221,32 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         }
     }
 
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.ResolveHitTarget"/>. The entity a contact should be
+    /// delivered to and attributed against: a swept contact can terminate on a
+    /// <see cref="HurtboxComponent2D"/> area itself, and <see cref="TryHitNode"/> resolves DOWNWARD.
+    /// Returns <paramref name="collider"/> unchanged when it is not a hurtbox, or when the hurtbox
+    /// carries no <c>Owner</c>.
+    /// </summary>
+    public static Node2D ResolveHitTarget(Node2D collider)
+        => collider is HurtboxComponent2D hurtbox && hurtbox.Owner is Node2D owner ? owner : collider;
+
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.ClearHitEntry"/>. Forgets that this attack has already
+    /// hit <paramref name="collider"/>, so the next <see cref="TryHitNode"/> against it is treated as a
+    /// first hit. For a sustained source that owns its own per-target timing. Delivery is not performed
+    /// here — the caller still goes through <see cref="TryHitNode"/>, so every other guard applies as it
+    /// does to a first hit, and capacity is NOT refunded. A target with no hurtbox, or one never hit, is
+    /// a no-op.
+    /// </summary>
+    public void ClearHitEntry(Node2D collider)
+    {
+        if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
+        {
+            _hitHurtboxes.Remove(hurtbox);
+        }
+    }
+
     public void StartAttack(IAttackPayload payload)
     {
         if (!IsInitialized)
@@ -542,7 +568,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         if (wasAccepted)
         {
-            Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+            Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {ResolveHitTarget(hurtbox).Name}");
             // Always notify with the ORIGINAL payload — interceptor must not affect observers.
             OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
         }

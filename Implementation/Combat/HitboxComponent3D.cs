@@ -304,6 +304,37 @@ using AI.BB;
             }
         }
 
+        /// <summary>
+        /// The entity a contact should be delivered to and attributed against. A cast or swept
+        /// contact can terminate on a <see cref="HurtboxComponent3D"/> area itself, and every
+        /// consumer of that contact wants the entity that owns it — <see cref="TryHitNode"/>
+        /// resolves DOWNWARD and would no-op on the area. Returns <paramref name="collider"/>
+        /// unchanged when it is not a hurtbox, or when the hurtbox carries no <c>Owner</c>
+        /// (runtime-composed entities set it explicitly or not at all).
+        /// </summary>
+        public static Node3D ResolveHitTarget(Node3D collider)
+            => collider is HurtboxComponent3D hurtbox && hurtbox.Owner is Node3D owner ? owner : collider;
+
+        /// <summary>
+        /// Forgets that this attack has already hit <paramref name="collider"/>, so the next
+        /// <see cref="TryHitNode"/> against it is treated as a first hit. For a sustained source that
+        /// owns its own per-target timing (a channelled beam). Clears ONE target's debounce entry; the
+        /// existing wholesale clears (StartAttack/EndAttack/OnPoolReset/the continuous branch) are
+        /// unchanged. Delivery is not performed here — the caller still goes through
+        /// <see cref="TryHitNode"/>, so self-hit prevention, collision exceptions, capacity caps, the
+        /// payload interceptor and <see cref="OnHitRegistered"/> all apply exactly as they do to a
+        /// first hit. Capacity is NOT refunded: each re-tick consumes a hit against
+        /// <see cref="CapacityProviders"/>, so a capped hitbox stops re-ticking once its cap is spent.
+        /// A target with no hurtbox, or one never hit, is a no-op.
+        /// </summary>
+        public void ClearHitEntry(Node3D collider)
+        {
+            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
+            {
+                _hitHurtboxes.Remove(hurtbox);
+            }
+        }
+
         public void StartAttack(IAttackPayload payload)
         {
             if (!IsInitialized)
@@ -724,7 +755,7 @@ using AI.BB;
 
             if (wasAccepted)
             {
-                Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {ResolveHitTarget(hurtbox).Name}");
                 // Always notify with the ORIGINAL payload — interceptor must not affect observers.
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
 
