@@ -293,11 +293,14 @@ using AI.BB;
         /// capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a target already hit
         /// during this attack is a no-op regardless of which channel saw it first.
         /// </summary>
-        /// <param name="collider">The contacted node; its <see cref="HurtboxComponent3D"/> descendant is
-        /// resolved by type, breadth-first, so grouping the hurtbox under a presentation node does not
-        /// silence this channel. A collider carrying no hurtbox is a no-op.</param>
+        /// <param name="collider">The contacted node. A <see cref="HurtboxComponent3D"/> is taken as
+        /// itself; otherwise its hurtbox descendant is resolved by type, breadth-first, so grouping the
+        /// hurtbox under a presentation node does not silence this channel. A collider that is neither
+        /// is a no-op.</param>
         public void TryHitNode(Node3D collider)
         {
+            if (collider is HurtboxComponent3D self) { TryHitHurtbox(self); return; }
+
             if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
             {
                 TryHitHurtbox(hurtbox);
@@ -307,8 +310,8 @@ using AI.BB;
         /// <summary>
         /// The entity a contact should be delivered to and attributed against. A cast or swept
         /// contact can terminate on a <see cref="HurtboxComponent3D"/> area itself, and every
-        /// consumer of that contact wants the entity that owns it — <see cref="TryHitNode"/>
-        /// resolves DOWNWARD and would no-op on the area. Returns <paramref name="collider"/>
+        /// consumer of that contact wants the entity that owns it, so attribution reads the owner
+        /// rather than the area. Returns <paramref name="collider"/>
         /// unchanged when it is not a hurtbox, or when the hurtbox carries no <c>Owner</c>
         /// (runtime-composed entities set it explicitly or not at all).
         /// </summary>
@@ -329,6 +332,8 @@ using AI.BB;
         /// </summary>
         public void ClearHitEntry(Node3D collider)
         {
+            if (collider is HurtboxComponent3D self) { _hitHurtboxes.Remove(self); return; }
+
             if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
             {
                 _hitHurtboxes.Remove(hurtbox);
