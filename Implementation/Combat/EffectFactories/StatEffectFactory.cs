@@ -16,7 +16,7 @@ using GCol = Godot.Collections;
 public partial class StatEffectFactory : CombatEffectFactory
 {
     [Export, RequiredExport] public Attribute Attribute { get; set; } = null!;
-    [Export, RequiredExport] public Resource Modifier { get; set; } = null!;
+    [Export, RequiredExport] public AttributeModifier Modifier { get; set; } = null!;
     [Export] public GCol.Array<CombatTag> Tags { get; set; } = [];
     public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
