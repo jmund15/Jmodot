@@ -54,6 +54,7 @@ public static class FloorPipeline
         embedder ??= new GridFloorEmbedder();
 
         bool parityUniform = PoolIsParityUniform(config.TemplatePool);
+        ConnectorPolicy connectorPolicy = config.AlternateRoutes?.ConnectorPolicy ?? ConnectorPolicy.Closable;
 
         IReadOnlyList<Violation> lastViolations = new List<Violation>
         {
@@ -66,7 +67,7 @@ public static class FloorPipeline
         // fresh holistic Embed. Reset per attempt so a pre-spine failure never reuses a stale session.
         ILayoutAdvisor? sessionAdvisor = null;
         Func<IFloorGraph, ILayoutAdvisor>? advisorFactory = settings.UseProgressiveEmbed
-            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder)
+            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder, connectorPolicy)
             : null;
 
         for (int attempt = 0; attempt < settings.MaxFloorAttempts; attempt++)
@@ -78,7 +79,7 @@ public static class FloorPipeline
             {
                 if (stage1.Violations.Any(v => v.Reason == ViolationKind.PinUnsatisfiable))
                 {
-                    return FloorGenerationResult.Failure(attempt + 1, stage1.Violations);
+                    return FloorGenerationResult.Failure(attempt + 1, stage1.Violations, settings.UseProgressiveEmbed);
                 }
 
                 lastViolations = stage1.Violations;
@@ -96,24 +97,31 @@ public static class FloorPipeline
             // decoration; otherwise run the classic holistic embed. Both yield the same result shape.
             FloorEmbedResult embed = sessionAdvisor != null
                 ? sessionAdvisor.BuildResult(topology)
-                : embedder.Embed(topology, envelope, settings.Embedder);
+                : embedder.Embed(topology, envelope, settings.Embedder, connectorPolicy);
             if (!embed.Succeeded)
             {
                 EmbedFailureCause cause = embed.FailureCause!.Value;
                 lastViolations = Append(stage1.Violations, MapEmbedFailure(cause, embed.FailingNodeId));
                 if (cause == EmbedFailureCause.ClosureParity && parityUniform)
                 {
-                    return FloorGenerationResult.Failure(attempt + 1, lastViolations);
+                    return FloorGenerationResult.Failure(attempt + 1, lastViolations, settings.UseProgressiveEmbed);
                 }
 
                 continue;
             }
 
             FloorGraph published = GraphRebuilder.Rebuild(topology, embed.Doorways);
-            return FloorGenerationResult.Success(published, embed.Layout, embed.Doorways, attempt + 1, stage1.Violations);
+            return FloorGenerationResult.Success(
+                published,
+                embed.Layout,
+                embed.Doorways,
+                attempt + 1,
+                stage1.Violations,
+                embed.Connectors,
+                settings.UseProgressiveEmbed);
         }
 
-        return FloorGenerationResult.Failure(settings.MaxFloorAttempts, lastViolations);
+        return FloorGenerationResult.Failure(settings.MaxFloorAttempts, lastViolations, settings.UseProgressiveEmbed);
     }
 
     // One parity class (or none) means ClosureParity is seed-independent: re-drawing templates can
