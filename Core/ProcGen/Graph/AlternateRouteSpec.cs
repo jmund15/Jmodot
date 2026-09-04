@@ -10,10 +10,10 @@ using Jmodot.Implementation.Shared.GodotExceptions;
 ///     The isolated spec for alternate routes (parallel paths off the spine): how many GUARANTEED
 ///     loops co-planned with the spine backbone (<see cref="GuaranteedCount" />), how many extra
 ///     OPPORTUNISTIC loops decorated afterward (<see cref="OpportunisticCount" />), how long each
-///     (<see cref="Length" />), the minimum spine separation between a loop's divergence and rejoin
-///     endpoints (<see cref="MinAnchorSeparation" />), where they attach
-///     (<see cref="AttachmentWeights" />), plus structure-local placement rules. Draws from the
-///     global config; never cross-references the spine or branch specs (two-tier isolation).
+///     (<see cref="Length" />), the inclusive spine separation range between a loop's divergence and rejoin
+///     (<see cref="AnchorSeparation" />), where they attach (<see cref="AttachmentWeights" />), plus
+///     structure-local placement rules. Draws from the global config; never cross-references the spine
+///     or branch specs (two-tier isolation).
 /// </summary>
 [GlobalClass, Tool]
 public sealed partial class AlternateRouteSpec : Resource
@@ -25,7 +25,7 @@ public sealed partial class AlternateRouteSpec : Resource
     [Export]
     public ConnectorPolicy ConnectorPolicy { get; private set; } = DefaultConnectorPolicy;
 
-    /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × MinAnchorSeparation + 3.</summary>
+    /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × AnchorSeparation.Min + 3.</summary>
     [ExportGroup("Topology")]
     [Export] public IntRange? GuaranteedCount { get; private set; }
 
@@ -35,16 +35,8 @@ public sealed partial class AlternateRouteSpec : Resource
     /// <summary>Inclusive node-count range per alternate route. Null leaves it to the generator default.</summary>
     [Export] public IntRange? Length { get; private set; }
 
-    /// <summary>Minimum spine separation (DistanceFromSource gap) between a guaranteed loop's divergence X and rejoin Y. <c>&gt;= 2</c> keeps the loop non-degenerate (avoids a 1-segment loop). Read by the generator's anchor-pair eligibility and by the consuming profile's backbone-feasibility check (Spine.Length.Min ≥ GuaranteedCount.Min × this + 3).</summary>
-    [Export(PropertyHint.Range, "1,16,or_greater")] public int MinAnchorSeparation { get; private set; } = 2;
-
-    /// <summary>
-    ///     MAXIMUM spine separation between a loop's divergence X and rejoin Y. Caps how far apart the
-    ///     anchors can be so the route can actually SPAN the gap and close on the grid — a far-apart
-    ///     anchor pair handed a short route produces a cycle that passes topology but cannot embed
-    ///     (NoBinding), forcing a re-roll. <c>0</c> derives the cap from <see cref="Length"/> Max.
-    /// </summary>
-    [Export(PropertyHint.Range, "0,16,or_greater")] public int MaxAnchorSeparation { get; private set; }
+    /// <summary>Inclusive spine separation (DistanceFromSource gap) between a guaranteed loop's divergence and rejoin. Null uses the generator default: Min 2 and Max equal to the spine's Length.Max.</summary>
+    [Export] public IntRange? AnchorSeparation { get; private set; }
 
     /// <summary>SOFT biases scoring how attractive a node is as a route ENDPOINT (divergence X / rejoin Y; see <see cref="EndpointWeight" />). A distinct family from <see cref="Weights" /> (room-selection placement scoring). Empty slots dropped by <see cref="EffectiveAttachmentWeights" />.</summary>
     [ExportGroup("Placement Rules")]
@@ -68,12 +60,13 @@ public sealed partial class AlternateRouteSpec : Resource
     public IReadOnlyList<SlotWeight> EffectiveWeights =>
         this.Weights.Where(w => w != null).Cast<SlotWeight>().ToList();
 
-    /// <summary>Per-knob fail-fast: validates <see cref="GuaranteedCount" />, <see cref="OpportunisticCount" />, <see cref="Length" /> (Min≤Max, Min≥0), <see cref="MinAnchorSeparation" /> (≥1), and rejects null rule-array entries.</summary>
+    /// <summary>Per-knob fail-fast: validates <see cref="GuaranteedCount" />, <see cref="OpportunisticCount" />, <see cref="Length" />, <see cref="AnchorSeparation" /> (Min≤Max, Min≥1), and rejects null rule-array entries.</summary>
     public void Validate()
     {
         this.GuaranteedCount?.Validate();
         this.OpportunisticCount?.Validate();
         this.Length?.Validate();
+        this.AnchorSeparation?.Validate();
         if (this.GuaranteedCount != null && this.GuaranteedCount.Min < 0)
         {
             throw new ResourceConfigurationException(
@@ -89,21 +82,10 @@ public sealed partial class AlternateRouteSpec : Resource
             throw new ResourceConfigurationException(
                 $"{nameof(AlternateRouteSpec)}.{nameof(this.Length)}.Min must be non-negative.", this);
         }
-        if (this.MinAnchorSeparation < 1)
+        if (this.AnchorSeparation != null && this.AnchorSeparation.Min < 1)
         {
             throw new ResourceConfigurationException(
-                $"{nameof(AlternateRouteSpec)}.{nameof(this.MinAnchorSeparation)} must be >= 1.", this);
-        }
-        if (this.MaxAnchorSeparation < 0)
-        {
-            throw new ResourceConfigurationException(
-                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} must be >= 0.", this);
-        }
-        if (this.MaxAnchorSeparation > 0 && this.MaxAnchorSeparation < this.MinAnchorSeparation)
-        {
-            throw new ResourceConfigurationException(
-                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} ({this.MaxAnchorSeparation}) must be >= " +
-                $"{nameof(this.MinAnchorSeparation)} ({this.MinAnchorSeparation}) when bounded.", this);
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.AnchorSeparation)}.Min must be >= 1.", this);
         }
         if (this.AttachmentWeights.Any(w => w is null))
         {
@@ -128,8 +110,7 @@ public sealed partial class AlternateRouteSpec : Resource
     internal void SetConnectorPolicy(ConnectorPolicy value) => this.ConnectorPolicy = value;
     internal void SetOpportunisticCount(IntRange? value) => this.OpportunisticCount = value;
     internal void SetLength(IntRange? value) => this.Length = value;
-    internal void SetMinAnchorSeparation(int value) => this.MinAnchorSeparation = value;
-    internal void SetMaxAnchorSeparation(int value) => this.MaxAnchorSeparation = value;
+    internal void SetAnchorSeparation(IntRange? value) => this.AnchorSeparation = value;
     internal void SetAttachmentWeights(Godot.Collections.Array<EndpointWeight?> value) => this.AttachmentWeights = value;
     internal void SetConstraints(Godot.Collections.Array<SlotConstraint?> value) => this.Constraints = value;
     internal void SetWeights(Godot.Collections.Array<SlotWeight?> value) => this.Weights = value;
