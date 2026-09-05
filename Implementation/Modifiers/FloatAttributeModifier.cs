@@ -42,4 +42,20 @@ public partial class FloatAttributeModifier : AttributeModifier, IFloatModifier
         StageRule = stageRule;
         Priority = priority;
     }
+
+    /// <summary>
+    /// Returns a copy of this modifier carrying <paramref name="value"/> in place of <see cref="Value"/>.
+    /// Callers scaling a modifier MUST use this rather than the three-argument constructor: the constructor
+    /// carries only value/rule/priority, so a rebuild through it drops the tag arrays that decide whether the
+    /// modifier is cancelled or context-gated, and the fold then applies a modifier the author gated off.
+    /// Every array is copied, never aliased — the source's arrays are mutable and shared.
+    /// </summary>
+    public FloatAttributeModifier WithValue(float value) => new(value, StageRule, Priority)
+    {
+        EffectTags = new Array<string>(EffectTags),
+        CancelsEffectTags = new Array<string>(CancelsEffectTags),
+        ContextTags = new Array<string>(ContextTags),
+        RequiredContextTags = new Array<string>(RequiredContextTags),
+        SemanticCategories = new Array<Category>(SemanticCategories),
+    };
 }
