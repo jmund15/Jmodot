@@ -14,6 +14,7 @@ public partial class Attribute : Resource
     [Export] public string AttributeName { get; private set; } = "Unnamed Attribute";
 
     /// <summary>Display group for authoring tools; free text, blank renders as an "Other" bucket.</summary>
+    [ExportGroup("Authoring")]
     [Export] public string Group { get; private set; } = "";
 
     /// <summary>Designer-facing description; shown as the row tooltip in authoring tools.</summary>
@@ -23,7 +24,7 @@ public partial class Attribute : Resource
     [Export] public string Unit { get; private set; } = "";
 
     /// <summary>Authoring-time bound only: tools clamp editors and lint authored values to [MinValue, MaxValue] by Step. Nothing at runtime clamps a resolved stat to it.</summary>
-    [ExportGroup("Range")]
+    [ExportSubgroup("Range")]
     [Export] public bool HasRange { get; private set; }
     [Export] public float MinValue { get; private set; }
     [Export] public float MaxValue { get; private set; }
