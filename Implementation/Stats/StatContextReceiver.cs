@@ -18,6 +18,11 @@ public partial class StatContextReceiver2D : Area2D
     private Node _statProviderNode;
     private IStatProvider _statProvider;
 
+#if TOOLS
+    /// <summary>Injects the stat provider for testing purposes, bypassing _Ready's export wiring.</summary>
+    internal void SetStatProviderForTest(IStatProvider provider) => this._statProvider = provider;
+#endif
+
     public override void _Ready()
     {
         // Ensure we have a valid reference to the IStatProvider.
@@ -42,6 +47,15 @@ public partial class StatContextReceiver2D : Area2D
         // Check if the area we entered is a stat context provider.
         if (area is not IStatContextProvider provider) { return; }
 
+        this.ApplyProviderModifiers(provider);
+    }
+
+    /// <summary>
+    /// Applies every modifier a provider carries, owned by the provider instance so
+    /// RemoveAllModifiersFromSource can retract the whole set on exit.
+    /// </summary>
+    internal void ApplyProviderModifiers(IStatContextProvider provider)
+    {
         // Apply all modifiers from the provider.
         // The provider's own instance (the Area2D node) is used as the unique "owner".
         // This is the key to the declarative cleanup system. The receiver doesn't need

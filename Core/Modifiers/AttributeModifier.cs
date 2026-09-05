@@ -24,10 +24,17 @@ public abstract partial class AttributeModifier : Resource, ITaggableModifier
     [Export] public Array<string> RequiredContextTags { get; protected set; } = new();
 
     /// <summary>
-    /// Narrows an authored untyped resource to an attribute modifier. Returns null and warns when the resource is null; throws when it is another resource type.
+    /// Narrows an authored untyped resource to an attribute modifier. Returns null and warns when the resource or the attribute is null; throws when the resource is another resource type.
     /// </summary>
     public static AttributeModifier? FromUntyped(Resource? resource, StatAttribute attribute, object context)
     {
+        if (attribute is null)
+        {
+            JmoLogger.Warning(context,
+                "Cannot narrow modifier: the target attribute is null. Check for stripped ext_resources in any .tres that authors this modifier slot.");
+            return null;
+        }
+
         if (resource is null)
         {
             JmoLogger.Warning(context,

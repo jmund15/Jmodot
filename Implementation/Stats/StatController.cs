@@ -313,7 +313,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         // DEBUG: Logging to diagnose why TryAddModifier returned false
         var sb = new StringBuilder();
         sb.AppendLine(
-            $"[StatController] FAILED to add modifier '{modifier.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
+            $"[StatController] FAILED to add modifier '{modifier?.ResourceName ?? "<null>"}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
         sb.AppendLine($"Available Attributes in _stats ({_stats.Count}):");
         foreach (var key in _stats.Keys)
         {
@@ -324,7 +324,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
         throw JmoLogger.LogAndRethrow(
             new InvalidOperationException(
-                $"unable to add modifier {modifier.ResourcePath} to attribute {attribute.AttributeName}"),
+                $"unable to add modifier {modifier?.ResourcePath ?? "<null>"} to attribute {attribute.AttributeName}"),
             this
         );
         // try
