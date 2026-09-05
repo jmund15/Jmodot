@@ -282,13 +282,13 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
     }
 
-    public bool TryAddModifier(Attribute attribute, Resource modifierResource, object owner, out ModifierHandle? handle)
+    public bool TryAddModifier(Attribute attribute, AttributeModifier? modifier, object owner, out ModifierHandle? handle)
     {
         if (_stats.TryGetValue(attribute, out var property))
         {
             // 1. Delegate the actual modification to the specialized property.
             // It returns a unique internal ID for this specific application.
-            Guid newId = property.AddModifier(modifierResource, owner);
+            Guid newId = property.AddModifier(modifier, owner);
 
             if (newId != Guid.Empty)
             {
@@ -303,9 +303,9 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         return false; // Indicates failure
     }
 
-    public ModifierHandle AddModifier(Attribute attribute, Resource modifierResource, object owner)
+    public ModifierHandle AddModifier(Attribute attribute, AttributeModifier? modifier, object owner)
     {
-        if (TryAddModifier(attribute, modifierResource, owner, out var handle))
+        if (TryAddModifier(attribute, modifier, owner, out var handle))
         {
             return handle!;
         }
@@ -313,7 +313,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         // DEBUG: Logging to diagnose why TryAddModifier returned false
         var sb = new StringBuilder();
         sb.AppendLine(
-            $"[StatController] FAILED to add modifier '{modifierResource.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
+            $"[StatController] FAILED to add modifier '{modifier.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
         sb.AppendLine($"Available Attributes in _stats ({_stats.Count}):");
         foreach (var key in _stats.Keys)
         {
@@ -324,28 +324,28 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
         throw JmoLogger.LogAndRethrow(
             new InvalidOperationException(
-                $"unable to add modifier {modifierResource.ResourcePath} to attribute {attribute.AttributeName}"),
+                $"unable to add modifier {modifier.ResourcePath} to attribute {attribute.AttributeName}"),
             this
         );
         // try
         // {
         //     // The 'dynamic' keyword defers the type check until runtime.
-        //     // It will attempt to call prop.AddModifier(modifierResource).
+        //     // It will attempt to call prop.AddModifier(modifier).
         //     // If the generic types of the property (e.g., <float>) and the modifier
         //     // (e.g., IModifier<float>) match, it will succeed.
         //     // If they do not match, it will throw a RuntimeBinderException, which we catch.
         //     dynamic typedProp = prop;
-        //     typedProp.AddModifier(modifierResource);
+        //     typedProp.AddModifier(modifier);
         //     return true;
         // }
         // catch (RuntimeBinderException ex)
         // {
         //     JmoLogger.Info(this,
-        //         $"attempted modifier: {modifierResource.GetType().FullName}." +
+        //         $"attempted modifier: {modifier.GetType().FullName}." +
         //         $"\nNeeded modifier: {prop.GetType().FullName}");
         //     // This catch block is our runtime type validation.
         //     // It means the modifier's type was incompatible with the stat's type.
-        //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifierResource.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
+        //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifier.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
         //     return false;
         // }
     }
@@ -383,7 +383,9 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
         foreach (var (attribute, modifier) in context.Modifiers)
         {
-            AddModifier(attribute, modifier, context);
+            var typed = AttributeModifier.FromUntyped(modifier, attribute, this);
+            if (typed == null) { continue; }
+            AddModifier(attribute, typed, context);
         }
     }
 
