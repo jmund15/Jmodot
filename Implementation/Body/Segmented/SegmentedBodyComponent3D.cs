@@ -72,6 +72,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     private const float BuriedProbeHeight = 3f;
 
     private PositionHistory? _history;
+    private float[] _sampleDistances = Array.Empty<float>();
+    private (Vector3 position, Vector3 facing)[] _sampleResults = Array.Empty<(Vector3, Vector3)>();
     private Node3D? _head;
     private HealthComponent? _headHealth;
     private Vector3 _headFacing = Vector3.Forward;
@@ -105,6 +107,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
                 $"{nameof(SegmentedBodyComponent3D)} must be a direct child of the head scene's Node3D root.", this);
 
         this._history = new PositionHistory(this.MaxSegments, this.SegmentSpacing);
+        this._sampleDistances = new float[this.MaxSegments];
+        this._sampleResults = new (Vector3, Vector3)[this.MaxSegments];
         if (this._segments.Count > 0)
         {
             this.ReseedFromCurrentPoses();
@@ -160,12 +164,21 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
         this._history.TryAppend(headPosition, this._headFacing);
 
-        for (var k = 0; k < this._segments.Count; k++)
+        var count = this._segments.Count;
+        var distances = this._sampleDistances.AsSpan(0, count);
+        for (var k = 0; k < count; k++)
         {
-            var (position, facing) = this._history.SampleAtDistance((k + 1) * this.SegmentSpacing);
+            distances[k] = (k + 1) * this.SegmentSpacing;
+        }
+
+        var results = this._sampleResults.AsSpan(0, count);
+        this._history.SampleAscending(distances, results);
+
+        for (var k = 0; k < count; k++)
+        {
             var segment = this._segments[k];
-            segment.Body.GlobalPosition = position;
-            segment.Facing = facing;
+            segment.Body.GlobalPosition = results[k].position;
+            segment.Facing = results[k].facing;
         }
     }
 

@@ -36,9 +36,14 @@ public partial class State : Node, IState
     /// <summary>
     /// A list of potential transitions from this state. In each process frame,
     /// the state will check these transitions in order and execute the first one whose conditions are met.
+    /// <para>
+    /// Readable by author-time predicates that must ask whether a route out of this state exists at all
+    /// — a task whose behaviour holds the entity indefinitely is only safe while some transition ends
+    /// the hold, and nothing else on the state records that.
+    /// </para>
     /// </summary>
     [Export]
-    protected GColl.Array<StateTransition> Transitions { get; private set; } = new();
+    public GColl.Array<StateTransition> Transitions { get; private set; } = new();
 
     protected List<StateTransition> UniqueTransitions { get; private set; } = new();
     private Dictionary<StateTransition, State> _resolvedTransitions = new();

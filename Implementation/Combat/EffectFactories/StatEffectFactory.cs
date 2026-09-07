@@ -18,7 +18,6 @@ public partial class StatEffectFactory : CombatEffectFactory
     public override ICombatEffect Create(IStatProvider? stats = null, EffectCreationSeed? seed = null)
     {
         this.ValidateRequiredExports();
-        Modification.ValidateRequiredExports();
         return new StatEffect(Modification.Attribute, Modification.Modifier, Tags, TargetVisualEffect);
     }
 }

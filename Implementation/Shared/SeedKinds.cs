@@ -33,6 +33,7 @@ public static class SeedKinds
     [SeedStreamKey("zone_shape")] public const string ZoneShape = "zone_shape";
     [SeedStreamKey("movement_quirk")] public const string MovementQuirk = "movement_quirk";
     [SeedStreamKey("attachment")] public const string Attachment = "attachment";
+    [SeedStreamKey("random_time_limit")] public const string RandomTimeLimit = "random_time_limit";
 
     // A body split off an existing one derives from its parent's entity seed plus its ordinal, so
     // several fragments promoting in one frame diverge from the parent and from each other.

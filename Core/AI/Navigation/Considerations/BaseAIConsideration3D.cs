@@ -3,6 +3,7 @@ namespace Jmodot.Core.AI.Navigation.Considerations;
 using System.Collections.Generic;
 using System.Linq;
 using BB;
+using Implementation.AI.BB;
 using Implementation.AI.Navigation;
 using Implementation.AI.Navigation.Considerations;
 using Implementation.Shared;
@@ -93,6 +94,37 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// plus the decision context needs no runtime.
     /// </summary>
     public virtual AIConsiderationRuntime? CreateRuntime(IBlackboard? blackboard) => null;
+
+    /// <summary>
+    /// Builds a <see cref="SeededPhaseRuntime"/>-derived runtime whose <c>Offset</c> is folded from
+    /// the agent's <see cref="BBDataSig.EntitySeed"/> under <paramref name="seedKind"/>, warning once
+    /// (unseeded offset 0) when no seed is available. The shared per-agent desync scaffold for every
+    /// consideration whose scoring is driven by a seeded time accumulator.
+    /// </summary>
+    protected TRuntime CreateSeededPhaseRuntime<TRuntime>(IBlackboard? blackboard, string seedKind)
+        where TRuntime : SeededPhaseRuntime, new()
+    {
+        int entitySeed = 0;
+        bool hasSeed = blackboard != null && blackboard.TryGet(BBDataSig.EntitySeed, out entitySeed);
+        if (!hasSeed)
+        {
+            JmoLogger.Warning(this, $"[Lineage] {GetType().Name}: no EntitySeed — offset 0 (unseeded).");
+        }
+
+        return new TRuntime
+        {
+            Offset = hasSeed ? DeriveSeededPhaseOffset(entitySeed, seedKind) : 0f,
+            AccumulatedTime = 0f,
+        };
+    }
+
+    // Deterministic per-agent phase offset in [0, 1000), folded straight from the seed — no
+    // JmoRng construction (keeps this off the SIGSEGV-prone ctor and avoids a per-frame alloc).
+    private static float DeriveSeededPhaseOffset(int entitySeed, string seedKind)
+    {
+        int derived = SeedManager.DeriveChild(entitySeed, seedKind);
+        return (uint)derived % 1_000_000u / 1000f;
+    }
 
     /// <summary>
     /// The primary evaluation method. Calculates base scores, clamps them to the [-1,1] contract
