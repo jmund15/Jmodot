@@ -1,7 +1,6 @@
 namespace Jmodot.Core.AI.Navigation.Considerations;
 
 using System.Collections.Generic;
-using System.Linq;
 using BB;
 using Implementation.AI.BB;
 using Implementation.AI.Navigation;
@@ -139,9 +138,11 @@ public abstract partial class BaseAIConsideration3D : Resource
         var baseScores = CalculateBaseScores(directions, context3D, blackboard, runtime);
 
         // 2. Contract clamp: base scores MUST be signed [-1,1]. Violations warn once, then clamp.
-        foreach (var key in baseScores.Keys.ToList())
+        // Iterates the ordered direction ring rather than a materialized Keys.ToList() copy — this
+        // runs per consideration, per agent, per steering evaluation.
+        foreach (var key in directions.OrderedDirections)
         {
-            float raw = baseScores[key];
+            if (!baseScores.TryGetValue(key, out float raw)) { continue; }
             if (raw < -1f || raw > 1f)
             {
                 if (!_contractViolationLogged)

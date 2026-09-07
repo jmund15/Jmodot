@@ -66,6 +66,7 @@ public partial class DitherAction : BehaviorAction
     private IRng _rng = null!;
     private float _sinceFlip;
     private float _flipInterval;
+    private bool _warnedNoSeed;
 
     /// <inheritdoc />
     /// <exception cref="NodeConfigurationException">
@@ -97,15 +98,7 @@ public partial class DitherAction : BehaviorAction
                 "DirectionOverride toward nowhere and pins the agent with leash and separation suppressed.", this);
         }
 
-        this._rng = JmoRng.UnseededByDesign();
-        if (bb.TryGet<int>(BBDataSig.EntitySeed, out var seed))
-        {
-            this._rng = JmoRng.FromRawStreamName($"Dither:{this.Name}", seed);
-        }
-        else
-        {
-            JmoLogger.Warning(this, $"[BT] DitherAction '{this.Name}' found no EntitySeed; its weave is unseeded.");
-        }
+        this._rng = EntityRngResolver.Resolve(bb, $"{SeedKinds.Dither}:{this.Name}", this, ref this._warnedNoSeed);
 
         if (!bb.TryGet<AISteeringProcessor3D>(BBDataSig.SteeringComp, out this._steering) || this._steering == null)
         {
