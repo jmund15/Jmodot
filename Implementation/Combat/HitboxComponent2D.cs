@@ -568,13 +568,13 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         if (wasAccepted)
         {
-            Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+            Shared.JmoLogger.Debug(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
             // Always notify with the ORIGINAL payload — interceptor must not affect observers.
             OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
         }
         else
         {
-            Shared.JmoLogger.Info(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
+            Shared.JmoLogger.Debug(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
         }
     }
 

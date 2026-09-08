@@ -752,7 +752,7 @@ using AI.BB;
 
             if (wasAccepted)
             {
-                Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
                 // Always notify with the ORIGINAL payload — interceptor must not affect observers.
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
 
@@ -768,7 +768,7 @@ using AI.BB;
             }
             else
             {
-                Shared.JmoLogger.Info(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
             }
         }
 

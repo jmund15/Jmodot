@@ -433,6 +433,21 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
 
         // --- Event Invocation ---
         var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source, kind, impactDirection);
+
+        // Every health change funnels through here, so this is the one place a combat readout can be
+        // both complete and non-duplicated. Direct only: ticks and reactions fire on their own cadence
+        // and would turn the readout into wallpaper — they stay on Debug.
+        if (kind == DamageKind.Direct)
+        {
+            JmoLogger.Info(this,
+                $"[Health] {previousHealth:F0}→{_currentHealth:F0} ({eventArgs.HealthDelta:F0}) from '{DescribeSource(source)}'");
+        }
+        else
+        {
+            JmoLogger.Debug(this,
+                $"[Health] {previousHealth:F0}→{_currentHealth:F0} ({eventArgs.HealthDelta:F0}, {kind}) from '{DescribeSource(source)}'");
+        }
+
         OnHealthChanged.Invoke(eventArgs);
 
         if (eventArgs.HealthDelta < 0)
@@ -452,6 +467,11 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
             OnDied.Invoke(eventArgs);
         }
     }
+
+    /// <summary>Best-effort display name for a damage/heal source: its node name when it is a Node,
+    /// otherwise its type name. Never throws and never returns null.</summary>
+    private static string DescribeSource(object? source)
+        => (source as Node)?.Name.ToString() ?? source?.GetType().Name ?? "unknown";
 
     /// <summary>
     /// Handles stat changes by re-resolving MaxHealth through the definition.

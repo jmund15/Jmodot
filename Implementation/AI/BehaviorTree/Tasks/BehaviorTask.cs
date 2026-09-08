@@ -161,7 +161,7 @@ using Shared;
                     return;
                 }
 
-                JmoLogger.Info(this, $"[BT] Task aborted: {failingCondition.ResourceName}");
+                JmoLogger.Debug(this, $"[BT] Task aborted: {failingCondition.ResourceName}");
                 if (!_exitCalled)
                 {
                     OnExit();

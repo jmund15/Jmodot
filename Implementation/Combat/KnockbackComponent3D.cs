@@ -174,7 +174,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, attributedSource);
 		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude);
 
-		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
+		JmoLogger.Debug(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
 	}
 
 	public override void _ExitTree()
