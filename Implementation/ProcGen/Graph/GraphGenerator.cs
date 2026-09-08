@@ -6,6 +6,7 @@ using System.Linq;
 using Godot;
 using Jmodot.Core.ProcGen;
 using Jmodot.Core.ProcGen.Graph;
+using Jmodot.Core.ProcGen.Spatial;
 using Jmodot.Core.Shared;
 using Jmodot.Implementation.Shared;
 
@@ -103,10 +104,20 @@ internal static class GraphGenerator
         return drawnLength;
     }
 
+    /// <summary>
+    ///     How one build attempt ended, as the RE-ROLL ROUTING decision only — never the cause. The
+    ///     attempt's <see cref="Violation" /> carries attribution, so a guaranteed-loop shortfall routes
+    ///     through <see cref="SpineInfeasible" /> ("re-roll may help") while filing
+    ///     <see cref="ViolationKind.GuaranteedRoutesUnfilled" />.
+    /// </summary>
     private enum FloorOutcome
     {
         Ok,
+
+        /// <summary>Re-rolling the floor seed may succeed.</summary>
         SpineInfeasible,
+
+        /// <summary>Seed-independent: a pin can never be satisfied, so the pipeline fails fast.</summary>
         PinUnsatisfiable,
     }
 
@@ -344,7 +355,7 @@ internal static class GraphGenerator
                 if (!this.LayRouteBetween(pair, spec, "guaranteed"))
                 {
                     cause = new Violation(
-                        ViolationKind.SpineInfeasible, Severity.Fatal,
+                        ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal,
                         "A guaranteed alternate route could not be laid.");
                     return false;
                 }
@@ -352,12 +363,14 @@ internal static class GraphGenerator
 
             if (pairs.Count < guaranteed)
             {
-                // Fewer eligible anchor pairs than requested — surfaced as a soft warning (the floor is
-                // still a valid connected topology; the backbone-feasibility Validate gate guards the
-                // authored config, but a sampled short or spare-port-poor spine can still under-fill).
-                this.Warn(new Violation(
-                    ViolationKind.AlternateRoutesUnfilled, Severity.Warning,
-                    $"Laid {pairs.Count} guaranteed loops; {guaranteed} requested."));
+                // Guaranteed is a HARD promise: fewer eligible anchor pairs than requested fails the
+                // floor so the pipeline re-rolls, rather than shipping a topology that silently under-
+                // delivers the authored loop count. The backbone-feasibility Validate gate guards the
+                // authored config; a sampled short or spare-port-poor spine still under-fills here.
+                cause = new Violation(
+                    ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal,
+                    $"Laid {pairs.Count} of {guaranteed} guaranteed loops — no eligible anchor pair for the rest.");
+                return false;
             }
 
             return true;
@@ -374,7 +387,7 @@ internal static class GraphGenerator
                 if (!this.TryLayValidatedLoop(spec, minSep, "guaranteed"))
                 {
                     cause = new Violation(
-                        ViolationKind.SpineInfeasible, Severity.Fatal,
+                        ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal,
                         "A guaranteed alternate route could not be laid on the frozen spine.");
                     return false;
                 }
@@ -528,7 +541,7 @@ internal static class GraphGenerator
                     }
 
                     int dy = metrics.DistanceFromSource(y);
-                    if (IsAnchorPairEligible(dx, dy, minSep, maxSep)) // X ≺ Y, within [minSep, maxSep] separation
+                    if (IsAnchorPairEligible(dx, dy, minSep, maxSep) && HasCompatibleOpenPortPair(x, y)) // X ≺ Y, within [minSep, maxSep] separation
                     {
                         pairs.Add((x, y));
                     }
@@ -555,6 +568,44 @@ internal static class GraphGenerator
             });
 
             return pairs;
+        }
+
+        private bool HasCompatibleOpenPortPair(GraphNode x, GraphNode y)
+        {
+            bool sawSpatialPair = false;
+            foreach (IGraphPort xPort in x.Template.Ports)
+            {
+                if (!this.IsPortOpen(x.Id, xPort.Name) || this._anchorReservedPorts.Contains(PortKey(x.Id, xPort.Name)))
+                {
+                    continue;
+                }
+
+                foreach (IGraphPort yPort in y.Template.Ports)
+                {
+                    if (!this.IsPortOpen(y.Id, yPort.Name) || this._anchorReservedPorts.Contains(PortKey(y.Id, yPort.Name)))
+                    {
+                        continue;
+                    }
+
+                    if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
+                    {
+                        sawSpatialPair = true;
+                        if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
+                        {
+                            return true;
+                        }
+
+                        continue;
+                    }
+
+                    if (xPort.Type == yPort.Type)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return !sawSpatialPair;
         }
 
         /// <summary>

@@ -15,7 +15,7 @@ public enum ViolationKind
     /// <summary>A pinned placement could not be satisfied (no admissible slot at its anchor).</summary>
     PinUnsatisfiable,
 
-    /// <summary>Generation completed but fewer guaranteed alternate routes were embedded than required.</summary>
+    /// <summary>Generation completed but fewer OPPORTUNISTIC alternate routes were embedded than requested — always a Warning; the floor is still a valid topology. Guaranteed-route shortfalls are <see cref="GuaranteedRoutesUnfilled" />.</summary>
     AlternateRoutesUnfilled,
 
     /// <summary>Embedding failed closure-parity arithmetic (no pose assignment can close a cycle on the grid).</summary>
@@ -33,4 +33,11 @@ public enum ViolationKind
     ///     never shift meaning).
     /// </summary>
     BranchesUnfilled,
+
+    /// <summary>
+    ///     A GUARANTEED alternate route could not be anchored or laid — always Fatal, so the floor
+    ///     re-rolls rather than shipping fewer loops than the config promised. Appended last to
+    ///     preserve the append-only ordinal contract (serialized .tres ints must never shift meaning).
+    /// </summary>
+    GuaranteedRoutesUnfilled,
 }
