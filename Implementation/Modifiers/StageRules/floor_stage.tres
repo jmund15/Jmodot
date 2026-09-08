@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="FloorStageRule" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="FloorStageRule" format=3 uid="uid://bwvyalbhv6bm1"]
 
 [ext_resource type="Script" uid="uid://4emoqw87f0cn" path="res://Jmodot/Core/Modifiers/StageRules/FloorStageRule.cs" id="1_floor"]
 
