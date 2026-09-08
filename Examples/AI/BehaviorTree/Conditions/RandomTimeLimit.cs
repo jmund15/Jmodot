@@ -15,7 +15,7 @@ using Implementation.Shared;
 /// With SucceedOnAbort=true: parent task aborts with Success when time expires.
 /// Reusable on any BehaviorTask — wander timing, idle pauses, charge windows, etc.
 /// <para>
-/// Draws from a per-owner-task seeded stream resolved from <see cref="BBDataSig.EntitySeed"/>
+/// Draws from a per-owner-task seeded stream resolved from <see cref="Jmodot.Implementation.AI.BB.BBDataSig.EntitySeed"/>
 /// (same source <c>DitherAction</c> reads) at <see cref="Init"/>; falls back to
 /// <see cref="JmoRng.UnseededByDesign"/> with one warning when the slot is absent.
 /// </para>
