@@ -18,6 +18,10 @@ using Jmodot.Implementation.Shared.GodotExceptions;
 [GlobalClass, Tool]
 public sealed partial class AlternateRouteSpec : Resource
 {
+    /// <summary>Whether loop edges may use synthesized connector corridors.</summary>
+    [Export]
+    public ConnectorPolicy ConnectorPolicy { get; private set; } = ConnectorPolicy.Closable;
+
     /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × MinAnchorSeparation + 3.</summary>
     [ExportGroup("Topology")]
     [Export] public IntRange? GuaranteedCount { get; private set; }
@@ -119,6 +123,7 @@ public sealed partial class AlternateRouteSpec : Resource
     #region Test Helpers
 #if TOOLS
     internal void SetGuaranteedCount(IntRange? value) => this.GuaranteedCount = value;
+    internal void SetConnectorPolicy(ConnectorPolicy value) => this.ConnectorPolicy = value;
     internal void SetOpportunisticCount(IntRange? value) => this.OpportunisticCount = value;
     internal void SetLength(IntRange? value) => this.Length = value;
     internal void SetMinAnchorSeparation(int value) => this.MinAnchorSeparation = value;

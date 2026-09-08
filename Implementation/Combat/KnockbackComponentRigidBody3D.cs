@@ -158,7 +158,7 @@ public partial class KnockbackComponentRigidBody3D : Node3D, IComponent, IBlackb
 		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, resultingVelocityDelta, attributedSource);
 		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, resultingVelocityDelta);
 
-		JmoLogger.Info(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={resultingVelocityDelta:F2}");
+		JmoLogger.Debug(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={resultingVelocityDelta:F2}");
 	}
 
 	public override void _ExitTree()

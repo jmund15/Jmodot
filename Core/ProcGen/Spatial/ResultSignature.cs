@@ -26,21 +26,32 @@ public static class ResultSignature
             throw new ArgumentException("A failed result carries no graph; only successful results are signable.", nameof(result));
         }
 
-        return Of(result.Graph, result.Layout, result.Doorways);
+        return Of(result.Graph, result.Layout, result.Doorways, result.Connectors);
     }
 
     /// <summary>
-    ///     Signs a (graph, layout, doorways) triple. Every graph node must have a layout entry —
-    ///     the §5 identity invariant; a missing key fails loud rather than signing a partial result.
+    ///     Signs a (graph, layout, doorways) triple with an empty connector section.
     /// </summary>
     public static string Of(
         IFloorGraph graph,
         IReadOnlyDictionary<StringName, CellPlacement> layout,
         IReadOnlyList<DoorwayPose> doorways)
+        => Of(graph, layout, doorways, Array.Empty<ConnectorRealization>());
+
+    /// <summary>
+    ///     Signs a (graph, layout, doorways, connectors) result. Every graph node must have a layout
+    ///     entry — the §5 identity invariant; a missing key fails loud rather than signing a partial result.
+    /// </summary>
+    public static string Of(
+        IFloorGraph graph,
+        IReadOnlyDictionary<StringName, CellPlacement> layout,
+        IReadOnlyList<DoorwayPose> doorways,
+        IReadOnlyList<ConnectorRealization> connectors)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(doorways);
+        ArgumentNullException.ThrowIfNull(connectors);
 
         var nodeRecords = new List<string>(graph.Nodes.Count);
         foreach (IGraphNode node in graph.Nodes)
@@ -79,12 +90,31 @@ public static class ResultSignature
                 d.WidthCells.ToString()))
             .OrderBy(s => s, StringComparer.Ordinal);
 
+        var connectorRecords = connectors
+            .SelectMany(c => c.Boxes.Select((box, index) => string.Join(
+                GraphSignature.FieldSep,
+                c.FromNodeId.ToString(),
+                c.ToNodeId.ToString(),
+                c.FromPort.ToString(),
+                c.ToPort.ToString(),
+                index.ToString(),
+                box.OriginCells.X.ToString(),
+                box.OriginCells.Y.ToString(),
+                box.OriginCells.Z.ToString(),
+                box.Yaw.ToString(),
+                box.SizeCells.X.ToString(),
+                box.SizeCells.Y.ToString(),
+                box.SizeCells.Z.ToString())))
+            .OrderBy(s => s, StringComparer.Ordinal);
+
         var builder = new StringBuilder();
         builder.Append(GraphSignature.Of(graph));
         builder.Append(GraphSignature.SectionSep);
         builder.Append(string.Join(GraphSignature.RecordSep, nodeRecords));
         builder.Append(GraphSignature.SectionSep);
         builder.Append(string.Join(GraphSignature.RecordSep, doorwayRecords));
+        builder.Append(GraphSignature.SectionSep);
+        builder.Append(string.Join(GraphSignature.RecordSep, connectorRecords));
         return builder.ToString();
     }
 }

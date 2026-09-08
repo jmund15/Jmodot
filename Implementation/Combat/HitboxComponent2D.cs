@@ -106,7 +106,10 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     #region Private State
     private HurtboxComponent2D? _selfHurtbox = null;
     // NOT readonly: UseSharedHitRegistry swaps in a group-shared set for cross-hitbox dedup.
+    // _ownsHitLedger is false while that set is on loan: the set's lifetime is the injector's,
+    // so start/end of an attack must not empty someone else's record.
     private HashSet<HurtboxComponent2D> _hitHurtboxes = new();
+    private bool _ownsHitLedger = true;
     private double _tickTimer = 0.0;
 
     /// <summary>
@@ -181,6 +184,9 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         if (_tickTimer >= ContinuousTickInterval)
         {
             _tickTimer = 0.0;
+            // A SHARED registry is cleared here too, by design: continuous mode's whole contract is
+            // re-hitting on a tick cadence, and a ledger that outlived the tick would cap the volume
+            // at one hit per target for its entire life.
             _hitHurtboxes.Clear();
             ProcessOverlappingAreas();
         }
@@ -192,14 +198,32 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     /// <summary>
     /// 2D twin of <see cref="HitboxComponent3D.UseSharedHitRegistry"/>. Replaces the private per-instance
     /// hit-debounce set with a SHARED registry so a GROUP of hitboxes deduplicates hits across the group:
-    /// at most one hit per target across every hitbox sharing the registry. Call BEFORE activation
-    /// (StartAttack clears the set on entry, so injecting the shared set into every group member and
-    /// activating them all in the same frame is safe).
+    /// at most one hit per target across every hitbox sharing the registry.
     /// </summary>
+    /// <remarks>
+    /// The SHARER owns the set's lifetime: once injected, this hitbox never clears it on
+    /// <see cref="StartAttack"/> or <see cref="EndAttack"/>, so the debounce spans as many attack windows
+    /// as the sharer keeps the set alive. Continuous mode still clears per tick. Call BEFORE activation,
+    /// and call <see cref="ReleaseSharedHitRegistry"/> when the span ends — a hitbox left holding a spent
+    /// registry can never hit those targets again.
+    /// </remarks>
     public void UseSharedHitRegistry(HashSet<HurtboxComponent2D> registry)
     {
         if (registry == null) { return; }
         _hitHurtboxes = registry;
+        _ownsHitLedger = false;
+    }
+
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.ReleaseSharedHitRegistry"/>. Hands a shared registry back
+    /// to its injector and restores this hitbox's own private per-attack ledger, so
+    /// <see cref="StartAttack"/>/<see cref="EndAttack"/> clear it again. Idempotent, and safe on a hitbox
+    /// that never shared: it simply starts a fresh ledger.
+    /// </summary>
+    public void ReleaseSharedHitRegistry()
+    {
+        _hitHurtboxes = new HashSet<HurtboxComponent2D>();
+        _ownsHitLedger = true;
     }
 
     /// <summary>
@@ -256,7 +280,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         }
 
         CurrentPayload = payload;
-        _hitHurtboxes.Clear();
+        if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
         _tickTimer = 0.0;
 
         OnAttackStarted?.Invoke();
@@ -277,7 +301,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         int hitsThisAttack = _hitHurtboxes.Count;
 
         CurrentPayload = null;
-        _hitHurtboxes.Clear();
+        if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
 
         Deactivate();
 
@@ -316,7 +340,9 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         if (!IsActive) { return; }
 
         CurrentPayload = null;
-        _hitHurtboxes.Clear();
+        // Release rather than clear: the next entity to acquire this hitbox is not the sharer, and
+        // emptying a borrowed set would corrupt an injector that is still using it.
+        ReleaseSharedHitRegistry();
         DeactivateImmediate();
     }
 
@@ -568,13 +594,13 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
         if (wasAccepted)
         {
-            Shared.JmoLogger.Info(this, $"[HIT] HIT ACCEPTED by {ResolveHitTarget(hurtbox).Name}");
+            Shared.JmoLogger.Debug(this, $"[HIT] HIT ACCEPTED by {ResolveHitTarget(hurtbox).Name}");
             // Always notify with the ORIGINAL payload — interceptor must not affect observers.
             OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
         }
         else
         {
-            Shared.JmoLogger.Info(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
+            Shared.JmoLogger.Debug(this, $"[HIT] HIT REJECTED by {hurtbox.Owner?.Name}");
         }
     }
 
