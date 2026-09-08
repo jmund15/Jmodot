@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SummedPercentStageRule" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SummedPercentStageRule" format=3 uid="uid://cm17xe3fb5ku3"]
 
 [ext_resource type="Script" uid="uid://cnuv4k2v8en3b" path="res://Jmodot/Core/Modifiers/StageRules/SummedPercentStageRule.cs" id="1_summed_percent"]
 

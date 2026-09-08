@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="OverrideStageRule" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="OverrideStageRule" format=3 uid="uid://dvquv4f5cqf2o"]
 
 [ext_resource type="Script" uid="uid://ddetjco7nbht7" path="res://Jmodot/Core/Modifiers/StageRules/OverrideStageRule.cs" id="1_override"]
 
