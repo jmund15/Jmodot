@@ -56,8 +56,16 @@ public class HealthChangeEventArgs : EventArgs
     /// </summary>
     public Vector3? ImpactDirection { get; }
 
+    /// <summary>
+    /// The per-application incoming-magnitude operand that scaled this hit's damage before it reached
+    /// health. Threaded through from the damage payload as an argument — never stored state. Defaults
+    /// to <c>1.0</c> (unscaled) for callers that carry no effectiveness operand (status ticks,
+    /// environmental damage, reaction-unscaled damage); such unscaled scopes truthfully read Neutral.
+    /// </summary>
+    public float IncomingMagnitudeScale { get; }
+
     public HealthChangeEventArgs(float newHealth, float previousHealth, float maxHealth, object source,
-        DamageKind kind = DamageKind.Direct, Vector3? impactDirection = null)
+        DamageKind kind = DamageKind.Direct, Vector3? impactDirection = null, float incomingMagnitudeScale = 1.0f)
     {
         NewHealth = newHealth;
         PreviousHealth = previousHealth;
@@ -66,6 +74,7 @@ public class HealthChangeEventArgs : EventArgs
         Source = source;
         Kind = kind;
         ImpactDirection = impactDirection;
+        IncomingMagnitudeScale = incomingMagnitudeScale;
     }
 }
 
@@ -79,6 +88,22 @@ public interface IHealth
     event Action<float> OnMaxHealthChanged;
     event Action<HealthChangeEventArgs> OnDied;
     event Action<HealthChangeEventArgs> OnResurrected;
+
+    /// <summary>
+    /// Fired when a hit's damage is FULLY suppressed by an absolute-immunity resolution
+    /// (<c>incomingMagnitudeScale == 0</c>). Such a hit produces NO <c>OnDamaged</c>/health event —
+    /// suppression extends to events — so this is the distinct signal a presentation surface
+    /// (e.g. a combat floater) uses to show "Immune".
+    /// </summary>
+    event Action<HealthChangeEventArgs> OnHitSuppressed;
+
+    /// <summary>
+    /// Invokes <see cref="OnHitSuppressed"/> for a hit whose damage was fully suppressed.
+    /// Obligation: call ONLY when the hit's damage is fully suppressed — a false immune on a
+    /// merely-resisted hit must not be expressible. A C# event can only be raised from its declaring
+    /// type, so this method is the call surface for payload effects that detect the zero operand.
+    /// </summary>
+    void NotifyHitSuppressed(object source, DamageKind kind);
 
     float CurrentHealth { get; }
     float MaxHealth { get; }

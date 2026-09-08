@@ -171,13 +171,17 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
         RegisterTags(runner.Tags);
 
         runner.OnStatusFinished += HandleStatusFinished;
-        runner.Start(combatant, context);
 
+        // Bookkeeping BEFORE Start: a runner may finish inside Start (self-terminating durations),
+        // which fires HandleStatusFinished immediately. Incrementing after that would leave the
+        // decrement skipped by its > 0 guard and pin the count above zero forever.
         if (runner.SpreadConfig != null)
         {
             _spreadableRunnerCount++;
             SetProcess(true);
         }
+
+        runner.Start(combatant, context);
 
         StatusAdded?.Invoke(runner);
         return true;

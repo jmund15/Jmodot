@@ -98,7 +98,7 @@ public class DamageEffect : ICombatEffect
         Visual = visual;
     }
 
-    public CombatResult? Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         if (!target.Blackboard.TryGet<HealthComponent>(BBDataSig.HealthComponent, out var health) || health == null)
         {
@@ -128,7 +128,18 @@ public class DamageEffect : ICombatEffect
             appliedDamage = isCritical ? DamageAmount * CritMultiplier : DamageAmount;
         }
 
-        health.TakeDamage(appliedDamage, context.Attacker, context.Kind, context.ImpactDirection);
+        if (incomingMagnitudeScale <= 0f)
+        {
+            // A non-positive operand suppresses the damage AND its health events (Invariant 20).
+            // 0 is absolute immunity; a negative operand is out of contract but would otherwise
+            // hit TakeDamage's amount <= 0 early-return and vanish with no event at all. Both
+            // route here so the hit stays observable and presentation can show "Immune".
+            health.NotifyHitSuppressed(context.Attacker, context.Kind);
+        }
+        else
+        {
+            health.TakeDamage(appliedDamage * incomingMagnitudeScale, context.Attacker, context.Kind, context.ImpactDirection, incomingMagnitudeScale);
+        }
 
         return new DamageResult
         {
