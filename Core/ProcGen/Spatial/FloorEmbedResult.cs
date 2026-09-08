@@ -16,16 +16,20 @@ public readonly struct FloorEmbedResult
 
     private static readonly IReadOnlyList<DoorwayPose> EmptyDoorways = new List<DoorwayPose>();
 
+    private static readonly IReadOnlyList<ConnectorRealization> EmptyConnectors = new List<ConnectorRealization>();
+
     private FloorEmbedResult(
         bool succeeded,
         IReadOnlyDictionary<StringName, CellPlacement> layout,
         IReadOnlyList<DoorwayPose> doorways,
+        IReadOnlyList<ConnectorRealization> connectors,
         EmbedFailureCause? failureCause,
         StringName? failingNodeId)
     {
         this.Succeeded = succeeded;
         this.Layout = layout;
         this.Doorways = doorways;
+        this.Connectors = connectors;
         this.FailureCause = failureCause;
         this.FailingNodeId = failingNodeId;
     }
@@ -36,19 +40,23 @@ public readonly struct FloorEmbedResult
 
     public IReadOnlyList<DoorwayPose> Doorways { get; }
 
+    /// <summary>Published loop connectors, empty when none were synthesized.</summary>
+    public IReadOnlyList<ConnectorRealization> Connectors { get; }
+
     public EmbedFailureCause? FailureCause { get; }
 
     public StringName? FailingNodeId { get; }
 
     public static FloorEmbedResult Success(
         IReadOnlyDictionary<StringName, CellPlacement> layout,
-        IReadOnlyList<DoorwayPose> doorways)
+        IReadOnlyList<DoorwayPose> doorways,
+        IReadOnlyList<ConnectorRealization>? connectors = null)
     {
-        return new FloorEmbedResult(true, layout, doorways, null, null);
+        return new FloorEmbedResult(true, layout, doorways, connectors ?? EmptyConnectors, null, null);
     }
 
     public static FloorEmbedResult Failure(EmbedFailureCause cause, StringName failingNodeId)
     {
-        return new FloorEmbedResult(false, EmptyLayout, EmptyDoorways, cause, failingNodeId);
+        return new FloorEmbedResult(false, EmptyLayout, EmptyDoorways, EmptyConnectors, cause, failingNodeId);
     }
 }

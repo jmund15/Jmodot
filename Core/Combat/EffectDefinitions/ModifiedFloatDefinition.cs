@@ -22,7 +22,7 @@ public partial class ModifiedFloatDefinition : BaseFloatValueDefinition
     /// An array of Attribute + Operation pairs that modify the base amount.
     /// Applied sequentially in order. Empty array = static value (just BaseAmount).
     /// </summary>
-    [Export] public Array<AttributeModifier> Modifiers { get; set; } = new();
+    [Export] public Array<AttributeOperand> Modifiers { get; set; } = new();
 
     public ModifiedFloatDefinition() { }
 
@@ -32,7 +32,7 @@ public partial class ModifiedFloatDefinition : BaseFloatValueDefinition
     public ModifiedFloatDefinition(float baseAmount)
     {
         BaseAmount = baseAmount;
-        Modifiers = new Array<AttributeModifier>();
+        Modifiers = new Array<AttributeOperand>();
     }
 
     /// <summary>
@@ -41,9 +41,9 @@ public partial class ModifiedFloatDefinition : BaseFloatValueDefinition
     public ModifiedFloatDefinition(float baseAmount, Attribute attribute, AttributeOperation operation)
     {
         BaseAmount = baseAmount;
-        Modifiers = new Array<AttributeModifier>
+        Modifiers = new Array<AttributeOperand>
         {
-            new AttributeModifier { Attribute = attribute, Operation = operation }
+            new AttributeOperand { Attribute = attribute, Operation = operation }
         };
     }
 
@@ -54,9 +54,9 @@ public partial class ModifiedFloatDefinition : BaseFloatValueDefinition
     public ModifiedFloatDefinition(Attribute attribute)
     {
         BaseAmount = 0f;
-        Modifiers = new Array<AttributeModifier>
+        Modifiers = new Array<AttributeOperand>
         {
-            new AttributeModifier { Attribute = attribute, Operation = AttributeOperation.Override }
+            new AttributeOperand { Attribute = attribute, Operation = AttributeOperation.Override }
         };
     }
 

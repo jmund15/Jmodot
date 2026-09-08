@@ -43,9 +43,14 @@ public static class PhysicsCollisionExceptionRegistry
 
     #region Pure-CLR core
 
-    /// <summary>Records a direction-agnostic pair. Returns <c>false</c> if the pair was already present (dedup).</summary>
+    /// <summary>
+    /// Records a direction-agnostic pair. Returns <c>false</c> for a self-pair (a body cannot be
+    /// excepted from itself, and (id,id) would otherwise mint a key that double-subscribes one node)
+    /// or when the pair was already present (dedup).
+    /// </summary>
     internal static bool RecordPair(ulong a, ulong b)
     {
+        if (a == b) { return false; }
         if (!_pairs.Add(Key(a, b))) { return false; }
         AddPartner(a, b);
         AddPartner(b, a);
@@ -105,7 +110,7 @@ public static class PhysicsCollisionExceptionRegistry
 
     /// <summary>
     /// Adds a mutual collision exception between two bodies and records it to the managed mirror.
-    /// Dedups (a duplicate add is a no-op and does NOT stack a second cleanup subscription), mirrors
+    /// Dedups (a duplicate add or a self-pair is a no-op and does NOT stack a second cleanup subscription), mirrors
     /// the engine exception in BOTH directions, and wires symmetric <c>TreeExiting</c> cleanup:
     /// whichever body leaves the tree first removes the exception (while both RIDs are still valid),
     /// forgets the managed pair, and unsubscribes the shared handler from both sides.

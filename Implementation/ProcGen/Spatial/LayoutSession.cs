@@ -21,17 +21,24 @@ internal sealed class LayoutSession : ILayoutAdvisor
     private readonly GridFloorEmbedder _embedder;
     private readonly GeometryEnvelope _envelope;
     private readonly EmbedderSettings _settings;
+    private readonly ConnectorPolicy _policy;
     private GridFloorEmbedder.SearchState _state;
     private IFloorGraph _committed;
 
-    internal LayoutSession(GridFloorEmbedder embedder, IFloorGraph backbone, GeometryEnvelope envelope, EmbedderSettings settings)
+    internal LayoutSession(
+        GridFloorEmbedder embedder,
+        IFloorGraph backbone,
+        GeometryEnvelope envelope,
+        EmbedderSettings settings,
+        ConnectorPolicy policy = ConnectorPolicy.Closable)
     {
         ArgumentNullException.ThrowIfNull(embedder);
         ArgumentNullException.ThrowIfNull(backbone);
         this._embedder = embedder;
         this._envelope = envelope;
         this._settings = settings;
-        this._state = embedder.BuildState(backbone, envelope, settings);
+        this._policy = policy;
+        this._state = embedder.BuildState(backbone, envelope, settings, policy);
         this._committed = backbone;
     }
 
@@ -88,7 +95,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
     {
         ArgumentNullException.ThrowIfNull(graphSoFar);
         GridFloorEmbedder.SearchState trial = this._state.Clone();
-        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings);
+        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings, this._policy);
         if (!result.Succeeded)
         {
             return false;
@@ -105,5 +112,5 @@ internal sealed class LayoutSession : ILayoutAdvisor
     ///     decoration was already trial-committed), then the whole layout is returned.
     /// </summary>
     public FloorEmbedResult BuildResult(IFloorGraph fullGraph)
-        => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
+        => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings, this._policy);
 }
