@@ -30,24 +30,12 @@ public partial class SinusoidalLateralConsideration3D : BaseAIConsideration3D
     private bool _periodViolationLogged;
 
     /// <summary>Per-agent gait state: the desync offset plus this agent's own time accumulator.</summary>
-    internal sealed class SineRuntime : AIConsiderationRuntime
+    internal sealed class SineRuntime : SeededPhaseRuntime
     {
-        public float Offset;
-        public float AccumulatedTime;
     }
 
     public override AIConsiderationRuntime CreateRuntime(IBlackboard? blackboard)
-    {
-        int entitySeed = 0;
-        bool hasSeed = blackboard != null && blackboard.TryGet<int>(BBDataSig.EntitySeed, out entitySeed);
-        if (!hasSeed)
-        {
-            JmoLogger.Warning(this,
-                "[Lineage] SinusoidalLateralConsideration3D: no EntitySeed — phase offset 0 (unseeded).");
-        }
-
-        return new SineRuntime { Offset = hasSeed ? DeriveOffset(entitySeed) : 0f, AccumulatedTime = 0f };
-    }
+        => CreateSeededPhaseRuntime<SineRuntime>(blackboard, SeedKinds.SineLateral);
 
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions,
@@ -97,14 +85,6 @@ public partial class SinusoidalLateralConsideration3D : BaseAIConsideration3D
         }
 
         return MinPeriod;
-    }
-
-    // Deterministic per-agent phase offset in [0, 1000), folded straight from the seed — no
-    // JmoRng construction (keeps this off the SIGSEGV-prone ctor and avoids a per-frame alloc).
-    private static float DeriveOffset(int entitySeed)
-    {
-        int derived = SeedManager.DeriveChild(entitySeed, SeedKinds.SineLateral);
-        return (uint)derived % 1_000_000u / 1000f;
     }
 
     #region Test Helpers
