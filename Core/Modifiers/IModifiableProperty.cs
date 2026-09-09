@@ -32,7 +32,7 @@ public interface IModifiableProperty
     /// Adds a modifier from a generic Resource and a given owner.
     /// </summary>
     /// <returns>A unique Guid for this specific modifier application, or Guid.Empty on failure.</returns>
-    Guid AddModifier(Resource modifierResource, object owner);
+    Guid AddModifier(AttributeModifier? modifier, object owner);
 
     /// <summary>
     /// Removes a single modifier application using its unique ID.

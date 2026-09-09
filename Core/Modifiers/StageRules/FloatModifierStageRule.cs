@@ -31,6 +31,15 @@ public abstract partial class FloatModifierStageRule : Resource
     public abstract float Reduce(float running, IReadOnlyList<float> stageValues);
 
     /// <summary>
+    ///     Scales a modifier value by efficacy, preserving its deviation from this stage's neutral point.
+    ///     neutral=0 (additive/percent): value * efficacy. neutral=1 (multiply): 1 + (value - 1) * efficacy.
+    /// </summary>
+    public float ScaleFromNeutral(float value, float efficacy)
+    {
+        return this.NeutralValue + (value - this.NeutralValue) * efficacy;
+    }
+
+    /// <summary>
     ///     Fail-fast configuration check, called once per fold by the calculation strategy (cached, not
     ///     per-frame). Default is a no-op; boundary rules with a designer-authored bound override this to
     ///     reject inert/destructive defaults (e.g. a Cap rule left at CapValue=0). Throw
