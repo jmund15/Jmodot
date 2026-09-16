@@ -31,6 +31,9 @@ public static class BodyGroundSnapper
     /// and an out-of-tree body has none.
     /// </para>
     /// </summary>
+    /// <summary>Character bodies the probe will look through before giving up; a stack deeper than this is not a spawn layout.</summary>
+    private const int MaxBodiesProbedThrough = 8;
+
     public static bool TryGround(PhysicsBody3D body, Transform3D desired, out Transform3D grounded)
     {
         grounded = desired;
@@ -45,11 +48,21 @@ public static class BodyGroundSnapper
             origin + (Vector3.Up * probeTop),
             origin + (Vector3.Down * ProbeDistance),
             body.CollisionMask);
-        query.Exclude = new Godot.Collections.Array<Rid> { body.GetRid() };
+        var exclude = new Godot.Collections.Array<Rid> { body.GetRid() };
+        query.Exclude = exclude;
+        PhysicsDirectSpaceState3D space = body.GetWorld3D().DirectSpaceState;
 
-        Godot.Collections.Dictionary hit = body.GetWorld3D().DirectSpaceState.IntersectRay(query);
+        // A CharacterBody3D is never support: a layout that wraps placements stands this body on a
+        // sibling, and the probe must look through it to the floor beneath, not report no ground.
+        Godot.Collections.Dictionary hit = space.IntersectRay(query);
+        for (int passes = 0; hit.Count > 0 && hit["collider"].AsGodotObject() is CharacterBody3D blocker; passes++)
+        {
+            if (passes >= MaxBodiesProbedThrough) { return false; }
+            exclude.Add(blocker.GetRid());
+            query.Exclude = exclude;
+            hit = space.IntersectRay(query);
+        }
         if (hit.Count == 0) { return false; }
-        if (hit["collider"].AsGodotObject() is CharacterBody3D) { return false; }
 
         float supportY = ((Vector3)hit["position"]).Y;
         grounded = new Transform3D(desired.Basis, new Vector3(origin.X, supportY - lowestLocalY, origin.Z));
