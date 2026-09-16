@@ -67,8 +67,18 @@ public static class GroundOffsetCalculator
     /// Returns false when no shape of a supported type is found.
     /// </summary>
     public static bool TryCalculateLowestLocalY(CollisionObject3D body, out float lowestLocalY)
+        => TryCalculateLocalYExtent(body, out lowestLocalY, out _);
+
+    /// <summary>
+    /// Lowest and highest points of <paramref name="body"/>'s OWN enabled collider children in body-local
+    /// space, under the same rules as <see cref="TryCalculateLowestLocalY"/>. A grounding probe needs
+    /// both: it starts above the highest point so a body embedded up to its full height still finds the
+    /// surface it should stand on.
+    /// </summary>
+    public static bool TryCalculateLocalYExtent(CollisionObject3D body, out float lowestLocalY, out float highestLocalY)
     {
         lowestLocalY = 0f;
+        highestLocalY = 0f;
         bool found = false;
         Transform3D toBody = body.GlobalTransform.AffineInverse();
 
@@ -85,11 +95,9 @@ public static class GroundOffsetCalculator
                     (corner & 2) == 0 ? -half.Y : half.Y,
                     (corner & 4) == 0 ? -half.Z : half.Z);
                 float y = (relative * local).Y;
-                if (!found || y < lowestLocalY)
-                {
-                    lowestLocalY = y;
-                    found = true;
-                }
+                if (!found || y < lowestLocalY) { lowestLocalY = y; }
+                if (!found || y > highestLocalY) { highestLocalY = y; }
+                found = true;
             }
         }
 

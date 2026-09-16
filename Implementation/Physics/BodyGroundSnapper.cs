@@ -1,7 +1,6 @@
 namespace Jmodot.Implementation.Physics;
 
 using Godot;
-using Shared;
 
 /// <summary>
 /// Places a physics body so its own lowest collider point rests flush on the surface beneath it.
@@ -22,7 +21,9 @@ public static class BodyGroundSnapper
     /// Returns <paramref name="desired"/> with its origin.Y shifted so the body's lowest collider point
     /// sits on the first surface found straight down from it; XZ and basis are preserved. The probe uses
     /// the body's OWN <see cref="CollisionObject3D.CollisionMask"/> — whatever the body would stand on is
-    /// what it grounds against — and excludes the body itself.
+    /// what it grounds against — and excludes the body itself. The probe starts just above the body's
+    /// HIGHEST collider point, so a marker authored at the walk surface (collider hanging below it, inside
+    /// the floor) still grounds; a body buried deeper than that is an authoring error and is reported.
     /// Returns false, echoing <paramref name="desired"/> unchanged, when the body carries no measurable
     /// collider or nothing lies under the probe.
     /// <para>
@@ -34,11 +35,14 @@ public static class BodyGroundSnapper
     {
         grounded = desired;
         if (!body.IsInsideTree()) { return false; }
-        if (!GroundOffsetCalculator.TryCalculateLowestLocalY(body, out float lowestLocalY)) { return false; }
+        if (!GroundOffsetCalculator.TryCalculateLocalYExtent(body, out float lowestLocalY, out float highestLocalY)) { return false; }
 
         Vector3 origin = desired.Origin;
+        // Start above the collider's top, not the origin: a marker authored at the walk surface leaves a
+        // collider that hangs below it inside the floor, and a ray that starts inside a shape sees nothing.
+        float probeTop = Mathf.Max(highestLocalY, 0f) + ProbeUpOffset;
         var query = PhysicsRayQueryParameters3D.Create(
-            origin + (Vector3.Up * ProbeUpOffset),
+            origin + (Vector3.Up * probeTop),
             origin + (Vector3.Down * ProbeDistance),
             body.CollisionMask);
         query.Exclude = new Godot.Collections.Array<Rid> { body.GetRid() };
@@ -50,61 +54,5 @@ public static class BodyGroundSnapper
         float supportY = ((Vector3)hit["position"]).Y;
         grounded = new Transform3D(desired.Basis, new Vector3(origin.X, supportY - lowestLocalY, origin.Z));
         return true;
-    }
-
-    /// <summary>
-    /// Grounds <paramref name="body"/> against the transform it already carries, writing the result back.
-    /// A first-attempt miss is retried once on the next physics frame before anything is reported: a body
-    /// placed on the frame its surroundings are built probes a physics world that has not published those
-    /// static bodies yet, and only a step makes them hittable. A body still ungroundable after that retry
-    /// keeps its transform and is reported loudly — the signal that a spawn point is over void or a
-    /// collider is unreadable.
-    /// <para>
-    /// The immediate return value therefore answers "was it grounded NOW", not "will it be grounded" — a
-    /// false with a retry pending is the common case for build-frame spawns.
-    /// </para>
-    /// </summary>
-    public static bool GroundInPlace(PhysicsBody3D body, GodotObject logContext)
-    {
-        if (TryGround(body, body.GlobalTransform, out Transform3D grounded))
-        {
-            body.GlobalTransform = grounded;
-            return true;
-        }
-
-        if (body.IsInsideTree())
-        {
-            body.GetTree().Connect(
-                SceneTree.SignalName.PhysicsFrame,
-                Callable.From(() => RetryGround(body, logContext)),
-                (uint)GodotObject.ConnectFlags.OneShot);
-            return false;
-        }
-
-        WarnUngrounded(body, logContext);
-        return false;
-    }
-
-    private static void RetryGround(PhysicsBody3D body, GodotObject logContext)
-    {
-        // A body queued for deletion is still valid and in-tree on the frame the retry lands, so the
-        // queued state is the only signal that grounding it would be reporting on a corpse.
-        if (!GodotObject.IsInstanceValid(body) || !body.IsInsideTree() || body.IsQueuedForDeletion()) { return; }
-
-        if (TryGround(body, body.GlobalTransform, out Transform3D grounded))
-        {
-            body.GlobalTransform = grounded;
-            return;
-        }
-
-        WarnUngrounded(body, logContext);
-    }
-
-    private static void WarnUngrounded(PhysicsBody3D body, GodotObject logContext)
-    {
-        GodotObject context = GodotObject.IsInstanceValid(logContext) ? logContext : body;
-        JmoLogger.Warning(context,
-            $"[GroundSnap] '{body.Name}' at {body.GlobalPosition} could not be grounded (nothing under the probe, "
-            + "or no collider extent to measure); leaving it at its placement height.");
     }
 }
