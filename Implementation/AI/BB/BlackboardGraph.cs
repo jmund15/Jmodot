@@ -39,6 +39,7 @@ public partial class BlackboardGraph : Node, IBlackboardGraph
         }
         _scopeTag = scopeTag;
         _local = leaf;
+        if (leaf.GetParent() == null) { AddChild(leaf); }
         HookLocalAnyKeyChanged();
     }
 
