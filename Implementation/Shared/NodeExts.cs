@@ -524,6 +524,27 @@ public static class NodeExts
     #region IDENTITY_EXTENSIONS
 
     /// <summary>
+    /// Walks <paramref name="node"/> and its ancestors (upward, starting at
+    /// <paramref name="node"/> itself) for the first <see cref="IIdentifiable"/>. Returns the
+    /// matching provider, or <c>null</c> when none is found.
+    /// </summary>
+    /// <remarks>
+    /// This is the promoted form of the hit path's private identity walk — an UPWARD traversal.
+    /// It is NOT the same traversal as the downward child-walks
+    /// (<c>TryGetFirstChildOfInterface&lt;IIdentifiable&gt;</c>); the two must not be conflated.
+    /// </remarks>
+    public static IIdentifiable? TryResolveIdentifiable(this Node? node)
+    {
+        var current = node;
+        while (current != null)
+        {
+            if (current is IIdentifiable identifiable) { return identifiable; }
+            current = current.GetParent();
+        }
+        return null;
+    }
+
+    /// <summary>
     /// True if the node carries an <see cref="IIdentifiable"/> child whose identity
     /// includes <paramref name="category"/>. Walks the node's children to find the
     /// identity provider; returns false if no provider or category is null.

@@ -21,9 +21,11 @@ public interface ICombatant : IGodotNodeInterface
     // The "Universal" Event for each combat effect's result
     event Action<CombatResult> CombatResultEvent;
     /// <summary>
-    /// The entry point for processing a validated hit.
+    /// The entry point for processing a validated hit. <paramref name="incomingMagnitudeScale"/>
+    /// is a per-application operand scaling the damage-bearing effects for this hit; it is an
+    /// argument, never stored state. <c>1.0f</c> is the neutral default.
     /// </summary>
-    void ProcessPayload(IAttackPayload payload, HitContext context);
+    void ProcessPayload(IAttackPayload payload, HitContext context, float incomingMagnitudeScale = 1.0f);
 
-    void ApplyEffect(ICombatEffect effect, HitContext context);
+    void ApplyEffect(ICombatEffect effect, HitContext context, float incomingMagnitudeScale = 1.0f);
 }
