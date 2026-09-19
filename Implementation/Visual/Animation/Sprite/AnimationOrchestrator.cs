@@ -462,6 +462,10 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
             SlotFallbackPolicy.NearestDirectional) != null;
     }
 
+    /// <inheritdoc />
+    public StringName GetBaseAnimName(StringName finalName)
+        => DirectionalClipResolver.StripDirectionLabel(finalName, DirectionLabels, DirectionSuffixSeparator);
+
     private StringName CheckFinalName(StringName baseName)
     {
         if (string.IsNullOrEmpty(CurrentDirectionLabel) || DirectionSet == null)
