@@ -72,6 +72,43 @@ public static class DirectionalClipResolver
         return new StringName($"{baseName}{separator}{directionLabel}");
     }
 
+    /// <summary>
+    /// The undirected base name behind a resolved clip name — the inverse of
+    /// <see cref="BuildFinalName"/>. A consumer that keys on the LOGICAL animation a request named
+    /// (an anim-mapped sound profile) reads this, so mounting a direction set does not silently
+    /// orphan every authored key.
+    /// Returns <paramref name="finalName"/> unchanged when it carries no separator-plus-known-label
+    /// suffix. Pure: it derives from the name alone, so it stays correct for a clip that has already
+    /// been superseded — unlike the orchestrator's <c>BaseAnimName</c>, which has moved on by then.
+    /// </summary>
+    public static StringName StripDirectionLabel(
+        StringName finalName,
+        IReadOnlyDictionary<Vector3, string> directionLabels,
+        string separator)
+    {
+        if (directionLabels == null || string.IsNullOrEmpty(separator))
+        {
+            return finalName;
+        }
+
+        var name = finalName.ToString();
+        foreach (var label in directionLabels.Values)
+        {
+            if (string.IsNullOrEmpty(label))
+            {
+                continue;
+            }
+
+            var suffix = separator + label;
+            if (name.Length > suffix.Length && name.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                return new StringName(name[..^suffix.Length]);
+            }
+        }
+
+        return finalName;
+    }
+
     private static StringName? FindClosestAvailableDirectional(
         Func<StringName, bool> hasAnimation,
         StringName baseName,
