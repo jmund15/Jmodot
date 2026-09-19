@@ -319,14 +319,50 @@ using AI.BB;
         /// capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a target already hit
         /// during this attack is a no-op regardless of which channel saw it first.
         /// </summary>
-        /// <param name="collider">The contacted node; its <see cref="HurtboxComponent3D"/> descendant is
-        /// resolved by type, breadth-first, so grouping the hurtbox under a presentation node does not
-        /// silence this channel. A collider carrying no hurtbox is a no-op.</param>
+        /// <param name="collider">The contacted node. A <see cref="HurtboxComponent3D"/> is taken as
+        /// itself; otherwise its hurtbox descendant is resolved by type, breadth-first, so grouping the
+        /// hurtbox under a presentation node does not silence this channel. A collider that is neither
+        /// is a no-op.</param>
         public void TryHitNode(Node3D collider)
         {
+            if (collider is HurtboxComponent3D self) { TryHitHurtbox(self); return; }
+
             if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
             {
                 TryHitHurtbox(hurtbox);
+            }
+        }
+
+        /// <summary>
+        /// The entity a contact should be delivered to and attributed against. A cast or swept
+        /// contact can terminate on a <see cref="HurtboxComponent3D"/> area itself, and every
+        /// consumer of that contact wants the entity that owns it, so attribution reads the owner
+        /// rather than the area. Returns <paramref name="collider"/>
+        /// unchanged when it is not a hurtbox, or when the hurtbox carries no <c>Owner</c>
+        /// (runtime-composed entities set it explicitly or not at all).
+        /// </summary>
+        public static Node3D ResolveHitTarget(Node3D collider)
+            => collider is HurtboxComponent3D hurtbox && hurtbox.Owner is Node3D owner ? owner : collider;
+
+        /// <summary>
+        /// Forgets that this attack has already hit <paramref name="collider"/>, so the next
+        /// <see cref="TryHitNode"/> against it is treated as a first hit. For a sustained source that
+        /// owns its own per-target timing (a channelled beam). Clears ONE target's debounce entry; the
+        /// existing wholesale clears (StartAttack/EndAttack/OnPoolReset/the continuous branch) are
+        /// unchanged. Delivery is not performed here — the caller still goes through
+        /// <see cref="TryHitNode"/>, so self-hit prevention, collision exceptions, capacity caps, the
+        /// payload interceptor and <see cref="OnHitRegistered"/> all apply exactly as they do to a
+        /// first hit. Capacity is NOT refunded: each re-tick consumes a hit against
+        /// <see cref="CapacityProviders"/>, so a capped hitbox stops re-ticking once its cap is spent.
+        /// A target with no hurtbox, or one never hit, is a no-op.
+        /// </summary>
+        public void ClearHitEntry(Node3D collider)
+        {
+            if (collider is HurtboxComponent3D self) { _hitHurtboxes.Remove(self); return; }
+
+            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
+            {
+                _hitHurtboxes.Remove(hurtbox);
             }
         }
 
@@ -752,7 +788,7 @@ using AI.BB;
 
             if (wasAccepted)
             {
-                Shared.JmoLogger.Debug(this, $"[HIT] HIT ACCEPTED by {hurtbox.Owner?.Name}");
+                Shared.JmoLogger.Debug(this, $"[HIT] HIT ACCEPTED by {ResolveHitTarget(hurtbox).Name}");
                 // Always notify with the ORIGINAL payload — interceptor must not affect observers.
                 OnHitRegistered?.Invoke(hurtbox, CurrentPayload);
 
