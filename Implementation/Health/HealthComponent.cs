@@ -220,6 +220,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         OnResurrected = delegate { };
         OnDamaged = delegate { };
         OnHealed = delegate { };
+        OnHitSuppressed = delegate { };
 
         // Unsubscribe from stat provider to prevent stale callbacks
         if (_statProvider != null)
