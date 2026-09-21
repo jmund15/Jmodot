@@ -131,6 +131,56 @@ public sealed class PositionHistory
         return (newer.Position, newer.Facing);
     }
 
+    /// <summary>
+    /// <paramref name="results"/>[i] is <see cref="SampleAtDistance"/> for <paramref name="distances"/>[i],
+    /// for a caller whose distances are strictly ascending. Walks the ring once, so it is the batch
+    /// entry point for a train of followers instead of one <see cref="SampleAtDistance"/> call per unit.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The trail holds no samples.</exception>
+    public void SampleAscending(ReadOnlySpan<float> distances, Span<(Vector3 position, Vector3 facing)> results)
+    {
+        if (this._count == 0)
+        {
+            throw new InvalidOperationException("An empty PositionHistory has no pose to sample.");
+        }
+
+        var front = this._samples[this._front];
+        var travelled = 0f;
+        var newer = front;
+        var back = 1;
+        for (var i = 0; i < distances.Length; i++)
+        {
+            var distanceBack = distances[i];
+            if (!(distanceBack > 0f))
+            {
+                results[i] = (front.Position, front.Facing);
+                continue;
+            }
+
+            while (back < this._count)
+            {
+                var older = this._samples[this.SlotBehind(back)];
+                var span = newer.Position.DistanceTo(older.Position);
+                if (travelled + span >= distanceBack) { break; }
+
+                travelled += span;
+                newer = older;
+                back++;
+            }
+
+            if (back >= this._count)
+            {
+                results[i] = (newer.Position, newer.Facing);
+                continue;
+            }
+
+            var straddle = this._samples[this.SlotBehind(back)];
+            var straddleSpan = newer.Position.DistanceTo(straddle.Position);
+            var t = straddleSpan > 0f ? (distanceBack - travelled) / straddleSpan : 0f;
+            results[i] = (newer.Position.Lerp(straddle.Position, t), Blend(newer.Facing, straddle.Facing, t));
+        }
+    }
+
     private void Push(Vector3 position, Vector3 facing)
     {
         this._front = this._front < 0 ? 0 : (this._front + 1) % this._samples.Length;
