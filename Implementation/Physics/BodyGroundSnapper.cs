@@ -17,6 +17,9 @@ public static class BodyGroundSnapper
     private const float ProbeUpOffset = 0.25f;
     private const float ProbeDistance = 8f;
 
+    /// <summary>Character bodies the probe will look through before giving up; a stack deeper than this is not a spawn layout.</summary>
+    private const int MaxBodiesProbedThrough = 8;
+
     /// <summary>
     /// Returns <paramref name="desired"/> with its origin.Y shifted so the body's lowest collider point
     /// sits on the first surface found straight down from it; XZ and basis are preserved. The probe uses
@@ -31,9 +34,6 @@ public static class BodyGroundSnapper
     /// and an out-of-tree body has none.
     /// </para>
     /// </summary>
-    /// <summary>Character bodies the probe will look through before giving up; a stack deeper than this is not a spawn layout.</summary>
-    private const int MaxBodiesProbedThrough = 8;
-
     public static bool TryGround(PhysicsBody3D body, Transform3D desired, out Transform3D grounded)
     {
         grounded = desired;
