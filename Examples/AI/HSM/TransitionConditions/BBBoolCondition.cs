@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.Shared;
 using Core.AI.BB;
 using Core.AI.HSM;
 using Implementation.Shared;
@@ -10,7 +11,7 @@ using Jmodot.Core.Shared.Attributes;
 /// If equal to the given value, the condition returns true
 /// </summary>
 [GlobalClass, Tool]
-public partial class BBBoolCondition : TransitionCondition
+public partial class BBBoolCondition : TransitionCondition, IResourceConfigurationWarnings
 {
     /// <summary>
     /// The key/name of the variable on the blackboard to check.
