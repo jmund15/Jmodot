@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.Shared;
 using Core.AI.BB;
 using Core.AI.HSM;
 using Implementation.Shared;
@@ -10,7 +11,7 @@ using Jmodot.Core.Shared.Attributes;
 /// If equal to the given value, the condition returns true
 /// </summary>
 [GlobalClass, Tool]
-public partial class BBBoolCondition : TransitionCondition
+public partial class BBBoolCondition : TransitionCondition, IResourceConfigurationWarnings
 {
     /// <summary>
     /// The key/name of the variable on the blackboard to check.
@@ -34,12 +35,11 @@ public partial class BBBoolCondition : TransitionCondition
         return bbVal == Value;
     }
 
-    // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
     public string[] GetResourceConfigurationWarnings()
     {
         if (string.IsNullOrEmpty(BBSignature))
         {
-            return new[] { "'Blackboard Flag Name' cannot be empty." };
+            return new[] { "'BB Signature' cannot be empty." };
         }
         return [];
     }
