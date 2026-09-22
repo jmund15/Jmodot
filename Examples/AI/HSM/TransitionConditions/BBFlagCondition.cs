@@ -52,12 +52,11 @@ public partial class BBFlagCondition : TransitionCondition, IResourceConfigurati
         }
     }
 
-    // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
     public string[] GetResourceConfigurationWarnings()
     {
         if (string.IsNullOrEmpty(BBFlagSignature))
         {
-            return new[] { "'Blackboard Flag Name' cannot be empty." };
+            return new[] { "'BB Flag Signature' cannot be empty." };
         }
         return [];
     }

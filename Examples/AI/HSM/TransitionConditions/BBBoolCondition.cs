@@ -35,12 +35,11 @@ public partial class BBBoolCondition : TransitionCondition, IResourceConfigurati
         return bbVal == Value;
     }
 
-    // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
     public string[] GetResourceConfigurationWarnings()
     {
         if (string.IsNullOrEmpty(BBSignature))
         {
-            return new[] { "'Blackboard Flag Name' cannot be empty." };
+            return new[] { "'BB Signature' cannot be empty." };
         }
         return [];
     }
