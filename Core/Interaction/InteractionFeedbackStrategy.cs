@@ -29,4 +29,13 @@ public abstract partial class InteractionFeedbackStrategy : Resource, IResourceC
     /// validation overrides it and is surfaced by every host with no host-side change.
     /// </summary>
     public virtual string[] GetResourceConfigurationWarnings() => [];
+
+    /// <summary>
+    /// Authoring faults in how <paramref name="host"/> is configured for this strategy, empty by
+    /// default. Every interactable that exports a strategy forwards this from its own
+    /// <c>_GetConfigurationWarnings</c>, passing itself, so a strategy that needs something from its
+    /// host reports it without a host-side type test. Runs in the editor on hosts that may be outside
+    /// the tree and never initialized: read the host's authored state only, and never mutate it.
+    /// </summary>
+    public virtual string[] GetHostConfigurationWarnings(Node host) => [];
 }

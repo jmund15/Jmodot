@@ -94,11 +94,7 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
     }
 
     public override string[] _GetConfigurationWarnings()
-    {
-        var warnings = new List<string>();
-        if (Key == null) { warnings.Add("VisualSlotNode requires a SlotKey resource on Key."); }
-        return warnings.ToArray();
-    }
+        => [.. base._GetConfigurationWarnings() ?? [], .. ConfigWarnings.RequiredExports(this)];
 
     /// <summary>
     /// Equips an item. Atomic: prior instance is fully torn down (with NodeRemoved events

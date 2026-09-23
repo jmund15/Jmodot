@@ -4,6 +4,7 @@ using System;
 using Godot;
 using Jmodot.Core.Interaction;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Generic press-interact primitive: an <see cref="Area3D"/> a designer drops on a scene fixture
@@ -39,10 +40,17 @@ public partial class SignallingInteractableComponent3D : Area3D, IInteractable3D
     public override string[] _GetConfigurationWarnings()
     {
         // A Resource never receives _GetConfigurationWarnings, so this node lends its strategy one.
-        // Called through the base virtual, never a type test: a test would skip every sibling strategy.
+        // Called through the base virtuals, never a type test: a test would skip every sibling strategy.
         string[] strategyWarnings = FeedbackStrategy?.GetResourceConfigurationWarnings() ?? [];
+        string[] hostWarnings = FeedbackStrategy?.GetHostConfigurationWarnings(this) ?? [];
 
-        return [.. base._GetConfigurationWarnings() ?? [], .. strategyWarnings];
+        return
+        [
+            .. base._GetConfigurationWarnings() ?? [],
+            .. ConfigWarnings.RequiredExports(this),
+            .. strategyWarnings,
+            .. hostWarnings,
+        ];
     }
 
     public bool CanInteract(Node3D interactor) => Enabled;

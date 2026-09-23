@@ -1,19 +1,19 @@
 // Intentionally in the global namespace for extension method discoverability.
 // Multiple files use these extensions without explicit imports. Do not add a namespace declaration.
 
-using System.Reflection;
 using Godot;
-using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 public static class ResourceExts
 {
     /// <summary>
-    /// Validates that all properties and fields marked with [RequiredExport] are not null.
+    /// Validates that all properties and fields marked with [RequiredExport] are not null, including
+    /// members declared on base classes (private ones too).
     /// Call this during Resource initialization to fail-fast with a clear error if any required exports are missing.
     /// </summary>
     /// <exception cref="ResourceConfigurationException">
-    /// Thrown when a [RequiredExport] property or field is null.
+    /// Thrown for the first [RequiredExport] property or field that is null.
     /// </exception>
     /// <example>
     /// <code>
@@ -22,37 +22,10 @@ public static class ResourceExts
     /// </example>
     public static void ValidateRequiredExports(this Resource resource)
     {
-        var type = resource.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-        foreach (var prop in type.GetProperties(flags))
+        foreach (var missing in ConfigWarnings.UnassignedRequiredExports(resource))
         {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = prop.GetValue(resource);
-            if (value == null)
-            {
-                throw new ResourceConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned for resource {resource.ResourceName}.", resource);
-            }
-        }
-
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = field.GetValue(resource);
-            if (value == null)
-            {
-                throw new ResourceConfigurationException(
-                    $"Required export '{field.Name}' must be assigned for resource {resource.ResourceName}.", resource);
-            }
+            throw new ResourceConfigurationException(
+                $"Required export '{missing.MemberName}' must be assigned for resource {resource.ResourceName}.", resource);
         }
     }
 }
