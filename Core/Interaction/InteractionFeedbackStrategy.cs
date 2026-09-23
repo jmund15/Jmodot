@@ -24,18 +24,27 @@ public abstract partial class InteractionFeedbackStrategy : Resource, IResourceC
     public virtual void OnProcess(double delta) { }
 
     /// <summary>
-    /// Authoring faults in this strategy, empty by default. Every interactable that exports a
-    /// strategy forwards this from its own <c>_GetConfigurationWarnings</c>, so a subclass with
-    /// validation overrides it and is surfaced by every host with no host-side change.
+    /// Every authoring fault this strategy reports for <paramref name="host"/>: its own
+    /// (<see cref="GetResourceConfigurationWarnings"/>) followed by how the host is configured for it
+    /// (<see cref="GetHostConfigurationWarnings"/>). An interactable that exports a strategy forwards
+    /// only this from its own <c>_GetConfigurationWarnings</c>, passing itself, so a fault a subclass
+    /// adds through either virtual reaches every host's dock with no host-side change.
+    /// </summary>
+    public string[] GetConfigurationWarnings(Node host)
+        => [.. GetResourceConfigurationWarnings(), .. GetHostConfigurationWarnings(host)];
+
+    /// <summary>
+    /// Authoring faults in this strategy, empty by default. Override it for validation of the
+    /// strategy's own authored state; hosts reach it through <see cref="GetConfigurationWarnings"/>.
     /// </summary>
     public virtual string[] GetResourceConfigurationWarnings() => [];
 
     /// <summary>
     /// Authoring faults in how <paramref name="host"/> is configured for this strategy, empty by
-    /// default. Every interactable that exports a strategy forwards this from its own
-    /// <c>_GetConfigurationWarnings</c>, passing itself, so a strategy that needs something from its
-    /// host reports it without a host-side type test. Runs in the editor on hosts that may be outside
-    /// the tree and never initialized: read the host's authored state only, and never mutate it.
+    /// default; hosts reach it through <see cref="GetConfigurationWarnings"/>, so a strategy that needs
+    /// something from its host reports it without a host-side type test. Runs in the editor on hosts
+    /// that may be outside the tree and never initialized: read the host's authored state only, and
+    /// never mutate it.
     /// </summary>
     public virtual string[] GetHostConfigurationWarnings(Node host) => [];
 }
