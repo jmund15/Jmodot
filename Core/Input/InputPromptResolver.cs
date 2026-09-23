@@ -47,14 +47,8 @@ public static class InputPromptResolver
         InputMappingProfile profile,
         InputGlyphRegistry registry)
     {
-        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
-        if (binding == null)
-        {
-            return (null, UnboundFallback);
-        }
-
-        var events = InputMap.ActionGetEvents(binding.GodotActionName);
-        if (events.Count == 0)
+        var events = FindBoundEvents(action, profile);
+        if (events == null)
         {
             return (null, UnboundFallback);
         }
@@ -81,14 +75,8 @@ public static class InputPromptResolver
         InputMappingProfile profile,
         InputGlyphRegistry registry)
     {
-        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
-        if (binding == null)
-        {
-            return (Array.Empty<Texture2D>(), UnboundFallback);
-        }
-
-        var events = InputMap.ActionGetEvents(binding.GodotActionName);
-        if (events.Count == 0)
+        var events = FindBoundEvents(action, profile);
+        if (events == null)
         {
             return (Array.Empty<Texture2D>(), UnboundFallback);
         }
@@ -115,14 +103,8 @@ public static class InputPromptResolver
     /// </returns>
     public static string? ResolveBindingText(InputAction action, InputMappingProfile profile)
     {
-        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
-        if (binding == null)
-        {
-            return null;
-        }
-
-        var events = InputMap.ActionGetEvents(binding.GodotActionName);
-        if (events.Count == 0)
+        var events = FindBoundEvents(action, profile);
+        if (events == null)
         {
             return null;
         }
@@ -137,6 +119,23 @@ public static class InputPromptResolver
             InputEventJoypadButton joypad => joypad.ButtonIndex.ToString(),
             var other => other.AsText(),
         };
+    }
+
+    /// <summary>
+    /// The events Godot's InputMap holds for <paramref name="action"/>'s binding in
+    /// <paramref name="profile"/>, in insertion order; <c>null</c> when the action is not in the
+    /// profile or its binding has no events, so a non-null result always has a first event.
+    /// </summary>
+    private static Godot.Collections.Array<InputEvent>? FindBoundEvents(InputAction action, InputMappingProfile profile)
+    {
+        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
+        if (binding == null)
+        {
+            return null;
+        }
+
+        var events = InputMap.ActionGetEvents(binding.GodotActionName);
+        return events.Count == 0 ? null : events;
     }
 
     /// <summary>
