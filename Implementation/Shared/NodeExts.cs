@@ -7,11 +7,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Reflection;
 using Godot.Collections;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Identification;
-using Jmodot.Core.Shared.Attributes;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
@@ -61,11 +59,12 @@ public static class NodeExts
     }
 
     /// <summary>
-    /// Validates that all properties and fields marked with [RequiredExport] are not null.
+    /// Validates that all properties and fields marked with [RequiredExport] are not null, including
+    /// members declared on base classes (private ones too).
     /// Call this in _Ready() to fail-fast with a clear error if any required exports are missing.
     /// </summary>
     /// <exception cref="NodeConfigurationException">
-    /// Thrown when a [RequiredExport] property or field is null.
+    /// Thrown for the first [RequiredExport] property or field that is null.
     /// </exception>
     /// <example>
     /// <code>
@@ -79,41 +78,11 @@ public static class NodeExts
     /// </example>
     public static void ValidateRequiredExports(this Node node)
     {
-        var type = node.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-        // Check properties
-        foreach (var prop in type.GetProperties(flags))
+        foreach (var missing in ConfigWarnings.UnassignedRequiredExports(node))
         {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = prop.GetValue(node);
-            if (value == null)
-            {
-                var ownerName = node.Owner?.Name ?? "[no owner]";
-                throw new NodeConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
-            }
-        }
-
-        // Check fields
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = field.GetValue(node);
-            if (value == null)
-            {
-                var ownerName = node.Owner?.Name ?? "[no owner]";
-                throw new NodeConfigurationException(
-                    $"Required export '{field.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
-            }
+            var ownerName = node.Owner?.Name ?? "[no owner]";
+            throw new NodeConfigurationException(
+                $"Required export '{missing.MemberName}' must be assigned in the Inspector for scene owner {ownerName}.", node);
         }
     }
 

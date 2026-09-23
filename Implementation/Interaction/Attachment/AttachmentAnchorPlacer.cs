@@ -31,7 +31,7 @@ public static class AttachmentAnchorPlacer
     /// </summary>
     /// <param name="separationRatioPerFootprintUnit">Fraction of the silhouette's dominant extent one unit of footprint claims.</param>
     /// <param name="maxPlacementAttempts">Rejected candidates before the placer gives up.</param>
-    /// <param name="depthRange">Half-range, in metres, the anchor may sit off the sprite plane. 0 keeps Z exactly zero.</param>
+    /// <param name="depthRange">Half-range, in metres, the anchor may sit off the art's depth (<see cref="VisualBounds3D.Center"/> Z). 0 keeps Z exactly at that depth.</param>
     /// <param name="nextUnitFloat">Roll source yielding values in [0, 1). Two rolls are consumed per
     /// attempt (X then Y), plus a third for Z only when <paramref name="depthRange"/> is positive.</param>
     public static Vector3? Place(
@@ -70,7 +70,7 @@ public static class AttachmentAnchorPlacer
         var y = bounds.Center.Y + ((nextUnitFloat() - 0.5f) * bounds.Height);
         // The roll is drawn only for a positive range, so a planar profile consumes the exact same
         // sequence it always did — a depth knob nobody turned on cannot shift anyone's anchor.
-        var z = depthRange > 0f ? (nextUnitFloat() - 0.5f) * 2f * depthRange : 0f;
+        var z = bounds.Center.Z + (depthRange > 0f ? (nextUnitFloat() - 0.5f) * 2f * depthRange : 0f);
         return new Vector3(x, y, z);
     }
 

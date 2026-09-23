@@ -47,14 +47,8 @@ public static class InputPromptResolver
         InputMappingProfile profile,
         InputGlyphRegistry registry)
     {
-        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
-        if (binding == null)
-        {
-            return (null, UnboundFallback);
-        }
-
-        var events = InputMap.ActionGetEvents(binding.GodotActionName);
-        if (events.Count == 0)
+        var events = FindBoundEvents(action, profile);
+        if (events == null)
         {
             return (null, UnboundFallback);
         }
@@ -81,14 +75,8 @@ public static class InputPromptResolver
         InputMappingProfile profile,
         InputGlyphRegistry registry)
     {
-        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
-        if (binding == null)
-        {
-            return (Array.Empty<Texture2D>(), UnboundFallback);
-        }
-
-        var events = InputMap.ActionGetEvents(binding.GodotActionName);
-        if (events.Count == 0)
+        var events = FindBoundEvents(action, profile);
+        if (events == null)
         {
             return (Array.Empty<Texture2D>(), UnboundFallback);
         }
@@ -101,6 +89,53 @@ public static class InputPromptResolver
         }
 
         return (icons, action.ActionName);
+    }
+
+    /// <summary>
+    /// Display name of the action's FIRST bound event, for a prompt with no glyph to show: a key
+    /// ("R", with modifiers "Ctrl+R"), a mouse button ("Left Mouse Button") or a joypad button ("Y").
+    /// Other event types use Godot's own <c>InputEvent.AsText</c>. Resolved at call time, like
+    /// <see cref="Resolve"/>, so a rebinding is reflected on the next call.
+    /// </summary>
+    /// <returns>
+    /// <c>null</c> when the action is not in <paramref name="profile"/> or its binding has no events;
+    /// callers choose their own unbound fallback (<see cref="UnboundFallback"/> is the house one).
+    /// </returns>
+    public static string? ResolveBindingText(InputAction action, InputMappingProfile profile)
+    {
+        var events = FindBoundEvents(action, profile);
+        if (events == null)
+        {
+            return null;
+        }
+
+        return events[0] switch
+        {
+            InputEventKey key when key.Keycode != Key.None => key.AsTextKeycode(),
+            InputEventKey key when key.PhysicalKeycode != Key.None => key.AsTextPhysicalKeycode(),
+            InputEventKey key => key.AsTextKeyLabel(),
+            // Godot's own joypad text names every vendor's label ("Joypad Button 3 (Top Action, Sony
+            // Triangle, Xbox Y, Nintendo X)"), far too long for a world-space prompt slot.
+            InputEventJoypadButton joypad => joypad.ButtonIndex.ToString(),
+            var other => other.AsText(),
+        };
+    }
+
+    /// <summary>
+    /// The events Godot's InputMap holds for <paramref name="action"/>'s binding in
+    /// <paramref name="profile"/>, in insertion order; <c>null</c> when the action is not in the
+    /// profile or its binding has no events, so a non-null result always has a first event.
+    /// </summary>
+    private static Godot.Collections.Array<InputEvent>? FindBoundEvents(InputAction action, InputMappingProfile profile)
+    {
+        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
+        if (binding == null)
+        {
+            return null;
+        }
+
+        var events = InputMap.ActionGetEvents(binding.GodotActionName);
+        return events.Count == 0 ? null : events;
     }
 
     /// <summary>
