@@ -17,7 +17,10 @@ using Jmodot.Implementation.Visual.Animation.Sprite;
 /// <see cref="Depth"/> is zero for the planar sprite art shipped today; it becomes meaningful the
 /// moment non-planar art is measured, and <see cref="Largest"/> picks it up with no change here.
 /// </param>
-/// <param name="Center">Centre of that union, in entity-local space.</param>
+/// <param name="Center">
+/// Centre of that union, in entity-local space. Z is the midpoint of the measured sprites' depth
+/// positions, so art authored in front of or behind the root reports where it actually sits.
+/// </param>
 public readonly record struct VisualBounds3D(Vector3 Size, Vector3 Center)
 {
     /// <summary>Sentinel for an entity whose live art could not be measured.</summary>
@@ -89,6 +92,8 @@ public static class EntityVisualBounds3D
         Transform3D toEntity = entity.GlobalTransform.AffineInverse();
         var low = new Vector2(float.MaxValue, float.MaxValue);
         var high = new Vector2(float.MinValue, float.MinValue);
+        float nearZ = float.MaxValue;
+        float farZ = float.MinValue;
         bool any = false;
 
         foreach (var sprite in sprites)
@@ -109,6 +114,8 @@ public static class EntityVisualBounds3D
 
             low = low.Min(centre - (extent * 0.5f));
             high = high.Max(centre + (extent * 0.5f));
+            nearZ = Mathf.Min(nearZ, relative.Origin.Z);
+            farZ = Mathf.Max(farZ, relative.Origin.Z);
             any = true;
         }
 
@@ -116,10 +123,12 @@ public static class EntityVisualBounds3D
 
         Vector2 size = high - low;
         Vector2 middle = (high + low) * 0.5f;
+        float depthMiddle = (nearZ + farZ) * 0.5f;
 
-        // Depth stays zero: every sprite measured here is planar, and inventing a value would make
-        // Largest claim an extent nothing rendered.
-        return new VisualBounds3D(new Vector3(size.X, size.Y, 0f), new Vector3(middle.X, middle.Y, 0f));
+        // Depth EXTENT stays zero: every sprite measured here is planar, and inventing a value would
+        // make Largest claim an extent nothing rendered. Depth POSITION is real, though — art authored
+        // in front of its root must not be reported at the root's plane.
+        return new VisualBounds3D(new Vector3(size.X, size.Y, 0f), new Vector3(middle.X, middle.Y, depthMiddle));
     }
 
     /// <summary>

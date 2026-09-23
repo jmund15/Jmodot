@@ -1,5 +1,7 @@
 namespace Jmodot.Core.Interaction;
 
+using Jmodot.Core.Shared;
+
 /// <summary>
 /// Abstract Resource strategy that renders interaction feedback for a targeted interactable
 /// (button prompt now; outline/glow/composition later). The interactable owns its strategy
@@ -9,8 +11,8 @@ namespace Jmodot.Core.Interaction;
 /// target. Follows the Resource-Strategy precedent so designers swap strategies in the Inspector
 /// without code changes.
 /// </summary>
-[GlobalClass]
-public abstract partial class InteractionFeedbackStrategy : Resource
+[GlobalClass, Tool]
+public abstract partial class InteractionFeedbackStrategy : Resource, IResourceConfigurationWarnings
 {
     /// <summary>Called once when the owning interactable becomes the active interaction target.</summary>
     public abstract void OnTargeted(in InteractionFeedbackContext ctx);
@@ -20,4 +22,11 @@ public abstract partial class InteractionFeedbackStrategy : Resource
 
     /// <summary>Per-frame hook while targeted (e.g. world→screen anchoring). No-op by default.</summary>
     public virtual void OnProcess(double delta) { }
+
+    /// <summary>
+    /// Authoring faults in this strategy, empty by default. Every interactable that exports a
+    /// strategy forwards this from its own <c>_GetConfigurationWarnings</c>, so a subclass with
+    /// validation overrides it and is surfaced by every host with no host-side change.
+    /// </summary>
+    public virtual string[] GetResourceConfigurationWarnings() => [];
 }

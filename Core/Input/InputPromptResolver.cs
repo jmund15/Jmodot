@@ -104,6 +104,42 @@ public static class InputPromptResolver
     }
 
     /// <summary>
+    /// Display name of the action's FIRST bound event, for a prompt with no glyph to show: a key
+    /// ("R", with modifiers "Ctrl+R"), a mouse button ("Left Mouse Button") or a joypad button ("Y").
+    /// Other event types use Godot's own <c>InputEvent.AsText</c>. Resolved at call time, like
+    /// <see cref="Resolve"/>, so a rebinding is reflected on the next call.
+    /// </summary>
+    /// <returns>
+    /// <c>null</c> when the action is not in <paramref name="profile"/> or its binding has no events;
+    /// callers choose their own unbound fallback (<see cref="UnboundFallback"/> is the house one).
+    /// </returns>
+    public static string? ResolveBindingText(InputAction action, InputMappingProfile profile)
+    {
+        var binding = profile.ActionBindings.FirstOrDefault(b => b != null && b.Action == action);
+        if (binding == null)
+        {
+            return null;
+        }
+
+        var events = InputMap.ActionGetEvents(binding.GodotActionName);
+        if (events.Count == 0)
+        {
+            return null;
+        }
+
+        return events[0] switch
+        {
+            InputEventKey key when key.Keycode != Key.None => key.AsTextKeycode(),
+            InputEventKey key when key.PhysicalKeycode != Key.None => key.AsTextPhysicalKeycode(),
+            InputEventKey key => key.AsTextKeyLabel(),
+            // Godot's own joypad text names every vendor's label ("Joypad Button 3 (Top Action, Sony
+            // Triangle, Xbox Y, Nintendo X)"), far too long for a world-space prompt slot.
+            InputEventJoypadButton joypad => joypad.ButtonIndex.ToString(),
+            var other => other.AsText(),
+        };
+    }
+
+    /// <summary>
     /// Resolves a vector binding's <see cref="VectorGlyphHint"/> to its
     /// human-readable cluster label for v1 (text-only rendering). Future
     /// versions may add a composite-key renderer (WASD-as-four-keys) — this

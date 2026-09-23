@@ -15,7 +15,7 @@ using Jmodot.Core.Shared.Attributes;
 /// signal onward). Also an <see cref="IInteractionFeedbackProvider3D"/> so the interactor's targeting
 /// feedback (prompt/highlight) works through the optional <see cref="FeedbackStrategy"/>.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class SignallingInteractableComponent3D : Area3D, IInteractable3D, IInteractionFeedbackProvider3D
 {
     /// <summary>Identifier fired on interaction. Consumers match against this by value.</summary>
@@ -29,7 +29,21 @@ public partial class SignallingInteractableComponent3D : Area3D, IInteractable3D
 
     public event Action<StringName, Node3D> Fired = delegate { };
 
-    public override void _Ready() => this.ValidateRequiredExports();
+    public override void _Ready()
+    {
+        if (Engine.IsEditorHint()) { return; }
+
+        this.ValidateRequiredExports();
+    }
+
+    public override string[] _GetConfigurationWarnings()
+    {
+        // A Resource never receives _GetConfigurationWarnings, so this node lends its strategy one.
+        // Called through the base virtual, never a type test: a test would skip every sibling strategy.
+        string[] strategyWarnings = FeedbackStrategy?.GetResourceConfigurationWarnings() ?? [];
+
+        return [.. base._GetConfigurationWarnings() ?? [], .. strategyWarnings];
+    }
 
     public bool CanInteract(Node3D interactor) => Enabled;
 
@@ -45,6 +59,7 @@ public partial class SignallingInteractableComponent3D : Area3D, IInteractable3D
 #if TOOLS
     internal void SetInteractionId(StringName value) => InteractionId = value;
     internal void SetEnabled(bool value) => Enabled = value;
+    internal void SetFeedbackStrategy(InteractionFeedbackStrategy? value) => FeedbackStrategy = value;
 #endif
     #endregion
 }
