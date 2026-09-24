@@ -35,8 +35,7 @@ using Jmodot.Tools.DocTooltips.DocLookup;
 /// sugar that compiles to it) is a CUSTOM callable, and per the 4.7.1 contract for
 /// <c>Callable.is_valid()</c> a custom callable reports valid UNCONDITIONALLY — the engine cannot
 /// tell that its managed target died. Anything the engine still holds when this assembly unloads is
-/// therefore invoked rather than skipped, faulting inside the engine's own dispatch
-/// (observed: repeated editor access violations at one fixed offset, only ever on a build). Both
+/// therefore invoked rather than skipped, faulting inside the engine's own dispatch. Both
 /// retention paths matter: the deferred-call queue, and a signal Connection on an editor-lifetime
 /// emitter, which survives a <c>-=</c> at teardown (godot#86244). So every surface here derives from
 /// <see cref="GodotObject"/>, connects with <c>new Callable(this, MethodName.X)</c>, defers with
