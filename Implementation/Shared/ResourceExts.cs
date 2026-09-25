@@ -129,8 +129,8 @@ public static class ResourceExts
         }
 
         var outgoing = slot;
-        slot = incoming;
         Rewire(forward, outgoing, incoming, otherSlots);
+        slot = incoming;
         return true;
     }
 
@@ -194,11 +194,6 @@ public static class ResourceExts
 
     private static void Rewire(Callable forward, Resource? outgoing, Resource? incoming, Resource?[]? otherSlots)
     {
-        if (outgoing != null && !IsHeld(outgoing, otherSlots) && outgoing.IsConnected(Resource.SignalName.Changed, forward))
-        {
-            outgoing.Disconnect(Resource.SignalName.Changed, forward);
-        }
-
         if (incoming != null && !incoming.IsConnected(Resource.SignalName.Changed, forward))
         {
             var connected = incoming.Connect(Resource.SignalName.Changed, forward);
@@ -207,6 +202,11 @@ public static class ResourceExts
                 throw new System.InvalidOperationException(
                     $"SetForwardedSlot could not connect {incoming.DisplayLabel()} changed to {forward.Method}: {connected}.");
             }
+        }
+
+        if (outgoing != null && !IsHeld(outgoing, otherSlots) && outgoing.IsConnected(Resource.SignalName.Changed, forward))
+        {
+            outgoing.Disconnect(Resource.SignalName.Changed, forward);
         }
     }
 

@@ -30,9 +30,12 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
 
     public bool Interruptible { get; private set; } = true;
 
+    private long _activation;
+
     protected override void OnEnter()
     {
         base.OnEnter();
+        var activation = ++_activation;
         if (NonInterruptibleTime < 0)
         {
             Interruptible = false;
@@ -40,7 +43,10 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
         else if (NonInterruptibleTime > 0)
         {
             Interruptible = false;
-            GameClock.CreateTimer(this, NonInterruptibleTime).Timeout += () => Interruptible = true;
+            GameClock.CreateTimer(this, NonInterruptibleTime).Timeout += () =>
+            {
+                if (activation == _activation) { Interruptible = true; }
+            };
         }
         else
         {
@@ -50,8 +56,8 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
 
     protected override void OnExit()
     {
+        ++_activation;
         base.OnExit();
-        // Reset interruptibility for next entry
         Interruptible = true;
     }
 

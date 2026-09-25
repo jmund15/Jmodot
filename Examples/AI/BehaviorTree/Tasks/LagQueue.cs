@@ -21,6 +21,8 @@ public partial class LagQueue : BehaviorAction
 
     #region TASK_UPDATES
 
+    private long _activation;
+
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
@@ -29,17 +31,22 @@ public partial class LagQueue : BehaviorAction
     protected override void OnEnter()
     {
         base.OnEnter();
+        var activation = ++_activation;
         if (this.LagTime <= 0f)
         {
             this.OnLagTimeout();
             return;
         }
 
-        GameClock.CreateTimer(this, this.LagTime).Timeout += this.OnLagTimeout;
+        GameClock.CreateTimer(this, this.LagTime).Timeout += () =>
+        {
+            if (activation == _activation) { OnLagTimeout(); }
+        };
     }
 
     protected override void OnExit()
     {
+        ++_activation;
         base.OnExit();
     }
 

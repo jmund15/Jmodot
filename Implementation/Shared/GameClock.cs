@@ -49,12 +49,15 @@ public partial class GameClock : Node
         => Current ?? throw new InvalidOperationException(
             $"No {nameof(GameClock)} is current: register a {nameof(GameClock)} node in the scene tree before gameplay reads time.");
 
-    /// <summary>Publishes this clock as <see cref="Current"/>; a newer clock replaces a live one with a Warning.</summary>
+    /// <summary>Publishes this clock as <see cref="Current"/> if no live clock is already registered.</summary>
     public override void _EnterTree()
     {
         if (Current != null && Current != this && IsInstanceValid(Current))
         {
-            JmoLogger.Warning(this, $"[GameClock] A second GameClock entered the tree ('{Name}'); the newer one is now Current.");
+            JmoLogger.Warning(this, $"[GameClock] A second GameClock entered the tree ('{Name}'); keeping the first clock Current.");
+            ProcessMode = ProcessModeEnum.Disabled;
+            QueueFree();
+            return;
         }
         Current = this;
         ProcessMode = ProcessModeEnum.Pausable;
