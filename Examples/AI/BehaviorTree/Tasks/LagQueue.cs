@@ -6,6 +6,7 @@ using Core.AI;
 using Core.AI.BB;
 using Implementation.AI.BB;
 using Implementation.AI.BehaviorTree.Tasks;
+using Implementation.Shared;
 
 [GlobalClass]
 [Tool]
@@ -34,7 +35,7 @@ public partial class LagQueue : BehaviorAction
             return;
         }
 
-        this.GetTree().CreateTimer(this.LagTime).Timeout += this.OnLagTimeout;
+        GameClock.CreateTimer(this, this.LagTime).Timeout += this.OnLagTimeout;
     }
 
     protected override void OnExit()

@@ -35,7 +35,7 @@ public partial class Lag : BehaviorAction
             return;
         }
 
-        _timer = GetTree().CreateTimer(effectiveDuration);
+        _timer = GameClock.CreateTimer(this, effectiveDuration);
         _timer.Timeout += OnLagTimeout;
     }
 
