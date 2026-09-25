@@ -26,7 +26,7 @@ public partial class RandomTimeLimit : BTCondition
 
     public override void OnParentTaskEnter()
     {
-        _startTime = Time.GetTicksMsec();
+        _startTime = GameClock.NowSeconds;
         _currentLimit = GetRandomDuration(_minDuration, _maxDuration);
         _isActive = true;
     }
@@ -39,7 +39,7 @@ public partial class RandomTimeLimit : BTCondition
     public override bool Check()
     {
         if (!_isActive) { return true; }
-        return (Time.GetTicksMsec() - _startTime) / 1000.0 < _currentLimit;
+        return GameClock.NowSeconds - _startTime < _currentLimit;
     }
 
     /// <summary>

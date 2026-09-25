@@ -50,13 +50,13 @@ public static class BudgetCalculator
 
     /// <summary>
     /// Checks whether enough time has elapsed since the last trigger for cooldown.
-    /// Returns true if (currentTime - lastTriggerTime) >= cooldownSeconds.
+    /// Returns true if it never triggered or (currentTime - lastTriggerTime) >= cooldownSeconds.
     /// </summary>
-    /// <param name="lastTriggerTime">Time of last trigger (-1 sentinel = never triggered).</param>
+    /// <param name="lastTriggerTime">Time of last trigger; null when it never triggered.</param>
     /// <param name="currentTime">Current time.</param>
     /// <param name="cooldownSeconds">Required cooldown duration.</param>
-    public static bool IsCooldownReady(double lastTriggerTime, double currentTime, double cooldownSeconds)
+    public static bool IsCooldownReady(double? lastTriggerTime, double currentTime, double cooldownSeconds)
     {
-        return (currentTime - lastTriggerTime) >= cooldownSeconds;
+        return lastTriggerTime is not { } last || (currentTime - last) >= cooldownSeconds;
     }
 }

@@ -6,6 +6,7 @@ using System.Linq;
 using Godot;
 using Core.AI.BB;
 using BehaviorTree.Tasks;
+using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// Base action for all utility-based behaviors. Implements IUtilityTask for use with UtilitySelector.
@@ -29,9 +30,12 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
 
     public bool Interruptible { get; private set; } = true;
 
+    private long _activation;
+
     protected override void OnEnter()
     {
         base.OnEnter();
+        var activation = ++_activation;
         if (NonInterruptibleTime < 0)
         {
             Interruptible = false;
@@ -39,7 +43,10 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
         else if (NonInterruptibleTime > 0)
         {
             Interruptible = false;
-            GetTree().CreateTimer(NonInterruptibleTime).Timeout += () => Interruptible = true;
+            GameClock.CreateTimer(this, NonInterruptibleTime).Timeout += () =>
+            {
+                if (activation == _activation) { Interruptible = true; }
+            };
         }
         else
         {
@@ -49,8 +56,8 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
 
     protected override void OnExit()
     {
+        ++_activation;
         base.OnExit();
-        // Reset interruptibility for next entry
         Interruptible = true;
     }
 

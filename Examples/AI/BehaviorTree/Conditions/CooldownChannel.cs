@@ -28,8 +28,6 @@ public partial class CooldownChannel : Resource
 
     private bool _validated;
 
-    private static double NowSeconds() => Time.GetTicksMsec() / 1000.0;
-
     /// <summary>Starts (or restarts) the cooldown: ready again <see cref="DurationSeconds"/> from now.</summary>
     /// <exception cref="System.ArgumentNullException"><paramref name="bb"/> is null.</exception>
     public void Arm(IBlackboard bb)
@@ -45,7 +43,7 @@ public partial class CooldownChannel : Resource
             duration = 0f;
         }
 
-        bb.Set(this.ReadyAtKey, NowSeconds() + duration);
+        bb.Set(this.ReadyAtKey, GameClock.NowSeconds + duration);
     }
 
     /// <summary>Whether the cooldown has elapsed. A blackboard never armed is ready.</summary>
@@ -56,7 +54,7 @@ public partial class CooldownChannel : Resource
         this.ValidateOnce();
         if (!bb.TryGet<double>(this.ReadyAtKey, out var readyAt)) { return true; }
 
-        return NowSeconds() >= readyAt;
+        return GameClock.NowSeconds >= readyAt;
     }
 
     // Reflection-backed export validation is too heavy for a per-BT-tick path — validate once per

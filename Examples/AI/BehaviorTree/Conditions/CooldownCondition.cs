@@ -100,7 +100,7 @@ public partial class CooldownCondition : BTCondition
         JmoLogger.Info(this, $"[BT] Starting {_cooldownDuration}s cooldown.");
 
         // Use the Agent node to get the SceneTree.
-        Agent.GetTree().CreateTimer(_cooldownDuration).Timeout += () =>
+        GameClock.CreateTimer(Agent, _cooldownDuration).Timeout += () =>
         {
             _isReady = true;
             JmoLogger.Info(this, "[BT] Cooldown finished. Ready.");

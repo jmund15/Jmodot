@@ -2,6 +2,7 @@ namespace Jmodot.Core.AI.Perception;
 
 using Identification;
 using Implementation.AI.Perception.Strategies;
+using Implementation.Shared;
 
 /// <summary>
 ///     A stateful class representing an AI's "living memory" of a single target. It manages
@@ -34,7 +35,7 @@ public class Perception3DInfo
     ///     While actively sensed, returns the raw sensor confidence.
     ///     After exit, delegates to the decay strategy.
     /// </summary>
-    public float CurrentConfidence => GetConfidenceAt(Time.GetTicksMsec());
+    public float CurrentConfidence => GetConfidenceAt(GameClock.NowMsec);
 
     /// <summary>Returns true if the memory is still considered active (confidence is above zero).</summary>
     public bool IsActive => this.CurrentConfidence > 0.001f;
@@ -60,7 +61,7 @@ public class Perception3DInfo
     /// <param name="projectionInfluence">0.0 = no projection (raw position), 1.0 = full projection.
     /// Gives consumers (considerations, escape checks) control over how much velocity prediction to use.</param>
     public Vector3 GetProjectedPosition(float projectionInfluence = 1f)
-        => GetProjectedPosition(Time.GetTicksMsec(), projectionInfluence);
+        => GetProjectedPosition(GameClock.NowMsec, projectionInfluence);
 
     /// <summary>
     ///     Test-friendly overload that accepts an explicit timestamp for deterministic testing.
