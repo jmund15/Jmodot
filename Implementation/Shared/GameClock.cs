@@ -40,8 +40,10 @@ public partial class GameClock : Node
 
     /// <summary>
     /// Creates a gameplay timer on <paramref name="owner"/>'s tree that pauses with the tree, follows
-    /// <see cref="Engine.TimeScale"/> and ticks on the physics step, so its duration is game time. It times out on the
-    /// first physics tick after creation at which at least <paramref name="seconds"/> of game time has elapsed.
+    /// <see cref="Engine.TimeScale"/> and ticks on the physics step, so its duration is game time. It counts only whole
+    /// physics ticks after the one in progress at creation, and times out on the first counted tick at which at least
+    /// <paramref name="seconds"/> of game time has elapsed. Outside a physics step the next tick is already under way, so
+    /// that tick is not counted.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
     /// <exception cref="InvalidOperationException"><paramref name="owner"/> is not inside a scene tree, or no clock is ticking in the tree.</exception>
@@ -61,7 +63,8 @@ public partial class GameClock : Node
         // headroom keeps it from firing before the clock takes over on the next tick.
         double headroom = Math.Max(1.0, Engine.TimeScale) / Engine.PhysicsTicksPerSecond;
         var timer = owner.GetTree().CreateTimer(seconds + headroom, processAlways: false, processInPhysics: true);
-        PendingTimers.Add(new PendingTimer(timer, seconds));
+        ulong currentTick = Engine.GetPhysicsFrames() + (Engine.IsInPhysicsFrame() ? 0UL : 1UL);
+        PendingTimers.Add(new PendingTimer(timer, seconds, currentTick + 1));
         return timer;
     }
 
@@ -72,7 +75,7 @@ public partial class GameClock : Node
         for (int i = 0; i < PendingTimers.Count; i++)
         {
             var pending = PendingTimers[i];
-            pending.Remaining -= delta;
+            if (Engine.GetPhysicsFrames() >= pending.FirstCountedTick) { pending.Remaining -= delta; }
             if (pending.Remaining <= delta * TickRemainderTolerance)
             {
                 pending.Timer.TimeLeft = 0;
@@ -126,13 +129,16 @@ public partial class GameClock : Node
 
     private sealed class PendingTimer
     {
-        public PendingTimer(SceneTreeTimer timer, double remaining)
+        public PendingTimer(SceneTreeTimer timer, double remaining, ulong firstCountedTick)
         {
             Timer = timer;
             Remaining = remaining;
+            FirstCountedTick = firstCountedTick;
         }
 
         public SceneTreeTimer Timer { get; }
+
+        public ulong FirstCountedTick { get; }
 
         public double Remaining { get; set; }
     }
