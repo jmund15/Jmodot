@@ -9,14 +9,16 @@ using Godot;
 /// (<see cref="Time.GetTicksMsec"/>) stays for telemetry and profiling only.
 /// </summary>
 /// <remarks>
-/// The consuming project hosts exactly one instance in its always-present tree with a pausable process
-/// mode; the instance publishes itself on enter and clears on exit. A read with no instance throws rather
-/// than falling back to the wall clock.
+/// The consuming project hosts exactly one instance in its always-present tree and reads it through
+/// <see cref="Current"/>; the instance publishes itself on enter and clears on exit. On entering the tree the
+/// clock makes itself pausable, whatever its host's process mode, and takes the lowest physics priority, so it
+/// advances before every other physics reader and all readers in one tick see the same time. A read with no
+/// instance throws rather than falling back to the wall clock.
 /// </remarks>
 public partial class GameClock : Node
 {
     /// <summary>The live clock, or null before the hosting tree has entered.</summary>
-    public static GameClock? Instance { get; private set; }
+    public static GameClock? Current { get; private set; }
 
     /// <summary>Game time in seconds accumulated by this clock since it was created.</summary>
     public double Seconds { get; private set; }
@@ -44,23 +46,26 @@ public partial class GameClock : Node
     }
 
     private static GameClock Required()
-        => Instance ?? throw new InvalidOperationException(
+        => Current ?? throw new InvalidOperationException(
             $"No {nameof(GameClock)} is current: register a {nameof(GameClock)} node in the scene tree before gameplay reads time.");
 
-    /// <summary>Publishes this clock as <see cref="Instance"/>; a newer clock replaces a live one with a Warning.</summary>
+    /// <summary>Publishes this clock as <see cref="Current"/>; a newer clock replaces a live one with a Warning.</summary>
     public override void _EnterTree()
     {
-        if (Instance != null && Instance != this && IsInstanceValid(Instance))
+        if (Current != null && Current != this && IsInstanceValid(Current))
         {
-            JmoLogger.Warning(this, $"[GameClock] A second GameClock entered the tree ('{Name}'); the newer one is now current.");
+            JmoLogger.Warning(this, $"[GameClock] A second GameClock entered the tree ('{Name}'); the newer one is now Current.");
         }
-        Instance = this;
+        Current = this;
+        ProcessMode = ProcessModeEnum.Pausable;
+        // Lowest priority: a reader that runs earlier in the tick would see the previous tick's time.
+        ProcessPhysicsPriority = int.MinValue;
     }
 
-    /// <summary>Clears <see cref="Instance"/> only when this clock is the current one.</summary>
+    /// <summary>Clears <see cref="Current"/> only when this clock is the current one.</summary>
     public override void _ExitTree()
     {
-        if (Instance == this) { Instance = null; }
+        if (Current == this) { Current = null; }
     }
 
     /// <summary>Advances <see cref="Seconds"/> by the scaled physics delta; a paused tree skips it.</summary>
@@ -68,7 +73,7 @@ public partial class GameClock : Node
 
     #region Test Helpers
 #if TOOLS
-    internal static void SetInstanceForTesting(GameClock? instance) => Instance = instance;
+    internal static void SetCurrentForTesting(GameClock? clock) => Current = clock;
 
     internal void SetSecondsForTesting(double seconds) => Seconds = seconds;
 
