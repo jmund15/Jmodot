@@ -1,6 +1,7 @@
 namespace Jmodot.Core.AI.Perception;
 
 using Implementation.AI.Perception.Strategies;
+using Implementation.Shared;
 
 /// <summary>
 /// Tracks a single sensor's contribution to a target's perception state.
@@ -21,7 +22,7 @@ internal class SensorContribution
     public float CurrentConfidence => SensingActive
         ? BaseConfidence
         : DecayStrategy?.CalculateConfidence(BaseConfidence,
-            (Time.GetTicksMsec() - ExitTime) / 1000f) ?? 0f;
+            (GameClock.NowMsec - ExitTime) / 1000f) ?? 0f;
 
     public bool IsAlive => CurrentConfidence > 0.001f;
 }

@@ -2,6 +2,7 @@ namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
 using Core.AI.BB;
 using Core.AI.BehaviorTree.Conditions;
+using Implementation.Shared;
 
 /// <summary>
 /// A condition that monitors elapsed time. It fails (or succeeds, if SucceedOnAbort is true)
@@ -18,7 +19,7 @@ public partial class TimeLimit : BTCondition
 
     public override void OnParentTaskEnter()
     {
-        _startTime = Time.GetTicksMsec();
+        _startTime = GameClock.NowSeconds;
         _isActive = true;
     }
 
@@ -30,6 +31,6 @@ public partial class TimeLimit : BTCondition
     public override bool Check()
     {
         if (!_isActive) { return true; }
-        return (Time.GetTicksMsec() - _startTime) / 1000.0 < Limit;
+        return GameClock.NowSeconds - _startTime < Limit;
     }
 }

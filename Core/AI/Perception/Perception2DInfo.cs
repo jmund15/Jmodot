@@ -2,6 +2,7 @@ namespace Jmodot.Core.AI.Perception;
 
 using Identification;
 using Implementation.AI.Perception.Strategies;
+using Implementation.Shared;
 
 /// <summary>
 ///     A stateful class representing an AI's "living memory" of a single target. It is created
@@ -33,7 +34,7 @@ public class Perception2DInfo
     /// </summary>
     public float CurrentConfidence =>
         this._decayStrategy?.CalculateConfidence(this._baseConfidence,
-            (Time.GetTicksMsec() - this.LastUpdateTime) / 1000.0f) ?? this._baseConfidence;
+            (GameClock.NowMsec - this.LastUpdateTime) / 1000.0f) ?? this._baseConfidence;
 
     /// <summary>Returns true if the memory is still considered active (confidence is above zero).</summary>
     public bool IsActive => this.CurrentConfidence > 0.001f; // Use a small epsilon to avoid floating point issues.
