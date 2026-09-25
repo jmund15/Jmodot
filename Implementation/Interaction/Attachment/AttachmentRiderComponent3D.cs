@@ -119,6 +119,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     private bool _holdsSuspension;
     private ulong? _shedAtMsec;
     private JmoRng? _flingRng;
+    private bool _warnedMissingSeed;
 
     private CollisionObject3D? _body;
     private PhysicsBody3D? _collisionExceptionHost;
@@ -336,7 +337,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         var jitter = this.FlingUpwardAngleJitter;
         if (jitter > 0f)
         {
-            this._flingRng ??= JmoRng.NonDeterministic();
+            this._flingRng ??= EntityRngResolver.Resolve(this._bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
             degrees += this._flingRng.GetRndInRange(-jitter, jitter);
         }
 
@@ -720,8 +721,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     {
         this._bb = bb;
         // Pool reuse re-runs Initialize on a component whose previous life ended in a shed; a recycled
-        // instance must not inherit the last entity's cooldown.
+        // instance must not inherit the last entity's cooldown or fling stream.
         this._shedAtMsec = null;
+        this._flingRng = null;
         // Authored-pose contract, enforced here so a DefaultPose that can never render fails at load
         // rather than after a rider latches onto a host.
         this.DefaultPose?.Validate();
