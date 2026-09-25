@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.Shared;
 using Core.AI.BB;
 using Core.AI.HSM;
 using Core.Shared.Attributes;
@@ -11,7 +12,7 @@ using Implementation.Shared;
 /// <see cref="OnTransitionCommitted"/>, ensuring the flag survives if CanExit() blocks.
 /// </summary>
 [GlobalClass, Tool]
-public partial class BBFlagCondition : TransitionCondition
+public partial class BBFlagCondition : TransitionCondition, IResourceConfigurationWarnings
 {
     /// <summary>
     /// The key/name of the boolean variable on the blackboard to check.
@@ -51,12 +52,11 @@ public partial class BBFlagCondition : TransitionCondition
         }
     }
 
-    // TODO: make this into an interface that has this function. nodes with config warnings will call this and add to their warnings
     public string[] GetResourceConfigurationWarnings()
     {
         if (string.IsNullOrEmpty(BBFlagSignature))
         {
-            return new[] { "'Blackboard Flag Name' cannot be empty." };
+            return new[] { "'BB Flag Signature' cannot be empty." };
         }
         return [];
     }

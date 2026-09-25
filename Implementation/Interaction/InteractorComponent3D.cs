@@ -23,11 +23,15 @@ using Implementation.Shared;
 /// on the current target.
 /// </para>
 ///
-/// <para>Required BB keys: <see cref="BBDataSig.IntentSource"/>, <see cref="BBDataSig.Agent"/>.</para>
+/// <para>Required BB keys: <see cref="BBDataSig.IntentSource"/>, <see cref="BBDataSig.Agent"/>.
+/// Provisioned BB keys: <see cref="BBDataSig.Interactor"/> (this component, published in Phase 0).</para>
 /// </summary>
 [GlobalClass]
-public partial class InteractorComponent3D : Area3D, IComponent
+public partial class InteractorComponent3D : Area3D, IComponent, IBlackboardProvider
 {
+    /// <inheritdoc />
+    public (StringName Key, object Value)? Provision => (BBDataSig.Interactor, this);
+
     [Export, RequiredExport] public InputAction InteractAction { get; private set; } = null!;
 
     /// <summary>The nearest in-range interactable that currently passes CanInteract, or null.</summary>
