@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Shared;
 
 using System;
+using System.Collections.Generic;
 using Godot;
 
 /// <summary>
@@ -29,12 +30,23 @@ public partial class GameClock : Node
     /// <summary>Game time in whole milliseconds on the live clock. Throws <see cref="InvalidOperationException"/> when no clock is hosted.</summary>
     public static ulong NowMsec => (ulong)(Required().Seconds * 1000.0);
 
+    // A remainder below this fraction of a tick is rounding: 1/60 s is inexact in binary, and a float [Export] widens to a
+    // value just above its tick multiple, so without it a 0.2 s timer would count 13 ticks instead of 12.
+    private const double TickRemainderTolerance = 1e-3;
+
+    private static readonly List<PendingTimer> PendingTimers = new();
+
+    private static GameClock? _timerDriver;
+
     /// <summary>
     /// Creates a gameplay timer on <paramref name="owner"/>'s tree that pauses with the tree, follows
-    /// <see cref="Engine.TimeScale"/> and ticks on the physics step, so its duration is game time.
+    /// <see cref="Engine.TimeScale"/> and ticks on the physics step, so its duration is game time. It times out on the
+    /// first counted physics tick at which at least <paramref name="seconds"/> of game time has elapsed. A timer created
+    /// inside a physics tick counts every later tick. A timer created outside one does not count the ticks the engine runs
+    /// in the same process frame, because those were already due when it was created.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
-    /// <exception cref="InvalidOperationException"><paramref name="owner"/> is not inside a scene tree.</exception>
+    /// <exception cref="InvalidOperationException"><paramref name="owner"/> is not inside a scene tree, or no clock is ticking in the tree.</exception>
     public static SceneTreeTimer CreateTimer(Node owner, double seconds)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -42,7 +54,38 @@ public partial class GameClock : Node
         {
             throw new InvalidOperationException($"{nameof(GameClock)}.{nameof(CreateTimer)}: owner '{owner.Name}' is not inside a scene tree.");
         }
-        return owner.GetTree().CreateTimer(seconds, processAlways: false, processInPhysics: true);
+        if (_timerDriver == null)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(GameClock)}.{nameof(CreateTimer)}: no {nameof(GameClock)} is ticking in the scene tree to drive the timer.");
+        }
+        // Godot decrements a timer created earlier in this tick's physics pass during that same tick; one scaled tick of
+        // headroom keeps it from firing before the clock takes over on the next tick.
+        double headroom = Math.Max(1.0, Engine.TimeScale) / Engine.PhysicsTicksPerSecond;
+        var timer = owner.GetTree().CreateTimer(seconds + headroom, processAlways: false, processInPhysics: true);
+        ulong? dueFrame = Engine.IsInPhysicsFrame() ? null : Engine.GetProcessFrames();
+        PendingTimers.Add(new PendingTimer(timer, seconds, Engine.GetPhysicsFrames(), dueFrame));
+        return timer;
+    }
+
+    // Runs before this tick's timer pass: an expired timer gets zero time left so the pass fires it, and a running one gets
+    // exactly one tick more than its remainder so the pass leaves it at that remainder.
+    private static void AdvanceTimers(double delta)
+    {
+        for (int i = 0; i < PendingTimers.Count; i++)
+        {
+            var pending = PendingTimers[i];
+            if (pending.Counts(Engine.GetPhysicsFrames(), Engine.GetProcessFrames())) { pending.Remaining -= delta; }
+            if (pending.Remaining <= delta * TickRemainderTolerance)
+            {
+                pending.Timer.TimeLeft = 0;
+                PendingTimers.RemoveAt(i--);
+            }
+            else
+            {
+                pending.Timer.TimeLeft = pending.Remaining + delta;
+            }
+        }
     }
 
     private static GameClock Required()
@@ -60,6 +103,7 @@ public partial class GameClock : Node
             return;
         }
         Current = this;
+        _timerDriver = this;
         ProcessMode = ProcessModeEnum.Pausable;
         // Lowest priority: a reader that runs earlier in the tick would see the previous tick's time.
         ProcessPhysicsPriority = int.MinValue;
@@ -69,10 +113,39 @@ public partial class GameClock : Node
     public override void _ExitTree()
     {
         if (Current == this) { Current = null; }
+        if (_timerDriver == this)
+        {
+            _timerDriver = null;
+            PendingTimers.Clear();
+        }
     }
 
-    /// <summary>Advances <see cref="Seconds"/> by the scaled physics delta; a paused tree skips it.</summary>
-    public override void _PhysicsProcess(double delta) => Seconds += delta;
+    /// <summary>Advances <see cref="Seconds"/> and every pending timer by the scaled physics delta; a paused tree skips it.</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        Seconds += delta;
+        if (_timerDriver == this) { AdvanceTimers(delta); }
+    }
+
+    private sealed class PendingTimer
+    {
+        private readonly ulong _createdTick;
+        private readonly ulong? _dueFrame;
+
+        public PendingTimer(SceneTreeTimer timer, double remaining, ulong createdTick, ulong? dueFrame)
+        {
+            Timer = timer;
+            Remaining = remaining;
+            _createdTick = createdTick;
+            _dueFrame = dueFrame;
+        }
+
+        public SceneTreeTimer Timer { get; }
+
+        public double Remaining { get; set; }
+
+        public bool Counts(ulong tick, ulong processFrame) => tick > _createdTick && processFrame != _dueFrame;
+    }
 
     #region Test Helpers
 #if TOOLS
