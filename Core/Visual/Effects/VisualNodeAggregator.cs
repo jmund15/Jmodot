@@ -1,7 +1,9 @@
 namespace Jmodot.Core.Visual.Effects;
 
+using System;
 using System.Collections.Generic;
 using Godot;
+using Jmodot.Core.Visual;
 
 /// <summary>
 /// Centralized recursive discovery of visual sprite nodes (SpriteBase3D, Sprite2D).
@@ -17,6 +19,24 @@ using Godot;
 /// </remarks>
 public static class VisualNodeAggregator
 {
+    /// <summary>Returns providers whose ancestor under the root is not also a provider.</summary>
+    public static IReadOnlyList<IVisualNodeProvider> CollectProviders(Node root)
+    {
+        var providers = new List<IVisualNodeProvider>();
+        Collect(root, providers);
+        return providers;
+
+        static void Collect(Node node, List<IVisualNodeProvider> found)
+        {
+            if (node is IVisualNodeProvider provider)
+            {
+                found.Add(provider);
+                return;
+            }
+            foreach (var child in node.GetChildren()) { Collect(child, found); }
+        }
+    }
+
     /// <summary>
     /// Appends every sprite node under <paramref name="root"/> (inclusive) to
     /// <paramref name="results"/>. Matches <see cref="SpriteBase3D"/>
@@ -32,6 +52,25 @@ public static class VisualNodeAggregator
         {
             CollectSprites(child, results);
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="node"/> is a <see cref="SpriteBase3D"/> and some <see cref="SpriteBase3D"/> in its unbroken
+    /// run of sprite parents (parent, grandparent, … up to the first ancestor that is not a sprite) is accepted by
+    /// <paramref name="isTarget"/>. The engine multiplies that ancestor's accumulated colour into this sprite's, so a writer
+    /// that sets both applies its colour twice. A sprite under a non-sprite node, or whose whole sprite-parent run lies
+    /// outside the writer's set, keeps its own write. Evaluate every member against the writer's whole set before removing
+    /// any, so a chain keeps only its top.
+    /// </summary>
+    public static bool InheritsModulate(Node node, Func<Node, bool> isTarget)
+    {
+        if (node is not SpriteBase3D) { return false; }
+
+        for (var parent = node.GetParent(); parent is SpriteBase3D; parent = parent.GetParent())
+        {
+            if (isTarget(parent)) { return true; }
+        }
+        return false;
     }
 
     /// <summary>

@@ -145,6 +145,34 @@ public static class ResourceExts
         return resource.GetType().Name;
     }
 
+    /// <summary>
+    /// The ClassDB class of <paramref name="scene"/>'s root node, following an inherited scene through
+    /// <see cref="SceneState.GetBaseSceneState"/> to the base that names it; null when no state in the chain names one.
+    /// </summary>
+    public static string? FindRootNativeClass(this PackedScene scene)
+    {
+        for (var state = scene.GetState(); state != null; state = state.GetBaseSceneState())
+        {
+            // GetNodeType(0) on a state with no nodes logs an engine index ERROR.
+            if (state.GetNodeCount() == 0) { return null; }
+
+            var rootType = state.GetNodeType(0).ToString();
+            if (!string.IsNullOrEmpty(rootType)) { return rootType; }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="scene"/>'s root class (<see cref="FindRootNativeClass"/>) is or inherits
+    /// <paramref name="nativeClass"/>, a native ClassDB name; false when no state in the chain names a root.
+    /// </summary>
+    public static bool RootInherits(this PackedScene scene, string nativeClass)
+    {
+        var rootType = scene.FindRootNativeClass();
+        return rootType != null && (rootType == nativeClass || ClassDB.IsParentClass(rootType, nativeClass));
+    }
+
     private static string? OutOfRangeMessage(string name, double value, string shown, ExportAttribute export, bool singlePrecision)
     {
         if (!double.IsFinite(value))

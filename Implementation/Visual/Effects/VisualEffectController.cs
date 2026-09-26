@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.Visual.Effects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using AI.BB;
 using Core.AI.BB;
 using Core.Visual;
@@ -63,6 +64,8 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
     /// per-frame blend pass.
     /// </summary>
     private readonly Dictionary<Node, Color> _nodeBaseModulates = new();
+    private readonly HashSet<Node> _channelNodes = new();
+    private Color _writtenEmission = EffectEmission.None;
 
     private IVisualEffectService? _subscribedService;
 
@@ -157,10 +160,7 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
 
         if (_activeEffects.ContainsKey(effect)) { StopEffect(effect); }
 
-        // Delegate Godot Tween + VisualEffectHandle lifecycle to the IEffectApplier
-        // abstraction. The controller keeps composition (blend modes, ordering) and
-        // sprite tracking; the applier owns the per-effect runtime mechanics. Future
-        // effect kinds (glow shaders, particles) ship their own appliers.
+        // The applier owns tween and handle lifetime; the controller alone writes the channels.
         var applier = new Appliers.ModulateTweenApplier(effect);
         var stateHandle = applier.Begin(GetTree(), () => OnEffectFinished(effect));
 
@@ -212,10 +212,22 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
     public void RefreshVisualNodes()
     {
         var current = CollectCurrentNodes();
+        foreach (var staleNode in _channelNodes.Where(n => !GodotObject.IsInstanceValid(n) || !current.Contains(n)).ToArray())
+        {
+            _channelNodes.Remove(staleNode);
+            if (GodotObject.IsInstanceValid(staleNode)) { WriteEmission(staleNode, EffectEmission.None); }
+        }
+        foreach (var node in current)
+        {
+            if (node is not GeometryInstance3D and not CanvasItem || !_channelNodes.Add(node)) { continue; }
+            WriteEmission(node, _writtenEmission);
+        }
+        var written = new HashSet<Node>(current);
+        current.RemoveWhere(node => VisualNodeAggregator.InheritsModulate(node, written.Contains));
 
         // Drop nodes no longer present (or freed).
         var stale = _nodeBaseModulates.Keys.Where(n => !GodotObject.IsInstanceValid(n) || !current.Contains(n)).ToList();
-        foreach (var n in stale) { _nodeBaseModulates.Remove(n); }
+        foreach (var n in stale) { Untrack(n); }
 
         var service = Composer?.Effects;
         foreach (var node in current)
@@ -241,12 +253,35 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         // don't need the full RefreshVisualNodes scan (which previously ran once per
         // handle of every multi-binding rig — O(n²) per equip).
         if (!GodotObject.IsInstanceValid(h.Node)) { return; }
+        if (h.Node is GeometryInstance3D or CanvasItem && _channelNodes.Add(h.Node))
+        {
+            WriteEmission(h.Node, _writtenEmission);
+        }
+        if (VisualNodeAggregator.InheritsModulate(h.Node, _nodeBaseModulates.ContainsKey)) { return; }
         var service = Composer?.Effects;
         _nodeBaseModulates[h.Node] = service != null ? service.GetBaseColor(h.Node) : GetModulate(h.Node);
+
+        // A descendant that arrived before this ancestor now inherits its colour through the engine.
+        var nested = _nodeBaseModulates.Keys
+            .Where(n => GodotObject.IsInstanceValid(n) && h.Node.IsAncestorOf(n)
+                && VisualNodeAggregator.InheritsModulate(n, _nodeBaseModulates.ContainsKey))
+            .ToList();
+        foreach (var n in nested) { Untrack(n); }
+    }
+
+    // Writes the node's tracked base colour back before dropping it, so an active effect never stays baked into it.
+    private void Untrack(Node node)
+    {
+        if (!_nodeBaseModulates.Remove(node, out var baseColor) || !GodotObject.IsInstanceValid(node)) { return; }
+        SetModulate(node, baseColor);
     }
 
     private void OnNodeRemoved(VisualNodeHandle h)
     {
+        if (_channelNodes.Remove(h.Node) && GodotObject.IsInstanceValid(h.Node))
+        {
+            WriteEmission(h.Node, EffectEmission.None);
+        }
         _nodeBaseModulates.Remove(h.Node);
     }
     private void OnTintChanged(Node node, Color color)
@@ -278,12 +313,13 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
 
     private void ApplyEffects()
     {
-        if (_nodeBaseModulates.Count == 0) { return; }
+        if (_nodeBaseModulates.Count == 0 && _channelNodes.Count == 0) { return; }
 
         // Single foreach pass — track the best Override candidate (highest Priority,
         // tiebreak on StartTime) AND accumulate Mix product in one walk. Avoids the
         // per-frame allocation of LINQ's IOrderedEnumerable + lambda closures.
         Color mixProduct = Colors.White;
+        var mixEmissions = new List<Color>();
         ActiveEffectHandle? bestOverride = null;
         foreach (var h in _activeEffects.Values)
         {
@@ -299,6 +335,7 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
             else if (h.Effect.BlendMode == VisualEffectBlendMode.Mix)
             {
                 mixProduct *= h.State.Modulate;
+                mixEmissions.Add(h.State.Emission);
             }
         }
 
@@ -309,6 +346,14 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
             if (!GodotObject.IsInstanceValid(node)) { continue; }
             SetModulate(node, baseColor * finalEffectColor);
         }
+        var emission = bestOverride != null ? bestOverride.State.Emission
+            : EffectEmission.Combine(CollectionsMarshal.AsSpan(mixEmissions));
+        if (emission == _writtenEmission) { return; }
+        foreach (var node in _channelNodes)
+        {
+            if (GodotObject.IsInstanceValid(node)) { WriteEmission(node, emission); }
+        }
+        _writtenEmission = emission;
     }
 
     private void ResetVisuals()
@@ -324,6 +369,20 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
             if (!GodotObject.IsInstanceValid(node)) { continue; }
             var color = service != null ? service.ComputeEffectiveColorForNode(node) : baseColor;
             SetModulate(node, color);
+        }
+        foreach (var node in _channelNodes)
+        {
+            if (GodotObject.IsInstanceValid(node)) { WriteEmission(node, EffectEmission.None); }
+        }
+        _writtenEmission = EffectEmission.None;
+    }
+
+    private static void WriteEmission(Node node, Color emission)
+    {
+        switch (node)
+        {
+            case GeometryInstance3D geometry: geometry.SetInstanceShaderParameter(EffectEmission.Uniform, emission); break;
+            case CanvasItem canvas: canvas.SetInstanceShaderParameter(EffectEmission.Uniform, emission); break;
         }
     }
 

@@ -26,6 +26,12 @@ public abstract partial class VisualEffect : Resource
     /// </summary>
     [Export] public VisualEffectBlendMode BlendMode { get; set; } = VisualEffectBlendMode.Mix;
 
+    /// <summary>The colour the sprite turns toward through the emission channel while the effect runs.</summary>
+    [Export(PropertyHint.ColorNoAlpha)] public Color EmissionColor { get; set; } = Colors.White;
+
+    /// <summary>How far the sprite turns toward EmissionColor, from none at zero to fully replaced at one.</summary>
+    [Export(PropertyHint.Range, "0,1,0.05")] public float EmissionWeight { get; set; } = 0f;
+
     /// <summary>
     /// Configure the Tween to perform this effect on the handle.
     /// The tween is already created; add your TweenProperty/TweenCallback calls targeting the handle.

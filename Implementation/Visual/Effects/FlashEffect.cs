@@ -40,12 +40,23 @@ public partial class FlashEffect : VisualEffect
             // Flash ON
             tween.TweenProperty(handle, "Modulate", FlashColor, halfFlashDuration)
                 .SetTrans(Tween.TransitionType.Linear);
+            if (EmissionWeight > 0f)
+            {
+                tween.Parallel().TweenProperty(handle, "Emission",
+                    new Color(EmissionColor.R, EmissionColor.G, EmissionColor.B, EmissionWeight), halfFlashDuration)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
 
             // Flash OFF (Back to White/Input)
             // Note: We tween back to White because the Controller multiplies this value.
             // White = 1.0 = Original Sprite Color.
             tween.TweenProperty(handle, "Modulate", Colors.White, halfFlashDuration)
                 .SetTrans(Tween.TransitionType.Linear);
+            if (EmissionWeight > 0f)
+            {
+                tween.Parallel().TweenProperty(handle, "Emission", EffectEmission.None, halfFlashDuration)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
         }
     }
 }

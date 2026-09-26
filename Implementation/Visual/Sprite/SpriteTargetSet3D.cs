@@ -11,8 +11,10 @@ using GCol = Godot.Collections;
 public enum SpriteTargetScope
 {
     /// <summary>
-    /// Every sprite under the root, nesting included. Correct for writers whose property does
-    /// NOT inherit down the transform chain — <c>Modulate</c>, <c>FlipH</c>.
+    /// Every sprite under the root, nesting included. Correct for writers whose property does NOT inherit down the
+    /// transform chain, such as <see cref="SpriteBase3D.FlipH"/>. <see cref="SpriteBase3D.Modulate"/> compounds down an
+    /// unbroken run of sprite parents and stops at any other node, so neither scope fits a Modulate writer; such a writer
+    /// filters its own set through <see cref="VisualNodeAggregator.InheritsModulate"/>.
     /// </summary>
     EntireSubtree,
 
