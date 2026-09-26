@@ -54,6 +54,13 @@ public partial class TintEffect : VisualEffect
         tween.TweenProperty(handle, "Modulate", TintColor, fadeInDuration)
             .SetTrans(Tween.TransitionType.Sine)
             .SetEase(Tween.EaseType.Out);
+        if (EmissionWeight > 0f)
+        {
+            tween.Parallel().TweenProperty(handle, "Emission",
+                new Color(EmissionColor.R, EmissionColor.G, EmissionColor.B, EmissionWeight), fadeInDuration)
+                .SetTrans(Tween.TransitionType.Sine)
+                .SetEase(Tween.EaseType.Out);
+        }
 
         // Hold at tint color
         if (holdDuration > 0)
@@ -65,5 +72,11 @@ public partial class TintEffect : VisualEffect
         tween.TweenProperty(handle, "Modulate", Colors.White, fadeOutDuration)
             .SetTrans(Tween.TransitionType.Sine)
             .SetEase(Tween.EaseType.In);
+        if (EmissionWeight > 0f)
+        {
+            tween.Parallel().TweenProperty(handle, "Emission", EffectEmission.None, fadeOutDuration)
+                .SetTrans(Tween.TransitionType.Sine)
+                .SetEase(Tween.EaseType.In);
+        }
     }
 }
