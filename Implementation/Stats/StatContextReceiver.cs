@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Stats;
 
+using Core.Modifiers;
 using Core.Stats;
 
 /// <summary>
@@ -16,6 +17,11 @@ public partial class StatContextReceiver2D : Area2D
     [Export]
     private Node _statProviderNode;
     private IStatProvider _statProvider;
+
+#if TOOLS
+    /// <summary>Injects the stat provider for testing purposes, bypassing _Ready's export wiring.</summary>
+    internal void SetStatProviderForTest(IStatProvider provider) => this._statProvider = provider;
+#endif
 
     public override void _Ready()
     {
@@ -41,13 +47,24 @@ public partial class StatContextReceiver2D : Area2D
         // Check if the area we entered is a stat context provider.
         if (area is not IStatContextProvider provider) { return; }
 
+        this.ApplyProviderModifiers(provider);
+    }
+
+    /// <summary>
+    /// Applies every modifier a provider carries, owned by the provider instance so
+    /// RemoveAllModifiersFromSource can retract the whole set on exit.
+    /// </summary>
+    internal void ApplyProviderModifiers(IStatContextProvider provider)
+    {
         // Apply all modifiers from the provider.
         // The provider's own instance (the Area2D node) is used as the unique "owner".
         // This is the key to the declarative cleanup system. The receiver doesn't need
         // to store handles because it will use RemoveAllModifiersFromSource on exit.
-        foreach (var (attribute, modifierResource) in provider.Modifiers)
+        foreach (var (attribute, modifier) in provider.Modifiers)
         {
-            _statProvider.TryAddModifier(attribute, modifierResource, provider, out var handle);
+            var typed = AttributeModifier.FromUntyped(modifier, attribute, this);
+            if (typed == null) { continue; }
+            _statProvider.TryAddModifier(attribute, typed, provider, out var handle);
         }
     }
 

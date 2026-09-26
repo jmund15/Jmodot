@@ -223,7 +223,7 @@ public class ModifiableProperty<T> : IModifiableProperty
         return Variant.From(Value);
     }
     // This region acts as a type-safe bridge between the generic class and the non-generic interface.
-    Guid IModifiableProperty.AddModifier(Resource modifierResource, object owner)
+    Guid IModifiableProperty.AddModifier(AttributeModifier? modifier, object owner)
     {
         // Null modifier is a data-driven failure (Godot editor can strip inline
         // sub_resources from Dictionary<Attribute, Resource> exports on resave, leaving
@@ -231,19 +231,19 @@ public class ModifiableProperty<T> : IModifiableProperty
         // StatController.TryAddModifier returns false — never throw on null, because
         // the resulting uncaught exception propagates through crafting event handlers
         // and locks the player out of the crafting UI.
-        if (modifierResource == null)
+        if (modifier == null)
         {
             JmoLogger.Warning(this,
                 $"Cannot add modifier to {GetType().Name}: incoming resource is null. " +
                 $"Check for stripped sub_resources in any .tres that exports this attribute.");
             return Guid.Empty;
         }
-        if (modifierResource is IModifier<T> typedModifier)
+        if (modifier is IModifier<T> typedModifier)
         {
             return AddModifier(typedModifier, owner);
         }
         throw JmoLogger.LogAndRethrow(new InvalidCastException(
-                $"Resource of type {modifierResource.GetType().Name} is not of type {nameof(IModifier<T>)}, cannot cast to modifier for this property!"),
+                $"Resource of type {modifier.GetType().Name} is not of type {nameof(IModifier<T>)}, cannot cast to modifier for this property!"),
             this);
     }
 
@@ -254,14 +254,14 @@ public class ModifiableProperty<T> : IModifiableProperty
             // We use the generic AddModifier via the interface to handle type-casting correctly.
             // Note: We use the existing Modifier resource and its original Owner.
             // This ensures that the target property now has a "copy" of the modifier application.
-            if (entry.Modifier is Resource resource)
+            if (entry.Modifier is AttributeModifier modifier)
             {
-                target.AddModifier(resource, entry.Owner);
+                target.AddModifier(modifier, entry.Owner);
             }
             else
             {
                 JmoLogger.Warning(typeof(ModifiableProperty<T>),
-                    $"Cannot transfer modifier of type {entry.Modifier.GetType().Name} — not a Resource");
+                    $"Cannot transfer modifier of type {entry.Modifier.GetType().Name} — not an AttributeModifier");
             }
         }
     }
