@@ -46,7 +46,7 @@ public struct StatEffect : IRevertibleCombatEffect
         Handle = null;
     }
 
-    public CombatResult? Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         // Use Blackboard
         if (!target.Blackboard.TryGet<StatController>(BBDataSig.Stats, out var stats))

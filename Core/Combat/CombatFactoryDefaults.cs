@@ -53,6 +53,13 @@ public static class CombatFactoryDefaults
     public static IReactionResolver? ReactionResolver;
 
     /// <summary>
+    /// Effectiveness-resolution seam consumed by <c>HurtboxComponent3D.ProcessHit</c>. When wired,
+    /// the hurtbox resolves the hit's incoming-magnitude scale from this resolver before forwarding
+    /// the payload. Null disables consultation gracefully — the hurtbox forwards with scale 1.0f.
+    /// </summary>
+    public static IEffectivenessResolver? EffectivenessResolver;
+
+    /// <summary>
     /// Clears every default to null. Intended for test teardown — lets Jmodot-only
     /// test suites reset shared static state without depending on a specific
     /// consuming project's autoload reset path. Production code should not call this.
@@ -62,5 +69,6 @@ public static class CombatFactoryDefaults
         DefaultCritChanceAttr = null;
         DefaultCritMultiplierAttr = null;
         ReactionResolver = null;
+        EffectivenessResolver = null;
     }
 }
