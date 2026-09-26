@@ -5,6 +5,7 @@ using Godot;
 using Jmodot.Core.Visual;
 using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Implementation.Visual.Animation.Sprite;
+using Jmodot.Implementation.Visual.Sprite;
 
 /// <summary>
 /// Measured silhouette of an entity's live art: the union of its live sprite extents, and that
@@ -216,25 +217,7 @@ public static class EntityVisualBounds3D
     /// </remarks>
     public static Vector2 ArtSize(SpriteBase3D sprite)
     {
-        return sprite switch
-        {
-            AnimatedSprite3D animated => FrameSize(
-                animated.SpriteFrames?.GetFrameTexture(animated.Animation, animated.Frame),
-                hframes: 1,
-                vframes: 1) * animated.PixelSize,
-            Sprite3D still => (still.RegionEnabled
-                ? still.RegionRect.Size
-                : FrameSize(still.Texture, still.Hframes, still.Vframes)) * still.PixelSize,
-            _ => Vector2.Zero,
-        };
-    }
-
-    private static Vector2 FrameSize(Texture2D? texture, int hframes, int vframes)
-    {
-        if (texture == null) { return Vector2.Zero; }
-
-        return new Vector2(
-            texture.GetWidth() / (float)Mathf.Max(1, hframes),
-            texture.GetHeight() / (float)Mathf.Max(1, vframes));
+        var (_, _, drawnSize) = SpriteFrameRect.Of(sprite);
+        return drawnSize * sprite.PixelSize;
     }
 }
