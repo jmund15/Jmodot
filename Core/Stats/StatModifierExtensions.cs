@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Stats;
 
+using System;
 using Godot.Collections;
 
 /// <summary>
@@ -11,8 +12,12 @@ public static class StatModifierExtensions
     /// True when any entry targets <paramref name="attribute" /> by reference. Null elements
     /// (an unauthored or stripped slot) are skipped rather than thrown on.
     /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="entries" /> or <paramref name="attribute" /> is null.</exception>
     public static bool Targets(this Array<StatModifier> entries, Attribute attribute)
     {
+        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(attribute);
+
         foreach (var entry in entries)
         {
             if (entry?.Attribute == attribute) { return true; }
