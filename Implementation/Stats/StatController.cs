@@ -327,27 +327,6 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
                 $"unable to add modifier {modifier?.ResourcePath ?? "<null>"} to attribute {attribute.AttributeName}"),
             this
         );
-        // try
-        // {
-        //     // The 'dynamic' keyword defers the type check until runtime.
-        //     // It will attempt to call prop.AddModifier(modifier).
-        //     // If the generic types of the property (e.g., <float>) and the modifier
-        //     // (e.g., IModifier<float>) match, it will succeed.
-        //     // If they do not match, it will throw a RuntimeBinderException, which we catch.
-        //     dynamic typedProp = prop;
-        //     typedProp.AddModifier(modifier);
-        //     return true;
-        // }
-        // catch (RuntimeBinderException ex)
-        // {
-        //     JmoLogger.Info(this,
-        //         $"attempted modifier: {modifier.GetType().FullName}." +
-        //         $"\nNeeded modifier: {prop.GetType().FullName}");
-        //     // This catch block is our runtime type validation.
-        //     // It means the modifier's type was incompatible with the stat's type.
-        //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifier.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
-        //     return false;
-        // }
     }
 
     public void RemoveModifier(ModifierHandle handle)
