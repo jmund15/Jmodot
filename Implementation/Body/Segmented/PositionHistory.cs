@@ -135,10 +135,18 @@ public sealed class PositionHistory
     /// <paramref name="results"/>[i] is <see cref="SampleAtDistance"/> for <paramref name="distances"/>[i],
     /// for a caller whose distances are strictly ascending. Walks the ring once, so it is the batch
     /// entry point for a train of followers instead of one <see cref="SampleAtDistance"/> call per unit.
+    /// Distances that are not strictly ascending get unspecified poses.
     /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="results"/> is shorter than <paramref name="distances"/>; nothing is written.</exception>
     /// <exception cref="InvalidOperationException">The trail holds no samples.</exception>
     public void SampleAscending(ReadOnlySpan<float> distances, Span<(Vector3 position, Vector3 facing)> results)
     {
+        if (results.Length < distances.Length)
+        {
+            throw new ArgumentException(
+                $"results holds {results.Length} slots for {distances.Length} distances.", nameof(results));
+        }
+
         if (this._count == 0)
         {
             throw new InvalidOperationException("An empty PositionHistory has no pose to sample.");

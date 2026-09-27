@@ -215,6 +215,9 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     /// units when it readies skips its own initial spawn, so a promoted body wears the tail it
     /// inherited instead of growing a fresh one on top of it.
     /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The roster would exceed <see cref="MaxSegments"/>; no unit is adopted.
+    /// </exception>
     public void AdoptSegments(IReadOnlyList<BodySegment3D> tail)
     {
         if (tail == null) { return; }
@@ -223,13 +226,24 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         foreach (var segment in tail)
         {
             if (segment == null || !GodotObject.IsInstanceValid(segment)) { continue; }
-            if (this._segments.Contains(segment)) { continue; }
+            if (this._segments.Contains(segment) || adopted.Contains(segment)) { continue; }
 
+            adopted.Add(segment);
+        }
+
+        if (this._segments.Count + adopted.Count > this.MaxSegments)
+        {
+            throw new ArgumentException(
+                $"Adopting {adopted.Count} units onto {this._segments.Count} would exceed MaxSegments ({this.MaxSegments}).",
+                nameof(tail));
+        }
+
+        foreach (var segment in adopted)
+        {
             this._segments.Add(segment);
             if (segment.Body.IsInsideTree()) { NormalizeWorldBasis(segment.Body); }
             segment.Died += this.OnSegmentDied;
             this.HookSegment(segment);
-            adopted.Add(segment);
         }
 
         this.Reindex();
