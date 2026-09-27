@@ -1,11 +1,11 @@
 namespace Jmodot.Examples.AI.BehaviorTree.Conditions;
 
-using System;
 using Core.AI.BB;
 using Core.AI.BehaviorTree.Conditions;
 using Core.Shared;
 using Implementation.AI.BehaviorTree.Tasks;
 using Implementation.Shared;
+using Implementation.Shared.GodotExceptions;
 
 /// <summary>
 /// A BTCondition that aborts after a randomized duration in [MinDuration, MaxDuration].
@@ -36,8 +36,15 @@ public partial class RandomTimeLimit : BTCondition
     private bool _warnedNoSeed;
 
     /// <inheritdoc />
+    /// <exception cref="ResourceConfigurationException">A duration bound is NaN or infinite.</exception>
     public override void Init(BehaviorTask owner, Node agent, IBlackboard bb)
     {
+        if (!float.IsFinite(_minDuration) || !float.IsFinite(_maxDuration))
+        {
+            throw new ResourceConfigurationException(
+                $"RandomTimeLimit durations must be finite (min {_minDuration}, max {_maxDuration}).", this);
+        }
+
         base.Init(owner, agent, bb);
         _rng = ResolveRng();
     }
@@ -73,26 +80,10 @@ public partial class RandomTimeLimit : BTCondition
     }
 
     /// <summary>
-    /// Returns a seeded random duration in [min, max], band-normalized (an inverted min/max is
-    /// swapped rather than trusted, so an authoring mistake degrades gracefully instead of
-    /// throwing). The sole owner of this roll-in-band primitive — <c>DitherAction</c>'s flip
-    /// clock draws its own interval from the same function rather than forking a copy.
+    /// Returns a seeded random duration in [min, max], drawn through <see cref="JmoMath.RollInRange"/>
+    /// (an inverted min/max is normalized rather than trusted).
     /// </summary>
-    public static float GetRandomDuration(IRng rng, float min, float max) => RollInRange(min, max, rng.GetRndFloat());
-
-    /// <summary>
-    /// Pure-math draw from an inclusive <paramref name="min"/>..<paramref name="max"/> band: a
-    /// <paramref name="roll"/> of 0 returns <paramref name="min"/> and 1 returns
-    /// <paramref name="max"/>, with the roll clamped to [0,1] and an inverted band normalized.
-    /// RNG ownership lives at the call site so this function is pure-CLR testable without Godot
-    /// runtime.
-    /// </summary>
-    public static float RollInRange(float min, float max, float roll)
-    {
-        float lo = Math.Min(min, max);
-        float hi = Math.Max(min, max);
-        return lo + Math.Clamp(roll, 0f, 1f) * (hi - lo);
-    }
+    public static float GetRandomDuration(IRng rng, float min, float max) => JmoMath.RollInRange(min, max, rng.GetRndFloat());
 
     #region Test Helpers
 #if TOOLS

@@ -209,4 +209,22 @@ public static class JmoMath
     /// </summary>
     public static float MirroredInPlaneRotation(float baseAngle, bool flip)
         => flip ? baseAngle - Mathf.Pi : baseAngle;
+
+    /// <summary>
+    /// The point <paramref name="roll"/> of the way across the inclusive band between
+    /// <paramref name="min"/> and <paramref name="max"/>: 0 returns the lower bound and 1 the upper.
+    /// The roll is clamped to [0, 1] and an inverted band is normalized, so a swapped authored pair
+    /// still yields a value inside it. The caller owns the random draw.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Any argument is NaN or infinite.</exception>
+    public static float RollInRange(float min, float max, float roll)
+    {
+        if (!float.IsFinite(min)) { throw new ArgumentOutOfRangeException(nameof(min), min, "The band's bounds must be finite."); }
+        if (!float.IsFinite(max)) { throw new ArgumentOutOfRangeException(nameof(max), max, "The band's bounds must be finite."); }
+        if (!float.IsFinite(roll)) { throw new ArgumentOutOfRangeException(nameof(roll), roll, "The roll must be finite."); }
+
+        float lo = Math.Min(min, max);
+        float hi = Math.Max(min, max);
+        return lo + Math.Clamp(roll, 0f, 1f) * (hi - lo);
+    }
 }

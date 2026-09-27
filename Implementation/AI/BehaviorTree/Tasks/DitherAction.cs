@@ -8,7 +8,6 @@ using Core.AI.BB;
 using Core.AI.BehaviorTree;
 using Core.Movement;
 using Core.Shared;
-using Examples.AI.BehaviorTree.Conditions;
 using Jmodot.AI.Navigation;
 using Jmodot.Core.Actors;
 using Movement.Strategies;
@@ -115,7 +114,7 @@ public partial class DitherAction : BehaviorAction
         this._sinceFlip = 0f;
         this.FlipIndex = 0;
         this._steeringClaimed = false;
-        this._flipInterval = RandomTimeLimit.RollInRange(this.FlipIntervalMin, this.FlipIntervalMax, this._rng.GetRndFloat());
+        this._flipInterval = JmoMath.RollInRange(this.FlipIntervalMin, this.FlipIntervalMax, this._rng.GetRndFloat());
 
         this.CommitDirection();
     }
@@ -129,7 +128,7 @@ public partial class DitherAction : BehaviorAction
 
         this._sinceFlip -= this._flipInterval;
         this.FlipIndex++;
-        this._flipInterval = RandomTimeLimit.RollInRange(this.FlipIntervalMin, this.FlipIntervalMax, this._rng.GetRndFloat());
+        this._flipInterval = JmoMath.RollInRange(this.FlipIntervalMin, this.FlipIntervalMax, this._rng.GetRndFloat());
         this.CommitDirection();
     }
 
