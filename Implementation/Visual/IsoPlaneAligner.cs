@@ -48,8 +48,8 @@ public partial class IsoPlaneAligner : Node3D
     /// identity, where it correctly reduces to no rotation at all.
     /// <para>
     /// <paramref name="quadNormalLocal"/> is the quad's authored normal in this basis's local space
-    /// — the caller's convention, named rather than assumed. It must lie in the local YZ plane
-    /// (every quad convention in this project does). Omit it for the flat-authored <c>+Y</c> sprite
+    /// — the caller's convention, named rather than assumed. It must be a nonzero vector in the
+    /// local YZ plane; anything else throws <see cref="System.ArgumentException"/>. Omit it for the flat-authored <c>+Y</c> sprite
     /// quad described above. A <see cref="Label3D"/> carries no <c>axis</c> member — it is not a
     /// <c>SpriteBase3D</c> — and its quad faces local <c>+Z</c> (Godot's <c>MODEL_FRONT</c>; note
     /// <see cref="Vector3.Forward"/> is <c>−Z</c>, as it names a camera's facing, not a model's);
@@ -67,6 +67,11 @@ public partial class IsoPlaneAligner : Node3D
     public static Basis ComputeIsoBasis(float depthForeshorten, Vector3? quadNormalLocal = null)
     {
         float sinTilt = Mathf.Clamp(depthForeshorten, 0f, 1f);
+        if (quadNormalLocal is Vector3 declared && (declared.IsZeroApprox() || !Mathf.IsZeroApprox(declared.X)))
+        {
+            throw new System.ArgumentException(
+                $"The quad normal must be a nonzero vector in the local YZ plane; got {declared}.", nameof(quadNormalLocal));
+        }
         Vector3 quadNormal = quadNormalLocal?.Normalized() ?? Vector3.Up;
         // The normal's own lean from local Y, subtracted so the DECLARED column is the one that
         // lands on the view axis. The +Y convention leans 0, reducing this to the original acos form
