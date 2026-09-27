@@ -68,8 +68,8 @@ public static class AttachmentAnchorPlacer
     {
         var x = bounds.Center.X + ((nextUnitFloat() - 0.5f) * bounds.Width);
         var y = bounds.Center.Y + ((nextUnitFloat() - 0.5f) * bounds.Height);
-        // The roll is drawn only for a positive range, so a planar profile consumes the exact same
-        // sequence it always did — a depth knob nobody turned on cannot shift anyone's anchor.
+        // The Z roll is drawn only for a positive range, so a planar profile consumes the same X/Y roll
+        // sequence it always did; its anchor still sits at the art's measured depth, which need not be 0.
         var z = bounds.Center.Z + (depthRange > 0f ? (nextUnitFloat() - 0.5f) * 2f * depthRange : 0f);
         return new Vector3(x, y, z);
     }
