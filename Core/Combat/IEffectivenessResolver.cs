@@ -4,8 +4,9 @@ using Godot;
 using Jmodot.Core.Identification;
 
 /// <summary>
-/// Effectiveness-resolution seam consumed by <c>HurtboxComponent3D.ProcessHit</c>. Decouples
-/// the framework's hurtbox from project-specific damage-effectiveness systems.
+/// Effectiveness-resolution seam read through
+/// <see cref="Jmodot.Implementation.Combat.IncomingMagnitude.Resolve"/>. Decouples the framework's
+/// hit and tick paths from project-specific damage-effectiveness systems.
 ///
 /// <para>
 /// Implementations resolve the scalar by which a hit's incoming damage is scaled for the
@@ -18,8 +19,8 @@ using Jmodot.Core.Identification;
 ///
 /// <para>
 /// Wired via <c>CombatFactoryDefaults.EffectivenessResolver</c> at project autoload time
-/// (static-seam pattern). Hurtboxes pull the resolver from there each hit; null is graceful —
-/// the hurtbox falls through to a scale of <c>1.0f</c>.
+/// (static-seam pattern) and consulted once per hit and once per damage-over-time tick, so an
+/// implementation must be cheap and side-effect free; null is graceful — the scale is <c>1.0f</c>.
 /// </para>
 /// </summary>
 public interface IEffectivenessResolver
@@ -30,8 +31,8 @@ public interface IEffectivenessResolver
     /// </summary>
     /// <param name="attacker">The attacking identity (categories carried by the attacker node).</param>
     /// <param name="defender">The defending identity (categories carried by the defender node).</param>
-    /// <param name="attackerNode">The attacker node, or null when absent (e.g. the status axis has no
-    /// attacker node by construction); null means no weight provider, the intrinsic case.</param>
+    /// <param name="attackerNode">The attacker node, or null when the caller has none; null means no
+    /// weight provider, the intrinsic case.</param>
     /// <param name="defenderNode">The defender node, or null; defender-side weights are consumed by
     /// project-side <c>ICategoryWeightProvider</c> implementers.</param>
     /// <returns>The magnitude scale: <c>1.0f</c> neutral, <c>0.0f</c> absolute immunity.</returns>

@@ -120,7 +120,10 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
             // Reissue the original impact context as Tick-kind so the per-tick visual
             // (e.g. burn-tint flash) isn't stacked with the generic damage hit-flash —
             // HitFlashComponent and similar primary-impact-only subscribers filter on Kind.
-            TickEffect.Apply(Target, Context.WithKind(Jmodot.Core.Health.DamageKind.Tick));
+            // Resolved per tick, never inherited from the entry hit: effectiveness gained or lost
+            // mid-status must change the ticks that follow.
+            TickEffect.Apply(Target, Context.WithKind(Jmodot.Core.Health.DamageKind.Tick),
+                IncomingMagnitude.Resolve(Context.Attacker, Target));
         }
     }
 

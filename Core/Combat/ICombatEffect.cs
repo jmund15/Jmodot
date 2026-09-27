@@ -19,9 +19,10 @@ public interface ICombatEffect
     /// Applies the logic to the target and returns a snapshot of what happened.
     /// Returns null if the effect failed or did nothing.
     /// <paramref name="incomingMagnitudeScale"/> scales the effect's damage contribution for this
-    /// application (per-application operand; <c>1.0f</c> neutral). A NON-POSITIVE operand means the
-    /// damage contribution is fully suppressed — implementations must report that suppression on an
-    /// observable channel rather than letting the application silently do nothing.
+    /// application (per-application operand; <c>1.0f</c> neutral). An implementation without a damage
+    /// contribution ignores it. An implementation WITH one must treat any operand that is not a
+    /// finite positive number as full suppression, and report that suppression on an observable
+    /// channel rather than letting the application silently do nothing.
     /// </summary>
     CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f);
 

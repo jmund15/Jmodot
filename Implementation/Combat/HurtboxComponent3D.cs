@@ -169,7 +169,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         // magnitude scale for this (attacker, defender) pair once. Null resolver → 1.0f (neutral).
         // Resolved BEFORE the reaction consult so the operand can be threaded into it — reaction
         // outcomes must see the same immunity the damage effects do.
-        float magnitudeScale = ResolveEffectivenessScale(payload, context);
+        float magnitudeScale = IncomingMagnitude.Resolve(payload.Attacker, _combatant);
 
         // 3.6. Reaction-resolver consultation (A2)
         // If the project wired CombatFactoryDefaults.ReactionResolver, query for matching
@@ -198,7 +198,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     /// may be a damage-stripped wrapper when an Exclusive reaction matched.
     /// </summary>
     /// <param name="incomingMagnitudeScale">The effectiveness operand for this hit, resolved by
-    /// <see cref="ResolveEffectivenessScale"/> BEFORE this call. Threaded to the resolver so
+    /// <see cref="IncomingMagnitude.Resolve"/> BEFORE this call. Threaded to the resolver so
     /// damage-bearing outcomes honour absolute immunity; <c>1.0f</c> means unscaled.</param>
     private IAttackPayload ConsultReactionResolver(IAttackPayload payload, HitContext context, float incomingMagnitudeScale)
     {
@@ -226,26 +226,6 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             payload,
             context,
             incomingMagnitudeScale);
-    }
-
-    /// <summary>
-    /// Resolve the incoming-magnitude scale for the hit from
-    /// <see cref="CombatFactoryDefaults.EffectivenessResolver"/>. Null resolver or an
-    /// unresolvable identity pair → <c>1.0f</c> (neutral intrinsic).
-    /// </summary>
-    private float ResolveEffectivenessScale(IAttackPayload payload, HitContext context)
-    {
-        var resolver = CombatFactoryDefaults.EffectivenessResolver;
-        if (resolver == null) { return 1.0f; }
-
-        var attackerIdentity = ResolveIdentity(payload.Attacker);
-        if (attackerIdentity == null) { return 1.0f; }
-
-        var defenderNode = _combatant.OwnerNode;
-        var defenderIdentity = ResolveIdentity(defenderNode);
-        if (defenderIdentity == null) { return 1.0f; }
-
-        return resolver.Resolve(attackerIdentity, defenderIdentity, payload.Attacker, defenderNode);
     }
 
     /// <summary>Resolve the identity of <paramref name="node"/> via the shared upward ancestor walk
