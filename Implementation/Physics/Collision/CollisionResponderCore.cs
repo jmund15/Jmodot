@@ -8,6 +8,7 @@ using Jmodot.Core.Modifiers.StageRules;
 using Jmodot.Core.Physics;
 using Jmodot.Core.Stats;
 using Jmodot.Implementation.Combat;
+using Jmodot.Implementation.Shared;
 using Attr = Jmodot.Core.Stats.Attribute;
 using GCol = Godot.Collections;
 
@@ -49,7 +50,6 @@ public sealed class CollisionResponderCore : ICollisionResponder
     // Pierce debounce — prevents sustained contact from burning pierce counts
     public const double DEBOUNCE_TIME_SECONDS = 0.1;
     private readonly Dictionary<Node, double> _lastPierceHitTimes = new();
-    internal double? _testTimeOverride;
 
     // Stat provider override for testing (avoids concrete StatController dependency)
     internal IStatProvider? _testStatProviderOverride;
@@ -458,7 +458,7 @@ public sealed class CollisionResponderCore : ICollisionResponder
 
     private bool IsSustainedPierceContact(CollisionContact contact)
     {
-        double currentTime = _testTimeOverride ?? Time.GetTicksMsec() / 1000.0;
+        double currentTime = GameClock.NowSeconds;
         if (_lastPierceHitTimes.TryGetValue(contact.Collider, out double lastHit))
         {
             if (currentTime - lastHit < DEBOUNCE_TIME_SECONDS)
@@ -473,7 +473,7 @@ public sealed class CollisionResponderCore : ICollisionResponder
 
     private void RecordPierceHit(CollisionContact contact)
     {
-        double currentTime = _testTimeOverride ?? Time.GetTicksMsec() / 1000.0;
+        double currentTime = GameClock.NowSeconds;
         _lastPierceHitTimes[contact.Collider] = currentTime;
     }
 

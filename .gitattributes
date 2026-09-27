@@ -1,0 +1,3 @@
+# Godot shader macros continue lines with a backslash; a CR after it breaks compilation.
+*.gdshader text eol=lf
+*.gdshaderinc text eol=lf

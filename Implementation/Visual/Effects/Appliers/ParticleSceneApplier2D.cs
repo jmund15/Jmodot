@@ -6,17 +6,34 @@ using Godot;
 
 /// <summary>
 /// 2D mirror of <see cref="ParticleSceneApplier3D"/>: instances a designer-authored
-/// <see cref="GpuParticles2D"/> emitter scene under a target node and tints it.
+/// <see cref="GpuParticles2D"/> emitter scene under a target node and, when constructed with a tint, tints it.
 /// </summary>
 public sealed class ParticleSceneApplier2D : IEffectApplier
 {
     private readonly Node _target;
     private readonly PackedScene _emitterScene;
-    private readonly Color _tint;
+    private readonly Color? _tint;
 
     private GpuParticles2D? _emitter;
     private VisualEffectHandle? _handle;
     private int _baseAmount = 1;
+
+    /// <summary>The native ClassDB class an emitter scene's root must be or inherit: <see cref="Begin"/> instances the root as a GpuParticles2D.</summary>
+    public const string EmitterRootClass = "GPUParticles2D";
+
+    /// <summary>True when <paramref name="emitterScene"/>'s root is or inherits <see cref="EmitterRootClass"/>, so <see cref="Begin"/> can instance it; false for an unreadable root.</summary>
+    public static bool CanInstance(PackedScene emitterScene) => emitterScene.RootInherits(EmitterRootClass);
+
+    /// <summary>Instances <paramref name="emitterScene"/> under <paramref name="target"/> with its authored colours: the
+    /// scene's own process material renders, never duplicated or recoloured, and needs not be a ParticleProcessMaterial.</summary>
+    public ParticleSceneApplier2D(Node target, PackedScene emitterScene)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(emitterScene);
+        _target = target;
+        _emitterScene = emitterScene;
+        _tint = null;
+    }
 
     public ParticleSceneApplier2D(Node target, PackedScene emitterScene, Color tint)
     {
@@ -36,7 +53,7 @@ public sealed class ParticleSceneApplier2D : IEffectApplier
         {
             _emitter = _emitterScene.Instantiate<GpuParticles2D>();
             _baseAmount = Mathf.Max(1, _emitter.Amount);
-            ApplyTint(_emitter, _tint, _emitterScene);
+            if (_tint is { } tint) { ApplyTint(_emitter, tint, _emitterScene); }
             _target.AddChild(_emitter);
             _emitter.Emitting = true;
         }
