@@ -78,20 +78,22 @@ public static class ConfigWarnings
     /// The one reflection walk behind <see cref="RequiredExports"/> and both
     /// <c>ValidateRequiredExports</c> extensions: properties then fields, most-derived type first,
     /// reading each level's declared members so private members of base classes are included.
+    /// An override and the member it overrides are one member; a <c>new</c> member and the one it
+    /// hides are two, each checked.
     /// </summary>
     internal static IEnumerable<UnassignedRequiredExport> UnassignedRequiredExports(GodotObject obj)
     {
         const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
                                    | BindingFlags.DeclaredOnly;
         var engineAssembly = typeof(GodotObject).Assembly;
-        var seenProperties = new HashSet<string>();
+        var seenProperties = new HashSet<MethodInfo>();
 
         for (var type = obj.GetType(); type != null && type.Assembly != engineAssembly; type = type.BaseType)
         {
             foreach (var prop in type.GetProperties(flags))
             {
                 var attribute = prop.GetCustomAttribute<RequiredExportAttribute>(inherit: false);
-                if (attribute == null || !seenProperties.Add(prop.Name) || prop.GetValue(obj) != null)
+                if (attribute == null || !seenProperties.Add(RootDeclaration(prop)) || prop.GetValue(obj) != null)
                 {
                     continue;
                 }
@@ -114,4 +116,7 @@ public static class ConfigWarnings
             }
         }
     }
+
+    private static MethodInfo RootDeclaration(PropertyInfo prop)
+        => (prop.GetMethod ?? prop.SetMethod!).GetBaseDefinition();
 }
