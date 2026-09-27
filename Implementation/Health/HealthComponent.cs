@@ -440,12 +440,12 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         if (kind == DamageKind.Direct)
         {
             JmoLogger.Info(this,
-                $"[Health] {previousHealth:F0}→{_currentHealth:F0} ({eventArgs.HealthDelta:F0}) from '{DescribeSource(source)}'");
+                $"[Health] {previousHealth:F1}→{_currentHealth:F1} ({eventArgs.HealthDelta:F1}) from '{DescribeSource(source)}'");
         }
         else
         {
             JmoLogger.Debug(this,
-                $"[Health] {previousHealth:F0}→{_currentHealth:F0} ({eventArgs.HealthDelta:F0}, {kind}) from '{DescribeSource(source)}'");
+                $"[Health] {previousHealth:F1}→{_currentHealth:F1} ({eventArgs.HealthDelta:F1}, {kind}) from '{DescribeSource(source)}'");
         }
 
         OnHealthChanged.Invoke(eventArgs);

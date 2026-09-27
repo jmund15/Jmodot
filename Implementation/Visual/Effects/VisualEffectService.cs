@@ -160,17 +160,39 @@ public partial class VisualEffectService : Node, IVisualEffectService, IBlackboa
     /// (insertion order of <see cref="_persistentTints"/> is preserved by the runtime
     /// but isn't relied on for correctness — only for traceability when debugging).
     /// </summary>
+    /// <remarks>
+    /// A handle nested under sprite handles takes only the tints that match it and none of those ancestors: the engine
+    /// already multiplies an ancestor's colour into it, so a tint matching both would apply twice.
+    /// </remarks>
     private Color ComputeEffectiveColor(VisualNodeHandle handle)
     {
         var color = GetBaseColor(handle.Node);
+        var inherited = InheritedHandles(handle.Node);
         foreach (var (_, entry) in _persistentTints)
         {
-            if (entry.query.Matches(handle))
+            if (entry.query.Matches(handle) && !inherited.Exists(entry.query.Matches))
             {
                 color *= entry.color;
             }
         }
         return color;
+    }
+
+    // The provider's handles in node's unbroken run of sprite parents, whose colour the engine passes down to it.
+    private List<VisualNodeHandle> InheritedHandles(Node node)
+    {
+        var inherited = new List<VisualNodeHandle>();
+        if (_provider == null) { return inherited; }
+
+        var byNode = new Dictionary<Node, VisualNodeHandle>();
+        foreach (var h in _provider.GetVisualNodes(VisualQuery.All)) { byNode.TryAdd(h.Node, h); }
+        if (!VisualNodeAggregator.InheritsModulate(node, byNode.ContainsKey)) { return inherited; }
+
+        for (var parent = node.GetParent(); parent is SpriteBase3D; parent = parent.GetParent())
+        {
+            if (byNode.TryGetValue(parent, out var ancestor)) { inherited.Add(ancestor); }
+        }
+        return inherited;
     }
 
     private void ApplyEffectiveColor(VisualNodeHandle handle)
