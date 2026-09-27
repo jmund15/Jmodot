@@ -3,7 +3,7 @@ namespace Jmodot.Core.Modifiers;
 using Godot.Collections;
 using Jmodot.Core.Stats;
 using Jmodot.Implementation.Shared;
-using System;
+using Jmodot.Implementation.Shared.GodotExceptions;
 using StatAttribute = Jmodot.Core.Stats.Attribute;
 
 /// <summary>
@@ -24,9 +24,10 @@ public abstract partial class AttributeModifier : Resource, ITaggableModifier
     [Export] public Array<string> RequiredContextTags { get; protected set; } = new();
 
     /// <summary>
-    /// Narrows an authored untyped resource to an attribute modifier. Returns null and warns when the resource or the attribute is null; throws when the resource is another resource type.
+    /// Narrows an authored untyped resource to an attribute modifier. Returns null and warns when the resource or the attribute is null.
     /// </summary>
-    public static AttributeModifier? FromUntyped(Resource? resource, StatAttribute attribute, object context)
+    /// <exception cref="ResourceConfigurationException"><paramref name="resource"/> is another resource type.</exception>
+    public static AttributeModifier? FromUntyped(Resource? resource, StatAttribute? attribute, object context)
     {
         if (attribute is null)
         {
@@ -47,8 +48,9 @@ public abstract partial class AttributeModifier : Resource, ITaggableModifier
             return modifier;
         }
 
-        throw JmoLogger.LogAndRethrow(new InvalidCastException(
-                $"Resource of type {resource.GetType().Name} ('{resource.ResourceName}') is not an {nameof(AttributeModifier)} and cannot be applied to '{attribute.AttributeName}'."),
+        throw JmoLogger.LogAndRethrow(new ResourceConfigurationException(
+                $"Resource of type {resource.GetType().Name} ('{resource.ResourceName}') is not an {nameof(AttributeModifier)} and cannot be applied to '{attribute.AttributeName}'.",
+                resource),
             context);
     }
 }
