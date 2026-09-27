@@ -52,8 +52,9 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     public bool ChangeHealthOnMaxChange { get; private set; } = true;
 
     /// <summary>
-    /// If true, TakeDamage calls are ignored but other combat effects (knockback) still apply.
-    /// Use this for "no damage but still physical" states like Collection phase.
+    /// If true, TakeDamage deals no damage and raises OnHitSuppressed instead, while other combat
+    /// effects (knockback) still apply. Use this for "no damage but still physical" states like
+    /// Collection phase.
     /// </summary>
     /// <remarks>
     /// Unlike HurtboxComponent3D.IsInvulnerable which blocks ALL hit processing,
@@ -105,8 +106,8 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     public event Action<HealthChangeEventArgs> OnHealed = delegate { };
 
     /// <summary>
-    /// Fired when a hit's damage was fully suppressed by an absolute-immunity resolution
-    /// (<c>incomingMagnitudeScale == 0</c>) — see <see cref="IHealth.OnHitSuppressed"/>.
+    /// Fired when a hit's damage was fully suppressed: by an absolute-immunity operand, or by
+    /// <see cref="IsDamageImmune"/> — see <see cref="IHealth.OnHitSuppressed"/>.
     /// </summary>
     public event Action<HealthChangeEventArgs> OnHitSuppressed = delegate { };
 
@@ -244,7 +245,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// <summary>
     /// Inflicts damage upon the component. Damage is ignored if the entity is already dead.
     /// </summary>
-    /// <param name="amount">The positive amount of health to remove.</param>
+    /// <param name="amount">The positive, finite amount of health to remove. A non-finite amount is ignored with a warning.</param>
     /// <param name="source">The object responsible for the damage (e.g., a projectile, player, or status effect).</param>
     /// <param name="kind">Categorizes the damage cause; carried into HealthChangeEventArgs so feedback subscribers can filter (e.g., HitFlash skips Tick).</param>
     /// <param name="impactDirection">The direction the blow travelled, when the caller knows it; carried into HealthChangeEventArgs for impact-aimed feedback such as fragment spray.</param>
@@ -257,15 +258,20 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     public virtual void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct,
         Vector3? impactDirection = null, float incomingMagnitudeScale = 1.0f)
     {
-        if (amount <= 0 || IsDead || !IsInitialized)
+        if (!float.IsFinite(amount))
+        {
+            JmoLogger.Warning(this, $"TakeDamage ignored a non-finite amount ({amount}) from '{DescribeSource(source)}'.");
+            return;
+        }
+
+        if (!(amount > 0f) || IsDead || !IsInitialized)
         {
             return;
         }
 
-        // Damage immunity check - knockback still applies via DamageResult.Force
-        // because this blocks only the health modification, not the effect flow
         if (IsDamageImmune)
         {
+            NotifyHitSuppressed(source, kind);
             return;
         }
 
@@ -294,14 +300,19 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         => TakeDamage(amount, source, kind, null);
 
     /// <summary>
-    /// Raises <see cref="OnHitSuppressed"/> for a hit whose damage was fully suppressed by an
-    /// absolute-immunity resolution. Obligation: call ONLY when the hit's damage is fully
-    /// suppressed — a false immune on a merely-resisted hit must not be expressible.
-    /// Subscribers may rely on the args carrying <c>IncomingMagnitudeScale = 0</c>, matching
-    /// the suppression this channel reports.
+    /// Raises <see cref="OnHitSuppressed"/> for a hit whose damage was fully suppressed. Obligation:
+    /// call ONLY when the hit's damage is fully suppressed — a false immune on a merely-resisted hit
+    /// must not be expressible. Does nothing while dead or uninitialized, matching
+    /// <see cref="TakeDamage(float, object, DamageKind, Vector3?, float)"/>. Subscribers may rely on
+    /// the args carrying <c>IncomingMagnitudeScale = 0</c>.
     /// </summary>
     public void NotifyHitSuppressed(object source, DamageKind kind)
     {
+        if (IsDead || !IsInitialized)
+        {
+            return;
+        }
+
         var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind, null, 0f);
         OnHitSuppressed.Invoke(args);
     }
