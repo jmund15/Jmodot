@@ -36,7 +36,8 @@ using Shared;
 public partial class VisualSlotNode : Node3D, IVisualNodeProvider
 {
     [ExportGroup("Slot Identity")]
-    [Export, RequiredExport] public SlotKey Key { get; set; } = null!;
+    [Export, RequiredExport("Assign a SlotKey resource: the VisualComposer ignores a slot without one, so nothing equips or animates in it.")]
+    public SlotKey Key { get; set; } = null!;
 
     /// <summary>How this slot's animator participates in composite timing.</summary>
     [Export] public AnimationSyncMode SyncMode { get; set; } = AnimationSyncMode.Slave;
@@ -94,11 +95,7 @@ public partial class VisualSlotNode : Node3D, IVisualNodeProvider
     }
 
     public override string[] _GetConfigurationWarnings()
-    {
-        var warnings = new List<string>();
-        if (Key == null) { warnings.Add("VisualSlotNode requires a SlotKey resource on Key."); }
-        return warnings.ToArray();
-    }
+        => [.. base._GetConfigurationWarnings() ?? [], .. ConfigWarnings.RequiredExports(this)];
 
     /// <summary>
     /// Equips an item. Atomic: prior instance is fully torn down (with NodeRemoved events

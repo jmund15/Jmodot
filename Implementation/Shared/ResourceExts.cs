@@ -6,17 +6,18 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Godot;
-using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 public static class ResourceExts
 {
     /// <summary>
-    /// Validates that all properties and fields marked with [RequiredExport] are not null.
+    /// Validates that all properties and fields marked with [RequiredExport] are not null, including
+    /// members declared on base classes (private ones too).
     /// Call this during Resource initialization to fail-fast with a clear error if any required exports are missing.
     /// </summary>
     /// <exception cref="ResourceConfigurationException">
-    /// Thrown when a [RequiredExport] property or field is null.
+    /// Thrown for the first [RequiredExport] property or field that is null.
     /// </exception>
     /// <example>
     /// <code>
@@ -35,33 +36,13 @@ public static class ResourceExts
 
     /// <summary>
     /// Names of every [RequiredExport] property and field on <paramref name="resource"/> whose value is
-    /// null, in declaration-reflection order (properties, then fields). Never throws; empty means every
-    /// required export is assigned. The non-throwing twin of <see cref="ValidateRequiredExports"/>, for
-    /// Resources that report defects as messages.
+    /// null, base-declared members (private ones too) included, properties before fields. Never throws;
+    /// empty means every required export is assigned. The non-throwing twin of
+    /// <see cref="ValidateRequiredExports"/>, for Resources that report defects as messages.
     /// </summary>
     public static IReadOnlyList<string> FindMissingRequiredExports(this Resource resource)
     {
-        var type = resource.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        var missing = new List<string>();
-
-        foreach (var prop in type.GetProperties(flags))
-        {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() != null && prop.GetValue(resource) == null)
-            {
-                missing.Add(prop.Name);
-            }
-        }
-
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() != null && field.GetValue(resource) == null)
-            {
-                missing.Add(field.Name);
-            }
-        }
-
-        return missing;
+        return ConfigWarnings.UnassignedRequiredExports(resource).Select(missing => missing.MemberName).ToList();
     }
 
     /// <summary>

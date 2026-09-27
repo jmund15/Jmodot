@@ -1,11 +1,13 @@
 namespace Jmodot.Implementation.Shared;
 
+using System.Collections.Generic;
+using System.Reflection;
 using Core.AI.BB;
+using Core.Shared.Attributes;
 
 /// <summary>
-/// Editor-time dependency checks shared by every component that hard-fails on a missing
-/// entity-scoped sibling. Centralised so the search topology matches what the entity
-/// initializer actually does.
+/// Editor-time configuration checks for the dock (<c>_GetConfigurationWarnings</c>), each sharing
+/// its topology with the runtime check it previews, so the dock and the runtime failure agree.
 /// </summary>
 public static class ConfigWarnings
 {
@@ -50,4 +52,71 @@ public static class ConfigWarnings
         found = null;
         return false;
     }
+
+    /// <summary>
+    /// One ready-formatted dock warning per unassigned <see cref="RequiredExportAttribute"/> member of
+    /// <paramref name="obj"/>, naming its Inspector name and, when authored, the attribute's
+    /// <see cref="RequiredExportAttribute.Consequence"/>. Empty when every required member is set.
+    /// Append it from <c>_GetConfigurationWarnings</c>; it reports the same members
+    /// <c>ValidateRequiredExports</c> throws for at runtime.
+    /// </summary>
+    public static string[] RequiredExports(GodotObject obj)
+    {
+        var warnings = new List<string>();
+        foreach (var missing in UnassignedRequiredExports(obj))
+        {
+            var warning = $"Required export '{missing.MemberName.Capitalize()}' is unassigned.";
+            warnings.Add(missing.Consequence == null ? warning : $"{warning} {missing.Consequence}");
+        }
+
+        return warnings.ToArray();
+    }
+
+    internal readonly record struct UnassignedRequiredExport(string MemberName, string? Consequence);
+
+    /// <summary>
+    /// The one reflection walk behind <see cref="RequiredExports"/> and both
+    /// <c>ValidateRequiredExports</c> extensions: properties then fields, most-derived type first,
+    /// reading each level's declared members so private members of base classes are included.
+    /// An override and the member it overrides are one member; a <c>new</c> member and the one it
+    /// hides are two, each checked.
+    /// </summary>
+    internal static IEnumerable<UnassignedRequiredExport> UnassignedRequiredExports(GodotObject obj)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                                   | BindingFlags.DeclaredOnly;
+        var engineAssembly = typeof(GodotObject).Assembly;
+        var seenProperties = new HashSet<MethodInfo>();
+
+        for (var type = obj.GetType(); type != null && type.Assembly != engineAssembly; type = type.BaseType)
+        {
+            foreach (var prop in type.GetProperties(flags))
+            {
+                var attribute = prop.GetCustomAttribute<RequiredExportAttribute>(inherit: false);
+                if (attribute == null || !seenProperties.Add(RootDeclaration(prop)) || prop.GetValue(obj) != null)
+                {
+                    continue;
+                }
+
+                yield return new UnassignedRequiredExport(prop.Name, attribute.Consequence);
+            }
+        }
+
+        for (var type = obj.GetType(); type != null && type.Assembly != engineAssembly; type = type.BaseType)
+        {
+            foreach (var field in type.GetFields(flags))
+            {
+                var attribute = field.GetCustomAttribute<RequiredExportAttribute>(inherit: false);
+                if (attribute == null || field.GetValue(obj) != null)
+                {
+                    continue;
+                }
+
+                yield return new UnassignedRequiredExport(field.Name, attribute.Consequence);
+            }
+        }
+    }
+
+    private static MethodInfo RootDeclaration(PropertyInfo prop)
+        => (prop.GetMethod ?? prop.SetMethod!).GetBaseDefinition();
 }
