@@ -23,10 +23,10 @@ public partial class IntCalculationStrategy : Resource, ICalculationStrategy<int
         if (active.Count == 0) { return baseValue; }
 
         var running = baseValue;
-        foreach (var group in active.GroupBy(m => m.StageRule.StageId)
-                                    .OrderBy(g => g.First().StageRule.Order))
+        foreach (var group in active.GroupBy(m => m.StageRule!.StageId)
+                                    .OrderBy(g => g.First().StageRule!.Order))
         {
-            var rule = group.First().StageRule;
+            var rule = group.First().StageRule!;
             rule.Validate();
             running = rule.Reduce(running, group.Select(m => m.Value).ToList());
         }

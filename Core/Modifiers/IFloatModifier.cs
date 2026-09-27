@@ -8,6 +8,7 @@ using StageRules;
 /// </summary>
 public interface IFloatModifier : IModifier<float>
 {
-    FloatModifierStageRule StageRule { get; }
+    /// <summary>The fold rule. Null when an authored slot is unset; the calculation strategy then drops this modifier with a warning.</summary>
+    FloatModifierStageRule? StageRule { get; }
     float Value { get; }
 }

@@ -10,7 +10,7 @@ public partial class BoolAttributeModifier : AttributeModifier, IBoolModifier
 {
     [Export] public bool Value { get; private set; }
 
-    [Export] public BoolModifierStageRule StageRule { get; private set; }
+    [Export] public BoolModifierStageRule? StageRule { get; private set; }
 
     public BoolAttributeModifier()
     {
