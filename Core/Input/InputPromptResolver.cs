@@ -98,7 +98,8 @@ public static class InputPromptResolver
     /// <see cref="Resolve"/>, so a rebinding is reflected on the next call.
     /// </summary>
     /// <returns>
-    /// <c>null</c> when the action is not in <paramref name="profile"/> or its binding has no events;
+    /// <c>null</c> when the action is not in <paramref name="profile"/>, its binding has no events, or
+    /// its first event is a key event naming no key (no keycode, physical keycode or key label);
     /// callers choose their own unbound fallback (<see cref="UnboundFallback"/> is the house one).
     /// </returns>
     public static string? ResolveBindingText(InputAction action, InputMappingProfile profile)
@@ -111,6 +112,8 @@ public static class InputPromptResolver
 
         return events[0] switch
         {
+            // Godot names such an event "(unset)", which is not a key a player can press.
+            InputEventKey { Keycode: Key.None, PhysicalKeycode: Key.None, KeyLabel: Key.None } => null,
             InputEventKey key when key.Keycode != Key.None => key.AsTextKeycode(),
             InputEventKey key when key.PhysicalKeycode != Key.None => key.AsTextPhysicalKeycode(),
             InputEventKey key => key.AsTextKeyLabel(),
