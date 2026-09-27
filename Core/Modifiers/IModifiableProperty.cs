@@ -29,9 +29,10 @@ public interface IModifiableProperty
     event Action<Variant> OnValueChanged;
 
     /// <summary>
-    /// Adds a modifier from a generic Resource and a given owner.
+    /// Adds an authored modifier on behalf of <paramref name="owner"/>.
     /// </summary>
-    /// <returns>A unique Guid for this specific modifier application, or Guid.Empty on failure.</returns>
+    /// <returns>A unique Guid for this application, or <see cref="Guid.Empty"/> when <paramref name="modifier"/> is null.</returns>
+    /// <exception cref="InvalidCastException">The modifier's value type does not match this property's.</exception>
     Guid AddModifier(AttributeModifier? modifier, object owner);
 
     /// <summary>
@@ -45,9 +46,16 @@ public interface IModifiableProperty
     void RemoveAllModifiersFromSource(object owner);
 
     /// <summary>
-    /// Transfers all active modifiers from this property to a target property.
-    /// This is used for merging stat sheets (e.g. Blueprint -> Instance).
+    /// Adds every active modifier of this property, with its original owner, to <paramref name="target"/>.
+    /// Used for merging stat sheets (e.g. Blueprint -> Instance). No modifier is dropped: either all transfer
+    /// or the call throws before <paramref name="target"/> changes.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="target"/> holds another value type and a modifier here is not an <see cref="AttributeModifier"/>.
+    /// </exception>
+    /// <exception cref="InvalidCastException">
+    /// <paramref name="target"/> holds another value type that the modifiers here cannot apply to.
+    /// </exception>
     void TransferModifiersTo(IModifiableProperty target);
 
     /// <summary>

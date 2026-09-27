@@ -249,20 +249,26 @@ public class ModifiableProperty<T> : IModifiableProperty
 
     public void TransferModifiersTo(IModifiableProperty target)
     {
+        if (target is ModifiableProperty<T> typedTarget)
+        {
+            foreach (var entry in _modifierEntries)
+            {
+                typedTarget.AddModifier(entry.Modifier, entry.Owner);
+            }
+            return;
+        }
+
+        var untransferable = _modifierEntries.FirstOrDefault(entry => entry.Modifier is not AttributeModifier);
+        if (untransferable.Modifier != null)
+        {
+            throw JmoLogger.LogAndRethrow(new InvalidOperationException(
+                    $"Cannot transfer modifier of type {untransferable.Modifier.GetType().Name} from a {typeof(T).Name} property to {target.GetType().Name}: only an {nameof(AttributeModifier)} crosses the untyped seam."),
+                this);
+        }
+
         foreach (var entry in _modifierEntries)
         {
-            // We use the generic AddModifier via the interface to handle type-casting correctly.
-            // Note: We use the existing Modifier resource and its original Owner.
-            // This ensures that the target property now has a "copy" of the modifier application.
-            if (entry.Modifier is AttributeModifier modifier)
-            {
-                target.AddModifier(modifier, entry.Owner);
-            }
-            else
-            {
-                JmoLogger.Warning(typeof(ModifiableProperty<T>),
-                    $"Cannot transfer modifier of type {entry.Modifier.GetType().Name} — not an AttributeModifier");
-            }
+            target.AddModifier((AttributeModifier)entry.Modifier, entry.Owner);
         }
     }
 
