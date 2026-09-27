@@ -32,10 +32,8 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     #endregion
 
     /// <summary>Per-agent wander state: the desync offset plus this agent's own time accumulator.</summary>
-    internal sealed class WanderRuntime : AIConsiderationRuntime
+    internal sealed class WanderRuntime : SeededPhaseRuntime
     {
-        public float Offset;
-        public float AccumulatedTime;
     }
 
     public override void Initialize(DirectionSet3D directions)
@@ -49,16 +47,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     }
 
     public override AIConsiderationRuntime CreateRuntime(IBlackboard? blackboard)
-    {
-        int entitySeed = 0;
-        bool hasSeed = blackboard != null && blackboard.TryGet<int>(BBDataSig.EntitySeed, out entitySeed);
-        if (!hasSeed)
-        {
-            JmoLogger.Warning(this, "[Lineage] WanderConsideration3D: no EntitySeed — desync offset 0 (unseeded).");
-        }
-
-        return new WanderRuntime { Offset = hasSeed ? DeriveOffset(entitySeed) : 0f, AccumulatedTime = 0f };
-    }
+        => CreateSeededPhaseRuntime<WanderRuntime>(blackboard, SeedKinds.Wander);
 
     protected override Dictionary<Vector3, float> CalculateBaseScores(
         DirectionSet3D directions,
@@ -76,7 +65,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
         float time = 0f;
         if (wander != null)
         {
-            wander.AccumulatedTime += (float)(1.0 / Engine.PhysicsTicksPerSecond);
+            wander.AccumulatedTime += context3D.PhysicsDelta;
             time = wander.AccumulatedTime + wander.Offset;
         }
         float noiseValue = _noise?.GetNoise1D(time) ?? 0f;
@@ -114,14 +103,6 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
     {
         float angle = (noiseValue + 1f) * Mathf.Tau;
         return new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
-    }
-
-    // Deterministic per-agent desync offset in [0, 1000), folded straight from the seed — no
-    // JmoRng construction (keeps this off the SIGSEGV-prone ctor and avoids a per-frame alloc).
-    private static float DeriveOffset(int entitySeed)
-    {
-        int derived = SeedManager.DeriveChild(entitySeed, SeedKinds.Wander);
-        return (uint)derived % 1_000_000u / 1000f;
     }
 
     #region Test Helpers

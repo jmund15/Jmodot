@@ -28,17 +28,32 @@ public partial class BlackboardGraph : Node, IBlackboardGraph
     /// <summary>
     /// Production-safe programmatic initialization seam. Sets <see cref="ScopeTag"/> + leaf
     /// <see cref="Blackboard"/> without requiring scene-tree wiring. Call BEFORE
-    /// <see cref="AttachParent"/> and BEFORE adding the node to a scene tree. Idempotent on
-    /// already-initialized graphs throws — double-init is a programmer error.
+    /// <see cref="AttachParent"/> and BEFORE adding the node to a scene tree. A second call throws —
+    /// double-init is a programmer error.
+    /// <para>
+    /// The graph takes ownership of <paramref name="leaf"/>: an unparented leaf becomes a child of this
+    /// graph and is freed with it by <see cref="DisposeSubgraph"/>. Pass an unparented leaf or one that
+    /// is already this graph's child, and never reparent it afterwards.
+    /// </para>
     /// </summary>
+    /// <exception cref="InvalidOperationException">The graph is already initialized.</exception>
+    /// <exception cref="ArgumentException"><paramref name="leaf"/> is parented to another node.</exception>
     public void Initialize(StringName scopeTag, Blackboard leaf)
     {
         if (_local != null!)
         {
             throw new InvalidOperationException("BlackboardGraph already initialized.");
         }
+        var leafParent = leaf.GetParent();
+        if (leafParent != null && leafParent != this)
+        {
+            throw new ArgumentException(
+                $"BlackboardGraph leaf '{leaf.Name}' is parented to '{leafParent.Name}'; the graph must own its leaf to free it.",
+                nameof(leaf));
+        }
         _scopeTag = scopeTag;
         _local = leaf;
+        if (leafParent == null) { AddChild(leaf); }
         HookLocalAnyKeyChanged();
     }
 
