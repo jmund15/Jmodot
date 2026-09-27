@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.AI.HSM;
 
+using System;
 using System.Linq;
 using BB;
 using Core.AI.BB;
@@ -36,14 +37,20 @@ public partial class State : Node, IState
     /// <summary>
     /// A list of potential transitions from this state. In each process frame,
     /// the state will check these transitions in order and execute the first one whose conditions are met.
-    /// <para>
-    /// Readable by author-time predicates that must ask whether a route out of this state exists at all
-    /// — a task whose behaviour holds the entity indefinitely is only safe while some transition ends
-    /// the hold, and nothing else on the state records that.
-    /// </para>
     /// </summary>
     [Export]
-    public GColl.Array<StateTransition> Transitions { get; private set; } = new();
+    protected GColl.Array<StateTransition> Transitions { get; private set; } = new();
+
+    /// <summary>
+    /// Read-only view of the authored transitions that can fire: assigned and naming a target state.
+    /// An unassigned slot or an empty target path is excluded; <see cref="_GetConfigurationWarnings"/>
+    /// reports those.
+    /// </summary>
+    public IEnumerable<StateTransition> Routes
+        => Transitions.Where(t => t != null && t.TargetStatePath != null && !t.TargetStatePath.IsEmpty);
+
+    /// <summary>True when some transition in <see cref="Routes"/> satisfies <paramref name="predicate"/>.</summary>
+    public bool HasRoute(Func<StateTransition, bool> predicate) => Routes.Any(predicate);
 
     protected List<StateTransition> UniqueTransitions { get; private set; } = new();
     private Dictionary<StateTransition, State> _resolvedTransitions = new();
