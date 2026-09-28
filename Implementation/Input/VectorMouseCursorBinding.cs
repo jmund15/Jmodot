@@ -14,8 +14,7 @@ public partial class VectorMouseCursorBinding : VectorBindingBase
             return Vector2.Zero;
         }
 
-        var mousePos = ViewportUtils.GetMouseWorldPosition3D();
-        if (mousePos == Vector3.Zero)
+        if (!ViewportUtils.TryGetMouseWorldPosition3D(out var mousePos))
         {
             return Vector2.Zero;
         }

@@ -142,7 +142,7 @@ public static class NodeExts
     /// </summary>
     public static void FreeAfterTimeout(this Node node, float seconds, Func<bool>? unless = null)
     {
-        node.GetTree().CreateTimer(seconds).Timeout += () =>
+        GameClock.CreateTimer(node, seconds).Timeout += () =>
         {
             if (!node.IsValid())
             {

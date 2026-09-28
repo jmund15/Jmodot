@@ -90,6 +90,12 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     /// </summary>
     public event Action<float> AppliedScaleChanged = delegate { };
 
+    public override void _Ready()
+    {
+        base._Ready();
+        this.ValidateRequiredExports();
+    }
+
     // --- Component Interface ---
 
     public bool Initialize(IBlackboard bb)
