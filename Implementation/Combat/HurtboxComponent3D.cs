@@ -169,7 +169,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
         // magnitude scale for this (attacker, defender) pair once. Null resolver → 1.0f (neutral).
         // Resolved BEFORE the reaction consult so the operand can be threaded into it — reaction
         // outcomes must see the same immunity the damage effects do.
-        float magnitudeScale = IncomingMagnitude.Resolve(payload.Attacker, _combatant);
+        float magnitudeScale = IncomingMagnitude.Resolve(payload.Source ?? payload.Attacker, _combatant);
 
         // 3.6. Reaction-resolver consultation (A2)
         // If the project wired CombatFactoryDefaults.ReactionResolver, query for matching
