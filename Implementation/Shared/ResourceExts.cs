@@ -111,7 +111,7 @@ public static class ResourceExts
     /// <summary>
     /// Names of every [RequiredExport] property and field on <paramref name="resource"/> whose value is
     /// null, in declaration-reflection order (properties, then fields). Never throws; empty means every
-    /// required export is assigned. Unlike <see cref="ValidateRequiredExports"/>, it lists only this resource's
+    /// required export is assigned. Unlike <see cref="ValidateRequiredExports(Resource)"/>, it lists only this resource's
     /// own members and does not walk nested Resources or collection elements; for Resources that report their
     /// own defects as messages.
     /// </summary>
