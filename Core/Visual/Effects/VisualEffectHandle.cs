@@ -11,4 +11,7 @@ public partial class VisualEffectHandle : GodotObject
     /// Defaut is White (no change/identity).
     /// </summary>
     [Export] public Color Modulate { get; set; } = Colors.White;
+
+    /// <summary>RGB is the target emission colour; alpha is its active weight.</summary>
+    [Export] public Color Emission { get; set; } = EffectEmission.None;
 }

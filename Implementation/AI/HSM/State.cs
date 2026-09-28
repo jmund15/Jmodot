@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.HSM;
 using System.Linq;
 using BB;
 using Core.AI.BB;
+using Core.Shared;
 using Core.AI.BehaviorTree;
 using Core.AI.HSM;
 using Core.Stats;
@@ -288,6 +289,23 @@ public partial class State : Node, IState
             {
                 warnings.Add($"Transition at index {i} is not assigned.");
                 continue;
+            }
+
+            // Conditions are Resources, and Godot never calls _GetConfigurationWarnings on a
+            // Resource, so this node lends them its own rung. Matched on the interface rather than
+            // a concrete condition type: a type test here would silently skip every sibling
+            // condition that later needs validation. Placed ahead of the path checks because those
+            // `continue` out, and a transition with a bad path still has authorable conditions.
+            foreach (var condition in transition.Conditions)
+            {
+                if (condition is IResourceConfigurationWarnings validated)
+                {
+                    // Prefixed with the transition's identity: a state can hold several transitions
+                    // and several conditions each, so an unattributed "'BB Signature' cannot be
+                    // empty." does not tell the author which resource to open.
+                    warnings.AddRange(validated.GetResourceConfigurationWarnings()
+                        .Select(w => $"Transition '{transition.ResourceName}' (index {i}): {w}"));
+                }
             }
 
             var path = transition.TargetStatePath;

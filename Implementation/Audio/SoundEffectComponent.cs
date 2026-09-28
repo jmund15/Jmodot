@@ -133,7 +133,19 @@ public partial class SoundEffectComponent : Node, IComponent
             WarnOnce(ref _warnedNullProfile, "EntitySoundProfile is null; sound events ignored.");
             return;
         }
+        // The orchestrator reports the RESOLVED clip, which carries a direction suffix once a
+        // direction set is mounted. Profile keys are authored as logical base names, so an exact
+        // miss retries on the base that clip was resolved from.
         var entry = FindEntry(profile, animName);
+        if (entry == null)
+        {
+            var baseName = _animationOrchestrator?.GetBaseAnimName(animName) ?? animName;
+            if (baseName != animName)
+            {
+                entry = FindEntry(profile, baseName);
+            }
+        }
+
         if (entry == null)
         {
             return; // Unknown animation silently ignored (documented design rule).
@@ -151,7 +163,9 @@ public partial class SoundEffectComponent : Node, IComponent
         PlaySound(director, entry.Sound);
         if (entry.PlayMode == PlayMode.Cadence)
         {
-            StartCadence(entry.Sound, entry.CadenceInterval, animName);
+            // Keyed on the ENTRY's own name, not the event name: the tick re-resolves by this key,
+            // and a direction-suffixed event name resolves to nothing.
+            StartCadence(entry.Sound, entry.CadenceInterval, entry.Animation);
         }
     }
 
