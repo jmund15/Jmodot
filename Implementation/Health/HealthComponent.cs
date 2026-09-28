@@ -500,10 +500,16 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
     }
 
-    /// <summary>Best-effort display name for a damage/heal source: its node name when it is a Node,
-    /// otherwise its type name. Never throws and never returns null.</summary>
+    /// <summary>Best-effort display name for a damage/heal source: its node name when it is a live
+    /// Node, otherwise its type name. Never throws and never returns null.</summary>
     private static string DescribeSource(object? source)
-        => (source as Node)?.Name.ToString() ?? source?.GetType().Name ?? "unknown";
+    {
+        // Reading Name off a FREED node throws ObjectDisposedException, so validity is part of the
+        // "never throws" contract — a source that died between the hit and the health write (an
+        // attacker killed mid-flight by its own ricochet) is the ordinary case, not an edge one.
+        if (source is Node node && GodotObject.IsInstanceValid(node)) { return node.Name.ToString(); }
+        return source?.GetType().Name ?? "unknown";
+    }
 
     /// <summary>
     /// Handles stat changes by re-resolving MaxHealth through the definition.
