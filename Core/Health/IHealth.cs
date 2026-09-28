@@ -56,8 +56,16 @@ public class HealthChangeEventArgs : EventArgs
     /// </summary>
     public Vector3? ImpactDirection { get; }
 
+    /// <summary>
+    /// The per-application incoming-magnitude operand that scaled this hit's damage before it reached
+    /// health. Threaded through from the damage payload as an argument — never stored state. Defaults
+    /// to <c>1.0</c> (unscaled) for callers that carry no effectiveness operand (environmental
+    /// damage, reaction-unscaled damage); such unscaled scopes truthfully read Neutral.
+    /// </summary>
+    public float IncomingMagnitudeScale { get; }
+
     public HealthChangeEventArgs(float newHealth, float previousHealth, float maxHealth, object source,
-        DamageKind kind = DamageKind.Direct, Vector3? impactDirection = null)
+        DamageKind kind = DamageKind.Direct, Vector3? impactDirection = null, float incomingMagnitudeScale = 1.0f)
     {
         NewHealth = newHealth;
         PreviousHealth = previousHealth;
@@ -66,12 +74,14 @@ public class HealthChangeEventArgs : EventArgs
         Source = source;
         Kind = kind;
         ImpactDirection = impactDirection;
+        IncomingMagnitudeScale = incomingMagnitudeScale;
     }
 }
 
 /// <summary>
-/// Defines a read-only contract for components that have health.
-/// Useful for UI, AI, and other observer systems.
+/// Defines the observer contract for components that have health: read-only state and events for
+/// UI, AI and other observers, plus <see cref="NotifyHitSuppressed"/>, the one member that raises
+/// an event on the health component.
 /// </summary>
 public interface IHealth
 {
@@ -79,6 +89,23 @@ public interface IHealth
     event Action<float> OnMaxHealthChanged;
     event Action<HealthChangeEventArgs> OnDied;
     event Action<HealthChangeEventArgs> OnResurrected;
+
+    /// <summary>
+    /// Fired for every hit whose damage is FULLY suppressed, whether by an absolute-immunity
+    /// operand (<c>incomingMagnitudeScale == 0</c>) or by a damage-immune state. Such a hit produces
+    /// NO <c>OnDamaged</c>/health event — suppression extends to events — so this is the distinct
+    /// signal a presentation surface (e.g. a combat floater) uses to show "Immune".
+    /// </summary>
+    event Action<HealthChangeEventArgs> OnHitSuppressed;
+
+    /// <summary>
+    /// Invokes <see cref="OnHitSuppressed"/> for a hit whose damage was fully suppressed.
+    /// Obligation: call ONLY when the hit's damage is fully suppressed — a false immune on a
+    /// merely-resisted hit must not be expressible. Does nothing while the health is dead or
+    /// uninitialized. A C# event can only be raised from its declaring type, so this method is the
+    /// call surface for payload effects that detect the zero operand.
+    /// </summary>
+    void NotifyHitSuppressed(object source, DamageKind kind);
 
     float CurrentHealth { get; }
     float MaxHealth { get; }

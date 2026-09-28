@@ -45,6 +45,9 @@ public interface IReactionResolver
     /// <param name="originalPayload">The unmodified attack payload. Implementation may return
     /// it as-is or wrap it (e.g., to strip damage); MUST never return null.</param>
     /// <param name="hitContext">The hit context built by the hurtbox.</param>
+    /// <param name="incomingMagnitudeScale">Per-application scale of the hit's incoming damage.
+    /// When <c>0.0f</c> (absolute immunity), the consult's damage-bearing outcomes are suppressed
+    /// for that hit; ordinary resistance leaves them unscaled. Non-damage outcomes are unaffected.</param>
     /// <returns>The payload to forward; never null.</returns>
     IAttackPayload ConsultAndApply(
         Identity attackerIdentity,
@@ -53,5 +56,6 @@ public interface IReactionResolver
         Node attackerNode,
         Node defenderNode,
         IAttackPayload originalPayload,
-        HitContext hitContext);
+        HitContext hitContext,
+        float incomingMagnitudeScale = 1.0f);
 }

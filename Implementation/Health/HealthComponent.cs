@@ -52,8 +52,9 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     public bool ChangeHealthOnMaxChange { get; private set; } = true;
 
     /// <summary>
-    /// If true, TakeDamage calls are ignored but other combat effects (knockback) still apply.
-    /// Use this for "no damage but still physical" states like Collection phase.
+    /// If true, TakeDamage deals no damage and raises OnHitSuppressed instead, while other combat
+    /// effects (knockback) still apply. Use this for "no damage but still physical" states like
+    /// Collection phase.
     /// </summary>
     /// <remarks>
     /// Unlike HurtboxComponent3D.IsInvulnerable which blocks ALL hit processing,
@@ -103,6 +104,12 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// Fired whenever the entity's health increases due to healing.
     /// </summary>
     public event Action<HealthChangeEventArgs> OnHealed = delegate { };
+
+    /// <summary>
+    /// Fired when a hit's damage was fully suppressed: by an absolute-immunity operand, or by
+    /// <see cref="IsDamageImmune"/> — see <see cref="IHealth.OnHitSuppressed"/>.
+    /// </summary>
+    public event Action<HealthChangeEventArgs> OnHitSuppressed = delegate { };
 
     #endregion
 
@@ -214,6 +221,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         OnResurrected = delegate { };
         OnDamaged = delegate { };
         OnHealed = delegate { };
+        OnHitSuppressed = delegate { };
 
         // Unsubscribe from stat provider to prevent stale callbacks
         if (_statProvider != null)
@@ -237,27 +245,33 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// <summary>
     /// Inflicts damage upon the component. Damage is ignored if the entity is already dead.
     /// </summary>
-    /// <param name="amount">The positive amount of health to remove.</param>
+    /// <param name="amount">The positive, finite amount of health to remove. A non-finite amount is ignored with a warning.</param>
     /// <param name="source">The object responsible for the damage (e.g., a projectile, player, or status effect).</param>
     /// <param name="kind">Categorizes the damage cause; carried into HealthChangeEventArgs so feedback subscribers can filter (e.g., HitFlash skips Tick).</param>
     /// <param name="impactDirection">The direction the blow travelled, when the caller knows it; carried into HealthChangeEventArgs for impact-aimed feedback such as fragment spray.</param>
+    /// <param name="incomingMagnitudeScale">The per-application incoming-magnitude operand that scaled this hit's damage; carried into HealthChangeEventArgs so feedback can label the hit's effectiveness. Defaults to <c>1.0</c> (unscaled) for callers with no operand.</param>
     /// <remarks>
     /// The direction rides on this type rather than on <see cref="IDamageable"/> on purpose — see the
     /// remark on <see cref="IDamageable.TakeDamage"/>. The interface's own narrower entry point is
     /// implemented explicitly below and forwards here, so there is still ONE body.
     /// </remarks>
     public virtual void TakeDamage(float amount, object source, DamageKind kind = DamageKind.Direct,
-        Vector3? impactDirection = null)
+        Vector3? impactDirection = null, float incomingMagnitudeScale = 1.0f)
     {
-        if (amount <= 0 || IsDead || !IsInitialized)
+        if (!float.IsFinite(amount))
+        {
+            JmoLogger.Warning(this, $"TakeDamage ignored a non-finite amount ({amount}) from '{DescribeSource(source)}'.");
+            return;
+        }
+
+        if (!(amount > 0f) || IsDead || !IsInitialized)
         {
             return;
         }
 
-        // Damage immunity check - knockback still applies via DamageResult.Force
-        // because this blocks only the health modification, not the effect flow
         if (IsDamageImmune)
         {
+            NotifyHitSuppressed(source, kind);
             return;
         }
 
@@ -273,17 +287,35 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Fire events manually so visual feedback (flash, fragments) still triggers.
         if (IsIndestructible && Mathf.IsEqualApprox(newHealth, _currentHealth))
         {
-            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind, impactDirection);
+            var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind, impactDirection, incomingMagnitudeScale);
             OnHealthChanged.Invoke(args);
             OnDamaged.Invoke(args);
             return;
         }
 
-        SetHealth(newHealth, source, kind, impactDirection);
+        SetHealth(newHealth, source, kind, impactDirection, incomingMagnitudeScale);
     }
 
     void IDamageable.TakeDamage(float amount, object source, DamageKind kind)
         => TakeDamage(amount, source, kind, null);
+
+    /// <summary>
+    /// Raises <see cref="OnHitSuppressed"/> for a hit whose damage was fully suppressed. Obligation:
+    /// call ONLY when the hit's damage is fully suppressed — a false immune on a merely-resisted hit
+    /// must not be expressible. Does nothing while dead or uninitialized, matching
+    /// <see cref="TakeDamage(float, object, DamageKind, Vector3?, float)"/>. Subscribers may rely on
+    /// the args carrying <c>IncomingMagnitudeScale = 0</c>.
+    /// </summary>
+    public void NotifyHitSuppressed(object source, DamageKind kind)
+    {
+        if (IsDead || !IsInitialized)
+        {
+            return;
+        }
+
+        var args = new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind, null, 0f);
+        OnHitSuppressed.Invoke(args);
+    }
 
     /// <summary>
     /// Restores health to the component. Healing is ignored if the entity is dead.
@@ -417,7 +449,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// clamps values, invokes all relevant events, and handles the death transition.
     /// </summary>
     private void SetHealth(float newHealth, object source, DamageKind kind = DamageKind.Direct,
-        Vector3? impactDirection = null)
+        Vector3? impactDirection = null, float incomingMagnitudeScale = 1.0f)
     {
         float previousHealth = _currentHealth;
         float maxHealth = MaxHealth; // Cache for this scope to avoid repeated lookups.
@@ -432,7 +464,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
 
         // --- Event Invocation ---
-        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source, kind, impactDirection);
+        var eventArgs = new HealthChangeEventArgs(_currentHealth, previousHealth, maxHealth, source, kind, impactDirection, incomingMagnitudeScale);
 
         // Every health change funnels through here, so this is the one place a combat readout can be
         // both complete and non-duplicated. Direct only: ticks and reactions fire on their own cadence
@@ -468,10 +500,16 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
     }
 
-    /// <summary>Best-effort display name for a damage/heal source: its node name when it is a Node,
-    /// otherwise its type name. Never throws and never returns null.</summary>
+    /// <summary>Best-effort display name for a damage/heal source: its node name when it is a live
+    /// Node, otherwise its type name. Never throws and never returns null.</summary>
     private static string DescribeSource(object? source)
-        => (source as Node)?.Name.ToString() ?? source?.GetType().Name ?? "unknown";
+    {
+        // Reading Name off a FREED node throws ObjectDisposedException, so validity is part of the
+        // "never throws" contract — a source that died between the hit and the health write (an
+        // attacker killed mid-flight by its own ricochet) is the ordinary case, not an edge one.
+        if (source is Node node && GodotObject.IsInstanceValid(node)) { return node.Name.ToString(); }
+        return source?.GetType().Name ?? "unknown";
+    }
 
     /// <summary>
     /// Handles stat changes by re-resolving MaxHealth through the definition.
