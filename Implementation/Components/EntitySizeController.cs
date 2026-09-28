@@ -84,6 +84,12 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     public bool IsInitialized { get; private set; }
     public event Action Initialized = delegate { };
 
+    public override void _Ready()
+    {
+        base._Ready();
+        this.ValidateRequiredExports();
+    }
+
     // --- Component Interface ---
 
     public bool Initialize(IBlackboard bb)

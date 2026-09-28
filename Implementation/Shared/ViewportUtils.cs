@@ -4,59 +4,41 @@ using Godot;
 
 public static class ViewportUtils
 {
-    private static Camera3D? _cachedCamera;
-    private static Window? _cachedRoot;
-
     /// <summary>
-    /// Pre-populate the viewport cache from a loaded node context.
-    /// Call from your autoload's _Ready() to avoid per-frame lazy discovery.
+    /// Projects the mouse onto the y = 0 floor plane through the root viewport's current camera.
+    /// Returns false when there is no answer: no scene tree, no current camera (e.g. during a
+    /// scene swap or before the first scene's camera exists), or a ray that misses the floor.
+    /// The camera is resolved on every call; a cached camera goes stale when its scene is
+    /// removed from the tree before it is freed.
     /// </summary>
-    public static void RegisterViewport(Window root, Camera3D camera)
+    public static bool TryGetMouseWorldPosition3D(out Vector3 position)
     {
-        _cachedRoot = root;
-        _cachedCamera = camera;
-    }
-
-    public static Vector3 GetMouseWorldPosition3D()
-    {
-        var sceneTree = Engine.GetMainLoop() as SceneTree;
-        if (sceneTree == null)
+        position = Vector3.Zero;
+        if (Engine.GetMainLoop() is not SceneTree sceneTree)
         {
-            return Vector3.Zero;
+            return false;
         }
 
-        if (_cachedRoot == null || !GodotObject.IsInstanceValid(_cachedRoot))
+        var root = sceneTree.Root;
+        var camera = root.GetCamera3D();
+        if (camera == null)
         {
-            _cachedRoot = sceneTree.GetRoot();
+            return false;
         }
 
-        if (_cachedCamera == null || !GodotObject.IsInstanceValid(_cachedCamera))
-        {
-            _cachedCamera = _cachedRoot.GetViewport().GetCamera3D();
-            if (_cachedCamera == null)
-            {
-                // Expected during _Ready() before main scene camera exists — not an error.
-                return Vector3.Zero;
-            }
-        }
+        var mousePosition = root.GetMousePosition();
+        var rayOrigin = camera.ProjectRayOrigin(mousePosition);
+        var rayDirection = camera.ProjectRayNormal(mousePosition);
 
-        var mousePosition = _cachedRoot.GetMousePosition();
-
-        var rayOrigin = _cachedCamera.ProjectRayOrigin(mousePosition);
-        var rayDirection = _cachedCamera.ProjectRayNormal(mousePosition);
-
-        // construct floor plane (only care about x/z mouse direction, no height)
-        var floorPlane = new Plane(Vector3.Up, 0);
-
-        // the 3d point (where y = 0 which is 'floorPlane's origin)
-        var groundIntersection = floorPlane.IntersectsRay(rayOrigin, rayDirection);
-
+        var groundIntersection = new Plane(Vector3.Up, 0).IntersectsRay(rayOrigin, rayDirection);
         if (groundIntersection == null)
         {
-            JmoLogger.Error(_cachedRoot,
+            JmoLogger.Error(root,
                 $"Couldn't find mouse intersection for origin '{rayOrigin}' and direction '{rayDirection}'");
-            return Vector3.Zero;
+            return false;
         }
-        return groundIntersection.Value;
+
+        position = groundIntersection.Value;
+        return true;
     }
 }

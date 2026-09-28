@@ -12,7 +12,7 @@ using Jmodot.Implementation.Shared;
 /// fires EffectFinished on completion, and self-destructs via QueueFree.
 /// </summary>
 [GlobalClass]
-public partial class OneShotAnimEffect : Node3D
+public partial class OneShotAnimEffect : Node3D, IVfxNode
 {
     /// <summary>
     /// Fired exactly once when the effect's lifecycle has completed — after

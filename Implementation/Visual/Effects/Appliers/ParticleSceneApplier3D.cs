@@ -5,8 +5,8 @@ using Core.Visual.Effects;
 using Godot;
 
 /// <summary>
-/// Instances a designer-authored <see cref="GpuParticles3D"/> emitter scene under a target node and
-/// tints it from a caller-supplied color.
+/// Instances a designer-authored <see cref="GpuParticles3D"/> emitter scene under a target node and,
+/// when constructed with a tint, recolours an owned copy of its process material.
 /// </summary>
 /// <remarks>
 /// The emitter's full particle surface (process material, draw passes, visibility AABB) is authored
@@ -18,11 +18,28 @@ public sealed class ParticleSceneApplier3D : IEffectApplier
 {
     private readonly Node _target;
     private readonly PackedScene _emitterScene;
-    private readonly Color _tint;
+    private readonly Color? _tint;
 
     private GpuParticles3D? _emitter;
     private VisualEffectHandle? _handle;
     private int _baseAmount = 1;
+
+    /// <summary>The native ClassDB class an emitter scene's root must be or inherit: <see cref="Begin"/> instances the root as a GpuParticles3D.</summary>
+    public const string EmitterRootClass = "GPUParticles3D";
+
+    /// <summary>True when <paramref name="emitterScene"/>'s root is or inherits <see cref="EmitterRootClass"/>, so <see cref="Begin"/> can instance it; false for an unreadable root.</summary>
+    public static bool CanInstance(PackedScene emitterScene) => emitterScene.RootInherits(EmitterRootClass);
+
+    /// <summary>Instances <paramref name="emitterScene"/> under <paramref name="target"/> with its authored colours: the
+    /// scene's own process material renders, never duplicated or recoloured, and needs not be a ParticleProcessMaterial.</summary>
+    public ParticleSceneApplier3D(Node target, PackedScene emitterScene)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(emitterScene);
+        _target = target;
+        _emitterScene = emitterScene;
+        _tint = null;
+    }
 
     public ParticleSceneApplier3D(Node target, PackedScene emitterScene, Color tint)
     {
@@ -42,7 +59,7 @@ public sealed class ParticleSceneApplier3D : IEffectApplier
         {
             _emitter = _emitterScene.Instantiate<GpuParticles3D>();
             _baseAmount = Mathf.Max(1, _emitter.Amount);
-            ApplyTint(_emitter, _tint, _emitterScene);
+            if (_tint is { } tint) { ApplyTint(_emitter, tint, _emitterScene); }
             _target.AddChild(_emitter);
             _emitter.Emitting = true;
         }

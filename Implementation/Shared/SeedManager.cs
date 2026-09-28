@@ -1,12 +1,14 @@
 namespace Jmodot.Implementation.Shared;
 
 using System;
+using System.Globalization;
 using Godot;
 
 /// <summary>
 /// Game-wide master seed for deterministic, reproducible runs.
 /// Derives per-system sub-seeds so each system's randomness is isolated.
-/// MasterSeed=0 auto-generates a unique seed per session.
+/// The root seed comes from a <c>--seed=N</c> user argument, else MasterSeed, else a unique
+/// auto-generated seed per session (<see cref="ResolveRootSeed"/>).
 /// </summary>
 public partial class SeedManager : Node
 {
@@ -28,17 +30,49 @@ public partial class SeedManager : Node
     public override void _Ready()
     {
         Instance = this;
-        if (MasterSeed == 0)
+        var (seed, source) = ResolveRootSeed(OS.GetCmdlineUserArgs(), MasterSeed, () => (int)GD.Randi());
+        if (source == RootSeedSource.Random)
         {
-            JmoLogger.Warning(this, "MasterSeed=0 — auto-generated seed; variation will not be reproducible across runs. Set MasterSeed in the inspector for deterministic runs.");
-            _activeSeed = (int)GD.Randi();
+            JmoLogger.Warning(this, $"[SeedManager] No {SeedUserArg}=N argument and MasterSeed=0 — auto-generated seed; replay it with {SeedUserArg}={seed} or set MasterSeed in the inspector.");
         }
-        else
-        {
-            _activeSeed = MasterSeed;
-        }
+        _activeSeed = seed;
         HasActiveSeed = true;
-        JmoLogger.Info(this, $"SeedManager initialized. Active seed: {_activeSeed}");
+        JmoLogger.Info(this, $"[SeedManager] SeedManager initialized. Active seed: {_activeSeed} (source: {source.ToString().ToLowerInvariant()})");
+    }
+
+    public const string SeedUserArg = "--seed";
+
+    public enum RootSeedSource { Cmdline, Inspector, Random }
+
+    /// <summary>
+    /// Picks the run's root seed: a nonzero integer <c>--seed=N</c> user argument, then a nonzero
+    /// <paramref name="masterSeed"/>, then <paramref name="rollRandom"/>. A non-integer or zero
+    /// <c>--seed</c> logs a Warning naming the argument and falls through. Pure apart from that
+    /// Warning; <paramref name="rollRandom"/> is invoked only when both earlier sources are absent.
+    /// </summary>
+    public static (int Seed, RootSeedSource Source) ResolveRootSeed(string[] userArgs, int masterSeed, Func<int> rollRandom)
+    {
+        ArgumentNullException.ThrowIfNull(rollRandom);
+
+        if (UserArgs.TryGetValue(userArgs, SeedUserArg, out var raw))
+        {
+            if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+            {
+                JmoLogger.Warning(nameof(SeedManager), $"[SeedManager] Ignoring {SeedUserArg}={raw}: not an integer. Falling back to MasterSeed or a random seed.");
+            }
+            else if (parsed == 0)
+            {
+                JmoLogger.Warning(nameof(SeedManager), $"[SeedManager] Ignoring {SeedUserArg}={raw}: 0 means unseeded. Falling back to MasterSeed or a random seed.");
+            }
+            else
+            {
+                return (parsed, RootSeedSource.Cmdline);
+            }
+        }
+
+        if (masterSeed != 0) { return (masterSeed, RootSeedSource.Inspector); }
+
+        return (rollRandom(), RootSeedSource.Random);
     }
 
     public override void _ExitTree()

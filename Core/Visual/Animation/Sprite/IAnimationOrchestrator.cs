@@ -90,6 +90,19 @@ public interface IAnimationOrchestrator : IAnimComponent
     }
 
     /// <summary>
+    /// The logical base animation behind a resolved clip name — the inverse of the direction suffix
+    /// this orchestrator applies to <see cref="IAnimComponent.AnimStarted"/>. A consumer that maps on
+    /// the animation a request NAMED (an anim-mapped sound profile) reads this rather than the
+    /// resolved clip, so mounting a direction set does not orphan every authored base-name key.
+    /// </summary>
+    /// <remarks>
+    /// Identity by default, which is correct for an orchestrator holding no direction vocabulary.
+    /// Pure: derived from the name alone rather than from current state, so it stays correct for a
+    /// clip that has already been superseded by the time a listener handles the event.
+    /// </remarks>
+    StringName GetBaseAnimName(StringName finalName) => finalName;
+
+    /// <summary>
     /// Checks if an animation exists by base name (will check with current direction suffix applied).
     /// </summary>
     bool HasAnimationBase(StringName baseName);

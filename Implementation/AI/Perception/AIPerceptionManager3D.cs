@@ -111,7 +111,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             }
 
             contrib.SensingActive = false;
-            contrib.ExitTime = Time.GetTicksMsec();
+            contrib.ExitTime = GameClock.NowMsec;
 
             if (this._memoryByTarget.TryGetValue(kvp.Key, out var info))
             {

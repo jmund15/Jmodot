@@ -2,6 +2,7 @@ namespace Jmodot.Core.AI.Perception;
 
 using Identification;
 using Implementation.AI.Perception.Strategies;
+using Implementation.Shared;
 
 /// <summary>
 ///     An immutable struct representing a single, stateless sensory event or "snapshot" in time.
@@ -31,7 +32,7 @@ public readonly struct Percept3D
     /// <summary>The strategy defining how this memory should fade over time.</summary>
     public readonly MemoryDecayStrategy DecayStrategy = null!;
 
-    /// <summary>The timestamp (in milliseconds via Time.GetTicksMsec()) when this percept was generated.</summary>
+    /// <summary>The game time (<see cref="GameClock.NowMsec"/>) when this percept was generated.</summary>
     public readonly ulong Timestamp;
 
     public Percept3D(Node3D? target, Vector3 position, Vector3 velocity, Identity identity, float confidence,
@@ -43,6 +44,6 @@ public readonly struct Percept3D
         this.Identity = identity;
         this.Confidence = Mathf.Clamp(confidence, 0.0f, 1.0f);
         this.DecayStrategy = decayStrategy;
-        this.Timestamp = Time.GetTicksMsec();
+        this.Timestamp = GameClock.NowMsec;
     }
 }
