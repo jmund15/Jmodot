@@ -117,8 +117,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     private Node? _hostNode;
     private bool _holdsSuspension;
-    private ulong _shedAtMsec;
+    private ulong? _shedAtMsec;
     private JmoRng? _flingRng;
+    private bool _warnedMissingSeed;
 
     private CollisionObject3D? _body;
     private PhysicsBody3D? _collisionExceptionHost;
@@ -297,7 +298,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     {
         // Only a shed arms the cooldown. A deliberate detach — death, an aborted approach, the owner
         // letting go — is not the entity being thrown off, so it must not be punished with a wait.
-        this._shedAtMsec = Time.GetTicksMsec();
+        this._shedAtMsec = GameClock.NowMsec;
 
         // Ordering is load-bearing: a suspended processor CLEARS its pending impulses every tick,
         // so an impulse applied before the release is discarded rather than queued. The direction
@@ -336,7 +337,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         var jitter = this.FlingUpwardAngleJitter;
         if (jitter > 0f)
         {
-            this._flingRng ??= JmoRng.NonDeterministic();
+            this._flingRng ??= EntityRngResolver.Resolve(this._bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
             degrees += this._flingRng.GetRndInRange(-jitter, jitter);
         }
 
@@ -516,7 +517,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
         riderBody.AddCollisionExceptionWith(hostBody);
         this._collisionExceptionHost = hostBody;
-        this._collisionExceptionStartedMsec = Time.GetTicksMsec();
+        this._collisionExceptionStartedMsec = GameClock.NowMsec;
         this._collisionExceptionExpiryLogged = false;
     }
 
@@ -534,7 +535,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         var flatDistance = new Vector2(
             this._body.GlobalPosition.X - this._collisionExceptionHost.GlobalPosition.X,
             this._body.GlobalPosition.Z - this._collisionExceptionHost.GlobalPosition.Z).Length();
-        var expired = Time.GetTicksMsec() - this._collisionExceptionStartedMsec >= CollisionExceptionBudgetMsec;
+        var expired = GameClock.NowMsec - this._collisionExceptionStartedMsec >= CollisionExceptionBudgetMsec;
         if (flatDistance >= this._collisionExceptionRequiredDistance || expired)
         {
             if (expired && flatDistance < this._collisionExceptionRequiredDistance && !this._collisionExceptionExpiryLogged)
@@ -633,9 +634,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
     /// <inheritdoc />
     public float SecondsSinceShed
-        => this._shedAtMsec == 0uL
-            ? float.PositiveInfinity
-            : (Time.GetTicksMsec() - this._shedAtMsec) / 1000f;
+        => this._shedAtMsec is { } shedAt
+            ? (GameClock.NowMsec - shedAt) / 1000f
+            : float.PositiveInfinity;
 
     /// <inheritdoc />
     public bool IsReattachOnCooldown
@@ -720,8 +721,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     {
         this._bb = bb;
         // Pool reuse re-runs Initialize on a component whose previous life ended in a shed; a recycled
-        // instance must not inherit the last entity's cooldown.
-        this._shedAtMsec = 0uL;
+        // instance must not inherit the last entity's cooldown or fling stream.
+        this._shedAtMsec = null;
+        this._flingRng = null;
         // Authored-pose contract, enforced here so a DefaultPose that can never render fails at load
         // rather than after a rider latches onto a host.
         this.DefaultPose?.Validate();

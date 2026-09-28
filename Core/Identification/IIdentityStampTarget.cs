@@ -12,6 +12,9 @@ using System.Collections.Generic;
 /// authored identity as the pristine clone source: <see cref="IIdentifiable.GetIdentity"/> serves
 /// the composed identity while one exists and the authored base otherwise, so clearing every stamp
 /// restores the authored instance by reference.
+/// An implementer that replaces its authored base identity at runtime must recompose the composer
+/// against the new base (e.g. <c>ClearStamp(self, newBase)</c> with a never-stamped key), or
+/// <see cref="IIdentifiable.GetIdentity"/> keeps serving a clone composed over the superseded base.
 /// </remarks>
 public interface IIdentityStampTarget : IIdentifiable
 {

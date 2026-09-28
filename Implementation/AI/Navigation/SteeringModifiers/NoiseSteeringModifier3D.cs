@@ -40,7 +40,7 @@ public partial class NoiseSteeringModifier3D : SteeringConsiderationModifier3D
         }
 
         // Get a noise value between -1 and 1
-        var time = (float)Time.GetUnixTimeFromSystem() * this._noiseTimeScale;
+        var time = (float)(Jmodot.Implementation.Shared.GameClock.NowSeconds * this._noiseTimeScale);
         var noiseValue = this._noise.GetNoise1D(time);
 
         // Calculate the final influence multiplier
