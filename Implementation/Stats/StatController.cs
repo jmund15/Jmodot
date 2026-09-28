@@ -1,6 +1,7 @@
 namespace Jmodot.Core.Stats;
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.Text;
 using Implementation.Modifiers.CalculationStrategies;
@@ -430,22 +431,29 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <returns>The <c>T</c> of the stored <c>ModifiableProperty&lt;T&gt;</c>.</returns>
     public Type GetAttributeType(Attribute attribute)
     {
-        // First, attempt to find the most specific, contextual version of the stat.
-        // If no contextual version exists, fall back to the universal version.
-        if (_stats.TryGetValue(attribute, out var universalProp))
-        {
-            // Extract the generic type parameter from ModifiableProperty<T> rather than
-            // using Variant.Obj.GetType(), which returns Double for float values due to
-            // Godot's Variant system storing all floating-point numbers as doubles.
-            var propType = universalProp.GetType();
-            if (propType.IsGenericType)
-            {
-                return propType.GetGenericArguments()[0];
-            }
-            return universalProp.GetValueAsVariant().Obj!.GetType();
-        }
-
+        if (TryGetAttributeType(attribute, out var type)) { return type; }
         throw new InvalidOperationException(); // TODO: define better
+    }
+
+    /// <summary>
+    /// Non-throwing form of <see cref="GetAttributeType"/>: false when this controller does not declare
+    /// <paramref name="attribute"/> (a null attribute is never declared). Use it to probe declaration.
+    /// </summary>
+    /// <param name="attribute">The attribute whose value type is requested.</param>
+    /// <param name="type">The <c>T</c> of the stored <c>ModifiableProperty&lt;T&gt;</c>, or null when undeclared.</param>
+    public bool TryGetAttributeType(Attribute? attribute, [NotNullWhen(true)] out Type? type)
+    {
+        type = null;
+        if (attribute == null || !_stats.TryGetValue(attribute, out var universalProp)) { return false; }
+
+        // Extract the generic type parameter from ModifiableProperty<T> rather than
+        // using Variant.Obj.GetType(), which returns Double for float values due to
+        // Godot's Variant system storing all floating-point numbers as doubles.
+        var propType = universalProp.GetType();
+        type = propType.IsGenericType
+            ? propType.GetGenericArguments()[0]
+            : universalProp.GetValueAsVariant().Obj!.GetType();
+        return true;
     }
 
     /// <summary>
