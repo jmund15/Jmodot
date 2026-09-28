@@ -84,6 +84,12 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     public bool IsInitialized { get; private set; }
     public event Action Initialized = delegate { };
 
+    /// <summary>
+    /// Raised with the new <see cref="AppliedScale"/> whenever it changes, after the collision shapes and the
+    /// visual root already carry it. A re-application that leaves the clamped scale where it was raises nothing.
+    /// </summary>
+    public event Action<float> AppliedScaleChanged = delegate { };
+
     // --- Component Interface ---
 
     public bool Initialize(IBlackboard bb)
@@ -195,6 +201,7 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
     {
         var clampedSize = SizeScalingUtils.ClampSize(
             sizeMultiplier * _runtimeScaleMultiplier, MinSize, MaxSize);
+        bool changed = !Mathf.IsEqualApprox(clampedSize, _appliedScale);
         _appliedScale = clampedSize;
 
         // Scale all discovered collision shapes (skip invalid/dying shapes as defense-in-depth)
@@ -211,6 +218,11 @@ public partial class EntitySizeController : Node, IComponent, IPoolResetable
         if (VisualRoot != null)
         {
             VisualRoot.Scale = SizeScalingUtils.ApplyScale(_baseVisualScale, clampedSize);
+        }
+
+        if (changed)
+        {
+            AppliedScaleChanged(clampedSize);
         }
     }
 
