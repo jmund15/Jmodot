@@ -3,7 +3,6 @@ namespace Jmodot.Core.Modifiers;
 using Godot.Collections;
 using Jmodot.Core.Identification;
 using Jmodot.Core.Modifiers.StageRules;
-using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 ///     Resource for modifying a float value. This is the primary tool
@@ -20,8 +19,8 @@ public partial class FloatAttributeModifier : AttributeModifier, IFloatModifier
     /// </summary>
     [Export] public float Value { get; private set; }
 
-    /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
-    [Export, RequiredExport] public FloatModifierStageRule StageRule { get; private set; } = CanonicalStageRules.FloatAdditive;
+    /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …). Left unset, the modifier is dropped from the fold with a warning.</summary>
+    [Export] public FloatModifierStageRule? StageRule { get; private set; } = CanonicalStageRules.FloatAdditive;
 
     /// <summary>
     /// Semantic categories for this modifier (e.g., Fire, Ice).
@@ -36,10 +35,26 @@ public partial class FloatAttributeModifier : AttributeModifier, IFloatModifier
     {
         // Default constructor for editor use.
     }
-    public FloatAttributeModifier(float value, FloatModifierStageRule stageRule, int priority)
+    public FloatAttributeModifier(float value, FloatModifierStageRule? stageRule, int priority)
     {
         Value = value;
         StageRule = stageRule;
         Priority = priority;
     }
+
+    /// <summary>
+    /// Returns a copy of this modifier carrying <paramref name="value"/> in place of <see cref="Value"/>.
+    /// Callers scaling a modifier MUST use this rather than the three-argument constructor: the constructor
+    /// carries only value/rule/priority, so a rebuild through it drops the tag arrays that decide whether the
+    /// modifier is cancelled or context-gated, and the fold then applies a modifier the author gated off.
+    /// Every array is copied, never aliased — the source's arrays are mutable and shared.
+    /// </summary>
+    public FloatAttributeModifier WithValue(float value) => new(value, StageRule, Priority)
+    {
+        EffectTags = new Array<string>(EffectTags),
+        CancelsEffectTags = new Array<string>(CancelsEffectTags),
+        ContextTags = new Array<string>(ContextTags),
+        RequiredContextTags = new Array<string>(RequiredContextTags),
+        SemanticCategories = new Array<Category>(SemanticCategories),
+    };
 }
