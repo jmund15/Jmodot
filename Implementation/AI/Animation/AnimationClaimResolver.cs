@@ -160,8 +160,8 @@ public partial class AnimationClaimResolver : Node, IComponent
         // The fallback tier owns facing on frames it owns the body: push the movement direction before
         // the clip resolves so a newly-resolved clip starts already-facing. Gated on the fallback tier
         // winning (a claimant's clip keeps its own authority; a finished one-shot is never poked) and on
-        // a profile (the arbitration-only wizard gets no second direction driver). SetDirection no-ops
-        // on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
+        // a profile (the arbitration-only wizard gets no second direction driver). With a DirectionSet, a
+        // bucket change re-resolves the current stem in MaintainTime; without one, SetDirection no-ops.
         if (!claimantWon && this.FallbackProfile != null && this._controller != null)
         {
             this._anim.SetDirection(LocomotionAnimResolver.DirectionFromVelocity(this._controller.Velocity));
