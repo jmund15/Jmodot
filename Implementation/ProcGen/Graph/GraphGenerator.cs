@@ -67,12 +67,23 @@ internal static class GraphGenerator
     /// <summary>
     ///     Whether a divergence/rejoin anchor pair at spine source-distances <paramref name="dx" /> (X)
     ///     and <paramref name="dy" /> (Y) is an eligible loop anchor. Lower bound: X must precede Y by at
-    ///     least <paramref name="minSep" /> (<c>dx + minSep &lt;= dy</c>, implying X ≺ Y and non-degeneracy).
-    ///     Upper bound: the separation must not exceed <paramref name="maxSep" /> so the route can SPAN the
-    ///     gap and close on the grid — <paramref name="maxSep" /> &lt;= 0 disables the upper bound (unbounded).
+    ///     least <paramref name="minSep" /> (<c>dx + minSep &lt;= dy</c>, implying X ≺ Y and
+    ///     non-degeneracy). Upper bound: the separation must not exceed <paramref name="maxSep" /> so the
+    ///     route can span the gap and close on the grid.
     /// </summary>
     internal static bool IsAnchorPairEligible(int dx, int dy, int minSep, int maxSep)
-        => dx + minSep <= dy && (maxSep <= 0 || dy - dx <= maxSep);
+        => dx + minSep <= dy && dy - dx <= maxSep;
+
+    private static (int Min, int Max) ResolveAnchorSeparation(AlternateRouteSpec spec, int spineLengthMax)
+    {
+        IntRange? range = spec.AnchorSeparation;
+        return range == null ? (2, spineLengthMax) : (range.Min, range.Max);
+    }
+
+#if TOOLS
+    internal static (int Min, int Max) ResolveAnchorSeparationForTesting(AlternateRouteSpec spec, int spineLengthMax)
+        => ResolveAnchorSeparation(spec, spineLengthMax);
+#endif
 
     /// <summary>
     ///     Adjusts a drawn route length so the resulting loop CYCLE has an EVEN edge count and can close
@@ -102,6 +113,64 @@ internal static class GraphGenerator
         }
 
         return drawnLength;
+    }
+
+#if TOOLS
+    internal static bool HasCompatibleOpenPortPair(
+        INodeTemplate x,
+        INodeTemplate y,
+        Func<StringName, bool> isPortOpen)
+    {
+        return HasCompatibleOpenPortPair(
+            x.Ports,
+            y.Ports,
+            port => isPortOpen(port.Name),
+            port => isPortOpen(port.Name));
+    }
+#endif
+
+    private static bool HasCompatibleOpenPortPair(
+        IReadOnlyList<IGraphPort> xPorts,
+        IReadOnlyList<IGraphPort> yPorts,
+        Func<IGraphPort, bool> isXPortOpen,
+        Func<IGraphPort, bool> isYPortOpen)
+    {
+        bool sawAnyOpenPair = false;
+        bool sawSpatialPair = false;
+        foreach (IGraphPort xPort in xPorts)
+        {
+            if (!isXPortOpen(xPort))
+            {
+                continue;
+            }
+
+            foreach (IGraphPort yPort in yPorts)
+            {
+                if (!isYPortOpen(yPort))
+                {
+                    continue;
+                }
+
+                sawAnyOpenPair = true;
+                if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
+                {
+                    sawSpatialPair = true;
+                    if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
+                    {
+                        return true;
+                    }
+
+                    continue;
+                }
+
+                if (xPort.Type == yPort.Type)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return sawAnyOpenPair && !sawSpatialPair;
     }
 
     /// <summary>
@@ -338,7 +407,8 @@ internal static class GraphGenerator
                 return true;
             }
 
-            int minSep = spec.MinAnchorSeparation;
+            (int minSep, int maxSep) = ResolveAnchorSeparation(
+                spec, this._config.Spine?.Length?.Max ?? int.MaxValue);
 
             // Advisor mode: place each guaranteed loop on the first geometrically-fitting anchor pair,
             // retrying pairs WITHIN this attempt — a single ill-fitting pair becomes a cheap local
@@ -348,7 +418,7 @@ internal static class GraphGenerator
                 return this.LayGuaranteedLoopsValidated(spec, guaranteed, minSep, out cause);
             }
 
-            List<AnchorPair> pairs = this.PickAnchorPairs("guaranteed", guaranteed, minSep, spec.MaxAnchorSeparation, spec.EffectiveAttachmentWeights);
+            List<AnchorPair> pairs = this.PickAnchorPairs("guaranteed", guaranteed, minSep, maxSep, spec.EffectiveAttachmentWeights);
 
             foreach (AnchorPair pair in pairs)
             {
@@ -407,7 +477,9 @@ internal static class GraphGenerator
                 return false;
             }
 
-            List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep, spec.MaxAnchorSeparation)
+            (int resolvedMinSep, int maxSep) = ResolveAnchorSeparation(
+                spec, this._config.Spine?.Length?.Max ?? int.MaxValue);
+            List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, resolvedMinSep, maxSep)
                 .OrderBy(p => this._advisor.GridStepDistance(p.X.Id, p.Y.Id) ?? int.MaxValue)
                 .ToList();
 
@@ -572,40 +644,13 @@ internal static class GraphGenerator
 
         private bool HasCompatibleOpenPortPair(GraphNode x, GraphNode y)
         {
-            bool sawSpatialPair = false;
-            foreach (IGraphPort xPort in x.Template.Ports)
-            {
-                if (!this.IsPortOpen(x.Id, xPort.Name) || this._anchorReservedPorts.Contains(PortKey(x.Id, xPort.Name)))
-                {
-                    continue;
-                }
-
-                foreach (IGraphPort yPort in y.Template.Ports)
-                {
-                    if (!this.IsPortOpen(y.Id, yPort.Name) || this._anchorReservedPorts.Contains(PortKey(y.Id, yPort.Name)))
-                    {
-                        continue;
-                    }
-
-                    if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
-                    {
-                        sawSpatialPair = true;
-                        if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
-                        {
-                            return true;
-                        }
-
-                        continue;
-                    }
-
-                    if (xPort.Type == yPort.Type)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return !sawSpatialPair;
+            return GraphGenerator.HasCompatibleOpenPortPair(
+                x.Template.Ports,
+                y.Template.Ports,
+                port => this.IsPortOpen(x.Id, port.Name)
+                    && !this._anchorReservedPorts.Contains(PortKey(x.Id, port.Name)),
+                port => this.IsPortOpen(y.Id, port.Name)
+                    && !this._anchorReservedPorts.Contains(PortKey(y.Id, port.Name)));
         }
 
         /// <summary>
@@ -873,7 +918,9 @@ internal static class GraphGenerator
                 return;
             }
 
-            List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, spec.MinAnchorSeparation, spec.MaxAnchorSeparation, spec.EffectiveAttachmentWeights);
+            (int minSep, int maxSep) = ResolveAnchorSeparation(
+                spec, this._config.Spine?.Length?.Max ?? int.MaxValue);
+            List<AnchorPair> pairs = this.PickAnchorPairs("opportunistic", opportunistic, minSep, maxSep, spec.EffectiveAttachmentWeights);
             int laid = 0;
             foreach (AnchorPair pair in pairs)
             {

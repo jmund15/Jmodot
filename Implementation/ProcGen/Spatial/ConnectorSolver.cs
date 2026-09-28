@@ -28,10 +28,15 @@ internal static class ConnectorSolver
         IReadOnlyList<(Vector3I Origin, Vector3I Size)> candidateLocalObstacles,
         Vector3I envelopeSize,
         int maxLengthCells,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(committed);
         ArgumentNullException.ThrowIfNull(candidateLocalObstacles);
+        if (!IsCardinal(from.Face) || !IsCardinal(to.Face))
+        {
+            return null;
+        }
+
         if (from.WidthCells <= 0 || from.WidthCells != to.WidthCells || from.AnchorCells.Y != to.AnchorCells.Y ||
             envelopeSize.X <= 0 || envelopeSize.Y <= 0 || envelopeSize.Z <= 0 || maxLengthCells <= 0)
         {
@@ -508,11 +513,13 @@ internal static class ConnectorSolver
 
     private static bool SameTangent(WorldPort from, WorldPort to, int width)
     {
-        int axis = Axis(from.Face);
-        int tangent = axis == 0 ? 2 : 0;
+        int tangent = TangentAxis(from.Face);
         return TangentValue(from.AnchorCells, tangent) == TangentValue(to.AnchorCells, tangent) &&
             from.WidthCells == width && to.WidthCells == width;
     }
+
+    private static bool IsCardinal(PortFace face)
+        => face is PortFace.XPos or PortFace.XNeg or PortFace.ZPos or PortFace.ZNeg;
 
     private static int Axis(PortFace face) => face is PortFace.XPos or PortFace.XNeg ? 0 : 1;
 

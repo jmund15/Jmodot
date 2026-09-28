@@ -15,7 +15,7 @@ public interface IFloorEmbedder
         IFloorGraph topology,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable);
+        ConnectorPolicy policy);
 
     /// <summary>
     ///     Opens a PROGRESSIVE embedding session over a committed backbone (its spine is embedded +
@@ -27,5 +27,5 @@ public interface IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable);
+        ConnectorPolicy policy);
 }
