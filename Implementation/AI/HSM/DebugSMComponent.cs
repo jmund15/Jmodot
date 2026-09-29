@@ -172,6 +172,8 @@ public partial class DebugSMComponent : DebugAIPanel
         while (_historyLabels.Count > MAX_HISTORY)
         {
             var prunedLabel = _historyLabels.Dequeue();
+            // FadeOutLabel frees a label on its own timer and leaves it queued here.
+            if (!prunedLabel.IsValid()) { continue; }
             KillManagedTween(prunedLabel);
             prunedLabel.QueueFree();
         }
