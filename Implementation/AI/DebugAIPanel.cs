@@ -305,4 +305,13 @@ public abstract partial class DebugAIPanel : Control
     }
 
     #endregion
+
+    #region Test Helpers
+#if TOOLS
+    internal int ManagedTweenCount => _managedTweens.Count;
+
+    internal Tween? GetManagedTween(Node target)
+        => _managedTweens.TryGetValue(target.GetInstanceId(), out var tween) ? tween : null;
+#endif
+    #endregion
 }

@@ -188,7 +188,7 @@ public partial class DebugSMComponent : DebugAIPanel
         tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
              .SetDelay(delay)
              .SetEase(Tween.EaseType.In);
-        tween.TweenCallback(Callable.From(() => { if (label.IsValid()) { label.QueueFree(); } }));
+        tween.TweenCallback(Callable.From(() => { if (label.IsValid()) { KillManagedTween(label); label.QueueFree(); } }));
     }
 
     protected override void Cleanup()
