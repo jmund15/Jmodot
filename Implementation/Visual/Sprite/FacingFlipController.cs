@@ -304,7 +304,9 @@ public partial class FacingFlipController : Node
 
         // IAnimComponent is not constrained to Node, and GetUnderlyingNode() may return null on a
         // non-Node implementation — neither may throw from the branch whose only job is to report.
-        var animatorName = (animator as Node)?.Name.ToString() ?? animator.GetType().Name;
+        var animatorName = animator is Node animatorNode && GodotObject.IsInstanceValid(animatorNode)
+            ? animatorNode.Name.ToString()
+            : animator.GetType().Name;
 
         JmoLogger.Warning(this,
             $"Animator '{animatorName}' is not an ISpriteComponent and owns no VisualComposer slot, "

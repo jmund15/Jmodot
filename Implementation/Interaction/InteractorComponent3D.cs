@@ -81,7 +81,7 @@ public partial class InteractorComponent3D : Area3D, IComponent, IBlackboardProv
         var target = CurrentTarget;
         target.Interact(_agent);
         Interacted.Invoke(target);
-        JmoLogger.Info(this, $"[Interaction] dispatched interact to {(target as Node)?.Name}");
+        JmoLogger.Info(this, $"[Interaction] dispatched interact to {(target is Node targetNode && GodotObject.IsInstanceValid(targetNode) ? targetNode.Name : "freed")}");
     }
 
     private void RecomputeTarget()

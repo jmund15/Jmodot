@@ -469,9 +469,11 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     }
 
     /// <summary>Best-effort display name for a damage/heal source: its node name when it is a Node,
-    /// otherwise its type name. Never throws and never returns null.</summary>
+    /// otherwise its type name. Never throws and never returns null, even for a freed node.</summary>
     private static string DescribeSource(object? source)
-        => (source as Node)?.Name.ToString() ?? source?.GetType().Name ?? "unknown";
+        => source is Node node && node.IsValid()
+            ? node.Name.ToString()
+            : source?.GetType().Name ?? "unknown";
 
     /// <summary>
     /// Handles stat changes by re-resolving MaxHealth through the definition.
