@@ -15,6 +15,9 @@ using Jmodot.Implementation.AI.BB;
 /// </summary>
 public static class ImpactPhysics
 {
+    /// <summary>The coefficient of restitution a contact uses when no participant authors one.</summary>
+    public const float DefaultRestitution = 0.8f;
+
     /// <summary>Authored blackboard capability takes precedence over a body's fallback adapter.</summary>
     public static IImpactable? FindImpactable(Node node)
     {
@@ -45,7 +48,7 @@ public static class ImpactPhysics
         }
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             self?.Stability ?? fallbackStability, other.Stability, normal,
-            CombineRestitution(self?.BounceRestitution ?? 0.8f, other.BounceRestitution));
+            CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
         if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB); }
         return result;
     }
@@ -64,7 +67,7 @@ public static class ImpactPhysics
     public static ImpactSolveResult ResolveElasticCollision(
         Vector3 velocityA, Vector3 velocityB,
         float stabilityA, float stabilityB,
-        Vector3 normal, float restitution = 0.8f)
+        Vector3 normal, float restitution = DefaultRestitution)
     {
         // Closing speed: positive when approaching along normal axis
         float closingSpeed = (velocityA - velocityB).Dot(-normal);
