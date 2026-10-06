@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
+using Core.Physics;
 using Core.Stats;
 using Movement.Strategies;
 using Shared;
@@ -118,11 +119,30 @@ public class MovementProcessor2D : IMovementProcessor2D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.PushSlideColliders(combined);
 
         // --- 6. Isolate collision delta and apply to base velocity only ---
         var postCollision = _controller.Velocity;
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
+    }
+
+    /// <summary>
+    /// Hands every slide collider that opted in through <see cref="IPushable2D"/> the push this move gave it.
+    /// <paramref name="moveVelocity"/> is the velocity the move was attempted with, before collisions clipped it.
+    /// </summary>
+    private void PushSlideColliders(Vector2 moveVelocity)
+    {
+        if (this._owner is not CharacterBody2D body) { return; }
+
+        var slideCount = body.GetSlideCollisionCount();
+        for (var i = 0; i < slideCount; i++)
+        {
+            var collision = body.GetSlideCollision(i);
+            if (collision.GetCollider() is not IPushable2D pushable) { continue; }
+
+            pushable.ReceivePush(new PushContact2D(this._owner, moveVelocity, collision.GetNormal()));
+        }
     }
 
     /// <summary>
@@ -153,6 +173,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.PushSlideColliders(combined);
 
         // 5. Apply collision delta to base velocity only
         var postCollision = _controller.Velocity;
