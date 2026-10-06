@@ -97,13 +97,13 @@ public partial class CooldownCondition : BTCondition
         if (!_isReady) { return; } // Prevent starting the cooldown multiple times.
 
         _isReady = false;
-        JmoLogger.Info(this, $"[BT] Starting {_cooldownDuration}s cooldown.");
+        JmoLogger.Info(Agent, $"[BT] Starting {_cooldownDuration}s cooldown.");
 
         // Use the Agent node to get the SceneTree.
         GameClock.CreateTimer(Agent, _cooldownDuration).Timeout += () =>
         {
             _isReady = true;
-            JmoLogger.Info(this, "[BT] Cooldown finished. Ready.");
+            JmoLogger.Debug(Agent, "[BT] Cooldown finished. Ready.");
         };
     }
 

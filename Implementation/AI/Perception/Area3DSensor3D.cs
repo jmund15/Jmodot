@@ -155,6 +155,10 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         SubscribeStatProvider();
 
         ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+        if (shapeNode.Shape is SphereShape3D projected)
+        {
+            JmoLogger.Info(this, $"[Perception] '{GetParent()?.Name}' sensor '{Name}' range {projected.Radius:0.0}m");
+        }
     }
 
     // Idempotent: unsubscribe-then-subscribe so _EnterTree resubscribes and OnPostInitialize's
@@ -178,28 +182,32 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     private void OnStatProviderStatChanged(Core.Stats.Attribute attribute, Variant newValue)
     {
         if (!IsInitialized || _rangeDefinition == null) { return; }
-        ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+        float range = _rangeDefinition.ResolveFloatValue(_statProvider);
+        if (ApplyRange(range))
+        {
+            JmoLogger.Info(this, $"[Perception] '{GetParent()?.Name}' sensor '{Name}' range changed to {range:0.0}m");
+        }
     }
 
-    private void ApplyRange(float range)
+    /// <summary>Projects <paramref name="range"/> onto the sphere radius; true when the radius changed.</summary>
+    private bool ApplyRange(float range)
     {
         var shapeNode = ResolveCollisionShape();
-        if (shapeNode?.Shape is not SphereShape3D sphere) { return; }
+        if (shapeNode?.Shape is not SphereShape3D sphere) { return false; }
         if (range <= 0f)
         {
             JmoLogger.Warning(this,
                 $"Sensor range resolved to non-positive value ({range}); keeping previous radius {sphere.Radius}. Check the sight_range stat / modifiers.");
-            return;
+            return false;
         }
         // OnStatChanged is coarse — it fires for every attribute, so most calls land here unchanged.
-        if (Mathf.IsEqualApprox(sphere.Radius, range)) { return; }
+        if (Mathf.IsEqualApprox(sphere.Radius, range)) { return false; }
 
-        JmoLogger.Info(this,
-            $"[Perception] '{GetParent()?.Name}' sensor '{Name}' range {range:0.0}m (was {sphere.Radius:0.0}m)");
         sphere.Radius = range;
         // Deferred to a physics frame, not CallDeferred: the physics server only reflects the
         // resized shape after it ticks, so an idle-frame resync reads stale overlaps.
         _resyncPending = true;
+        return true;
     }
 
     /// <summary>
