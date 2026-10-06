@@ -4,6 +4,7 @@ using Godot;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Physics;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Core.Stats;
 
 /// <summary>
 /// Elastic collision math and participating-entity contact dispatch.
@@ -31,23 +32,27 @@ public static class ImpactPhysics
 
     /// <summary>
     /// Resolves a participating target and applies its new velocity once per pair per physics frame.
-    /// The caller applies the returned source velocity. A walker without an authored capability has
-    /// its movement stability and the formula's default restitution; a non-participating source or target is skipped.
+    /// A walker retains its post-slide velocity; other callers may apply the returned source velocity.
+    /// A walker without an authored capability uses its movement stability and the default restitution.
+    /// Non-participating targets return before source or stat lookups.
     /// Sustained-contact suppression belongs to the body-owned <see cref="ContinuingContactTracker"/>.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
-        Vector3 normal, float fallbackStability = 0f)
+        Vector3 normal, float fallbackStability = 0f, IStatProvider? fallbackStats = null,
+        Attribute? stabilityAttribute = null)
     {
-        var self = FindImpactable(source);
         var other = FindImpactable(target);
-        if (other == null || !other.ParticipatesInElasticCollisions
-            || self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.None; }
+        if (other == null || !other.ParticipatesInElasticCollisions) { return ImpactSolveResult.None; }
+        var self = FindImpactable(source);
+        if (self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.None; }
         if (!ImpactFrameTracker.TryClaimPair(source.GetInstanceId(), target.GetInstanceId()))
         {
             return ImpactSolveResult.None;
         }
+        float stability = self?.Stability ?? (stabilityAttribute != null && fallbackStats != null
+            ? fallbackStats.GetStatValue<float>(stabilityAttribute, fallbackStability) : fallbackStability);
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
-            self?.Stability ?? fallbackStability, other.Stability, normal,
+            stability, other.Stability, normal,
             CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
         if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB); }
         return result;

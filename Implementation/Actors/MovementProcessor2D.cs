@@ -8,6 +8,7 @@ using Core.Physics;
 using Core.Stats;
 using Movement.Strategies;
 using Shared;
+using Physics;
 
 /// <summary>
 ///     The definitive high-level orchestrator for character movement. Its sole responsibility
@@ -28,7 +29,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     private bool _frameImpulsesReplace;
     private Vector2 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
-    private readonly Jmodot.Implementation.Physics.ContinuingContactTracker _slideContacts = new();
+    private readonly ContinuingContactTracker _slideContacts = new();
 
     private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
 
@@ -137,13 +138,11 @@ public class MovementProcessor2D : IMovementProcessor2D
             var collision = body.GetSlideCollision(i);
             if (collision.GetCollider() is not Node target
                 || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
-            float stability = _stabilityAttr == null ? 0f : _stats.GetStatValue<float>(_stabilityAttr, 0f);
             var normal = collision.GetNormal();
-            var impact = Jmodot.Implementation.Physics.ImpactPhysics.ResolveEntityContact(_owner, target,
-                new Vector3(moveVelocity.X, moveVelocity.Y, 0f), new Vector3(normal.X, normal.Y, 0f), stability);
-            if (!impact.IsValid) { continue; }
-            moveVelocity = new Vector2(impact.NewVelocityA.X, impact.NewVelocityA.Y);
-            _controller.SetVelocity(moveVelocity);
+            var impact = ImpactPhysics.ResolveEntityContact(_owner, target,
+                new Vector3(moveVelocity.X, moveVelocity.Y, 0f), new Vector3(normal.X, normal.Y, 0f),
+                fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
+            if (!impact.IsValid) { _slideContacts.CancelContact(target.GetInstanceId()); }
         }
     }
 

@@ -20,4 +20,7 @@ public sealed class ContinuingContactTracker
 
     public bool TryBeginContact(ulong colliderId)
         => _current.Add(colliderId) && !_previous.Contains(colliderId);
+
+    /// <summary>An unresolved attempt must remain eligible on the next movement step.</summary>
+    public void CancelContact(ulong colliderId) => _current.Remove(colliderId);
 }

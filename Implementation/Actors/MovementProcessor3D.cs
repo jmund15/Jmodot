@@ -9,6 +9,7 @@ using Core.Physics;
 using Core.Stats;
 using Movement.Strategies;
 using Shared;
+using Physics;
 
 /// <summary>
 ///     The definitive high-level orchestrator for character movement. Its sole responsibility
@@ -29,7 +30,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     private bool _frameImpulsesReplace;
     private Vector3 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
-    private readonly Jmodot.Implementation.Physics.ContinuingContactTracker _slideContacts = new();
+    private readonly ContinuingContactTracker _slideContacts = new();
 
     private readonly IMovementStrategy3D? _default;
     private IMovementStrategy3D? _override;
@@ -197,12 +198,9 @@ public class MovementProcessor3D : IMovementProcessor3D
             var collision = body.GetSlideCollision(i);
             if (collision.GetCollider() is not Node target
                 || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
-            float stability = _stabilityAttr == null ? 0f : _stats.GetStatValue<float>(_stabilityAttr, 0f);
-            var impact = Jmodot.Implementation.Physics.ImpactPhysics.ResolveEntityContact(
-                _owner, target, moveVelocity, collision.GetNormal(), stability);
-            if (!impact.IsValid) { continue; }
-            _controller.SetVelocity(impact.NewVelocityA);
-            moveVelocity = impact.NewVelocityA;
+            var impact = ImpactPhysics.ResolveEntityContact(
+                _owner, target, moveVelocity, collision.GetNormal(), fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
+            if (!impact.IsValid) { _slideContacts.CancelContact(target.GetInstanceId()); }
         }
     }
 
