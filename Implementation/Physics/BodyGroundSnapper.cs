@@ -23,8 +23,9 @@ public static class BodyGroundSnapper
     /// <summary>
     /// Returns <paramref name="desired"/> with its origin.Y shifted so the body's lowest collider point
     /// sits on the first surface found straight down from it; XZ and basis are preserved. The probe uses
-    /// the body's OWN <see cref="CollisionObject3D.CollisionMask"/> — whatever the body would stand on is
-    /// what it grounds against — and excludes the body itself. The probe starts just above the body's
+    /// <paramref name="supportMask"/> when given, else the body's OWN <see cref="CollisionObject3D.CollisionMask"/>
+    /// — whatever the body would stand on is what it grounds against — and excludes the body itself.
+    /// A body whose own mask says nothing about its support (a static prop) passes the mask explicitly. The probe starts just above the body's
     /// HIGHEST collider point, so a marker authored at the walk surface (collider hanging below it, inside
     /// the floor) still grounds; a body buried deeper than that is an authoring error and is reported.
     /// Returns false, echoing <paramref name="desired"/> unchanged, when the body carries no measurable
@@ -34,7 +35,7 @@ public static class BodyGroundSnapper
     /// and an out-of-tree body has none.
     /// </para>
     /// </summary>
-    public static bool TryGround(PhysicsBody3D body, Transform3D desired, out Transform3D grounded)
+    public static bool TryGround(PhysicsBody3D body, Transform3D desired, out Transform3D grounded, uint? supportMask = null)
     {
         grounded = desired;
         if (!body.IsInsideTree()) { return false; }
@@ -47,7 +48,7 @@ public static class BodyGroundSnapper
         var query = PhysicsRayQueryParameters3D.Create(
             origin + (Vector3.Up * probeTop),
             origin + (Vector3.Down * ProbeDistance),
-            body.CollisionMask);
+            supportMask ?? body.CollisionMask);
         var exclude = new Godot.Collections.Array<Rid> { body.GetRid() };
         query.Exclude = exclude;
         PhysicsDirectSpaceState3D space = body.GetWorld3D().DirectSpaceState;
