@@ -5,6 +5,7 @@ using Godot;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
+using Core.Physics;
 using Core.Stats;
 using Movement.Strategies;
 using Shared;
@@ -174,6 +175,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.PushSlideColliders(combined);
 
         // --- 6. Isolate collision delta and apply to base velocity only ---
         // After MoveAndSlide, velocity may differ from combined due to collisions.
@@ -183,6 +185,24 @@ public class MovementProcessor3D : IMovementProcessor3D
         this.WarnOnLaunch(combined, postCollision);
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
+    }
+
+    /// <summary>
+    /// Hands every slide collider that opted in through <see cref="IPushable3D"/> the push this move gave it.
+    /// <paramref name="moveVelocity"/> is the velocity the move was attempted with, before collisions clipped it.
+    /// </summary>
+    private void PushSlideColliders(Vector3 moveVelocity)
+    {
+        if (this._owner is not CharacterBody3D body) { return; }
+
+        var slideCount = body.GetSlideCollisionCount();
+        for (var i = 0; i < slideCount; i++)
+        {
+            var collision = body.GetSlideCollision(i);
+            if (collision.GetCollider() is not IPushable3D pushable) { continue; }
+
+            pushable.ReceivePush(new PushContact3D(this._owner, moveVelocity, collision.GetNormal()));
+        }
     }
 
     /// <summary>
@@ -242,6 +262,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.PushSlideColliders(combined);
 
         // 5. Apply collision delta to base velocity only
         var postCollision = _controller.Velocity;
@@ -263,7 +284,9 @@ public class MovementProcessor3D : IMovementProcessor3D
         }
 
         DrainImpulses();
+        var moveVelocity = _controller.Velocity;
         _controller.Move();
+        this.PushSlideColliders(moveVelocity);
     }
 
     /// <summary>
