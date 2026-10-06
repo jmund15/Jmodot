@@ -54,7 +54,7 @@ public static class ImpactPhysics
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             stability, other.Stability, normal,
             CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
-        if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB); }
+        if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB, source); }
         return result;
     }
 

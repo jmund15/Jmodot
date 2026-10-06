@@ -36,4 +36,10 @@ public interface IImpactable : IGodotNodeInterface
     /// Implementation should compute the delta and apply as impulse to preserve other forces.
     /// </summary>
     void ApplyImpactVelocity(Vector3 newVelocity);
+
+    /// <summary>
+    /// Applies the resolved velocity with its contact source. Implementations needing wake attribution
+    /// override this overload; otherwise it preserves the velocity-only contract.
+    /// </summary>
+    void ApplyImpactVelocity(Vector3 newVelocity, Node? source) => ApplyImpactVelocity(newVelocity);
 }
