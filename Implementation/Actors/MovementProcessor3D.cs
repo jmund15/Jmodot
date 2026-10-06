@@ -200,7 +200,7 @@ public class MovementProcessor3D : IMovementProcessor3D
                 || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
             var impact = ImpactPhysics.ResolveEntityContact(
                 _owner, target, moveVelocity, collision.GetNormal(), fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
-            if (!impact.IsValid) { _slideContacts.CancelContact(target.GetInstanceId()); }
+            if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(target.GetInstanceId()); }
         }
     }
 

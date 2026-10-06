@@ -35,7 +35,8 @@ public static class ImpactPhysics
     /// A walker retains its post-slide velocity; other callers may apply the returned source velocity.
     /// A walker without an authored capability uses its movement stability and the default restitution.
     /// Non-participating targets return before source or stat lookups.
-    /// Sustained-contact suppression belongs to the body-owned <see cref="ContinuingContactTracker"/>.
+    /// A caller cancels its <see cref="ContinuingContactTracker"/> entry only for <see cref="ImpactSolveOutcome.Separating"/>:
+    /// that contact can still close later, while a non-participant never resolves and a lost claim was resolved by its peer.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
         Vector3 normal, float fallbackStability = 0f, IStatProvider? fallbackStats = null,
@@ -59,9 +60,16 @@ public static class ImpactPhysics
     }
 
     /// <summary>
+    /// Relative speed of A toward B along the contact normal: positive when approaching, zero or negative when separating.
+    /// </summary>
+    /// <param name="normal">Collision normal pointing from B toward A (Godot convention).</param>
+    public static float ClosingSpeed(Vector3 velocityA, Vector3 velocityB, Vector3 normal)
+        => (velocityA - velocityB).Dot(-normal);
+
+    /// <summary>
     /// Resolves an elastic collision between two entities.
     /// Uses mass derived from stability: mass = 1 + stability.
-    /// Returns <see cref="ImpactSolveResult.None"/> when entities are separating.
+    /// Returns <see cref="ImpactSolveResult.Separating"/> when entities are not closing.
     /// </summary>
     /// <param name="velocityA">Velocity of entity A (the resolving entity).</param>
     /// <param name="velocityB">Velocity of entity B (the target).</param>
@@ -74,11 +82,10 @@ public static class ImpactPhysics
         float stabilityA, float stabilityB,
         Vector3 normal, float restitution = DefaultRestitution)
     {
-        // Closing speed: positive when approaching along normal axis
-        float closingSpeed = (velocityA - velocityB).Dot(-normal);
+        float closingSpeed = ClosingSpeed(velocityA, velocityB, normal);
         if (closingSpeed <= 0f)
         {
-            return ImpactSolveResult.None;
+            return ImpactSolveResult.Separating;
         }
 
         // Mass from stability: stability=0 → mass=1, stability=3 → mass=4

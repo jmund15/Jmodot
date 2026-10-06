@@ -142,7 +142,7 @@ public class MovementProcessor2D : IMovementProcessor2D
             var impact = ImpactPhysics.ResolveEntityContact(_owner, target,
                 new Vector3(moveVelocity.X, moveVelocity.Y, 0f), new Vector3(normal.X, normal.Y, 0f),
                 fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
-            if (!impact.IsValid) { _slideContacts.CancelContact(target.GetInstanceId()); }
+            if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(target.GetInstanceId()); }
         }
     }
 
