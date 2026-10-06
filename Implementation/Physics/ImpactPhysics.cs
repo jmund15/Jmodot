@@ -50,13 +50,17 @@ public static class ImpactPhysics
             return ImpactSolveResult.None;
         }
         float stability = self?.Stability ?? (stabilityAttribute != null && fallbackStats != null
-            ? fallbackStats.GetStatValue<float>(stabilityAttribute, 0f) : 0f);
+            ? ClampStability(fallbackStats.GetStatValue<float>(stabilityAttribute, 0f)) : 0f);
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             stability, other.Stability, normal,
             CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
         if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB, source); }
         return result;
     }
+
+    /// <summary>A stability the elastic mass formula (mass = 1 + stability) can take: NaN becomes 0 and negatives clamp to 0.</summary>
+    public static float ClampStability(float stability)
+        => float.IsNaN(stability) ? 0f : Mathf.Clamp(stability, 0f, float.MaxValue);
 
     /// <summary>
     /// Relative speed of A toward B along the contact normal: positive when approaching, zero or negative when separating.
