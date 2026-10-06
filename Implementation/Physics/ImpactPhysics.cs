@@ -6,7 +6,7 @@ using Jmodot.Core.Physics;
 using Jmodot.Implementation.AI.BB;
 
 /// <summary>
-/// Pure static utility for elastic collision resolution between two entities.
+/// Elastic collision math and participating-entity contact dispatch.
 /// Caller provides the pre-combined COR (coefficient of restitution):
 ///   - Entity-entity: use <see cref="CombineRestitution"/> (geometric mean).
 ///   - Surface bounce: use DurableCollisionResponse.VelocityRetention directly.
