@@ -29,6 +29,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     private bool _frameImpulsesReplace;
     private Vector3 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
+    private readonly Jmodot.Implementation.Physics.ContinuingContactTracker _slideContacts = new();
 
     private readonly IMovementStrategy3D? _default;
     private IMovementStrategy3D? _override;
@@ -175,7 +176,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
-        this.PushSlideColliders(combined);
+        this.ResolveSlideImpacts(combined);
 
         // --- 6. Isolate collision delta and apply to base velocity only ---
         // After MoveAndSlide, velocity may differ from combined due to collisions.
@@ -187,21 +188,21 @@ public class MovementProcessor3D : IMovementProcessor3D
         _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
-    /// <summary>
-    /// Hands every slide collider that opted in through <see cref="IPushable3D"/> the push this move gave it.
-    /// <paramref name="moveVelocity"/> is the velocity the move was attempted with, before collisions clipped it.
-    /// </summary>
-    private void PushSlideColliders(Vector3 moveVelocity)
+    private void ResolveSlideImpacts(Vector3 moveVelocity)
     {
-        if (this._owner is not CharacterBody3D body) { return; }
-
-        var slideCount = body.GetSlideCollisionCount();
-        for (var i = 0; i < slideCount; i++)
+        _slideContacts.Advance();
+        if (_owner is not CharacterBody3D body) { return; }
+        for (int i = 0; i < body.GetSlideCollisionCount(); i++)
         {
             var collision = body.GetSlideCollision(i);
-            if (collision.GetCollider() is not IPushable3D pushable) { continue; }
-
-            pushable.ReceivePush(new PushContact3D(this._owner, moveVelocity, collision.GetNormal()));
+            if (collision.GetCollider() is not Node target
+                || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
+            float stability = _stabilityAttr == null ? 0f : _stats.GetStatValue<float>(_stabilityAttr, 0f);
+            var impact = Jmodot.Implementation.Physics.ImpactPhysics.ResolveEntityContact(
+                _owner, target, moveVelocity, collision.GetNormal(), stability);
+            if (!impact.IsValid) { continue; }
+            _controller.SetVelocity(impact.NewVelocityA);
+            moveVelocity = impact.NewVelocityA;
         }
     }
 
@@ -262,7 +263,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
-        this.PushSlideColliders(combined);
+        this.ResolveSlideImpacts(combined);
 
         // 5. Apply collision delta to base velocity only
         var postCollision = _controller.Velocity;
@@ -286,7 +287,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         DrainImpulses();
         var moveVelocity = _controller.Velocity;
         _controller.Move();
-        this.PushSlideColliders(moveVelocity);
+        this.ResolveSlideImpacts(moveVelocity);
     }
 
     /// <summary>

@@ -1,6 +1,9 @@
 namespace Jmodot.Implementation.Physics;
 
 using Godot;
+using Jmodot.Core.AI.BB;
+using Jmodot.Core.Physics;
+using Jmodot.Implementation.AI.BB;
 
 /// <summary>
 /// Pure static utility for elastic collision resolution between two entities.
@@ -12,6 +15,41 @@ using Godot;
 /// </summary>
 public static class ImpactPhysics
 {
+    /// <summary>Authored blackboard capability takes precedence over a body's fallback adapter.</summary>
+    public static IImpactable? FindImpactable(Node node)
+    {
+        if (node.TryGetFirstChildOfInterface<IBlackboard>(out var bb) && bb != null
+            && bb.TryGet<IImpactable>(BBDataSig.PhysicsInteraction, out var impactable) && impactable != null)
+        {
+            return impactable;
+        }
+        return node as IImpactable;
+    }
+
+    /// <summary>
+    /// Resolves a participating target and applies its new velocity once per pair per physics frame.
+    /// The caller applies the returned source velocity. A walker without an authored capability has
+    /// its movement stability and the formula's default restitution; a non-participating source or target is skipped.
+    /// Sustained-contact suppression belongs to the body-owned <see cref="ContinuingContactTracker"/>.
+    /// </summary>
+    public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
+        Vector3 normal, float fallbackStability = 0f)
+    {
+        var self = FindImpactable(source);
+        var other = FindImpactable(target);
+        if (other == null || !other.ParticipatesInElasticCollisions
+            || self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.None; }
+        if (!ImpactFrameTracker.TryClaimPair(source.GetInstanceId(), target.GetInstanceId()))
+        {
+            return ImpactSolveResult.None;
+        }
+        var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
+            self?.Stability ?? fallbackStability, other.Stability, normal,
+            CombineRestitution(self?.BounceRestitution ?? 0.8f, other.BounceRestitution));
+        if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB); }
+        return result;
+    }
+
     /// <summary>
     /// Resolves an elastic collision between two entities.
     /// Uses mass derived from stability: mass = 1 + stability.

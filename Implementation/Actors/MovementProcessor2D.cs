@@ -28,6 +28,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     private bool _frameImpulsesReplace;
     private Vector2 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
+    private readonly Jmodot.Implementation.Physics.ContinuingContactTracker _slideContacts = new();
 
     private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
 
@@ -119,7 +120,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
-        this.PushSlideColliders(combined);
+        this.ResolveSlideImpacts(combined);
 
         // --- 6. Isolate collision delta and apply to base velocity only ---
         var postCollision = _controller.Velocity;
@@ -127,21 +128,22 @@ public class MovementProcessor2D : IMovementProcessor2D
         _controller.SetVelocity(baseVelocity + collisionDelta);
     }
 
-    /// <summary>
-    /// Hands every slide collider that opted in through <see cref="IPushable2D"/> the push this move gave it.
-    /// <paramref name="moveVelocity"/> is the velocity the move was attempted with, before collisions clipped it.
-    /// </summary>
-    private void PushSlideColliders(Vector2 moveVelocity)
+    private void ResolveSlideImpacts(Vector2 moveVelocity)
     {
-        if (this._owner is not CharacterBody2D body) { return; }
-
-        var slideCount = body.GetSlideCollisionCount();
-        for (var i = 0; i < slideCount; i++)
+        _slideContacts.Advance();
+        if (_owner is not CharacterBody2D body) { return; }
+        for (int i = 0; i < body.GetSlideCollisionCount(); i++)
         {
             var collision = body.GetSlideCollision(i);
-            if (collision.GetCollider() is not IPushable2D pushable) { continue; }
-
-            pushable.ReceivePush(new PushContact2D(this._owner, moveVelocity, collision.GetNormal()));
+            if (collision.GetCollider() is not Node target
+                || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
+            float stability = _stabilityAttr == null ? 0f : _stats.GetStatValue<float>(_stabilityAttr, 0f);
+            var normal = collision.GetNormal();
+            var impact = Jmodot.Implementation.Physics.ImpactPhysics.ResolveEntityContact(_owner, target,
+                new Vector3(moveVelocity.X, moveVelocity.Y, 0f), new Vector3(normal.X, normal.Y, 0f), stability);
+            if (!impact.IsValid) { continue; }
+            moveVelocity = new Vector2(impact.NewVelocityA.X, impact.NewVelocityA.Y);
+            _controller.SetVelocity(moveVelocity);
         }
     }
 
@@ -173,7 +175,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
-        this.PushSlideColliders(combined);
+        this.ResolveSlideImpacts(combined);
 
         // 5. Apply collision delta to base velocity only
         var postCollision = _controller.Velocity;
