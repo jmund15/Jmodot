@@ -39,8 +39,7 @@ public static class ImpactPhysics
     /// that contact can still close later, while a non-participant never resolves and a lost claim was resolved by its peer.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
-        Vector3 normal, float fallbackStability = 0f, IStatProvider? fallbackStats = null,
-        Attribute? stabilityAttribute = null)
+        Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null)
     {
         var other = FindImpactable(target);
         if (other == null || !other.ParticipatesInElasticCollisions) { return ImpactSolveResult.None; }
@@ -51,7 +50,7 @@ public static class ImpactPhysics
             return ImpactSolveResult.None;
         }
         float stability = self?.Stability ?? (stabilityAttribute != null && fallbackStats != null
-            ? fallbackStats.GetStatValue<float>(stabilityAttribute, fallbackStability) : fallbackStability);
+            ? fallbackStats.GetStatValue<float>(stabilityAttribute, 0f) : 0f);
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             stability, other.Stability, normal,
             CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
