@@ -136,13 +136,20 @@ public class MovementProcessor2D : IMovementProcessor2D
         for (int i = 0; i < body.GetSlideCollisionCount(); i++)
         {
             var collision = body.GetSlideCollision(i);
-            if (collision.GetCollider() is not Node target
-                || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
+            if (collision.GetCollider() is not Node target) { continue; }
+            var id = target.GetInstanceId();
+            bool begins = _slideContacts.TryBeginContact(id);
+            bool sustained = !begins && _slideContacts.IsPushing(id);
+            if (!begins && !sustained) { continue; }
             var normal = collision.GetNormal();
             var impact = ImpactPhysics.ResolveEntityContact(_owner, target,
                 new Vector3(moveVelocity.X, moveVelocity.Y, 0f), new Vector3(normal.X, normal.Y, 0f),
-                fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
-            if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(target.GetInstanceId()); }
+                fallbackStats: _stats, stabilityAttribute: _stabilityAttr, sustained: sustained);
+            if (impact.Outcome == ImpactSolveOutcome.Resolved || (sustained && impact.Outcome == ImpactSolveOutcome.Separating))
+            {
+                _slideContacts.MarkPushing(id);
+            }
+            else if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(id); }
         }
     }
 

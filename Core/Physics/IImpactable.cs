@@ -40,4 +40,12 @@ public interface IImpactable : IGodotNodeInterface
     /// source read it; the rest ignore it. Null when the caller has no source.
     /// </param>
     void ApplyImpactVelocity(Vector3 newVelocity, Node? source = null);
+
+    /// <summary>
+    /// Carry this entity along with a body that keeps pressing into it after the contact's impact: the
+    /// post-solve velocity of a perfectly inelastic exchange, delivered every step the contact continues.
+    /// Default: not carried. A body that can be shoved implements it without the impact's effects, which belong
+    /// to the contact's first step.
+    /// </summary>
+    void ApplyPushVelocity(Vector3 newVelocity, Node? source = null) { }
 }

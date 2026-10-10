@@ -35,11 +35,14 @@ public static class ImpactPhysics
     /// A walker retains its post-slide velocity; other callers may apply the returned source velocity.
     /// A walker without an authored capability uses its movement stability and the default restitution.
     /// Non-participating targets return before source or stat lookups.
+    /// <paramref name="sustained"/> resolves a contact that is still pressing after its impact: no bounce, so the
+    /// target converges on the source's velocity instead of being launched again, delivered as a push.
     /// A caller cancels its <see cref="ContinuingContactTracker"/> entry only for <see cref="ImpactSolveOutcome.Separating"/>:
     /// that contact can still close later, while a non-participant never resolves and a lost claim was resolved by its peer.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
-        Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null)
+        Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null,
+        bool sustained = false)
     {
         var other = FindImpactable(target);
         if (other == null || !other.ParticipatesInElasticCollisions) { return ImpactSolveResult.None; }
@@ -53,8 +56,10 @@ public static class ImpactPhysics
             ? ClampStability(fallbackStats.GetStatValue<float>(stabilityAttribute, 0f)) : 0f);
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             stability, other.Stability, normal,
-            CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
-        if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB, source); }
+            sustained ? 0f : CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
+        if (!result.IsValid) { return result; }
+        if (sustained) { other.ApplyPushVelocity(result.NewVelocityB, source); }
+        else { other.ApplyImpactVelocity(result.NewVelocityB, source); }
         return result;
     }
 
