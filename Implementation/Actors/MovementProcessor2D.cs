@@ -149,7 +149,7 @@ public class MovementProcessor2D : IMovementProcessor2D
             {
                 _slideContacts.MarkPushing(id);
             }
-            else if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(id); }
+            else if (impact.Outcome is ImpactSolveOutcome.Separating or ImpactSolveOutcome.Inactive) { _slideContacts.CancelContact(id); }
         }
     }
 

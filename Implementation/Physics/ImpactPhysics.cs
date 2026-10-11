@@ -37,17 +37,18 @@ public static class ImpactPhysics
     /// Non-participating targets return before source or stat lookups.
     /// <paramref name="sustained"/> resolves a contact that is still pressing after its impact: no bounce, so the
     /// target converges on the source's velocity instead of being launched again, delivered as a push.
-    /// A caller cancels its <see cref="ContinuingContactTracker"/> entry only for <see cref="ImpactSolveOutcome.Separating"/>:
-    /// that contact can still close later, while a non-participant never resolves and a lost claim was resolved by its peer.
+    /// A caller cancels its <see cref="ContinuingContactTracker"/> entry for <see cref="ImpactSolveOutcome.Separating"/> and
+    /// <see cref="ImpactSolveOutcome.Inactive"/>: that contact can still resolve later, while a lost claim was resolved by its peer.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
         Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null,
         bool sustained = false)
     {
         var other = FindImpactable(target);
-        if (other == null || !other.ParticipatesInElasticCollisions) { return ImpactSolveResult.None; }
+        if (other == null) { return ImpactSolveResult.None; }
+        if (!other.ParticipatesInElasticCollisions) { return ImpactSolveResult.Inactive; }
         var self = FindImpactable(source);
-        if (self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.None; }
+        if (self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.Inactive; }
         if (!ImpactFrameTracker.TryClaimPair(source.GetInstanceId(), target.GetInstanceId()))
         {
             return ImpactSolveResult.None;

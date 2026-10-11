@@ -44,8 +44,11 @@ public readonly struct ImpactSolveResult
         Outcome = outcome;
     }
 
-    /// <summary>Sentinel for a solve that never ran (non-participating body, pair already resolved this frame).</summary>
+    /// <summary>Sentinel for a solve that never ran (no impact capability, pair already resolved this frame).</summary>
     public static ImpactSolveResult None => default;
+
+    /// <summary>Sentinel for a body that does not participate right now.</summary>
+    public static ImpactSolveResult Inactive => new(ImpactSolveOutcome.Inactive);
 
     /// <summary>Sentinel for entities that were not closing (separating, or zero closing speed).</summary>
     public static ImpactSolveResult Separating => new(ImpactSolveOutcome.Separating);
