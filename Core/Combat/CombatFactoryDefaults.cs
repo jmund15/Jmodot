@@ -3,9 +3,10 @@ namespace Jmodot.Core.Combat;
 using Stats;
 
 /// <summary>
-/// Project-wide default attributes consumed by Jmodot damage-effect factories
-/// (e.g. <see cref="Jmodot.Implementation.Combat.EffectFactories.DamageEffectFactory"/>)
-/// when a factory does not configure its own per-instance override.
+/// Project-wide combat defaults: the crit attributes Jmodot damage-effect factories
+/// (e.g. <see cref="Jmodot.Implementation.Combat.EffectFactories.DamageEffectFactory"/>) read
+/// when a factory does not configure its own per-instance override, and the reaction and
+/// effectiveness resolver seams.
 ///
 /// Consuming projects wire these fields once at startup (typically from a central
 /// registry autoload). Jmodot itself never assigns them — keeping the framework
@@ -18,9 +19,9 @@ using Stats;
 /// Null-handling: when both the per-factory override AND the seam default are
 /// null, crit is disabled (graceful degrade — no exception). The factory's
 /// <c>DefaultCritMultiplier</c> literal is used when both multiplier sources
-/// are null.
+/// are null. A null resolver disables that consultation.
 ///
-/// **Scope note:** This seam covers crit attributes only. Status runner
+/// **Scope note:** This seam carries no status-runner defaults. Status runner
 /// PackedScenes are handled separately via <c>[Export, RequiredExport]</c>
 /// on each runner factory (see <c>TickEffectFactory.Runner</c>, etc.) — that
 /// stronger Inspector-time enforcement is preferred over a runtime fallback
@@ -53,6 +54,13 @@ public static class CombatFactoryDefaults
     public static IReactionResolver? ReactionResolver;
 
     /// <summary>
+    /// Effectiveness-resolution seam read by
+    /// <see cref="Jmodot.Implementation.Combat.IncomingMagnitude.Resolve"/>. Null disables
+    /// consultation gracefully — every hit and tick resolves to the neutral scale 1.0f.
+    /// </summary>
+    public static IEffectivenessResolver? EffectivenessResolver;
+
+    /// <summary>
     /// Clears every default to null. Intended for test teardown — lets Jmodot-only
     /// test suites reset shared static state without depending on a specific
     /// consuming project's autoload reset path. Production code should not call this.
@@ -62,5 +70,6 @@ public static class CombatFactoryDefaults
         DefaultCritChanceAttr = null;
         DefaultCritMultiplierAttr = null;
         ReactionResolver = null;
+        EffectivenessResolver = null;
     }
 }
