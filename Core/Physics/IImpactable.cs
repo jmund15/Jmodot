@@ -42,10 +42,8 @@ public interface IImpactable : IGodotNodeInterface
     void ApplyImpactVelocity(Vector3 newVelocity, Node? source = null);
 
     /// <summary>
-    /// Carry this entity along with a body that keeps pressing into it after the contact's impact: the
-    /// post-solve velocity of a perfectly inelastic exchange, delivered every step the contact continues.
-    /// Default: not carried. A body that can be shoved implements it without the impact's effects, which belong
-    /// to the contact's first step.
+    /// How steeply this entity leaves an elastic contact, in degrees above its horizontal heading: the solve's
+    /// horizontal speed is turned upward by this angle, so a struck body pops into the air. 0 keeps it level.
     /// </summary>
-    void ApplyPushVelocity(Vector3 newVelocity, Node? source = null) { }
+    float LaunchLiftDegrees => 0f;
 }

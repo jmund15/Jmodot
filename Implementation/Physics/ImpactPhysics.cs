@@ -35,14 +35,11 @@ public static class ImpactPhysics
     /// A walker retains its post-slide velocity; other callers may apply the returned source velocity.
     /// A walker without an authored capability uses its movement stability and the default restitution.
     /// Non-participating targets return before source or stat lookups.
-    /// <paramref name="sustained"/> resolves a contact that is still pressing after its impact: no bounce, so the
-    /// target converges on the source's velocity instead of being launched again, delivered as a push.
     /// A caller cancels its <see cref="ContinuingContactTracker"/> entry for <see cref="ImpactSolveOutcome.Separating"/> and
     /// <see cref="ImpactSolveOutcome.Inactive"/>: that contact can still resolve later, while a lost claim was resolved by its peer.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
-        Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null,
-        bool sustained = false)
+        Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null)
     {
         var other = FindImpactable(target);
         if (other == null) { return ImpactSolveResult.None; }
@@ -57,11 +54,25 @@ public static class ImpactPhysics
             ? ClampStability(fallbackStats.GetStatValue<float>(stabilityAttribute, 0f)) : 0f);
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             stability, other.Stability, normal,
-            sustained ? 0f : CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
+            CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
         if (!result.IsValid) { return result; }
-        if (sustained) { other.ApplyPushVelocity(result.NewVelocityB, source); }
-        else { other.ApplyImpactVelocity(result.NewVelocityB, source); }
+        result = result.WithNewVelocityB(Lift(result.NewVelocityB, other.LaunchLiftDegrees));
+        other.ApplyImpactVelocity(result.NewVelocityB, source);
         return result;
+    }
+
+    /// <summary>
+    /// Turns <paramref name="velocity"/>'s horizontal part upward by <paramref name="degrees"/>, keeping its horizontal
+    /// heading and adding the lifted share to its vertical part. Angles outside 0..89 clamp; a non-finite angle lifts nothing.
+    /// </summary>
+    public static Vector3 Lift(Vector3 velocity, float degrees)
+    {
+        if (!(degrees > 0f) || !float.IsFinite(degrees)) { return velocity; }
+        var horizontal = new Vector3(velocity.X, 0f, velocity.Z);
+        float speed = horizontal.Length();
+        if (speed < Mathf.Epsilon) { return velocity; }
+        float angle = Mathf.DegToRad(Mathf.Min(degrees, 89f));
+        return (horizontal * Mathf.Cos(angle)) + (Vector3.Up * (velocity.Y + (speed * Mathf.Sin(angle))));
     }
 
     /// <summary>A stability the elastic mass formula (mass = 1 + stability) can take: NaN becomes 0 and negatives clamp to 0.</summary>

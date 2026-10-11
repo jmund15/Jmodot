@@ -44,6 +44,10 @@ public readonly struct ImpactSolveResult
         Outcome = outcome;
     }
 
+    /// <summary>This result with <see cref="NewVelocityB"/> replaced; the outcome and forces are unchanged.</summary>
+    public ImpactSolveResult WithNewVelocityB(Vector3 newVelocityB)
+        => new(NewVelocityA, newVelocityB, ImpactForceOnA, ImpactForceOnB);
+
     /// <summary>Sentinel for a solve that never ran (no impact capability, pair already resolved this frame).</summary>
     public static ImpactSolveResult None => default;
 
