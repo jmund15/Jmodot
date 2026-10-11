@@ -198,9 +198,10 @@ public class MovementProcessor3D : IMovementProcessor3D
             var collision = body.GetSlideCollision(i);
             if (collision.GetCollider() is not Node target) { continue; }
             var id = target.GetInstanceId();
-            if (!_slideContacts.TryBeginContact(id)) { continue; }
+            if (!_slideContacts.TryBeginContact(id)) { if (target is CharacterBody3D) { Jmodot.Implementation.Shared.JmoLogger.Info(_owner, $"[DIAG-APPLE] slide target={target.Name} skipped-continuing"); } continue; }
             var impact = ImpactPhysics.ResolveEntityContact(
                 _owner, target, moveVelocity, collision.GetNormal(), fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
+            if (target is CharacterBody3D) { Jmodot.Implementation.Shared.JmoLogger.Info(_owner, $"[DIAG-APPLE] slide target={target.Name} outcome={impact.Outcome} v={moveVelocity} n={collision.GetNormal()} newB={impact.NewVelocityB}"); }
             if (impact.Outcome is ImpactSolveOutcome.Separating or ImpactSolveOutcome.Inactive) { _slideContacts.CancelContact(id); }
         }
     }
