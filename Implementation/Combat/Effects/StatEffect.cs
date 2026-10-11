@@ -32,12 +32,12 @@ using GCol = Godot.Collections;
 public struct StatEffect : IRevertibleCombatEffect
 {
     public readonly Attribute Attribute;
-    public Resource Modifier;
+    public AttributeModifier Modifier;
     public ModifierHandle? Handle;
     public IEnumerable<CombatTag> Tags { get; private set; }
     public VisualEffect? Visual { get; private init; }
 
-    public StatEffect(Attribute attribute, Resource modifier, IEnumerable<CombatTag>? tags = null, VisualEffect? visual = null)
+    public StatEffect(Attribute attribute, AttributeModifier modifier, IEnumerable<CombatTag>? tags = null, VisualEffect? visual = null)
     {
         Attribute = attribute;
         Modifier = modifier;

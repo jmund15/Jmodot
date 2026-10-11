@@ -39,10 +39,10 @@ public interface IStatProvider
     /// Use this return handle for buffs/debuffs that may have multiple stacks or need to be removed individually.
     /// </summary>
     /// <param name="attribute">The stat to modify.</param>
-    /// <param name="modifierResource">The modifier data to apply.</param>
+    /// <param name="modifier">The modifier data to apply.</param>
     /// <param name="owner">The object source of this modification (e.g., the buff instance, an item).</param>
     /// <param name="handle">A unique ModifierHandle for this application, or null on failure.</param>
-    bool TryAddModifier(Attribute attribute, Resource modifierResource, object owner, out ModifierHandle? handle);
+    bool TryAddModifier(Attribute attribute, AttributeModifier? modifier, object owner, out ModifierHandle? handle);
     /// <summary>
     /// The "scalpel": Removes a single, specific modifier application using its handle.
     /// </summary>
