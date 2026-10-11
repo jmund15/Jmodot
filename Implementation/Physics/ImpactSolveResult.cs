@@ -36,17 +36,22 @@ public readonly struct ImpactSolveResult
     }
 
     private ImpactSolveResult(ImpactSolveOutcome outcome)
+        : this(default, default, 0f, 0f, outcome) { }
+
+    private ImpactSolveResult(
+        Vector3 newVelocityA, Vector3 newVelocityB,
+        float impactForceOnA, float impactForceOnB, ImpactSolveOutcome outcome)
     {
-        NewVelocityA = default;
-        NewVelocityB = default;
-        ImpactForceOnA = 0f;
-        ImpactForceOnB = 0f;
+        NewVelocityA = newVelocityA;
+        NewVelocityB = newVelocityB;
+        ImpactForceOnA = impactForceOnA;
+        ImpactForceOnB = impactForceOnB;
         Outcome = outcome;
     }
 
     /// <summary>This result with <see cref="NewVelocityB"/> replaced; the outcome and forces are unchanged.</summary>
     public ImpactSolveResult WithNewVelocityB(Vector3 newVelocityB)
-        => new(NewVelocityA, newVelocityB, ImpactForceOnA, ImpactForceOnB);
+        => new(NewVelocityA, newVelocityB, ImpactForceOnA, ImpactForceOnB, Outcome);
 
     /// <summary>Sentinel for a solve that never ran (no impact capability, pair already resolved this frame).</summary>
     public static ImpactSolveResult None => default;
