@@ -1,9 +1,13 @@
 namespace Jmodot.Implementation.Physics;
 
 using Godot;
+using Jmodot.Core.AI.BB;
+using Jmodot.Core.Physics;
+using Jmodot.Implementation.AI.BB;
+using Jmodot.Core.Stats;
 
 /// <summary>
-/// Pure static utility for elastic collision resolution between two entities.
+/// Elastic collision math and participating-entity contact dispatch.
 /// Caller provides the pre-combined COR (coefficient of restitution):
 ///   - Entity-entity: use <see cref="CombineRestitution"/> (geometric mean).
 ///   - Surface bounce: use DurableCollisionResponse.VelocityRetention directly.
@@ -12,10 +16,63 @@ using Godot;
 /// </summary>
 public static class ImpactPhysics
 {
+    /// <summary>The coefficient of restitution a contact uses when no participant authors one.</summary>
+    public const float DefaultRestitution = 0.8f;
+
+    /// <summary>Authored blackboard capability takes precedence over a body's fallback adapter.</summary>
+    public static IImpactable? FindImpactable(Node node)
+    {
+        if (node.TryGetFirstChildOfInterface<IBlackboard>(out var bb) && bb != null
+            && bb.TryGet<IImpactable>(BBDataSig.PhysicsInteraction, out var impactable) && impactable != null)
+        {
+            return impactable;
+        }
+        return node as IImpactable;
+    }
+
+    /// <summary>
+    /// Resolves a participating target and applies its new velocity once per pair per physics frame.
+    /// A walker retains its post-slide velocity; other callers may apply the returned source velocity.
+    /// A walker without an authored capability uses its movement stability and the default restitution.
+    /// Non-participating targets return before source or stat lookups.
+    /// A caller cancels its <see cref="ContinuingContactTracker"/> entry only for <see cref="ImpactSolveOutcome.Separating"/>:
+    /// that contact can still close later, while a non-participant never resolves and a lost claim was resolved by its peer.
+    /// </summary>
+    public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
+        Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null)
+    {
+        var other = FindImpactable(target);
+        if (other == null || !other.ParticipatesInElasticCollisions) { return ImpactSolveResult.None; }
+        var self = FindImpactable(source);
+        if (self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.None; }
+        if (!ImpactFrameTracker.TryClaimPair(source.GetInstanceId(), target.GetInstanceId()))
+        {
+            return ImpactSolveResult.None;
+        }
+        float stability = self?.Stability ?? (stabilityAttribute != null && fallbackStats != null
+            ? ClampStability(fallbackStats.GetStatValue<float>(stabilityAttribute, 0f)) : 0f);
+        var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
+            stability, other.Stability, normal,
+            CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
+        if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB, source); }
+        return result;
+    }
+
+    /// <summary>A stability the elastic mass formula (mass = 1 + stability) can take: NaN becomes 0 and negatives clamp to 0.</summary>
+    public static float ClampStability(float stability)
+        => float.IsNaN(stability) ? 0f : Mathf.Clamp(stability, 0f, float.MaxValue);
+
+    /// <summary>
+    /// Relative speed of A toward B along the contact normal: positive when approaching, zero or negative when separating.
+    /// </summary>
+    /// <param name="normal">Collision normal pointing from B toward A (Godot convention).</param>
+    public static float ClosingSpeed(Vector3 velocityA, Vector3 velocityB, Vector3 normal)
+        => (velocityA - velocityB).Dot(-normal);
+
     /// <summary>
     /// Resolves an elastic collision between two entities.
     /// Uses mass derived from stability: mass = 1 + stability.
-    /// Returns <see cref="ImpactSolveResult.None"/> when entities are separating.
+    /// Returns <see cref="ImpactSolveResult.Separating"/> when entities are not closing.
     /// </summary>
     /// <param name="velocityA">Velocity of entity A (the resolving entity).</param>
     /// <param name="velocityB">Velocity of entity B (the target).</param>
@@ -26,13 +83,12 @@ public static class ImpactPhysics
     public static ImpactSolveResult ResolveElasticCollision(
         Vector3 velocityA, Vector3 velocityB,
         float stabilityA, float stabilityB,
-        Vector3 normal, float restitution = 0.8f)
+        Vector3 normal, float restitution = DefaultRestitution)
     {
-        // Closing speed: positive when approaching along normal axis
-        float closingSpeed = (velocityA - velocityB).Dot(-normal);
+        float closingSpeed = ClosingSpeed(velocityA, velocityB, normal);
         if (closingSpeed <= 0f)
         {
-            return ImpactSolveResult.None;
+            return ImpactSolveResult.Separating;
         }
 
         // Mass from stability: stability=0 → mass=1, stability=3 → mass=4

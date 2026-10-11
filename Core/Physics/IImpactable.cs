@@ -35,5 +35,9 @@ public interface IImpactable : IGodotNodeInterface
     /// Apply the resolved post-collision velocity to this entity.
     /// Implementation should compute the delta and apply as impulse to preserve other forces.
     /// </summary>
-    void ApplyImpactVelocity(Vector3 newVelocity);
+    /// <param name="source">
+    /// The node whose contact caused the impact. Implementations that attribute the contact to its
+    /// source read it; the rest ignore it. Null when the caller has no source.
+    /// </param>
+    void ApplyImpactVelocity(Vector3 newVelocity, Node? source = null);
 }

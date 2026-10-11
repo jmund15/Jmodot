@@ -23,6 +23,10 @@ public enum DamageKind
 
     /// <summary>Positive health change — healing, resurrection, regen. Not a damage cause; Direct-only feedback filters skip it.</summary>
     Heal = 4,
+
+    /// <summary>Self-inflicted continuous drain — a body decaying over its own lifetime. Not a hit: no hit
+    /// feedback, and logged at Debug because it fires every frame.</summary>
+    Attrition = 5,
 }
 
 /// <summary>

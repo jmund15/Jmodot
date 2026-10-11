@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
+using Core.Physics;
 using Core.Stats;
 using Movement.Strategies;
 using Shared;
+using Physics;
 
 /// <summary>
 ///     The definitive high-level orchestrator for character movement. Its sole responsibility
@@ -27,6 +29,7 @@ public class MovementProcessor2D : IMovementProcessor2D
     private bool _frameImpulsesReplace;
     private Vector2 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
+    private readonly ContinuingContactTracker _slideContacts = new();
 
     private readonly OwnedSlot<bool> _suspensionSlot = new("Movement");
 
@@ -118,11 +121,29 @@ public class MovementProcessor2D : IMovementProcessor2D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.ResolveSlideImpacts(combined);
 
         // --- 6. Isolate collision delta and apply to base velocity only ---
         var postCollision = _controller.Velocity;
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
+    }
+
+    private void ResolveSlideImpacts(Vector2 moveVelocity)
+    {
+        _slideContacts.Advance();
+        if (_owner is not CharacterBody2D body) { return; }
+        for (int i = 0; i < body.GetSlideCollisionCount(); i++)
+        {
+            var collision = body.GetSlideCollision(i);
+            if (collision.GetCollider() is not Node target
+                || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
+            var normal = collision.GetNormal();
+            var impact = ImpactPhysics.ResolveEntityContact(_owner, target,
+                new Vector3(moveVelocity.X, moveVelocity.Y, 0f), new Vector3(normal.X, normal.Y, 0f),
+                fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
+            if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(target.GetInstanceId()); }
+        }
     }
 
     /// <summary>
@@ -153,6 +174,7 @@ public class MovementProcessor2D : IMovementProcessor2D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.ResolveSlideImpacts(combined);
 
         // 5. Apply collision delta to base velocity only
         var postCollision = _controller.Velocity;

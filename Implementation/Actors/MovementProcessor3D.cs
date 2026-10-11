@@ -5,9 +5,11 @@ using Godot;
 using Core.Actors;
 using Core.Movement;
 using Core.Movement.Strategies;
+using Core.Physics;
 using Core.Stats;
 using Movement.Strategies;
 using Shared;
+using Physics;
 
 /// <summary>
 ///     The definitive high-level orchestrator for character movement. Its sole responsibility
@@ -28,6 +30,7 @@ public class MovementProcessor3D : IMovementProcessor3D
     private bool _frameImpulsesReplace;
     private Vector3 _previousDirection;
     private readonly HashSet<int> _warnedTurnLogicConflicts = new();
+    private readonly ContinuingContactTracker _slideContacts = new();
 
     private readonly IMovementStrategy3D? _default;
     private IMovementStrategy3D? _override;
@@ -174,6 +177,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.ResolveSlideImpacts(combined);
 
         // --- 6. Isolate collision delta and apply to base velocity only ---
         // After MoveAndSlide, velocity may differ from combined due to collisions.
@@ -183,6 +187,21 @@ public class MovementProcessor3D : IMovementProcessor3D
         this.WarnOnLaunch(combined, postCollision);
         var collisionDelta = postCollision - combined;
         _controller.SetVelocity(baseVelocity + collisionDelta);
+    }
+
+    private void ResolveSlideImpacts(Vector3 moveVelocity)
+    {
+        _slideContacts.Advance();
+        if (_owner is not CharacterBody3D body) { return; }
+        for (int i = 0; i < body.GetSlideCollisionCount(); i++)
+        {
+            var collision = body.GetSlideCollision(i);
+            if (collision.GetCollider() is not Node target
+                || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
+            var impact = ImpactPhysics.ResolveEntityContact(
+                _owner, target, moveVelocity, collision.GetNormal(), fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
+            if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(target.GetInstanceId()); }
+        }
     }
 
     /// <summary>
@@ -242,6 +261,7 @@ public class MovementProcessor3D : IMovementProcessor3D
         var combined = baseVelocity + velocityOffset;
         _controller.SetVelocity(combined);
         _controller.Move();
+        this.ResolveSlideImpacts(combined);
 
         // 5. Apply collision delta to base velocity only
         var postCollision = _controller.Velocity;
@@ -263,7 +283,9 @@ public class MovementProcessor3D : IMovementProcessor3D
         }
 
         DrainImpulses();
+        var moveVelocity = _controller.Velocity;
         _controller.Move();
+        this.ResolveSlideImpacts(moveVelocity);
     }
 
     /// <summary>
