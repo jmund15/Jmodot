@@ -16,10 +16,16 @@ public interface IImpactable : IGodotNodeInterface
     bool ParticipatesInElasticCollisions { get; }
 
     /// <summary>
-    /// Stability value used as mass in elastic collisions: mass = 1 + Stability.
-    /// Higher stability = heavier = harder to move.
+    /// Resistance to being moved by a contact. Elastic contacts read inertia as Mass * (1 + Stability), the same
+    /// split knockback uses: Stability resists, Mass sets how much speed a push buys.
     /// </summary>
     float Stability { get; }
+
+    /// <summary>
+    /// How heavy this entity is in elastic contacts, positive and finite. Below 1 it leaves a contact faster than
+    /// an equal body would, up to (1 + restitution) times the closing speed; above 1 it moves less.
+    /// </summary>
+    float Mass => 1f;
 
     /// <summary>Current velocity of this entity (for relative velocity calculation).</summary>
     Vector3 Velocity { get; }
