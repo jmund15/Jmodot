@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.AI.HSM;
 
+using System;
 using System.Linq;
 using BB;
 using Core.AI.BB;
@@ -40,6 +41,17 @@ public partial class State : Node, IState
     /// </summary>
     [Export]
     protected GColl.Array<StateTransition> Transitions { get; private set; } = new();
+
+    /// <summary>
+    /// Read-only view of the authored transitions that can fire: assigned and naming a target state.
+    /// An unassigned slot or an empty target path is excluded; <see cref="_GetConfigurationWarnings"/>
+    /// reports those.
+    /// </summary>
+    public IEnumerable<StateTransition> Routes
+        => Transitions.Where(t => t != null && t.TargetStatePath != null && !t.TargetStatePath.IsEmpty);
+
+    /// <summary>True when some transition in <see cref="Routes"/> satisfies <paramref name="predicate"/>.</summary>
+    public bool HasRoute(Func<StateTransition, bool> predicate) => Routes.Any(predicate);
 
     protected List<StateTransition> UniqueTransitions { get; private set; } = new();
     private Dictionary<StateTransition, State> _resolvedTransitions = new();
