@@ -164,17 +164,25 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             ImpactDirection = impactDirection,
         };
 
-        // 3.5. Reaction-resolver consultation (A2)
+        // 3.5. Effectiveness-resolution consultation
+        // If the project wired CombatFactoryDefaults.EffectivenessResolver, resolve the incoming
+        // magnitude scale for this (attacker, defender) pair once. Null resolver → 1.0f (neutral).
+        // Resolved BEFORE the reaction consult so the operand can be threaded into it — reaction
+        // outcomes must see the same immunity the damage effects do.
+        float magnitudeScale = IncomingMagnitude.Resolve(payload.Source ?? payload.Attacker, _combatant);
+
+        // 3.6. Reaction-resolver consultation (A2)
         // If the project wired CombatFactoryDefaults.ReactionResolver, query for matching
         // reactions (e.g., shatter on frozen, oil+fire→explosion). Outcomes apply via
         // the resolver's project-side machinery; the resolver returns a (possibly
         // damage-stripped) payload to forward when an Exclusive reaction matched.
         // No resolver wired → null returned → fall through to forward original payload.
-        var payloadToForward = ConsultReactionResolver(payload, context);
+        var payloadToForward = ConsultReactionResolver(payload, context, magnitudeScale);
 
         // 4. Forward to Brain
         // The Combatant executes the logic defined in the (possibly filtered) effects.
-        _combatant.ProcessPayload(payloadToForward, context);
+        // incomingMagnitudeScale scales the damage-bearing effects for this hit.
+        _combatant.ProcessPayload(payloadToForward, context, magnitudeScale);
 
         // 5. Feedback
         // Notify with the ORIGINAL payload — interceptor/resolver-side filtering must not
@@ -189,7 +197,10 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     /// — equal to <paramref name="payload"/> when no resolver is wired or no reactions matched;
     /// may be a damage-stripped wrapper when an Exclusive reaction matched.
     /// </summary>
-    private IAttackPayload ConsultReactionResolver(IAttackPayload payload, HitContext context)
+    /// <param name="incomingMagnitudeScale">The effectiveness operand for this hit, resolved by
+    /// <see cref="IncomingMagnitude.Resolve"/> BEFORE this call. Threaded to the resolver so
+    /// damage-bearing outcomes honour absolute immunity; <c>1.0f</c> means unscaled.</param>
+    private IAttackPayload ConsultReactionResolver(IAttackPayload payload, HitContext context, float incomingMagnitudeScale)
     {
         var resolver = CombatFactoryDefaults.ReactionResolver;
         if (resolver == null) { return payload; }
@@ -213,24 +224,14 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             payload.Attacker,
             defenderNode,
             payload,
-            context);
+            context,
+            incomingMagnitudeScale);
     }
 
-    /// <summary>Walk up the tree from <paramref name="node"/> looking for the first ancestor
-    /// implementing <see cref="IIdentifiable"/>. Returns null if none found.</summary>
+    /// <summary>Resolve the identity of <paramref name="node"/> via the shared upward ancestor walk
+    /// (<see cref="NodeExts.TryResolveIdentifiable"/>). Returns null if no provider is found.</summary>
     private static Identity? ResolveIdentity(Node? node)
-    {
-        var current = node;
-        while (current != null)
-        {
-            if (current is IIdentifiable identifiable)
-            {
-                return identifiable.GetIdentity();
-            }
-            current = current.GetParent();
-        }
-        return null;
-    }
+        => node.TryResolveIdentifiable()?.GetIdentity();
 
     /// <summary>Aggregate the defender's currently-active <see cref="CombatTag"/>s from its
     /// <see cref="StatusEffectComponent"/> (looked up via the combatant's blackboard). Returns

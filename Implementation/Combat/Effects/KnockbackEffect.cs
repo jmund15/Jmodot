@@ -53,7 +53,7 @@ public partial class KnockbackEffect : Resource, ICombatEffect
     [ExportGroup("Visual")]
     [Export] public VisualEffect? Visual { get; private set; }
 
-    public CombatResult? Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         var force = ResolveForce(context);
         if (force <= 0f)

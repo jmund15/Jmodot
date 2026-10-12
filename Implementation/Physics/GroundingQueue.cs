@@ -34,16 +34,18 @@ public partial class GroundingQueue : Node
 {
     private readonly struct Pending
     {
-        public Pending(PhysicsBody3D body, GodotObject logContext, Action<GroundingOutcome>? onResolved)
+        public Pending(PhysicsBody3D body, GodotObject logContext, Action<GroundingOutcome>? onResolved, uint? supportMask)
         {
             Body = body;
             LogContext = logContext;
             OnResolved = onResolved;
+            SupportMask = supportMask;
         }
 
         public PhysicsBody3D Body { get; }
         public GodotObject LogContext { get; }
         public Action<GroundingOutcome>? OnResolved { get; }
+        public uint? SupportMask { get; }
     }
 
     private static GroundingQueue? _current;
@@ -79,12 +81,13 @@ public partial class GroundingQueue : Node
 
     /// <summary>
     /// Grounds <paramref name="body"/> on the next physics tick. Re-requesting a body already pending
-    /// replaces the earlier request, so the newest placement wins.
+    /// replaces the earlier request, so the newest placement wins. <paramref name="supportMask"/> overrides
+    /// the body's own collision mask for the probe (see <see cref="BodyGroundSnapper.TryGround"/>).
     /// </summary>
-    public void Request(PhysicsBody3D body, GodotObject logContext, Action<GroundingOutcome>? onResolved = null)
+    public void Request(PhysicsBody3D body, GodotObject logContext, Action<GroundingOutcome>? onResolved = null, uint? supportMask = null)
     {
         _pending.RemoveAll(p => p.Body == body);
-        _pending.Add(new Pending(body, logContext, onResolved));
+        _pending.Add(new Pending(body, logContext, onResolved, supportMask));
     }
 
     public override void _PhysicsProcess(double delta)
@@ -107,7 +110,7 @@ public partial class GroundingQueue : Node
             return;
         }
 
-        bool grounded = BodyGroundSnapper.TryGround(body, body.GlobalTransform, out Transform3D result);
+        bool grounded = BodyGroundSnapper.TryGround(body, body.GlobalTransform, out Transform3D result, p.SupportMask);
         if (grounded) { body.GlobalTransform = result; }
 
         if (p.OnResolved != null)
