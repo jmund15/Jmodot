@@ -7,6 +7,9 @@ using Godot;
 using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.ProcGen.Spatial;
 
+/// <summary>An accepted corridor: its boxes and its junction-to-junction length in cells.</summary>
+internal readonly record struct ConnectorPath(IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes, int LengthCells);
+
 /// <summary>Deterministic axis-aligned connector-path search used when a loop edge cannot abut directly.</summary>
 internal static class ConnectorSolver
 {
@@ -14,6 +17,7 @@ internal static class ConnectorSolver
 
     /// <summary>
     ///     Finds the first collision-free corridor path between two world ports, or null when none fits.
+    ///     The result carries the accepted path's junction-to-junction length, which <paramref name="maxLengthCells" /> bounds.
     ///     <paramref name="policy" /> gates exactly one path family: the BACK-TO-BACK wrap-around, offered
     ///     only under <see cref="ConnectorPolicy.ClosableWraparound" />. Every other family — including the
     ///     wrap that joins two ports facing the SAME direction — is offered under
@@ -21,7 +25,7 @@ internal static class ConnectorSolver
     ///     <see cref="ConnectorPolicy.AbutmentOnly" /> nowhere — that policy is expected to short-circuit
     ///     before reaching the solver at all.
     /// </summary>
-    internal static IReadOnlyList<(Vector3I Origin, Vector3I Size)>? Solve(
+    internal static ConnectorPath? Solve(
         WorldPort from,
         WorldPort to,
         OccupancyIndex committed,
@@ -48,7 +52,7 @@ internal static class ConnectorSolver
 
             if (IsClear(path.Boxes, committed, candidateLocalObstacles))
             {
-                return path.Boxes;
+                return new ConnectorPath(path.Boxes, path.Length);
             }
         }
 

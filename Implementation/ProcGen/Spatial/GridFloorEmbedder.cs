@@ -29,11 +29,11 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph topology,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorRules rules = default)
     {
         ValidateEmbedArgs(topology, envelope, settings);
         var infos = BuildNodeInfos(topology);
-        var state = NewState(topology, envelope, settings, policy);
+        var state = NewState(topology, envelope, settings, rules);
         FloorEmbedResult? failure = PlaceAll(topology, infos, state);
         return Capture(failure ?? EmitResult(topology, infos, state), state);
     }
@@ -47,8 +47,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
-        => new LayoutSession(this, backbone, envelope, settings, policy);
+        ConnectorRules rules = default)
+        => new LayoutSession(this, backbone, envelope, settings, rules);
 
     /// <summary>
     ///     Frozen-spine progressive seam (Design A): embeds a backbone sub-graph alone and returns its
@@ -62,11 +62,11 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorRules rules = default)
     {
         ValidateEmbedArgs(backbone, envelope, settings);
         var infos = BuildNodeInfos(backbone);
-        var state = NewState(backbone, envelope, settings, policy);
+        var state = NewState(backbone, envelope, settings, rules);
         PlaceAll(backbone, infos, state);
         return state;
     }
@@ -85,12 +85,10 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         SearchState state,
         IFloorGraph fullGraph,
         GeometryEnvelope envelope,
-        EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        EmbedderSettings settings)
     {
         ArgumentNullException.ThrowIfNull(state);
         ValidateEmbedArgs(fullGraph, envelope, settings);
-        state.Policy = policy;
         var infos = BuildNodeInfos(fullGraph);
         state.Budget = ResolveEffectiveBudget(fullGraph, settings);
         state.FrozenNodes.Clear();
@@ -121,8 +119,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph topology,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy)
-        => new SearchState(ResolveEffectiveBudget(topology, settings), envelope.SizeCells, policy);
+        ConnectorRules rules)
+        => new SearchState(ResolveEffectiveBudget(topology, settings), envelope.SizeCells, rules);
 
     private static int ResolveEffectiveBudget(IFloorGraph topology, EmbedderSettings settings)
     {
@@ -185,7 +183,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     // ---- setup ----
 
-    private sealed class NodeInfo
+    internal sealed class NodeInfo
     {
         internal NodeInfo(IGraphNode node, ISpatialNodeTemplate template, IReadOnlyList<ISpatialPort> ports, List<IGraphEdge> edges)
         {
@@ -413,11 +411,11 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     internal sealed class SearchState
     {
-        internal SearchState(int budget, Vector3I envelopeSize, ConnectorPolicy policy)
+        internal SearchState(int budget, Vector3I envelopeSize, ConnectorRules rules)
         {
             this.Budget = budget;
             this.EnvelopeSize = envelopeSize;
-            this.Policy = policy;
+            this.Rules = rules;
         }
 
         internal Dictionary<StringName, CellPose> Poses { get; } = new();
@@ -428,7 +426,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal Dictionary<IGraphEdge, (StringName FromPort, StringName ToPort)> EdgeBindings { get; } = new();
 
-        internal Dictionary<IGraphEdge, IReadOnlyList<(Vector3I Origin, Vector3I Size)>> PendingRealizations { get; } = new();
+        internal Dictionary<IGraphEdge, ConnectorPath> PendingRealizations { get; } = new();
 
         internal List<(StringName Id, Vector3I Origin, Vector3I Size)> Regions { get; } = new();
 
@@ -447,7 +445,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal int Budget { get; set; }
 
-        internal ConnectorPolicy Policy { get; set; }
+        internal ConnectorRules Rules { get; }
 
         internal Vector3I EnvelopeSize { get; }
 
@@ -460,7 +458,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         /// </summary>
         internal SearchState Clone()
         {
-            var copy = new SearchState(this.Budget, this.EnvelopeSize, this.Policy)
+            var copy = new SearchState(this.Budget, this.EnvelopeSize, this.Rules)
             {
                 Occupancy = this.Occupancy.Clone(),
                 LastConflictCause = this.LastConflictCause,
@@ -468,10 +466,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             foreach (var pose in this.Poses) { copy.Poses[pose.Key] = pose.Value; }
             foreach (var bound in this.BoundPorts) { copy.BoundPorts.Add(bound); }
             foreach (var binding in this.EdgeBindings) { copy.EdgeBindings[binding.Key] = binding.Value; }
-            foreach (var realization in this.PendingRealizations)
-            {
-                copy.PendingRealizations[realization.Key] = realization.Value.ToList();
-            }
+            foreach (var realization in this.PendingRealizations) { copy.PendingRealizations[realization.Key] = realization.Value; }
             foreach (var reserved in this.ReservedPorts) { copy.ReservedPorts.Add(reserved); }
             foreach (var frozen in this.FrozenNodes) { copy.FrozenNodes.Add(frozen); }
             copy.Regions.AddRange(this.Regions);
@@ -492,7 +487,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> Bindings { get; }
 
-        internal List<(IGraphEdge Edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes)> Realizations { get; } = new();
+        internal List<(IGraphEdge Edge, ConnectorPath Connector)> Realizations { get; } = new();
     }
 
     private sealed class Frame
@@ -511,6 +506,105 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal Candidate? Applied { get; set; }
     }
+
+    // ---- route-room steering ----
+
+    // A route room (every incident edge a Loop) prefers the candidate whose closures cost the least corridor,
+    // then the candidate nearest the placed room its loop rejoins. Spine rooms keep enumeration order.
+    internal static bool IsRouteRoom(NodeInfo info) => info.Edges.All(e => e.Provenance.Kind == EdgeProvenanceKind.Loop);
+
+    /// <summary>
+    ///     Steering distance of a candidate pose: the least XZ anchor distance between a free port of <paramref name="nodeId" />
+    ///     and a usable port of a placed room its unplaced component rejoins. <see cref="int.MaxValue" /> when there is none.
+    /// </summary>
+    internal static int SteerDistance(
+        StringName nodeId,
+        IGraphEdge anchorEdge,
+        CellPose pose,
+        IReadOnlySet<StringName> boundByCandidate,
+        Dictionary<StringName, NodeInfo> infos,
+        SearchState state)
+    {
+        NodeInfo info = infos[nodeId];
+        var freeAnchors = info.Ports
+            .Where(p => !boundByCandidate.Contains(p.NameOf()) && IsUnclaimed(nodeId, p, state))
+            .Select(p => (Port: p, Anchor: SpatialPoseMath.WorldPortOf(pose, info.Footprint, p).AnchorCells))
+            .ToList();
+
+        int best = int.MaxValue;
+        foreach ((StringName targetId, IGraphEdge boundary) in RejoinBoundaries(nodeId, anchorEdge, infos, state))
+        {
+            NodeInfo targetInfo = infos[targetId];
+            CellPose targetPose = state.Poses[targetId];
+            bool frozen = state.FrozenNodes.Contains(targetId);
+            IEnumerable<ISpatialPort> targetPorts = frozen
+                ? new[] { PortByName(targetInfo, DeclaredPortOn(boundary, targetId)) }
+                : targetInfo.Ports.Where(p => IsUnclaimed(targetId, p, state));
+
+            foreach (ISpatialPort targetPort in targetPorts)
+            {
+                Vector3I targetAnchor = SpatialPoseMath.WorldPortOf(targetPose, targetInfo.Footprint, targetPort).AnchorCells;
+                foreach ((ISpatialPort port, Vector3I anchor) in freeAnchors)
+                {
+                    if (!frozen && !PortCompatibility.Matches((IGraphPort)targetPort, (IGraphPort)port))
+                    {
+                        continue;
+                    }
+
+                    best = Math.Min(best, Math.Abs(anchor.X - targetAnchor.X) + Math.Abs(anchor.Z - targetAnchor.Z));
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static bool IsUnclaimed(StringName nodeId, ISpatialPort port, SearchState state)
+    {
+        StringName name = port.NameOf();
+        return !state.BoundPorts.Contains((nodeId, name)) && !state.ReservedPorts.Contains((nodeId, name));
+    }
+
+    // Placed rooms adjacent to the unplaced component containing nodeId, reached over every edge except the anchor.
+    private static List<(StringName TargetId, IGraphEdge Boundary)> RejoinBoundaries(
+        StringName nodeId,
+        IGraphEdge anchorEdge,
+        Dictionary<StringName, NodeInfo> infos,
+        SearchState state)
+    {
+        var boundaries = new List<(StringName TargetId, IGraphEdge Boundary)>();
+        var component = new HashSet<StringName> { nodeId };
+        var queue = new Queue<StringName>();
+        queue.Enqueue(nodeId);
+        while (queue.Count > 0)
+        {
+            StringName current = queue.Dequeue();
+            foreach (IGraphEdge edge in infos[current].Edges)
+            {
+                if (ReferenceEquals(edge, anchorEdge))
+                {
+                    continue;
+                }
+
+                StringName other = OtherEnd(edge, current);
+                if (state.Poses.ContainsKey(other))
+                {
+                    boundaries.Add((other, edge));
+                }
+                else if (component.Add(other))
+                {
+                    queue.Enqueue(other);
+                }
+            }
+        }
+
+        return boundaries;
+    }
+
+    private static StringName DeclaredPortOn(IGraphEdge edge, StringName nodeId) =>
+        edge.From.Id == nodeId ? edge.FromPort : edge.ToPort;
+
+    private static int CorridorCells(Candidate candidate) => candidate.Realizations.Sum(r => r.Connector.LengthCells);
 
     // ---- block pass ----
 
@@ -722,6 +816,14 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             {
                 candidates.Add(candidate);
             }
+
+            if (IsRouteRoom(info))
+            {
+                candidates = candidates
+                    .OrderBy(c => CorridorCells(c))
+                    .ThenBy(c => SteerDistance(nodeId, anchorEdge, c.Pose, c.Bindings.Select(b => b.MyPort).ToHashSet(), infos, state))
+                    .ToList();
+            }
         }
 
         if (candidates.Count == 0)
@@ -800,7 +902,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     (anchorEdge, myPort.NameOf(), anchorPort.NameOf()),
                 };
 
-                var realizations = new List<(IGraphEdge Edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes)>();
+                var realizations = new List<(IGraphEdge Edge, ConnectorPath Connector)>();
                 if (!TryCloseRemainingEdges(nodeId, pose, placedNeighborEdges, anchorEdge, bindings, realizations, rebind, info, infos, state))
                 {
                     bindingConflicts++;
@@ -881,7 +983,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         List<IGraphEdge> placedNeighborEdges,
         IGraphEdge anchorEdge,
         List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> bindings,
-        List<(IGraphEdge Edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes)> realizations,
+        List<(IGraphEdge Edge, ConnectorPath Connector)> realizations,
         bool rebind,
         NodeInfo info,
         Dictionary<StringName, NodeInfo> infos,
@@ -889,9 +991,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     {
         Vector3I candidateSize = SpatialPoseMath.RotateSize(info.Footprint, pose.Yaw);
         var candidateLocalObstacles = new List<(Vector3I Origin, Vector3I Size)> { (pose.Origin, candidateSize) };
-        foreach ((IGraphEdge _, IReadOnlyList<(Vector3I Origin, Vector3I Size)> boxes) in realizations)
+        foreach ((IGraphEdge _, ConnectorPath connector) in realizations)
         {
-            candidateLocalObstacles.AddRange(boxes);
+            candidateLocalObstacles.AddRange(connector.Boxes);
         }
 
         foreach (IGraphEdge edge in placedNeighborEdges)
@@ -922,34 +1024,38 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     break;
                 }
 
-                if (state.Policy == ConnectorPolicy.AbutmentOnly || edge.Provenance.Kind != EdgeProvenanceKind.Loop ||
+                if (state.Rules.Policy == ConnectorPolicy.AbutmentOnly || edge.Provenance.Kind != EdgeProvenanceKind.Loop ||
                     !otherInfo.Template.CanRealizeConnectorAt(otherPort) || !info.Template.CanRealizeConnectorAt(myPort))
                 {
                     continue;
                 }
 
                 WorldPort myWorld = SpatialPoseMath.WorldPortOf(pose, info.Footprint, myPort);
-                int maxLengthCells = Math.Max(state.EnvelopeSize.X, state.EnvelopeSize.Z);
-                IReadOnlyList<(Vector3I Origin, Vector3I Size)>? boxes = ConnectorSolver.Solve(
+                int maxLengthCells = state.Rules.MaxLengthCells > 0
+                    ? state.Rules.MaxLengthCells
+                    : Math.Max(state.EnvelopeSize.X, state.EnvelopeSize.Z);
+                ConnectorPath? path = ConnectorSolver.Solve(
                     otherWorld, myWorld, state.Occupancy, candidateLocalObstacles, state.EnvelopeSize, maxLengthCells,
-                    state.Policy);
-                if (boxes == null)
+                    state.Rules.Policy);
+                if (path == null)
                 {
                     continue;
                 }
+
+                ConnectorPath connector = path.Value;
 
                 // The placement filters span-checked the candidate BEFORE these boxes existed, and
                 // only later nodes re-fold Regions — so the union of the committed floor, the
                 // candidate, and the new boxes must be span-checked here or the last-realized
                 // connector can push the layout past the envelope unnoticed.
-                if (!RealizationFitsEnvelope(candidateLocalObstacles, boxes, state))
+                if (!RealizationFitsEnvelope(candidateLocalObstacles, connector.Boxes, state))
                 {
                     continue;
                 }
 
                 bindings.Add((edge, myPort.NameOf(), otherPort.NameOf()));
-                realizations.Add((edge, boxes));
-                candidateLocalObstacles.AddRange(boxes);
+                realizations.Add((edge, connector));
+                candidateLocalObstacles.AddRange(connector.Boxes);
                 closed = true;
                 break;
             }
@@ -1197,15 +1303,15 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         for (int i = 0; i < candidate.Realizations.Count; i++)
         {
-            (IGraphEdge edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> boxes) = candidate.Realizations[i];
+            (IGraphEdge edge, ConnectorPath connector) = candidate.Realizations[i];
             StringName connectorId = new($"conn_{edge.From.Id}_{edge.To.Id}_{i}");
-            foreach ((Vector3I origin, Vector3I connectorSize) in boxes)
+            foreach ((Vector3I origin, Vector3I connectorSize) in connector.Boxes)
             {
                 state.Occupancy.Add(connectorId, origin, connectorSize);
                 state.Regions.Add((connectorId, origin, connectorSize));
             }
 
-            state.PendingRealizations[edge] = boxes;
+            state.PendingRealizations[edge] = connector;
         }
     }
 
@@ -1213,7 +1319,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     {
         for (int i = 0; i < candidate.Realizations.Count; i++)
         {
-            (IGraphEdge edge, IReadOnlyList<(Vector3I Origin, Vector3I Size)> _) = candidate.Realizations[i];
+            (IGraphEdge edge, ConnectorPath _) = candidate.Realizations[i];
             StringName connectorId = new($"conn_{edge.From.Id}_{edge.To.Id}_{i}");
             state.Occupancy.Remove(connectorId);
             state.Regions.RemoveAll(r => r.Id == connectorId);
@@ -1255,18 +1361,18 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             WorldPort fromWorld = SpatialPoseMath.WorldPortOf(normalizedPose, fromInfo.Footprint, PortByName(fromInfo, fromPort));
             doorways.Add(SpatialPoseMath.DeriveDoorway(edge.From.Id, edge.To.Id, fromPort, toPort, fromWorld));
 
-            if (!state.PendingRealizations.TryGetValue(edge, out IReadOnlyList<(Vector3I Origin, Vector3I Size)>? boxes))
+            if (!state.PendingRealizations.TryGetValue(edge, out ConnectorPath connector))
             {
                 continue;
             }
 
-            var placements = new List<CellPlacement>(boxes.Count);
-            foreach ((Vector3I origin, Vector3I size) in boxes)
+            var placements = new List<CellPlacement>(connector.Boxes.Count);
+            foreach ((Vector3I origin, Vector3I size) in connector.Boxes)
             {
                 placements.Add(new CellPlacement(origin - min, YawQuadrant.Yaw0, size));
             }
 
-            connectors.Add(new ConnectorRealization(edge.From.Id, edge.To.Id, fromPort, toPort, placements));
+            connectors.Add(new ConnectorRealization(edge.From.Id, edge.To.Id, fromPort, toPort, placements, connector.LengthCells));
         }
 
         return FloorEmbedResult.Success(layout, doorways, connectors);
