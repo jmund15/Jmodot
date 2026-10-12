@@ -41,20 +41,37 @@ internal sealed class LayoutSession : ILayoutAdvisor
     }
 
     /// <summary>
-    ///     Manhattan grid distance (in cells, on the floor XZ plane) between two PLACED nodes' origins,
-    ///     or null if either is not yet committed. The generator orders anchor-pair candidates by this so
-    ///     a short route is offered exactly when the anchors are geometrically near — including the
-    ///     spine-turns-back-on-itself case a graph-distance proxy cannot see.
+    ///     Shortest corridor length between two PLACED rooms' ports, or null if either room is not yet committed
+    ///     or no corridor joins the two doors. The generator orders anchor pairs by this so a route is tried first
+    ///     between doors that face each other.
     /// </summary>
-    public int? GridStepDistance(StringName a, StringName b)
+    public int? BridgeEstimate(StringName a, StringName aPort, StringName b, StringName bPort)
     {
-        if (!this._state.Poses.TryGetValue(a, out CellPose poseA) || !this._state.Poses.TryGetValue(b, out CellPose poseB))
+        WorldPort? from = this.PlacedPortWorld(a, aPort);
+        WorldPort? to = this.PlacedPortWorld(b, bPort);
+        if (!from.HasValue || !to.HasValue)
         {
             return null;
         }
 
-        Vector3I delta = poseA.Origin - poseB.Origin;
-        return Math.Abs(delta.X) + Math.Abs(delta.Z);
+        return ConnectorSolver.EstimateBridgeCells(from.Value, to.Value);
+    }
+
+    private WorldPort? PlacedPortWorld(StringName nodeId, StringName portName)
+    {
+        if (!this._state.Poses.TryGetValue(nodeId, out CellPose pose))
+        {
+            return null;
+        }
+
+        IGraphNode? node = this._committed.Nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node?.Template is not ISpatialNodeTemplate spatial)
+        {
+            return null;
+        }
+
+        ISpatialPort? port = node.Template.Ports.OfType<ISpatialPort>().FirstOrDefault(p => p.NameOf() == portName);
+        return port == null ? null : SpatialPoseMath.WorldPortOf(pose, spatial.FootprintCells, port);
     }
 
     /// <summary>
@@ -111,4 +128,22 @@ internal sealed class LayoutSession : ILayoutAdvisor
     /// </summary>
     public FloorEmbedResult BuildResult(IFloorGraph fullGraph)
         => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    ///     The committed layout at one moment: poses and bound ports copied, the occupancy index shared. A committed
+    ///     trial replaces the session's state rather than mutating it, so a taken snapshot keeps its meaning.
+    /// </summary>
+    internal readonly record struct LayoutSnapshot(
+        IReadOnlyDictionary<StringName, CellPose> Poses,
+        IReadOnlySet<(StringName NodeId, StringName PortName)> BoundPorts,
+        OccupancyIndex Occupancy);
+
+    internal LayoutSnapshot Snapshot => new(
+        new Dictionary<StringName, CellPose>(this._state.Poses),
+        new HashSet<(StringName NodeId, StringName PortName)>(this._state.BoundPorts),
+        this._state.Occupancy);
+#endif
+    #endregion
 }

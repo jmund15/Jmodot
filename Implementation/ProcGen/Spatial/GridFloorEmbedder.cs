@@ -514,8 +514,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     internal static bool IsRouteRoom(NodeInfo info) => info.Edges.All(e => e.Provenance.Kind == EdgeProvenanceKind.Loop);
 
     /// <summary>
-    ///     Steering distance of a candidate pose: the least XZ anchor distance between a free port of <paramref name="nodeId" />
-    ///     and a usable port of a placed room its unplaced component rejoins. <see cref="int.MaxValue" /> when there is none.
+    ///     Steering distance of a candidate pose: the shortest <see cref="ConnectorSolver.EstimateBridgeCells" /> between a free
+    ///     port of <paramref name="nodeId" /> and a usable port of a placed room its unplaced component rejoins, so a door
+    ///     facing the rejoin door beats one behind it. <see cref="int.MaxValue" /> when no such bridge exists.
     /// </summary>
     internal static int SteerDistance(
         StringName nodeId,
@@ -528,7 +529,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         NodeInfo info = infos[nodeId];
         var freeAnchors = info.Ports
             .Where(p => !boundByCandidate.Contains(p.NameOf()) && IsUnclaimed(nodeId, p, state))
-            .Select(p => (Port: p, Anchor: SpatialPoseMath.WorldPortOf(pose, info.Footprint, p).AnchorCells))
+            .Select(p => (Port: p, World: SpatialPoseMath.WorldPortOf(pose, info.Footprint, p)))
             .ToList();
 
         int best = int.MaxValue;
@@ -543,15 +544,15 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
             foreach (ISpatialPort targetPort in targetPorts)
             {
-                Vector3I targetAnchor = SpatialPoseMath.WorldPortOf(targetPose, targetInfo.Footprint, targetPort).AnchorCells;
-                foreach ((ISpatialPort port, Vector3I anchor) in freeAnchors)
+                WorldPort targetWorld = SpatialPoseMath.WorldPortOf(targetPose, targetInfo.Footprint, targetPort);
+                foreach ((ISpatialPort port, WorldPort world) in freeAnchors)
                 {
                     if (!frozen && !PortCompatibility.Matches((IGraphPort)targetPort, (IGraphPort)port))
                     {
                         continue;
                     }
 
-                    best = Math.Min(best, Math.Abs(anchor.X - targetAnchor.X) + Math.Abs(anchor.Z - targetAnchor.Z));
+                    best = Math.Min(best, ConnectorSolver.EstimateBridgeCells(world, targetWorld) ?? int.MaxValue);
                 }
             }
         }

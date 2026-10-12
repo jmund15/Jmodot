@@ -484,29 +484,40 @@ internal static class GraphGenerator
         // its reserved ports, so the next pair starts clean. On failure the detail names what was spent.
         private bool TryLayValidatedLoop(AlternateRouteSpec spec, int minSep, string passKey)
         {
-            if (this._advisor == null || !this._g.TryGetMetrics(out IGraphMetrics metrics))
+            if (this._advisor == null)
             {
+                this._loopFailureDetail = "A guaranteed alternate route needs a layout advisor, and none is attached.";
                 return false;
             }
 
-            List<(GraphNode X, GraphNode Y)> eligible = this.EnumerateEligiblePairs(metrics, minSep, spec.MaxAnchorSeparation)
-                .OrderBy(p => this._advisor.GridStepDistance(p.X.Id, p.Y.Id) ?? int.MaxValue)
+            if (!this._g.TryGetMetrics(out IGraphMetrics metrics))
+            {
+                this._loopFailureDetail = "A guaranteed alternate route could not be laid: the topology has no metrics.";
+                return false;
+            }
+
+            var eligible = new List<(GraphNode X, GraphNode Y, IGraphPort XPort, IGraphPort YPort)>();
+            foreach ((GraphNode X, GraphNode Y) in this.EnumerateEligiblePairs(metrics, minSep, spec.MaxAnchorSeparation))
+            {
+                IGraphPort? xPort = this.SelectAnchorPort(X);
+                IGraphPort? yPort = this.SelectAnchorPort(Y);
+                if (xPort != null && yPort != null)
+                {
+                    eligible.Add((X, Y, xPort, yPort));
+                }
+            }
+
+            eligible = eligible
+                .OrderBy(p => this._advisor.BridgeEstimate(p.X.Id, p.XPort.Name, p.Y.Id, p.YPort.Name) ?? int.MaxValue)
                 .ToList();
 
             int pairsTried = 0;
             int trialsSpent = 0;
-            foreach ((GraphNode X, GraphNode Y) in eligible)
+            foreach ((GraphNode X, GraphNode Y, IGraphPort xPort, IGraphPort yPort) in eligible)
             {
                 if (pairsTried >= RouteCompositionPairs)
                 {
                     break;
-                }
-
-                IGraphPort? xPort = this.SelectAnchorPort(X);
-                IGraphPort? yPort = this.SelectAnchorPort(Y);
-                if (xPort == null || yPort == null)
-                {
-                    continue;
                 }
 
                 pairsTried++;
