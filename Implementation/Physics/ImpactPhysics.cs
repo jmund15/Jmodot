@@ -35,16 +35,17 @@ public static class ImpactPhysics
     /// A walker retains its post-slide velocity; other callers may apply the returned source velocity.
     /// A walker without an authored capability uses its movement stability and the default restitution.
     /// Non-participating targets return before source or stat lookups.
-    /// A caller cancels its <see cref="ContinuingContactTracker"/> entry only for <see cref="ImpactSolveOutcome.Separating"/>:
-    /// that contact can still close later, while a non-participant never resolves and a lost claim was resolved by its peer.
+    /// A caller cancels its <see cref="ContinuingContactTracker"/> entry for <see cref="ImpactSolveOutcome.Separating"/> and
+    /// <see cref="ImpactSolveOutcome.Inactive"/>: that contact can still resolve later, while a lost claim was resolved by its peer.
     /// </summary>
     public static ImpactSolveResult ResolveEntityContact(Node source, Node target, Vector3 incomingVelocity,
         Vector3 normal, IStatProvider? fallbackStats = null, Attribute? stabilityAttribute = null)
     {
         var other = FindImpactable(target);
-        if (other == null || !other.ParticipatesInElasticCollisions) { return ImpactSolveResult.None; }
+        if (other == null) { return ImpactSolveResult.None; }
+        if (!other.ParticipatesInElasticCollisions) { return ImpactSolveResult.Inactive; }
         var self = FindImpactable(source);
-        if (self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.None; }
+        if (self is { ParticipatesInElasticCollisions: false }) { return ImpactSolveResult.Inactive; }
         if (!ImpactFrameTracker.TryClaimPair(source.GetInstanceId(), target.GetInstanceId()))
         {
             return ImpactSolveResult.None;
@@ -53,12 +54,37 @@ public static class ImpactPhysics
             ? ClampStability(fallbackStats.GetStatValue<float>(stabilityAttribute, 0f)) : 0f);
         var result = ResolveElasticCollision(incomingVelocity, other.Velocity,
             stability, other.Stability, normal,
-            CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution));
-        if (result.IsValid) { other.ApplyImpactVelocity(result.NewVelocityB, source); }
+            CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution),
+            ClampMass(self?.Mass ?? 1f), ClampMass(other.Mass));
+        if (!result.IsValid) { return result; }
+        result = result.WithNewVelocities(
+            incomingVelocity + Lift(result.NewVelocityA - incomingVelocity, self?.LaunchLiftDegrees ?? 0f),
+            other.Velocity + Lift(result.NewVelocityB - other.Velocity, other.LaunchLiftDegrees));
+        other.ApplyImpactVelocity(result.NewVelocityB, source);
         return result;
     }
 
-    /// <summary>A stability the elastic mass formula (mass = 1 + stability) can take: NaN becomes 0 and negatives clamp to 0.</summary>
+    /// <summary>
+    /// Makes <paramref name="kick"/> climb at least <paramref name="degrees"/> above its horizontal heading: its
+    /// horizontal part is kept and its vertical part becomes horizontal speed times the angle's tangent, unless the kick
+    /// already climbs faster. A kick aimed into the ground (a contact above the body's centre) still leaves climbing.
+    /// Takes a velocity change, so repeated kicks never lift speed the body already had. Angles outside 0..89 clamp; a
+    /// non-finite angle lifts nothing.
+    /// </summary>
+    private static Vector3 Lift(Vector3 kick, float degrees)
+    {
+        if (!(degrees > 0f) || !float.IsFinite(degrees)) { return kick; }
+        float speed = new Vector2(kick.X, kick.Z).Length();
+        if (speed < Mathf.Epsilon) { return kick; }
+        float angle = Mathf.DegToRad(Mathf.Min(degrees, 89f));
+        return new Vector3(kick.X, Mathf.Max(kick.Y, speed * Mathf.Tan(angle)), kick.Z);
+    }
+
+    /// <summary>A mass the inertia formula can take: positive and finite, else 1.</summary>
+    public static float ClampMass(float mass)
+        => float.IsFinite(mass) && mass > 0f ? mass : 1f;
+
+    /// <summary>A stability the inertia formula (Mass * (1 + Stability)) can take: NaN becomes 0 and negatives clamp to 0.</summary>
     public static float ClampStability(float stability)
         => float.IsNaN(stability) ? 0f : Mathf.Clamp(stability, 0f, float.MaxValue);
 
@@ -71,7 +97,7 @@ public static class ImpactPhysics
 
     /// <summary>
     /// Resolves an elastic collision between two entities.
-    /// Uses mass derived from stability: mass = 1 + stability.
+    /// Each body's inertia is mass * (1 + stability): stability resists, mass sets how much speed a push buys.
     /// Returns <see cref="ImpactSolveResult.Separating"/> when entities are not closing.
     /// </summary>
     /// <param name="velocityA">Velocity of entity A (the resolving entity).</param>
@@ -80,10 +106,13 @@ public static class ImpactPhysics
     /// <param name="stabilityB">Stability of B (float.MaxValue for immovable walls).</param>
     /// <param name="normal">Collision normal pointing from B toward A (Godot convention).</param>
     /// <param name="restitution">Pre-combined COR. 1.0 = elastic, 0 = inelastic.</param>
+    /// <param name="massA">Mass of A, positive and finite (<see cref="ClampMass"/>).</param>
+    /// <param name="massB">Mass of B, positive and finite (<see cref="ClampMass"/>).</param>
     public static ImpactSolveResult ResolveElasticCollision(
         Vector3 velocityA, Vector3 velocityB,
         float stabilityA, float stabilityB,
-        Vector3 normal, float restitution = DefaultRestitution)
+        Vector3 normal, float restitution = DefaultRestitution,
+        float massA = 1f, float massB = 1f)
     {
         float closingSpeed = ClosingSpeed(velocityA, velocityB, normal);
         if (closingSpeed <= 0f)
@@ -91,14 +120,13 @@ public static class ImpactPhysics
             return ImpactSolveResult.Separating;
         }
 
-        // Mass from stability: stability=0 → mass=1, stability=3 → mass=4
-        float massA = 1f + stabilityA;
-        float massB = 1f + stabilityB;
-        float totalMass = massA + massB;
+        float inertiaA = massA * (1f + stabilityA);
+        float inertiaB = massB * (1f + stabilityB);
+        float totalInertia = inertiaA + inertiaB;
 
-        // Use mass ratios to avoid overflow with float.MaxValue stability (wall case)
-        float ratioA = massA / totalMass;
-        float ratioB = massB / totalMass;
+        // Use inertia ratios to avoid overflow with float.MaxValue stability (wall case)
+        float ratioA = inertiaA / totalInertia;
+        float ratioB = inertiaB / totalInertia;
 
         float scaledClosing = (1f + restitution) * closingSpeed;
 

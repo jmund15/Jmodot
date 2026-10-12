@@ -196,11 +196,12 @@ public class MovementProcessor3D : IMovementProcessor3D
         for (int i = 0; i < body.GetSlideCollisionCount(); i++)
         {
             var collision = body.GetSlideCollision(i);
-            if (collision.GetCollider() is not Node target
-                || !_slideContacts.TryBeginContact(target.GetInstanceId())) { continue; }
+            if (collision.GetCollider() is not Node target) { continue; }
+            var id = target.GetInstanceId();
+            if (!_slideContacts.TryBeginContact(id)) { continue; }
             var impact = ImpactPhysics.ResolveEntityContact(
                 _owner, target, moveVelocity, collision.GetNormal(), fallbackStats: _stats, stabilityAttribute: _stabilityAttr);
-            if (impact.Outcome == ImpactSolveOutcome.Separating) { _slideContacts.CancelContact(target.GetInstanceId()); }
+            if (impact.Outcome is ImpactSolveOutcome.Separating or ImpactSolveOutcome.Inactive) { _slideContacts.CancelContact(id); }
         }
     }
 
