@@ -1,6 +1,10 @@
 namespace Jmodot.Implementation.Stats;
 
+using Core.Modifiers;
+using Core.Shared.Attributes;
 using Core.Stats;
+using Shared;
+using Shared.GodotExceptions;
 
 /// <summary>
 /// A component that detects and manages temporary environmental stat modifiers.
@@ -12,21 +16,21 @@ using Core.Stats;
 [GlobalClass]
 public partial class StatContextReceiver2D : Area2D
 {
-    // In the Godot editor, you must link this to the Node that has your StatController script.
-    [Export]
-    private Node _statProviderNode;
-    private IStatProvider _statProvider;
+    /// <summary>The node implementing <see cref="IStatProvider"/> whose stats the entered providers modify.</summary>
+    [Export, RequiredExport]
+    private Node _statProviderNode = null!;
+    private IStatProvider _statProvider = null!;
 
     public override void _Ready()
     {
-        // Ensure we have a valid reference to the IStatProvider.
-        _statProvider = _statProviderNode as IStatProvider;
-        if (_statProvider == null)
+        this.ValidateRequiredExports();
+        if (_statProviderNode is not IStatProvider statProvider)
         {
-            GD.PushError($"StatContextReceiver2D on '{Owner.Name}': The 'Stat Provider Node' is not set or does not implement IStatProvider.");
-            SetProcess(false); // Disable the component if not set up correctly.
-            return;
+            throw JmoLogger.LogAndRethrow(new NodeConfigurationException(
+                    $"'Stat Provider Node' ({_statProviderNode.Name}) does not implement {nameof(IStatProvider)}.", this),
+                this);
         }
+        _statProvider = statProvider;
 
         // Connect to signals for automatic detection.
         this.AreaEntered += this.OnProviderEntered;
@@ -41,13 +45,24 @@ public partial class StatContextReceiver2D : Area2D
         // Check if the area we entered is a stat context provider.
         if (area is not IStatContextProvider provider) { return; }
 
+        this.ApplyProviderModifiers(provider);
+    }
+
+    /// <summary>
+    /// Applies every modifier a provider carries, owned by the provider instance so
+    /// RemoveAllModifiersFromSource can retract the whole set on exit.
+    /// </summary>
+    private void ApplyProviderModifiers(IStatContextProvider provider)
+    {
         // Apply all modifiers from the provider.
         // The provider's own instance (the Area2D node) is used as the unique "owner".
         // This is the key to the declarative cleanup system. The receiver doesn't need
         // to store handles because it will use RemoveAllModifiersFromSource on exit.
-        foreach (var (attribute, modifierResource) in provider.Modifiers)
+        foreach (var (attribute, modifier) in provider.Modifiers)
         {
-            _statProvider.TryAddModifier(attribute, modifierResource, provider, out var handle);
+            var typed = AttributeModifier.FromUntyped(modifier, attribute, this);
+            if (typed == null) { continue; }
+            _statProvider.TryAddModifier(attribute, typed, provider, out var handle);
         }
     }
 
@@ -64,4 +79,11 @@ public partial class StatContextReceiver2D : Area2D
         // It's unambiguous, robust, and requires no local state tracking in this component.
         _statProvider.RemoveAllModifiersFromSource(provider);
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetStatProviderForTest(IStatProvider provider) => this._statProvider = provider;
+    internal void _TestApplyProviderModifiers(IStatContextProvider provider) => this.ApplyProviderModifiers(provider);
+#endif
+    #endregion
 }

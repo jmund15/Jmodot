@@ -29,6 +29,10 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     private Timer _tickTimer;
     private Timer _durationTimer;
 
+    // Captured once at Start: the entry hit's Source is a pooled spell body, so re-reading it on
+    // every tick can resolve a different spell's identity once the body is recycled.
+    private float _tickMagnitudeScale = 1f;
+
     public void Setup(float duration, float interval, ICombatEffect tickEffect, PackedScene? tickVisuals,
         PackedScene? persistentVisuals, IEnumerable<CombatTag> tags,
         VisualEffect? visualEffect = null, VisualEffect? tickVisualEffect = null)
@@ -67,6 +71,10 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     public override void Start(ICombatant target, HitContext context)
     {
         base.Start(target, context);
+
+        // Resolved once from the entry hit's source identity (the spell body, not the caster);
+        // every tick reuses it, so the status scales by what inflicted it.
+        _tickMagnitudeScale = IncomingMagnitude.Resolve(context.Source ?? context.Attacker, target);
 
         // Duration <= 0 means "infinite" — tick timer runs until manually stopped
         // (by cleanse, death, etc). The duration timer simply doesn't start.
@@ -120,7 +128,8 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
             // Reissue the original impact context as Tick-kind so the per-tick visual
             // (e.g. burn-tint flash) isn't stacked with the generic damage hit-flash —
             // HitFlashComponent and similar primary-impact-only subscribers filter on Kind.
-            TickEffect.Apply(Target, Context.WithKind(Jmodot.Core.Health.DamageKind.Tick));
+            TickEffect.Apply(Target, Context.WithKind(Jmodot.Core.Health.DamageKind.Tick),
+                _tickMagnitudeScale);
         }
     }
 
