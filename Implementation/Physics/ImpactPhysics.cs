@@ -57,23 +57,25 @@ public static class ImpactPhysics
             CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution),
             ClampMass(self?.Mass ?? 1f), ClampMass(other.Mass));
         if (!result.IsValid) { return result; }
-        result = result.WithNewVelocityB(Lift(result.NewVelocityB, other.LaunchLiftDegrees));
+        result = result.WithNewVelocityB(other.Velocity + Lift(result.NewVelocityB - other.Velocity, other.LaunchLiftDegrees));
         other.ApplyImpactVelocity(result.NewVelocityB, source);
         return result;
     }
 
     /// <summary>
-    /// Turns <paramref name="velocity"/>'s horizontal part upward by <paramref name="degrees"/>, keeping its horizontal
-    /// heading and adding the lifted share to its vertical part. Angles outside 0..89 clamp; a non-finite angle lifts nothing.
+    /// Makes <paramref name="kick"/> climb at least <paramref name="degrees"/> above its horizontal heading: its
+    /// horizontal part is kept and its vertical part becomes horizontal speed times the angle's tangent, unless the kick
+    /// already climbs faster. A kick aimed into the ground (a contact above the body's centre) still leaves climbing. Pass
+    /// a velocity change, not a body's velocity, so repeated kicks never lift speed the body already had. Angles outside
+    /// 0..89 clamp; a non-finite angle lifts nothing.
     /// </summary>
-    public static Vector3 Lift(Vector3 velocity, float degrees)
+    public static Vector3 Lift(Vector3 kick, float degrees)
     {
-        if (!(degrees > 0f) || !float.IsFinite(degrees)) { return velocity; }
-        var horizontal = new Vector3(velocity.X, 0f, velocity.Z);
-        float speed = horizontal.Length();
-        if (speed < Mathf.Epsilon) { return velocity; }
+        if (!(degrees > 0f) || !float.IsFinite(degrees)) { return kick; }
+        float speed = new Vector2(kick.X, kick.Z).Length();
+        if (speed < Mathf.Epsilon) { return kick; }
         float angle = Mathf.DegToRad(Mathf.Min(degrees, 89f));
-        return (horizontal * Mathf.Cos(angle)) + (Vector3.Up * (velocity.Y + (speed * Mathf.Sin(angle))));
+        return new Vector3(kick.X, Mathf.Max(kick.Y, speed * Mathf.Tan(angle)), kick.Z);
     }
 
     /// <summary>A mass the inertia formula can take: positive and finite, else 1.</summary>

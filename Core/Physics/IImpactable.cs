@@ -48,8 +48,9 @@ public interface IImpactable : IGodotNodeInterface
     void ApplyImpactVelocity(Vector3 newVelocity, Node? source = null);
 
     /// <summary>
-    /// How steeply this entity leaves an elastic contact, in degrees above its horizontal heading: the solve's
-    /// horizontal speed is turned upward by this angle, so a struck body pops into the air. 0 keeps it level.
+    /// How steeply this entity's kick from an elastic contact climbs, in degrees above its horizontal heading: the
+    /// kick keeps its horizontal speed and gains the matching upward speed, so a struck body pops into the air.
+    /// 0 keeps it level.
     /// </summary>
     float LaunchLiftDegrees => 0f;
 }
