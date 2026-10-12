@@ -29,16 +29,39 @@ public static class ViewportUtils
         var mousePosition = root.GetMousePosition();
         var rayOrigin = camera.ProjectRayOrigin(mousePosition);
         var rayDirection = camera.ProjectRayNormal(mousePosition);
+        var orthographic = camera.Projection == Camera3D.ProjectionType.Orthogonal;
 
-        var groundIntersection = new Plane(Vector3.Up, 0).IntersectsRay(rayOrigin, rayDirection);
-        if (groundIntersection == null)
+        if (!TryIntersectFloor(rayOrigin, rayDirection, orthographic, out position))
         {
             JmoLogger.Error(root,
                 $"Couldn't find mouse intersection for origin '{rayOrigin}' and direction '{rayDirection}'");
             return false;
         }
 
-        position = groundIntersection.Value;
+        return true;
+    }
+
+    /// <summary>
+    /// Intersects a camera ray with the y = 0 floor plane. An orthographic ray starts on the near
+    /// plane, which lies below the floor when the cursor is past a low camera's lower view edge, so
+    /// its whole line counts and a hit behind <paramref name="origin"/> is valid. A perspective ray
+    /// counts only forward of its origin. Returns false when the ray is parallel to the floor.
+    /// </summary>
+    public static bool TryIntersectFloor(Vector3 origin, Vector3 direction, bool orthographic, out Vector3 point)
+    {
+        point = Vector3.Zero;
+        if (Mathf.IsZeroApprox(direction.Y))
+        {
+            return false;
+        }
+
+        var distance = -origin.Y / direction.Y;
+        if (!orthographic && distance < 0f)
+        {
+            return false;
+        }
+
+        point = origin + direction * distance;
         return true;
     }
 }
