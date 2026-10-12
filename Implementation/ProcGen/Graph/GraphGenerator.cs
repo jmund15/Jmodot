@@ -105,6 +105,86 @@ internal static class GraphGenerator
     }
 
     /// <summary>
+    ///     How many eligible anchor pairs the composer tries per guaranteed loop (nearest first). Each pair
+    ///     gets its own trial budget, so one hard pair cannot starve the rest.
+    /// </summary>
+    internal const int RouteCompositionPairs = 5;
+
+    private static int s_routeCompositionCeiling = 16;
+
+    /// <summary>
+    ///     Hard ceiling on the failed trials the composer spends per anchor pair. The per-pair budget is
+    ///     <c>min(sequence count, ceiling)</c>, so a small template pool spends less and a large one stops
+    ///     here. Trades generation time against closure success.
+    /// </summary>
+    internal static int RouteCompositionCeiling => s_routeCompositionCeiling;
+
+    /// <summary>
+    ///     Enumerates the route room sequences the composer trials, from <paramref name="ordered" /> (the
+    ///     seeded order of the admissible templates). Lengths are visited in the order given; within a
+    ///     length the FIRST room varies fastest (mixed radix, position 0 least significant), so a small
+    ///     budget still tries every first room. Each yielded list is a fresh copy the caller may keep.
+    /// </summary>
+    internal static IEnumerable<IReadOnlyList<INodeTemplate>> RouteSequences(
+        IReadOnlyList<INodeTemplate> ordered, IReadOnlyList<int> lengths)
+    {
+        int n = ordered.Count;
+        if (n == 0)
+        {
+            yield break;
+        }
+
+        foreach (int length in lengths)
+        {
+            if (length < 1)
+            {
+                continue;
+            }
+
+            long count = SequenceCount(n, length);
+            for (long index = 0; index < count; index++)
+            {
+                var sequence = new INodeTemplate[length];
+                long rest = index;
+                for (int position = 0; position < length; position++)
+                {
+                    sequence[position] = ordered[(int)(rest % n)];
+                    rest /= n;
+                }
+
+                yield return sequence;
+            }
+        }
+    }
+
+    // n^length, saturating at long.MaxValue so a pathological pool or length cannot overflow a budget sum.
+    private static long SequenceCount(int n, int length)
+    {
+        long count = 1;
+        for (int i = 0; i < length; i++)
+        {
+            if (count > long.MaxValue / n)
+            {
+                return long.MaxValue;
+            }
+
+            count *= n;
+        }
+
+        return count;
+    }
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    ///     Sets <see cref="RouteCompositionCeiling" />. Every caller restores the value it read, in a
+    ///     <c>finally</c>, so one test's or sweep cell's ceiling never leaks into the next.
+    /// </summary>
+    internal static void SetRouteCompositionCeilingForTest(int value) => s_routeCompositionCeiling = value;
+#endif
+    #endregion
+
+    /// <summary>
     ///     How one build attempt ended, as the RE-ROLL ROUTING decision only — never the cause. The
     ///     attempt's <see cref="Violation" /> carries attribution, so a guaranteed-loop shortfall routes
     ///     through <see cref="SpineInfeasible" /> ("re-roll may help") while filing
@@ -161,6 +241,10 @@ internal static class GraphGenerator
         // disambiguated. One counter threads BOTH loop passes (guaranteed + opportunistic) — a per-pass
         // restart would collide (Loop, 0). Distinct from _ordinal, which counts per-placement attempts.
         private int _routeOrdinal;
+
+        // Why the last advisor-mode guaranteed loop failed: trials spent and pairs tried. Read once, right
+        // after TryLayValidatedLoop returns false.
+        private string _loopFailureDetail = string.Empty;
 
         public GenState(
             ISkeletonConfig config, int floorSeed, Func<int, IRng> rngFactory,
@@ -386,9 +470,7 @@ internal static class GraphGenerator
             {
                 if (!this.TryLayValidatedLoop(spec, minSep, "guaranteed"))
                 {
-                    cause = new Violation(
-                        ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal,
-                        "A guaranteed alternate route could not be laid on the frozen spine.");
+                    cause = new Violation(ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal, this._loopFailureDetail);
                     return false;
                 }
             }
@@ -396,10 +478,10 @@ internal static class GraphGenerator
             return true;
         }
 
-        // Tries eligible anchor pairs GEOMETRY-FIRST (smallest real grid gap first — the pairs a short
-        // route can actually span, including the spine-folds-back-near-itself case the graph-distance
-        // proxy misses) until one yields a grid-closable route. Each failed pair is fully rolled back by
-        // LayRouteBetween and releases its reserved ports, so the retry is side-effect-free.
+        // Composes the loop's route on the nearest eligible anchor pairs, GEOMETRY-FIRST (smallest real grid
+        // gap first, including the spine-folds-back-near-itself case a graph-distance proxy misses). Each
+        // pair gets its own trial budget; a pair whose every trial fails is fully rolled back and releases
+        // its reserved ports, so the next pair starts clean. On failure the detail names what was spent.
         private bool TryLayValidatedLoop(AlternateRouteSpec spec, int minSep, string passKey)
         {
             if (this._advisor == null || !this._g.TryGetMetrics(out IGraphMetrics metrics))
@@ -411,8 +493,15 @@ internal static class GraphGenerator
                 .OrderBy(p => this._advisor.GridStepDistance(p.X.Id, p.Y.Id) ?? int.MaxValue)
                 .ToList();
 
+            int pairsTried = 0;
+            int trialsSpent = 0;
             foreach ((GraphNode X, GraphNode Y) in eligible)
             {
+                if (pairsTried >= RouteCompositionPairs)
+                {
+                    break;
+                }
+
                 IGraphPort? xPort = this.SelectAnchorPort(X);
                 IGraphPort? yPort = this.SelectAnchorPort(Y);
                 if (xPort == null || yPort == null)
@@ -420,16 +509,117 @@ internal static class GraphGenerator
                     continue;
                 }
 
+                pairsTried++;
                 this._anchorReservedPorts.Add(PortKey(X.Id, xPort.Name));
                 this._anchorReservedPorts.Add(PortKey(Y.Id, yPort.Name));
 
-                if (this.LayRouteBetween(new AnchorPair(X, xPort, Y, yPort), spec, passKey))
+                bool laid = this.ComposeRoute(new AnchorPair(X, xPort, Y, yPort), spec, passKey, out int spent);
+                trialsSpent += spent;
+                if (laid)
                 {
                     return true;
                 }
 
                 this._anchorReservedPorts.Remove(PortKey(X.Id, xPort.Name));
                 this._anchorReservedPorts.Remove(PortKey(Y.Id, yPort.Name));
+            }
+
+            this._loopFailureDetail =
+                $"A guaranteed alternate route could not be laid on the frozen spine: {trialsSpent} trials over {pairsTried} anchor pairs ({eligible.Count} eligible).";
+            return false;
+        }
+
+        // The pool's templates able to pass a route through (entry + exit), in pool order. Chaining by port
+        // type is CommitRoute's job, so no entry-type filter applies here.
+        private List<INodeTemplate> RouteAlphabet()
+            => this._config.TemplatePool.Where(t => t.Ports.Count >= 2).ToList();
+
+        // Route lengths the composer may lay: Length.Min (at least 1) up to Length.Max, ascending, keeping
+        // only those that fit the live room budget. A length that does not fit is skipped, never shortened.
+        private List<int> FittingRouteLengths(AlternateRouteSpec spec)
+        {
+            int min = Math.Max(spec.Length?.Min ?? 1, 1);
+            int max = spec.Length?.Max ?? 1;
+            var lengths = new List<int>();
+            for (int length = min; length <= max; length++)
+            {
+                if (this._g.NodeCount + length <= this.BudgetMax)
+                {
+                    lengths.Add(length);
+                }
+            }
+
+            return lengths;
+        }
+
+        // Fisher-Yates over a stream derived from the floor seed, so equal seeds visit sequences in equal order.
+        private void ShuffleSeeded(List<INodeTemplate> templates, string passKey, StringName anchorId)
+        {
+            IRng rng = this._rngFactory(SeedManager.DeriveChild(this._floorSeed, passKey, "compose", anchorId.ToString()));
+            for (int i = templates.Count - 1; i > 0; i--)
+            {
+                int j = (int)rng.GetRndLong(i + 1);
+                (templates[i], templates[j]) = (templates[j], templates[i]);
+            }
+        }
+
+        // Lays the pair's route by TRIAL: each candidate template sequence is committed to the partial graph
+        // and offered to the advisor; the first that closes on the frozen layout stays. A sequence CommitRoute
+        // rejects (port types do not chain) spends no budget; a sequence the advisor refuses spends one unit
+        // and is rolled back, including the node ordinals it consumed. The budget is
+        // min(sequence count, RouteCompositionCeiling). Consumes one route ordinal, like LayRouteBetween.
+        private bool ComposeRoute(AnchorPair pair, AlternateRouteSpec spec, string passKey, out int trialsSpent)
+        {
+            trialsSpent = 0;
+            int routeOrdinal = this._routeOrdinal++;
+
+            List<INodeTemplate> alphabet = this.RouteAlphabet();
+            List<int> lengths = this.FittingRouteLengths(spec);
+            if (alphabet.Count == 0 || lengths.Count == 0 || this._advisor == null)
+            {
+                return false;
+            }
+
+            this.ShuffleSeeded(alphabet, passKey, pair.X.Id);
+
+            long sequenceCount = 0;
+            foreach (int length in lengths)
+            {
+                long forLength = SequenceCount(alphabet.Count, length);
+                sequenceCount = sequenceCount > long.MaxValue - forLength ? long.MaxValue : sequenceCount + forLength;
+            }
+
+            long budget = Math.Min(sequenceCount, RouteCompositionCeiling);
+            foreach (IReadOnlyList<INodeTemplate> sequence in RouteSequences(alphabet, lengths))
+            {
+                if (trialsSpent >= budget)
+                {
+                    return false;
+                }
+
+                int ordinalBase = this._ordinal;
+                var prov = new List<(StringName Id, INodeTemplate Template)>(sequence.Count);
+                foreach (INodeTemplate template in sequence)
+                {
+                    prov.Add((new StringName($"{passKey}{Sep}{this._ordinal++}"), template));
+                }
+
+                PartialGraph.GraphCheckpoint cp = this._g.Checkpoint();
+                if (!this.CommitRoute(pair, prov, routeOrdinal))
+                {
+                    this._g.RollbackTo(cp);
+                    this._ordinal = ordinalBase;
+                    continue;
+                }
+
+                if (this._advisor.TryCommitSubgraph(this._g.ToFloorGraph()))
+                {
+                    return true;
+                }
+
+                this._g.RollbackTo(cp);
+                this._ordinal = ordinalBase;
+                trialsSpent++;
             }
 
             return false;
