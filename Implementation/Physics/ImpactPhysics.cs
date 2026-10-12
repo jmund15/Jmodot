@@ -57,7 +57,9 @@ public static class ImpactPhysics
             CombineRestitution(self?.BounceRestitution ?? DefaultRestitution, other.BounceRestitution),
             ClampMass(self?.Mass ?? 1f), ClampMass(other.Mass));
         if (!result.IsValid) { return result; }
-        result = result.WithNewVelocityB(other.Velocity + Lift(result.NewVelocityB - other.Velocity, other.LaunchLiftDegrees));
+        result = result.WithNewVelocities(
+            incomingVelocity + Lift(result.NewVelocityA - incomingVelocity, self?.LaunchLiftDegrees ?? 0f),
+            other.Velocity + Lift(result.NewVelocityB - other.Velocity, other.LaunchLiftDegrees));
         other.ApplyImpactVelocity(result.NewVelocityB, source);
         return result;
     }
@@ -65,11 +67,11 @@ public static class ImpactPhysics
     /// <summary>
     /// Makes <paramref name="kick"/> climb at least <paramref name="degrees"/> above its horizontal heading: its
     /// horizontal part is kept and its vertical part becomes horizontal speed times the angle's tangent, unless the kick
-    /// already climbs faster. A kick aimed into the ground (a contact above the body's centre) still leaves climbing. Pass
-    /// a velocity change, not a body's velocity, so repeated kicks never lift speed the body already had. Angles outside
-    /// 0..89 clamp; a non-finite angle lifts nothing.
+    /// already climbs faster. A kick aimed into the ground (a contact above the body's centre) still leaves climbing.
+    /// Takes a velocity change, so repeated kicks never lift speed the body already had. Angles outside 0..89 clamp; a
+    /// non-finite angle lifts nothing.
     /// </summary>
-    public static Vector3 Lift(Vector3 kick, float degrees)
+    private static Vector3 Lift(Vector3 kick, float degrees)
     {
         if (!(degrees > 0f) || !float.IsFinite(degrees)) { return kick; }
         float speed = new Vector2(kick.X, kick.Z).Length();

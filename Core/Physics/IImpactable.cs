@@ -50,7 +50,7 @@ public interface IImpactable : IGodotNodeInterface
     /// <summary>
     /// How steeply this entity's kick from an elastic contact climbs, in degrees above its horizontal heading: the
     /// kick keeps its horizontal speed and gains the matching upward speed, so a struck body pops into the air.
-    /// 0 keeps it level.
+    /// It shapes this entity's own velocity change on either side of the contact. 0 keeps it level.
     /// </summary>
     float LaunchLiftDegrees => 0f;
 }
