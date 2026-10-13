@@ -46,7 +46,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
     ///     returns this failure, so <see cref="TryCommitSubgraph" /> refuses every decoration and
     ///     <see cref="BuildResult" /> returns it, and the pipeline re-rolls the attempt.
     /// </summary>
-    internal FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
+    public FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
 
     /// <summary>
     ///     Shortest corridor length between two PLACED rooms' ports, or null if either room is not yet committed

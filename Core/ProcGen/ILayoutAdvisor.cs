@@ -40,4 +40,10 @@ public interface ILayoutAdvisor
     /// <summary>Emits the final layout from the accumulated frozen poses (any uncommitted node is placed
     /// now). Pipeline-facing — the generator never calls this.</summary>
     FloorEmbedResult BuildResult(IFloorGraph fullGraph);
+
+    /// <summary>The embed failure of the backbone this advisor was opened on, or null when every backbone room
+    /// placed. Set when the advisor opens: non-null means the backbone did not fully place and every
+    /// <see cref="TryCommitSubgraph" /> will refuse, so a caller that reads it can stop the attempt before
+    /// trialing any decoration.</summary>
+    FloorEmbedResult? BackboneFailure { get; }
 }

@@ -333,6 +333,14 @@ internal static class GraphGenerator
             // beneath it, so the advisor's frozen poses stay valid through to the pipeline's BuildResult.
             this._advisor = this._advisorFactory?.Invoke(this._g.ToFloorGraph());
 
+            // A backbone that did not fully place refuses every decoration, so the attempt ends here with the
+            // embed cause rather than spending trials to report GuaranteedRoutesUnfilled.
+            if (this._advisor?.BackboneFailure is { } spine)
+            {
+                cause = EmbedFailureMapping.ToViolation(spine.FailureCause!.Value, spine.FailingNodeId);
+                return FloorOutcome.SpineInfeasible;
+            }
+
             // Required set-piece flanks attach before any decoration pass can consume the pinned
             // node's spare ports — loops and branches then plan around the committed neighbors.
             if (!this.AttachPinnedNeighbors(out cause))
