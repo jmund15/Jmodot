@@ -220,6 +220,24 @@ internal static class GraphGenerator
         }
     }
 
+    /// <summary>
+    ///     Orders <paramref name="fitting" /> route lengths by how near <c>length * strideCells</c> is to
+    ///     <paramref name="gapCells" />, nearest first, a tie going to the shorter length. Ascending when the gap is
+    ///     unknown or the stride is not positive.
+    /// </summary>
+    internal static IReadOnlyList<int> RouteLengthsByGap(IReadOnlyList<int> fitting, int? gapCells, int strideCells)
+    {
+        if (gapCells is not { } gap || strideCells <= 0)
+        {
+            return fitting;
+        }
+
+        return fitting
+            .OrderBy(length => Math.Abs((length * strideCells) - gap))
+            .ThenBy(length => length)
+            .ToList();
+    }
+
     // n^length, saturating at long.MaxValue so a pathological pool or length cannot overflow a budget sum.
     private static long SequenceCount(int n, int length)
     {
@@ -634,6 +652,28 @@ internal static class GraphGenerator
             return lengths;
         }
 
+        // The lower median of the alphabet's through distances: a typical room's centre-to-centre run. 0 when no
+        // template is spatial, which leaves the length order ascending.
+        private static int RouteStrideCells(IReadOnlyList<INodeTemplate> alphabet)
+        {
+            var distances = new List<int>(alphabet.Count);
+            foreach (INodeTemplate template in alphabet)
+            {
+                if (template is ISpatialNodeTemplate spatial)
+                {
+                    distances.Add(TemplateGeometry.ThroughDistanceCells(spatial.FootprintCells, template.Ports.OfType<ISpatialPort>().ToList()));
+                }
+            }
+
+            if (distances.Count == 0)
+            {
+                return 0;
+            }
+
+            distances.Sort();
+            return distances[(distances.Count - 1) / 2];
+        }
+
         // Fisher-Yates over a stream derived from the floor seed, so equal seeds visit sequences in equal order.
         private void ShuffleSeeded(List<INodeTemplate> templates, string passKey, StringName anchorId)
         {
@@ -658,11 +698,16 @@ internal static class GraphGenerator
             int routeOrdinal = this._routeOrdinal++;
 
             List<INodeTemplate> alphabet = this.RouteAlphabet();
-            List<int> lengths = this.FittingRouteLengths(spec);
-            if (alphabet.Count == 0 || lengths.Count == 0 || this._advisor == null)
+            List<int> fitting = this.FittingRouteLengths(spec);
+            if (alphabet.Count == 0 || fitting.Count == 0 || this._advisor == null)
             {
                 return false;
             }
+
+            IReadOnlyList<int> lengths = RouteLengthsByGap(
+                fitting,
+                this._advisor.BridgeEstimate(pair.X.Id, pair.XPort.Name, pair.Y.Id, pair.YPort.Name),
+                RouteStrideCells(alphabet));
 
             this.ShuffleSeeded(alphabet, passKey, pair.X.Id);
 
