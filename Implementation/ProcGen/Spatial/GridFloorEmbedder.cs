@@ -707,9 +707,12 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     ///     Cycle-grouped placement order: walk each constituent cycle as a ring, rotated to begin
     ///     at an already-ordered node, so every route's CLOSING node meets its closure conflict
     ///     immediately after the route's own decisions — which keeps the backjump local to the
-    ///     branch that caused the conflict instead of churning unrelated routes.
+    ///     branch that caused the conflict instead of churning unrelated routes. A run of unplaced
+    ///     ring nodes between placed ones is ordered ends-inward (see <see cref="EndsInward" />), so
+    ///     the meeting gap of the run is the last thing closed. A ring with no placed node keeps the
+    ///     ring-walk order.
     /// </summary>
-    private static List<StringName> BlockPlacementOrder(GraphBlock block, SearchState state)
+    internal static List<StringName> BlockPlacementOrder(GraphBlock block, SearchState state)
     {
         StringName start = block.Nodes
             .Select(n => n.Id)
@@ -742,9 +745,15 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 anchorIndex = 0;
             }
 
+            var rotated = new List<StringName>(ring.Count);
             for (int i = 0; i < ring.Count; i++)
             {
-                Append(ring[(anchorIndex + i) % ring.Count]);
+                rotated.Add(ring[(anchorIndex + i) % ring.Count]);
+            }
+
+            foreach (StringName id in EndsInward(rotated, cycle, state))
+            {
+                Append(id);
             }
         }
 
@@ -754,6 +763,85 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         }
 
         return order.Where(id => !state.Poses.ContainsKey(id)).ToList();
+    }
+
+    /// <summary>
+    ///     Reorders each maximal run of unplaced nodes in <paramref name="ring" /> that has a placed node on both
+    ///     sides (the same node may flank both) so the run is placed ends-inward: the end whose cycle edge points
+    ///     <c>To</c> its placed neighbour (the rejoin side) first, then the opposite end, then alternating toward
+    ///     the middle. When both ends or neither point <c>To</c> their neighbour, the end the ring walk reaches last
+    ///     is the rejoin side. A run is emitted where its first member sits in the ring; a ring with no placed node
+    ///     is returned unchanged.
+    /// </summary>
+    private static List<StringName> EndsInward(List<StringName> ring, IReadOnlyList<IGraphEdge> cycle, SearchState state)
+    {
+        int firstPlaced = ring.FindIndex(state.Poses.ContainsKey);
+        if (firstPlaced < 0)
+        {
+            return ring;
+        }
+
+        var runOf = new Dictionary<StringName, List<StringName>>();
+        StringName leftPlaced = ring[firstPlaced];
+        var run = new List<StringName>();
+        for (int step = 1; step <= ring.Count; step++)
+        {
+            StringName id = ring[(firstPlaced + step) % ring.Count];
+            if (!state.Poses.ContainsKey(id))
+            {
+                run.Add(id);
+                continue;
+            }
+
+            if (run.Count > 0)
+            {
+                List<StringName> sequence = OrderRunEndsInward(run, leftPlaced, id, cycle);
+                foreach (StringName member in run)
+                {
+                    runOf[member] = sequence;
+                }
+
+                run = new List<StringName>();
+            }
+
+            leftPlaced = id;
+        }
+
+        var result = new List<StringName>(ring.Count);
+        var emitted = new HashSet<List<StringName>>();
+        foreach (StringName id in ring)
+        {
+            if (!runOf.TryGetValue(id, out List<StringName>? sequence))
+            {
+                result.Add(id);
+            }
+            else if (emitted.Add(sequence))
+            {
+                result.AddRange(sequence);
+            }
+        }
+
+        return result;
+    }
+
+    private static List<StringName> OrderRunEndsInward(List<StringName> run, StringName leftPlaced, StringName rightPlaced, IReadOnlyList<IGraphEdge> cycle)
+    {
+        bool firstPointsTo = cycle.Any(e => e.From.Id == run[0] && e.To.Id == leftPlaced);
+        bool lastPointsTo = cycle.Any(e => e.From.Id == run[^1] && e.To.Id == rightPlaced);
+        bool rejoinIsFirst = firstPointsTo && !lastPointsTo;
+
+        var sequence = new List<StringName>(run.Count);
+        int low = 0;
+        int high = run.Count - 1;
+        bool takeRejoin = true;
+        while (low <= high)
+        {
+            bool takeFirst = takeRejoin == rejoinIsFirst;
+            sequence.Add(takeFirst ? run[low++] : run[high--]);
+            takeRejoin = !takeRejoin;
+        }
+
+        return sequence;
     }
 
     // ---- remainder pass ----
