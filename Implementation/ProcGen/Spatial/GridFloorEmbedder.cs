@@ -1239,8 +1239,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 int maxLengthCells = state.Rules.MaxLengthCells > 0
                     ? state.Rules.MaxLengthCells
                     : Math.Max(state.EnvelopeSize.X, state.EnvelopeSize.Z);
-                int? estimate = ConnectorSolver.EstimateBridgeCells(windows.Value.OtherWindow, windows.Value.MyWindow, state.Rules.Policy);
-                if (!estimate.HasValue || estimate.Value > maxLengthCells)
+                if (!ConnectorSolver.EstimateBridgeCells(windows.Value.OtherWindow, windows.Value.MyWindow, state.Rules.Policy, maxLengthCells).HasValue)
                 {
                     continue;
                 }
