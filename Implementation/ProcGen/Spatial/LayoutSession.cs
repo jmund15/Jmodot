@@ -55,17 +55,21 @@ internal sealed class LayoutSession : ILayoutAdvisor
     /// </summary>
     public int? BridgeEstimate(StringName a, StringName aPort, StringName b, StringName bPort)
     {
-        WorldPort? from = this.PlacedPortWorld(a, aPort);
-        WorldPort? to = this.PlacedPortWorld(b, bPort);
+        WorldSpan? from = this.PlacedPortWorld(a, aPort);
+        WorldSpan? to = this.PlacedPortWorld(b, bPort);
         if (!from.HasValue || !to.HasValue)
         {
             return null;
         }
 
-        return ConnectorSolver.EstimateBridgeCells(from.Value, to.Value, this._state.Rules.Policy);
+        (WorldPort AWindow, WorldPort BWindow)? windows = SpatialPoseMath.ConnectorWindows(from.Value, to.Value);
+        return windows.HasValue
+            ? ConnectorSolver.EstimateBridgeCells(windows.Value.AWindow, windows.Value.BWindow, this._state.Rules.Policy)
+            : null;
     }
 
-    private WorldPort? PlacedPortWorld(StringName nodeId, StringName portName)
+    /// <summary>The openable run of a placed node port in world cells, or null when the node is not placed or has no such port.</summary>
+    internal WorldSpan? PlacedPortWorld(StringName nodeId, StringName portName)
     {
         if (!this._state.Poses.TryGetValue(nodeId, out CellPose pose))
         {
@@ -79,7 +83,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
         }
 
         ISpatialPort? port = node.Template.Ports.OfType<ISpatialPort>().FirstOrDefault(p => p.NameOf() == portName);
-        return port == null ? null : SpatialPoseMath.WorldPortOf(pose, spatial.FootprintCells, port);
+        return port == null ? null : SpatialPoseMath.SpanOf(pose, spatial.FootprintCells, port);
     }
 
     /// <summary>

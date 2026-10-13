@@ -119,7 +119,7 @@ internal static class SpatialPoseMath
         PortFace worldFace = RotateFace(port.Face, pose.Yaw);
         Vector3I anchor = pose.Origin + RotateAnchor(
             port.Face, port.OffsetCells, port.ElevationCells, port.SpanCells, footprintCells, pose.Yaw);
-        return new WorldSpan(worldFace, anchor, port.SpanCells, port.WidthCells, port.WidthCells);
+        return new WorldSpan(worldFace, anchor, port.SpanCells, port.MinWidthCells, port.WidthCells);
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ internal static class SpatialPoseMath
             yield break;
         }
 
-        int minCommon = Math.Max(fromSpan.MinWidthCells, toPort.WidthCells);
+        int minCommon = Math.Max(fromSpan.MinWidthCells, toPort.MinWidthCells);
         int maxCommon = Math.Min(fromSpan.WidthCells, toPort.WidthCells);
         if (minCommon < 1 || minCommon > maxCommon)
         {
@@ -155,6 +155,17 @@ internal static class SpatialPoseMath
         {
             yield return fromSpan.AnchorCells - toAnchor + (tangentStep * shift);
         }
+    }
+
+    /// <summary>The first origin <see cref="AbutmentSlides" /> yields, or null when it yields none.</summary>
+    internal static Vector3I? FirstSlide(WorldSpan fromSpan, ISpatialPort toPort, Vector3I toFootprintCells, YawQuadrant toYaw)
+    {
+        foreach (Vector3I origin in AbutmentSlides(fromSpan, toPort, toFootprintCells, toYaw))
+        {
+            return origin;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -195,6 +206,47 @@ internal static class SpatialPoseMath
 
         int start = overlapStart + ((overlap - width) / 2);
         return new WorldPort(a.Face, WithTangent(a.Face, a.AnchorCells, start), width);
+    }
+
+    /// <summary>
+    ///     The one door-window pair a connector corridor joins between two spans. Both windows take the widest door
+    ///     width inside the intersection of the spans' <c>[MinWidthCells, WidthCells]</c> ranges, so they always share
+    ///     one width. Each window sits on its own span where its centre is nearest the other span's centre (projected
+    ///     onto the window's own tangent axis), clamped inside the span; a half-cell misalignment rounds toward the min
+    ///     corner. Null when a face is not cardinal or the width ranges are disjoint.
+    /// </summary>
+    internal static (WorldPort AWindow, WorldPort BWindow)? ConnectorWindows(WorldSpan a, WorldSpan b)
+    {
+        if (!IsCardinal(a.Face) || !IsCardinal(b.Face))
+        {
+            return null;
+        }
+
+        int minCommon = Math.Max(a.MinWidthCells, b.MinWidthCells);
+        int maxCommon = Math.Min(a.WidthCells, b.WidthCells);
+        if (minCommon < 1 || minCommon > maxCommon)
+        {
+            return null;
+        }
+
+        return (WindowNearest(a, b, maxCommon), WindowNearest(b, a, maxCommon));
+    }
+
+    private static WorldPort WindowNearest(WorldSpan own, WorldSpan other, int width)
+    {
+        int ownStart = TangentCoordinate(own.Face, own.AnchorCells);
+        int wantedStart = (CentreTwice(other, TangentIsZ(own.Face)) - width) >> 1;
+        int start = Math.Clamp(wantedStart, ownStart, ownStart + Math.Max(0, own.SpanCells - width));
+        return new WorldPort(own.Face, WithTangent(own.Face, own.AnchorCells, start), width);
+    }
+
+    // Twice the span centre along the z axis (alongZ) or the x axis; a span whose tangent runs along the other
+    // axis lies on a plane there, so its centre is its plane coordinate.
+    private static int CentreTwice(WorldSpan span, bool alongZ)
+    {
+        return TangentIsZ(span.Face) == alongZ
+            ? (2 * TangentCoordinate(span.Face, span.AnchorCells)) + span.SpanCells
+            : 2 * NormalCoordinate(span.Face, span.AnchorCells);
     }
 
     /// <summary>
