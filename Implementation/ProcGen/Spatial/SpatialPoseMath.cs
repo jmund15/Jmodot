@@ -192,10 +192,11 @@ internal static class SpatialPoseMath
     /// <summary>
     ///     The one door-window pair a connector corridor joins between two spans. Both windows take the widest door
     ///     width inside the intersection of the spans' <c>[MinWidthCells, WidthCells]</c> ranges, so they always share
-    ///     one width. Opposed spans whose tangent overlap holds that width take one shared window, centred in the
-    ///     overlap. Otherwise each window sits on its own span where its centre is nearest the other span's centre
-    ///     (projected onto the window's own tangent axis), clamped inside the span. A half-cell misalignment rounds
-    ///     toward the min corner. Null when a face is not cardinal or the width ranges are disjoint.
+    ///     one width. Opposed spans that abut on one plane take <see cref="SharedOpening" />, as narrow as their overlap
+    ///     when it is under that width. Other opposed spans whose tangent overlap holds the width take one shared
+    ///     window, centred in the overlap. Otherwise each window sits on its own span where its centre is nearest the
+    ///     other span's centre (projected onto the window's own tangent axis), clamped inside the span. A half-cell
+    ///     misalignment rounds toward the min corner. Null when a face is not cardinal or the width ranges are disjoint.
     /// </summary>
     internal static (WorldPort AWindow, WorldPort BWindow)? ConnectorWindows(WorldSpan a, WorldSpan b)
     {
@@ -214,6 +215,12 @@ internal static class SpatialPoseMath
 
         if (b.Face == Opposite(a.Face))
         {
+            if (SharedOpening(a, b) is { } abutting)
+            {
+                int start = TangentCoordinate(abutting.Face, abutting.AnchorCells);
+                return (abutting, new WorldPort(b.Face, WithTangent(b.Face, b.AnchorCells, start), abutting.WidthCells));
+            }
+
             (int overlapStart, int overlap) = TangentOverlapOf(a, b);
             if (overlap >= maxCommon)
             {
