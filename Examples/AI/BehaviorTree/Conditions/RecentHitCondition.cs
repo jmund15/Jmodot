@@ -18,6 +18,10 @@ using Implementation.Shared;
 /// UrgentAbort=true so any hit aborts the in-flight attack. Threshold exports
 /// (MinForce, MinDamage) make stability-style gating a pure data tweak.
 /// </para>
+/// <para>
+/// A sustained result (<see cref="CombatResult.Sustained"/>) is not a hit here: a target standing in
+/// a beam would otherwise abort every attack it starts.
+/// </para>
 /// </summary>
 [GlobalClass, Tool]
 public partial class RecentHitCondition : BTCondition
@@ -66,7 +70,7 @@ public partial class RecentHitCondition : BTCondition
             return Inverted;
         }
 
-        _checkPredicate ??= r => MatchesType(r) && MatchesForce(r) && MatchesDamage(r);
+        _checkPredicate ??= r => !r.Sustained && MatchesType(r) && MatchesForce(r) && MatchesDamage(r);
         var hit = log.AnyWithinCombatTime<CombatResult>(WindowSeconds, _checkPredicate);
 
         return Inverted ? !hit : hit;

@@ -13,6 +13,13 @@ public abstract record CombatResult
     public Node? Source { get; init; }
     public Node? Target { get; init; }
     public IEnumerable<CombatTag> Tags { get; init; }
+
+    /// <summary>
+    /// True when the hit behind this result was one contact of a held source
+    /// (<see cref="HitContext.Continuous"/>). A per-blow reaction — a stagger, a launch, an attack
+    /// interrupt — skips it, so a beam or an aura can never lock its target in that reaction.
+    /// </summary>
+    public bool Sustained { get; init; }
 }
 
 public record DamageResult : CombatResult, IForceCarrier

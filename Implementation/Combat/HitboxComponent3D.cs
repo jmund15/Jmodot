@@ -323,13 +323,16 @@ using AI.BB;
         /// itself; otherwise its hurtbox descendant is resolved by type, breadth-first, so grouping the
         /// hurtbox under a presentation node does not silence this channel. A collider that is neither
         /// is a no-op.</param>
-        public void TryHitNode(Node3D collider)
+        /// <param name="continuous">True when the caller delivers one contact of a held source (a
+        /// beam's repeat tick). The hit is then stamped <see cref="HitContext.Continuous"/>, as every
+        /// hit of an <see cref="IsContinuous"/> hitbox already is.</param>
+        public void TryHitNode(Node3D collider, bool continuous = false)
         {
-            if (collider is HurtboxComponent3D self) { TryHitHurtbox(self); return; }
+            if (collider is HurtboxComponent3D self) { TryHitHurtbox(self, continuous); return; }
 
             if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
             {
-                TryHitHurtbox(hurtbox);
+                TryHitHurtbox(hurtbox, continuous);
             }
         }
 
@@ -709,7 +712,7 @@ using AI.BB;
             }
         }
 
-        private void TryHitHurtbox(HurtboxComponent3D hurtbox)
+        private void TryHitHurtbox(HurtboxComponent3D hurtbox, bool continuous = false)
         {
             if (!IsActive || CurrentPayload == null)
             {
@@ -784,7 +787,7 @@ using AI.BB;
             }
 
             // 4. The Handshake (Direct Method Call)
-            bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
+            bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit, continuous: IsContinuous || continuous);
 
             if (wasAccepted)
             {

@@ -41,14 +41,17 @@ public static class KnockbackPolicy
     /// <summary>
     /// Audit-logs the applied knockback so HSM transition conditions (KnockbackCondition) can gate
     /// launch/stagger/ragdoll states. <paramref name="velocityDeltaMagnitude" /> is in m/s in every
-    /// regime, so the two body types feed those conditions the same units.
+    /// regime, so the two body types feed those conditions the same units. <paramref name="sustained" />
+    /// carries the pushing hit's <see cref="CombatResult.Sustained" /> onto the log, so those conditions
+    /// can skip a push from a held contact.
     /// </summary>
     public static void LogApplied(
         CombatLog? log,
         Node target,
         Node? attributedSource,
         Vector3 appliedDirection,
-        float velocityDeltaMagnitude)
+        float velocityDeltaMagnitude,
+        bool sustained = false)
     {
         log?.Log(new KnockbackResult
         {
@@ -56,7 +59,8 @@ public static class KnockbackPolicy
             Target = target,
             Direction = appliedDirection,
             Force = velocityDeltaMagnitude,
-            Tags = System.Array.Empty<CombatTag>()
+            Tags = System.Array.Empty<CombatTag>(),
+            Sustained = sustained,
         });
     }
 }

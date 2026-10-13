@@ -128,7 +128,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		if (result is not IForceCarrier carrier || carrier.Force <= 0f) { return; }
 
 		var preserveVertical = (result as KnockbackResult)?.PreserveVertical ?? false;
-		ApplyKnockback(carrier.Direction, carrier.Force, result.Source, preserveVertical);
+		Apply(carrier.Direction, carrier.Force, result.Source, preserveVertical, result.Sustained);
 	}
 
 	/// <summary>
@@ -144,6 +144,9 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// <see cref="PreserveVertical"/>: false here still preserves Y if the receiver asks for it.
 	/// </param>
 	public void ApplyKnockback(Vector3 direction, float incomingForce, Node? attributedSource = null, bool preserveVertical = false)
+		=> Apply(direction, incomingForce, attributedSource, preserveVertical, sustained: false);
+
+	private void Apply(Vector3 direction, float incomingForce, Node? attributedSource, bool preserveVertical, bool sustained)
 	{
 		if (!float.IsFinite(incomingForce) || incomingForce <= 0f)
 		{
@@ -172,7 +175,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		var deltaMagnitude = velocityDelta.Length();
 		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, attributedSource);
-		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude);
+		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude, sustained);
 
 		JmoLogger.Debug(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
 	}

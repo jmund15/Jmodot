@@ -237,11 +237,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     /// <param name="collider">The contacted node; its <see cref="HurtboxComponent2D"/> descendant is
     /// resolved by type, breadth-first, so grouping the hurtbox under a presentation node does not
     /// silence this channel. A collider carrying no hurtbox is a no-op.</param>
-    public void TryHitNode(Node2D collider)
+    /// <param name="continuous">True when the caller delivers one contact of a held source (mirrors 3D).</param>
+    public void TryHitNode(Node2D collider, bool continuous = false)
     {
         if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
         {
-            TryHitHurtbox(hurtbox);
+            TryHitHurtbox(hurtbox, continuous);
         }
     }
 
@@ -539,7 +540,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         }
     }
 
-    private void TryHitHurtbox(HurtboxComponent2D hurtbox)
+    private void TryHitHurtbox(HurtboxComponent2D hurtbox, bool continuous = false)
     {
         if (!IsActive || CurrentPayload == null)
         {
@@ -590,7 +591,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
             }
         }
 
-        bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
+        bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit, continuous: IsContinuous || continuous);
 
         if (wasAccepted)
         {
