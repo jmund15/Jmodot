@@ -41,6 +41,13 @@ internal sealed class LayoutSession : ILayoutAdvisor
     }
 
     /// <summary>
+    ///     The embed failure of the backbone this session was opened on, or null when every backbone room placed.
+    ///     A failed session holds only part of its frozen frame: <see cref="TryCommitSubgraph" /> refuses every
+    ///     decoration and <see cref="BuildResult" /> returns this failure, so the pipeline re-rolls the attempt.
+    /// </summary>
+    internal FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
+
+    /// <summary>
     ///     Shortest corridor length between two PLACED rooms' ports, or null if either room is not yet committed
     ///     or no corridor joins the two doors. The generator orders anchor pairs by this so a route is tried first
     ///     between doors that face each other.
@@ -109,6 +116,11 @@ internal sealed class LayoutSession : ILayoutAdvisor
     public bool TryCommitSubgraph(IFloorGraph graphSoFar)
     {
         ArgumentNullException.ThrowIfNull(graphSoFar);
+        if (this.BackboneFailure.HasValue)
+        {
+            return false;
+        }
+
         GridFloorEmbedder.SearchState trial = this._state.Clone();
         FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings);
         if (!result.Succeeded)
@@ -127,7 +139,8 @@ internal sealed class LayoutSession : ILayoutAdvisor
     ///     decoration was already trial-committed), then the whole layout is returned.
     /// </summary>
     public FloorEmbedResult BuildResult(IFloorGraph fullGraph)
-        => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
+        => this._state.BackboneFailure
+            ?? this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
 
     #region Test Helpers
 #if TOOLS

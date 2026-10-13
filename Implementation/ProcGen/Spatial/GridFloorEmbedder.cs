@@ -52,7 +52,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     /// <summary>
     ///     Frozen-spine progressive seam (Design A): embeds a backbone sub-graph alone and returns its
-    ///     populated <see cref="SearchState" /> — every backbone node carries a fixed pose + occupancy.
+    ///     populated <see cref="SearchState" /> — every backbone node carries a fixed pose + occupancy
+    ///     unless the backbone does not fully place, in which case <see cref="SearchState.BackboneFailure" />
+    ///     holds the typed failure and the state is a partial frame the caller must not extend.
     ///     Pair with <see cref="Extend" />, which resumes from this state to place loop/branch
     ///     decorations WITHOUT moving the frozen backbone (the placement order skips nodes already in
     ///     <c>state.Poses</c>). Lets the generator commit only geometry it has validated against the
@@ -67,7 +69,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         ValidateEmbedArgs(backbone, envelope, settings);
         var infos = BuildNodeInfos(backbone);
         var state = NewState(backbone, envelope, settings, rules);
-        PlaceAll(backbone, infos, state);
+        state.BackboneFailure = PlaceAll(backbone, infos, state);
         return state;
     }
 
@@ -450,6 +452,11 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         internal Vector3I EnvelopeSize { get; }
 
         internal EmbedFailureCause LastConflictCause { get; set; } = EmbedFailureCause.NoBinding;
+
+        /// <summary>
+        ///     Set by <see cref="BuildState" /> when the backbone does not fully place; null for a complete frozen frame.
+        /// </summary>
+        internal FloorEmbedResult? BackboneFailure { get; set; }
 
         /// <summary>
         ///     Deep copy for trial placement: a candidate loop/branch is embedded onto the clone, which is
