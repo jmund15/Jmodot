@@ -22,7 +22,7 @@ public sealed partial class AlternateRouteSpec : Resource
     [Export]
     public ConnectorPolicy ConnectorPolicy { get; private set; } = ConnectorPolicy.Closable;
 
-    /// <summary>Longest corridor, in cells from junction to junction, a loop may synthesize to close; ignored under AbutmentOnly. 0 = bounded only by the envelope's longest side. Guaranteed routes are composed to close within the cap on the progressive-embed path (FloorPipelineSettings.UseProgressiveEmbed); on other paths the cap only rejects longer closures. Rooms whose walls author port spans close a loop flush or across a few cells, so a cap of 4 holds on both demo profiles; a pool of fixed ports needs a longer cap, and too short a cap for the pool fails to close loops.</summary>
+    /// <summary>Longest corridor, in cells from junction to junction, a loop may synthesize to close; ignored under AbutmentOnly. 0 = bounded only by the envelope's longest side. Guaranteed routes are composed to close within the cap on the progressive-embed path (FloorPipelineSettings.UseProgressiveEmbed); on other paths the cap only rejects longer closures. Ports with slack along their walls close a loop flush or across a few cells, so they hold a shorter cap than a pool of fixed ports; too short a cap for the port pool fails to close loops.</summary>
     [Export(PropertyHint.Range, "0,64,or_greater")] public int MaxConnectorLengthCells { get; private set; }
 
     /// <summary>The loop-closure rules this spec hands the embedder: <see cref="ConnectorPolicy" /> and <see cref="MaxConnectorLengthCells" />.</summary>

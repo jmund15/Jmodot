@@ -12,7 +12,11 @@ public interface ISpatialPort
     /// <summary>The footprint face this port sits on. <see cref="PortFace.Unset" /> is rejected by validation.</summary>
     PortFace Face { get; }
 
-    /// <summary>Offset along the face from the face's min corner, in cells.</summary>
+    /// <summary>
+    ///     Start of the port's run along the face, from the face's min corner, in cells. A port with slack
+    ///     (<see cref="SpanCells" /> above <see cref="WidthCells" />) places its door somewhere in that run, so this
+    ///     is where the run begins, not where the door sits.
+    /// </summary>
     int OffsetCells { get; }
 
     /// <summary>Elevation in cells. Committed 0 in v1 (validation pins == 0); the field exists so vertical activation is additive.</summary>
@@ -26,17 +30,15 @@ public interface ISpatialPort
 
     /// <summary>
     ///     The narrowest door this port admits, in cells. Implementations return a value in <c>1..WidthCells</c>;
-    ///     a minimum equal to the width leaves the door no width choice. A port with no range need not implement
-    ///     it: the default is <see cref="WidthCells" />.
+    ///     a minimum equal to the width leaves the door no width choice.
     /// </summary>
-    int MinWidthCells => this.WidthCells;
+    int MinWidthCells { get; }
 
     /// <summary>
     ///     The run along the face, from <see cref="OffsetCells" />, where a door of up to <see cref="WidthCells" />
     ///     may open, in cells. Implementations return at least <see cref="WidthCells" />; a span equal to the width
     ///     leaves the door no slide. Distinct from a consuming game's own geometry record of a port's span: this is
-    ///     the run a door may take, not that game's cell math. A port with no slide need not implement it: the
-    ///     default is <see cref="WidthCells" />.
+    ///     the run a door may take, not that game's cell math.
     /// </summary>
-    int SpanCells => this.WidthCells;
+    int SpanCells { get; }
 }

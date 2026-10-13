@@ -30,8 +30,9 @@ public partial class EmbedderSettings : Resource
 
     /// <summary>
     ///     Repairs a speculative trial may spend placing a decoration (a loop route or branch) before it is dropped
-    ///     and the generator tries its next option. The floor's committed placement keeps the dynamic budget. Must be
-    ///     positive.
+    ///     and the generator tries its next option. The floor's committed placement keeps the dynamic budget. Read
+    ///     only on the progressive-embed path (FloorPipelineSettings.UseProgressiveEmbed); the holistic embed
+    ///     ignores it. Must be positive.
     /// </summary>
     [Export(PropertyHint.Range, "1,4096")]
     public int TrialRepairBudget { get; set; } = 64;
