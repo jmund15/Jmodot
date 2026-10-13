@@ -74,6 +74,62 @@ internal static class GraphGenerator
     internal static bool IsAnchorPairEligible(int dx, int dy, int minSep, int maxSep)
         => dx + minSep <= dy && (maxSep <= 0 || dy - dx <= maxSep);
 
+#if TOOLS
+    #region Test Helpers
+    internal static bool HasCompatibleOpenPortPair(INodeTemplate x, INodeTemplate y, Func<StringName, bool> isPortOpen)
+        => HasCompatibleOpenPortPair(x.Ports, y.Ports, port => isPortOpen(port.Name), port => isPortOpen(port.Name));
+    #endregion
+#endif
+
+    /// <summary>
+    ///     Whether some open X port and open Y port can join. A spatial pair must match by
+    ///     <see cref="PortCompatibility" /> and a mixed pair by type; when no open pair is spatial, any open pair
+    ///     passes. No open pair at all is incompatible.
+    /// </summary>
+    private static bool HasCompatibleOpenPortPair(
+        IReadOnlyList<IGraphPort> xPorts,
+        IReadOnlyList<IGraphPort> yPorts,
+        Func<IGraphPort, bool> isXPortOpen,
+        Func<IGraphPort, bool> isYPortOpen)
+    {
+        bool sawAnyOpenPair = false;
+        bool sawSpatialPair = false;
+        foreach (IGraphPort xPort in xPorts)
+        {
+            if (!isXPortOpen(xPort))
+            {
+                continue;
+            }
+
+            foreach (IGraphPort yPort in yPorts)
+            {
+                if (!isYPortOpen(yPort))
+                {
+                    continue;
+                }
+
+                sawAnyOpenPair = true;
+                if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
+                {
+                    sawSpatialPair = true;
+                    if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
+                    {
+                        return true;
+                    }
+
+                    continue;
+                }
+
+                if (xPort.Type == yPort.Type)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return sawAnyOpenPair && !sawSpatialPair;
+    }
+
     /// <summary>
     ///     Adjusts a drawn route length so the resulting loop CYCLE has an EVEN edge count and can close
     ///     on the integer grid. A loop's cycle edges = route-side (<c>routeLen + 1</c>) + spine-side
@@ -784,40 +840,11 @@ internal static class GraphGenerator
 
         private bool HasCompatibleOpenPortPair(GraphNode x, GraphNode y)
         {
-            bool sawSpatialPair = false;
-            foreach (IGraphPort xPort in x.Template.Ports)
-            {
-                if (!this.IsPortOpen(x.Id, xPort.Name) || this._anchorReservedPorts.Contains(PortKey(x.Id, xPort.Name)))
-                {
-                    continue;
-                }
-
-                foreach (IGraphPort yPort in y.Template.Ports)
-                {
-                    if (!this.IsPortOpen(y.Id, yPort.Name) || this._anchorReservedPorts.Contains(PortKey(y.Id, yPort.Name)))
-                    {
-                        continue;
-                    }
-
-                    if (xPort is ISpatialPort xSpatial && yPort is ISpatialPort ySpatial)
-                    {
-                        sawSpatialPair = true;
-                        if (PortCompatibility.Matches((IGraphPort)xSpatial, (IGraphPort)ySpatial))
-                        {
-                            return true;
-                        }
-
-                        continue;
-                    }
-
-                    if (xPort.Type == yPort.Type)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return !sawSpatialPair;
+            return GraphGenerator.HasCompatibleOpenPortPair(
+                x.Template.Ports,
+                y.Template.Ports,
+                port => this.IsPortOpen(x.Id, port.Name) && !this._anchorReservedPorts.Contains(PortKey(x.Id, port.Name)),
+                port => this.IsPortOpen(y.Id, port.Name) && !this._anchorReservedPorts.Contains(PortKey(y.Id, port.Name)));
         }
 
         /// <summary>

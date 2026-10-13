@@ -52,12 +52,18 @@ internal static class ConnectorSolver
 
     /// <summary>
     ///     Junction-to-junction length of the shortest corridor between two doors, ignoring other rooms, obstacles and
-    ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when the ports differ in width or level,
+    ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when either face is not cardinal, the ports
+    ///     differ in width or level,
     ///     or no family <paramref name="policy" /> offers joins them: under <see cref="ConnectorPolicy.Closable" /> a
     ///     back-to-back pair has none, exactly as in <see cref="Solve" />.
     /// </summary>
     internal static int? EstimateBridgeCells(WorldPort from, WorldPort to, ConnectorPolicy policy)
     {
+        if (!IsCardinal(from.Face) || !IsCardinal(to.Face))
+        {
+            return null;
+        }
+
         if (from.WidthCells <= 0 || from.WidthCells != to.WidthCells || from.AnchorCells.Y != to.AnchorCells.Y)
         {
             return null;
@@ -88,7 +94,8 @@ internal static class ConnectorSolver
     }
 
     /// <summary>
-    ///     Finds the first collision-free corridor path between two world ports, or null when none fits.
+    ///     Finds the first collision-free corridor path between two world ports, or null when none fits or either
+    ///     port face is not cardinal.
     ///     The result carries the accepted path's junction-to-junction length, which <paramref name="maxLengthCells" /> bounds.
     ///     <paramref name="policy" /> gates exactly one path family: the BACK-TO-BACK wrap-around, offered
     ///     only under <see cref="ConnectorPolicy.ClosableWraparound" />. Every other family — including the
@@ -104,10 +111,15 @@ internal static class ConnectorSolver
         IReadOnlyList<(Vector3I Origin, Vector3I Size)> candidateLocalObstacles,
         Vector3I envelopeSize,
         int maxLengthCells,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(committed);
         ArgumentNullException.ThrowIfNull(candidateLocalObstacles);
+        if (!IsCardinal(from.Face) || !IsCardinal(to.Face))
+        {
+            return null;
+        }
+
         if (from.WidthCells <= 0 || from.WidthCells != to.WidthCells || from.AnchorCells.Y != to.AnchorCells.Y ||
             envelopeSize.X <= 0 || envelopeSize.Y <= 0 || envelopeSize.Z <= 0 || maxLengthCells <= 0)
         {
@@ -588,11 +600,13 @@ internal static class ConnectorSolver
 
     private static bool SameTangent(WorldPort from, WorldPort to, int width)
     {
-        int axis = Axis(from.Face);
-        int tangent = axis == 0 ? 2 : 0;
+        int tangent = TangentAxis(from.Face);
         return TangentValue(from.AnchorCells, tangent) == TangentValue(to.AnchorCells, tangent) &&
             from.WidthCells == width && to.WidthCells == width;
     }
+
+    private static bool IsCardinal(PortFace face)
+        => face is PortFace.XPos or PortFace.XNeg or PortFace.ZPos or PortFace.ZNeg;
 
     private static int Axis(PortFace face) => face is PortFace.XPos or PortFace.XNeg ? 0 : 1;
 
