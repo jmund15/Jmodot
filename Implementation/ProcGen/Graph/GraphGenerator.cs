@@ -173,7 +173,7 @@ internal static class GraphGenerator
     /// </summary>
     internal const int RouteScanPerTrial = 64;
 
-    private static int s_routeCompositionCeiling = 16;
+    private static int s_routeCompositionCeiling = 1;
 
     /// <summary>
     ///     Hard ceiling on the failed trials the composer spends per anchor pair. The per-pair budget is
