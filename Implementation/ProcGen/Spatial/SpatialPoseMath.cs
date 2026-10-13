@@ -166,10 +166,7 @@ internal static class SpatialPoseMath
             return null;
         }
 
-        int aStart = TangentCoordinate(a.Face, a.AnchorCells);
-        int bStart = TangentCoordinate(b.Face, b.AnchorCells);
-        int overlapStart = Math.Max(aStart, bStart);
-        int overlap = Math.Min(aStart + a.SpanCells, bStart + b.SpanCells) - overlapStart;
+        (int overlapStart, int overlap) = TangentOverlapOf(a, b);
         int width = Math.Min(maxCommon, overlap);
         if (width < minCommon)
         {
@@ -180,12 +177,21 @@ internal static class SpatialPoseMath
         return new WorldPort(a.Face, WithTangent(a.Face, a.AnchorCells, start), width);
     }
 
+    private static (int Start, int Length) TangentOverlapOf(WorldSpan a, WorldSpan b)
+    {
+        int aStart = TangentCoordinate(a.Face, a.AnchorCells);
+        int bStart = TangentCoordinate(b.Face, b.AnchorCells);
+        int overlapStart = Math.Max(aStart, bStart);
+        return (overlapStart, Math.Min(aStart + a.SpanCells, bStart + b.SpanCells) - overlapStart);
+    }
+
     /// <summary>
     ///     The one door-window pair a connector corridor joins between two spans. Both windows take the widest door
     ///     width inside the intersection of the spans' <c>[MinWidthCells, WidthCells]</c> ranges, so they always share
-    ///     one width. Each window sits on its own span where its centre is nearest the other span's centre (projected
-    ///     onto the window's own tangent axis), clamped inside the span; a half-cell misalignment rounds toward the min
-    ///     corner. Null when a face is not cardinal or the width ranges are disjoint.
+    ///     one width. Opposed spans whose tangent overlap holds that width take one shared window, centred in the
+    ///     overlap. Otherwise each window sits on its own span where its centre is nearest the other span's centre
+    ///     (projected onto the window's own tangent axis), clamped inside the span. A half-cell misalignment rounds
+    ///     toward the min corner. Null when a face is not cardinal or the width ranges are disjoint.
     /// </summary>
     internal static (WorldPort AWindow, WorldPort BWindow)? ConnectorWindows(WorldSpan a, WorldSpan b)
     {
@@ -199,6 +205,18 @@ internal static class SpatialPoseMath
         if (minCommon < 1 || minCommon > maxCommon)
         {
             return null;
+        }
+
+        if (b.Face == Opposite(a.Face))
+        {
+            (int overlapStart, int overlap) = TangentOverlapOf(a, b);
+            if (overlap >= maxCommon)
+            {
+                int shared = overlapStart + ((overlap - maxCommon) / 2);
+                return (
+                    new WorldPort(a.Face, WithTangent(a.Face, a.AnchorCells, shared), maxCommon),
+                    new WorldPort(b.Face, WithTangent(b.Face, b.AnchorCells, shared), maxCommon));
+            }
         }
 
         return (WindowNearest(a, b, maxCommon), WindowNearest(b, a, maxCommon));
