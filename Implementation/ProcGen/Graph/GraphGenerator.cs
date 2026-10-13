@@ -82,8 +82,9 @@ internal static class GraphGenerator
 #endif
 
     /// <summary>
-    ///     Whether some open X port and open Y port can join. Spatial ports must match by
-    ///     <see cref="PortCompatibility" />; a non-spatial pair matches by type. No open pair at all is incompatible.
+    ///     Whether some open X port and open Y port can join. A spatial pair must match by
+    ///     <see cref="PortCompatibility" /> and a mixed pair by type; when no open pair is spatial, any open pair
+    ///     passes. No open pair at all is incompatible.
     /// </summary>
     private static bool HasCompatibleOpenPortPair(
         IReadOnlyList<IGraphPort> xPorts,

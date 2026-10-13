@@ -1452,12 +1452,12 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         return (int)Math.Clamp(computed, floor, ceiling);
     }
 
-    // Endpoint-resolution now lives once, on the shared FloorGraphExtensions.NodeAcrossEdge query.
-    // Every call site here passes a nodeId that is an endpoint of the edge (edges come from that
-    // node's adjacency), so the non-null result is guaranteed.
     private static StringName RealizationId(IGraphEdge edge, int ordinal)
         => new($"conn_{edge.From.Id}_{edge.To.Id}_{ordinal}");
 
+    // Endpoint-resolution now lives once, on the shared FloorGraphExtensions.NodeAcrossEdge query.
+    // Every call site here passes a nodeId that is an endpoint of the edge (edges come from that
+    // node's adjacency), so the non-null result is guaranteed.
     private static StringName OtherEnd(IGraphEdge edge, StringName nodeId)
         => edge.NodeAcrossEdge(nodeId)!.Id;
 

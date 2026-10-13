@@ -52,12 +52,18 @@ internal static class ConnectorSolver
 
     /// <summary>
     ///     Junction-to-junction length of the shortest corridor between two doors, ignoring other rooms, obstacles and
-    ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when the ports differ in width or level,
+    ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when either face is not cardinal, the ports
+    ///     differ in width or level,
     ///     or no family <paramref name="policy" /> offers joins them: under <see cref="ConnectorPolicy.Closable" /> a
     ///     back-to-back pair has none, exactly as in <see cref="Solve" />.
     /// </summary>
     internal static int? EstimateBridgeCells(WorldPort from, WorldPort to, ConnectorPolicy policy)
     {
+        if (!IsCardinal(from.Face) || !IsCardinal(to.Face))
+        {
+            return null;
+        }
+
         if (from.WidthCells <= 0 || from.WidthCells != to.WidthCells || from.AnchorCells.Y != to.AnchorCells.Y)
         {
             return null;
