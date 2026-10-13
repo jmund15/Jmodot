@@ -54,7 +54,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     ///     Frozen-spine progressive seam (Design A): embeds a backbone sub-graph alone and returns its
     ///     populated <see cref="SearchState" /> — every backbone node carries a fixed pose + occupancy
     ///     unless the backbone does not fully place, in which case <see cref="SearchState.BackboneFailure" />
-    ///     holds the typed failure and the state is a partial frame the caller must not extend.
+    ///     holds the typed failure and the state is a partial frame that <see cref="Extend" /> refuses.
     ///     Pair with <see cref="Extend" />, which resumes from this state to place loop/branch
     ///     decorations WITHOUT moving the frozen backbone (the placement order skips nodes already in
     ///     <c>state.Poses</c>). Lets the generator commit only geometry it has validated against the
@@ -77,7 +77,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     ///     Resumes a frozen <paramref name="state" /> (from <see cref="BuildState" />) to embed the
     ///     FULL graph: backbone poses are reused unchanged (skipped by the placement order), only the
     ///     decoration nodes are searched, and the budget is re-sized to the full graph. Returns the
-    ///     complete layout, or the typed failure if a decoration cannot be placed on the frozen frame.
+    ///     complete layout, or the typed failure if a decoration cannot be placed on the frozen frame. A state whose
+    ///     backbone did not fully place returns that <see cref="SearchState.BackboneFailure" /> untouched.
     ///     <paramref name="fullGraph" /> MUST share node/edge INSTANCES with the backbone handed to
     ///     <see cref="BuildState" /> — edge bindings are identity-keyed, so a freshly-rebuilt graph
     ///     with equal ids but different instances loses the frozen bindings. The generator satisfies
@@ -90,6 +91,11 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         EmbedderSettings settings)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.BackboneFailure.HasValue)
+        {
+            return state.BackboneFailure.Value;
+        }
+
         ValidateEmbedArgs(fullGraph, envelope, settings);
         var infos = BuildNodeInfos(fullGraph);
         state.Budget = ResolveEffectiveBudget(fullGraph, settings);
@@ -172,6 +178,19 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 #region Test Helpers
 #if TOOLS
     internal IReadOnlyList<StringName>? LastPlacementTrace { get; private set; }
+
+    /// <summary>The steering key of one candidate pose of <paramref name="nodeId" /> on <paramref name="state" />, as <c>GenerateCandidates</c> computes it.</summary>
+    internal static int SteerDistanceForTest(
+        IFloorGraph graph,
+        StringName nodeId,
+        IGraphEdge anchorEdge,
+        CellPose pose,
+        IReadOnlySet<StringName> boundByCandidate,
+        SearchState state)
+    {
+        var infos = BuildNodeInfos(graph);
+        return SteerDistance(SteerTargetsOf(nodeId, anchorEdge, infos, state), nodeId, pose, boundByCandidate, infos, state);
+    }
 #endif
 #endregion
 
@@ -185,7 +204,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     // ---- setup ----
 
-    internal sealed class NodeInfo
+    private sealed class NodeInfo
     {
         internal NodeInfo(IGraphNode node, ISpatialNodeTemplate template, IReadOnlyList<ISpatialPort> ports, List<IGraphEdge> edges)
         {
@@ -469,6 +488,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             {
                 Occupancy = this.Occupancy.Clone(),
                 LastConflictCause = this.LastConflictCause,
+                BackboneFailure = this.BackboneFailure,
             };
             foreach (var pose in this.Poses) { copy.Poses[pose.Key] = pose.Value; }
             foreach (var bound in this.BoundPorts) { copy.BoundPorts.Add(bound); }
@@ -518,28 +538,18 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     // A route room (every incident edge a Loop) prefers the candidate whose closures cost the least corridor,
     // then the candidate nearest the placed room its loop rejoins. Spine rooms keep enumeration order.
-    internal static bool IsRouteRoom(NodeInfo info) => info.Edges.All(e => e.Provenance.Kind == EdgeProvenanceKind.Loop);
 
-    /// <summary>
-    ///     Steering distance of a candidate pose: the shortest <see cref="ConnectorSolver.EstimateBridgeCells" /> between a free
-    ///     port of <paramref name="nodeId" /> and a usable port of a placed room its unplaced component rejoins, so a door
-    ///     facing the rejoin door beats one behind it. <see cref="int.MaxValue" /> when no such bridge exists.
-    /// </summary>
-    internal static int SteerDistance(
+    // A rejoin door a candidate steers toward, and whether its room's port choice is frozen.
+    private readonly record struct SteerTarget(ISpatialPort Port, WorldPort World, bool Frozen);
+
+    // The pose-independent half of the steering key, computed once per GenerateCandidates.
+    private static List<SteerTarget> SteerTargetsOf(
         StringName nodeId,
         IGraphEdge anchorEdge,
-        CellPose pose,
-        IReadOnlySet<StringName> boundByCandidate,
         Dictionary<StringName, NodeInfo> infos,
         SearchState state)
     {
-        NodeInfo info = infos[nodeId];
-        var freeAnchors = info.Ports
-            .Where(p => !boundByCandidate.Contains(p.NameOf()) && IsUnclaimed(nodeId, p, state))
-            .Select(p => (Port: p, World: SpatialPoseMath.WorldPortOf(pose, info.Footprint, p)))
-            .ToList();
-
-        int best = int.MaxValue;
+        var targets = new List<SteerTarget>();
         foreach ((StringName targetId, IGraphEdge boundary) in RejoinBoundaries(nodeId, anchorEdge, infos, state))
         {
             NodeInfo targetInfo = infos[targetId];
@@ -548,19 +558,50 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             IEnumerable<ISpatialPort> targetPorts = frozen
                 ? new[] { PortByName(targetInfo, DeclaredPortOn(boundary, targetId)) }
                 : targetInfo.Ports.Where(p => IsUnclaimed(targetId, p, state));
-
             foreach (ISpatialPort targetPort in targetPorts)
             {
-                WorldPort targetWorld = SpatialPoseMath.WorldPortOf(targetPose, targetInfo.Footprint, targetPort);
-                foreach ((ISpatialPort port, WorldPort world) in freeAnchors)
-                {
-                    if (!frozen && !PortCompatibility.Matches((IGraphPort)targetPort, (IGraphPort)port))
-                    {
-                        continue;
-                    }
+                targets.Add(new SteerTarget(targetPort, SpatialPoseMath.WorldPortOf(targetPose, targetInfo.Footprint, targetPort), frozen));
+            }
+        }
 
-                    best = Math.Min(best, ConnectorSolver.EstimateBridgeCells(world, targetWorld) ?? int.MaxValue);
+        return targets;
+    }
+
+    /// <summary>
+    ///     Steering distance of a candidate pose: the shortest <see cref="ConnectorSolver.EstimateBridgeCells" /> between a free
+    ///     port of the room and a usable port of a placed room its unplaced component rejoins, so a door
+    ///     facing the rejoin door beats one behind it. <see cref="int.MaxValue" /> when no such bridge exists.
+    /// </summary>
+    private static int SteerDistance(
+        List<SteerTarget> targets,
+        StringName nodeId,
+        CellPose pose,
+        IReadOnlySet<StringName> boundByCandidate,
+        Dictionary<StringName, NodeInfo> infos,
+        SearchState state)
+    {
+        if (targets.Count == 0)
+        {
+            return int.MaxValue;
+        }
+
+        NodeInfo info = infos[nodeId];
+        var freeAnchors = info.Ports
+            .Where(p => !boundByCandidate.Contains(p.NameOf()) && IsUnclaimed(nodeId, p, state))
+            .Select(p => (Port: p, World: SpatialPoseMath.WorldPortOf(pose, info.Footprint, p)))
+            .ToList();
+
+        int best = int.MaxValue;
+        foreach (SteerTarget target in targets)
+        {
+            foreach ((ISpatialPort port, WorldPort world) in freeAnchors)
+            {
+                if (!target.Frozen && !PortCompatibility.Matches((IGraphPort)target.Port, (IGraphPort)port))
+                {
+                    continue;
                 }
+
+                best = Math.Min(best, ConnectorSolver.EstimateBridgeCells(world, target.World, state.Rules.Policy) ?? int.MaxValue);
             }
         }
 
@@ -825,11 +866,12 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 candidates.Add(candidate);
             }
 
-            if (IsRouteRoom(info))
+            if (info.Edges.IsRouteRoom())
             {
+                List<SteerTarget> steerTargets = SteerTargetsOf(nodeId, anchorEdge, infos, state);
                 candidates = candidates
                     .OrderBy(c => CorridorCells(c))
-                    .ThenBy(c => SteerDistance(nodeId, anchorEdge, c.Pose, c.Bindings.Select(b => b.MyPort).ToHashSet(), infos, state))
+                    .ThenBy(c => SteerDistance(steerTargets, nodeId, c.Pose, c.Bindings.Select(b => b.MyPort).ToHashSet(), infos, state))
                     .ToList();
             }
         }

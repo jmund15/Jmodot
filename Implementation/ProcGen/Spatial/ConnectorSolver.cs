@@ -53,9 +53,10 @@ internal static class ConnectorSolver
     /// <summary>
     ///     Junction-to-junction length of the shortest corridor between two doors, ignoring other rooms, obstacles and
     ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when the ports differ in width or level,
-    ///     or no family joins them.
+    ///     or no family <paramref name="policy" /> offers joins them: under <see cref="ConnectorPolicy.Closable" /> a
+    ///     back-to-back pair has none, exactly as in <see cref="Solve" />.
     /// </summary>
-    internal static int? EstimateBridgeCells(WorldPort from, WorldPort to)
+    internal static int? EstimateBridgeCells(WorldPort from, WorldPort to, ConnectorPolicy policy)
     {
         if (from.WidthCells <= 0 || from.WidthCells != to.WidthCells || from.AnchorCells.Y != to.AnchorCells.Y)
         {
@@ -70,7 +71,7 @@ internal static class ConnectorSolver
         int width = from.WidthCells;
         int bound = width + Math.Abs(from.AnchorCells.X - to.AnchorCells.X) + Math.Abs(from.AnchorCells.Z - to.AnchorCells.Z);
         int? shortest = null;
-        foreach (Path path in EnumeratePaths(from, to, width, bound, ConnectorPolicy.ClosableWraparound))
+        foreach (Path path in EnumeratePaths(from, to, width, bound, policy))
         {
             if (FoldsOnItself(path.Boxes))
             {

@@ -42,8 +42,9 @@ internal sealed class LayoutSession : ILayoutAdvisor
 
     /// <summary>
     ///     The embed failure of the backbone this session was opened on, or null when every backbone room placed.
-    ///     A failed session holds only part of its frozen frame: <see cref="TryCommitSubgraph" /> refuses every
-    ///     decoration and <see cref="BuildResult" /> returns this failure, so the pipeline re-rolls the attempt.
+    ///     A failed session holds only part of its frozen frame: every <see cref="GridFloorEmbedder.Extend" /> on it
+    ///     returns this failure, so <see cref="TryCommitSubgraph" /> refuses every decoration and
+    ///     <see cref="BuildResult" /> returns it, and the pipeline re-rolls the attempt.
     /// </summary>
     internal FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
 
@@ -61,7 +62,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
             return null;
         }
 
-        return ConnectorSolver.EstimateBridgeCells(from.Value, to.Value);
+        return ConnectorSolver.EstimateBridgeCells(from.Value, to.Value, this._state.Rules.Policy);
     }
 
     private WorldPort? PlacedPortWorld(StringName nodeId, StringName portName)
@@ -116,11 +117,6 @@ internal sealed class LayoutSession : ILayoutAdvisor
     public bool TryCommitSubgraph(IFloorGraph graphSoFar)
     {
         ArgumentNullException.ThrowIfNull(graphSoFar);
-        if (this.BackboneFailure.HasValue)
-        {
-            return false;
-        }
-
         GridFloorEmbedder.SearchState trial = this._state.Clone();
         FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings);
         if (!result.Succeeded)
@@ -139,24 +135,25 @@ internal sealed class LayoutSession : ILayoutAdvisor
     ///     decoration was already trial-committed), then the whole layout is returned.
     /// </summary>
     public FloorEmbedResult BuildResult(IFloorGraph fullGraph)
-        => this._state.BackboneFailure
-            ?? this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
+        => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
 
     #region Test Helpers
 #if TOOLS
     /// <summary>
-    ///     The committed layout at one moment: poses and bound ports copied, the occupancy index shared. A committed
+    ///     The committed layout at one moment: poses and bound ports copied, the occupancy index and committed graph shared. A committed
     ///     trial replaces the session's state rather than mutating it, so a taken snapshot keeps its meaning.
     /// </summary>
     internal readonly record struct LayoutSnapshot(
         IReadOnlyDictionary<StringName, CellPose> Poses,
         IReadOnlySet<(StringName NodeId, StringName PortName)> BoundPorts,
-        OccupancyIndex Occupancy);
+        OccupancyIndex Occupancy,
+        IFloorGraph Graph);
 
     internal LayoutSnapshot Snapshot => new(
         new Dictionary<StringName, CellPose>(this._state.Poses),
         new HashSet<(StringName NodeId, StringName PortName)>(this._state.BoundPorts),
-        this._state.Occupancy);
+        this._state.Occupancy,
+        this._committed);
 #endif
     #endregion
 }
