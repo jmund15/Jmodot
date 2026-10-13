@@ -55,9 +55,11 @@ internal static class ConnectorSolver
     ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when either face is not cardinal, the ports
     ///     differ in width or level,
     ///     or no family <paramref name="policy" /> offers joins them: under <see cref="ConnectorPolicy.Closable" /> a
-    ///     back-to-back pair has none, exactly as in <see cref="Solve" />.
+    ///     back-to-back pair has none, exactly as in <see cref="Solve" />. Also null when the shortest corridor is longer
+    ///     than <paramref name="maxCells" />; a caller that only asks whether a corridor fits a cap passes it, so a far
+    ///     pair costs no path enumeration.
     /// </summary>
-    internal static int? EstimateBridgeCells(WorldPort from, WorldPort to, ConnectorPolicy policy)
+    internal static int? EstimateBridgeCells(WorldPort from, WorldPort to, ConnectorPolicy policy, int maxCells = int.MaxValue)
     {
         if (!IsCardinal(from.Face) || !IsCardinal(to.Face))
         {
@@ -74,8 +76,15 @@ internal static class ConnectorSolver
             return 0;
         }
 
+        // Every family is a polyline from one anchor to the other, so no path is shorter than their distance.
+        int distance = Math.Abs(from.AnchorCells.X - to.AnchorCells.X) + Math.Abs(from.AnchorCells.Z - to.AnchorCells.Z);
+        if (distance > maxCells)
+        {
+            return null;
+        }
+
         int width = from.WidthCells;
-        int bound = width + Math.Abs(from.AnchorCells.X - to.AnchorCells.X) + Math.Abs(from.AnchorCells.Z - to.AnchorCells.Z);
+        int bound = width + distance;
         int? shortest = null;
         foreach (Path path in EnumeratePaths(from, to, width, bound, policy))
         {
@@ -90,7 +99,7 @@ internal static class ConnectorSolver
             }
         }
 
-        return shortest;
+        return shortest <= maxCells ? shortest : null;
     }
 
     /// <summary>

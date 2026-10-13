@@ -46,7 +46,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
     ///     returns this failure, so <see cref="TryCommitSubgraph" /> refuses every decoration and
     ///     <see cref="BuildResult" /> returns it, and the pipeline re-rolls the attempt.
     /// </summary>
-    internal FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
+    public FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
 
     /// <summary>
     ///     Shortest corridor length between two PLACED rooms' ports, or null if either room is not yet committed
@@ -55,17 +55,21 @@ internal sealed class LayoutSession : ILayoutAdvisor
     /// </summary>
     public int? BridgeEstimate(StringName a, StringName aPort, StringName b, StringName bPort)
     {
-        WorldPort? from = this.PlacedPortWorld(a, aPort);
-        WorldPort? to = this.PlacedPortWorld(b, bPort);
+        WorldSpan? from = this.PlacedPortWorld(a, aPort);
+        WorldSpan? to = this.PlacedPortWorld(b, bPort);
         if (!from.HasValue || !to.HasValue)
         {
             return null;
         }
 
-        return ConnectorSolver.EstimateBridgeCells(from.Value, to.Value, this._state.Rules.Policy);
+        (WorldPort AWindow, WorldPort BWindow)? windows = SpatialPoseMath.ConnectorWindows(from.Value, to.Value);
+        return windows.HasValue
+            ? ConnectorSolver.EstimateBridgeCells(windows.Value.AWindow, windows.Value.BWindow, this._state.Rules.Policy)
+            : null;
     }
 
-    private WorldPort? PlacedPortWorld(StringName nodeId, StringName portName)
+    /// <summary>The openable run of a placed node port in world cells, or null when the node is not placed or has no such port.</summary>
+    internal WorldSpan? PlacedPortWorld(StringName nodeId, StringName portName)
     {
         if (!this._state.Poses.TryGetValue(nodeId, out CellPose pose))
         {
@@ -79,7 +83,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
         }
 
         ISpatialPort? port = node.Template.Ports.OfType<ISpatialPort>().FirstOrDefault(p => p.NameOf() == portName);
-        return port == null ? null : SpatialPoseMath.WorldPortOf(pose, spatial.FootprintCells, port);
+        return port == null ? null : SpatialPoseMath.SpanOf(pose, spatial.FootprintCells, port);
     }
 
     /// <summary>
@@ -108,7 +112,8 @@ internal sealed class LayoutSession : ILayoutAdvisor
 
     /// <summary>
     ///     Authoritatively validates the decoration nodes in <paramref name="graphSoFar" /> (those not yet
-    ///     placed) by trial-embedding them onto a CLONE of the committed state. On success the clone is
+    ///     placed) by trial-embedding them onto a CLONE of the committed state, searching on
+    ///     <see cref="EmbedderSettings.TrialRepairBudget" /> rather than the floor's budget. On success the clone is
     ///     adopted (the decoration's poses join the frozen set, so later placements pack around it) and
     ///     <paramref name="graphSoFar" /> becomes the committed graph; on failure nothing changes and the
     ///     caller drops/retries the decoration. <paramref name="graphSoFar" /> must share node/edge
@@ -118,7 +123,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
     {
         ArgumentNullException.ThrowIfNull(graphSoFar);
         GridFloorEmbedder.SearchState trial = this._state.Clone();
-        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings);
+        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings, this._settings.TrialRepairBudget);
         if (!result.Succeeded)
         {
             return false;

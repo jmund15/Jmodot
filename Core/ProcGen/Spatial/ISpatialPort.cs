@@ -18,6 +18,25 @@ public interface ISpatialPort
     /// <summary>Elevation in cells. Committed 0 in v1 (validation pins == 0); the field exists so vertical activation is additive.</summary>
     int ElevationCells { get; }
 
-    /// <summary>Port width along the face, in cells. 0 = unbaked (rejected); v1 compatibility is exact-match.</summary>
+    /// <summary>
+    ///     The widest door this port admits along the face, in cells. 0 = unbaked (rejected). Two ports are
+    ///     compatible when their door-width ranges <c>[MinWidthCells, WidthCells]</c> intersect.
+    /// </summary>
     int WidthCells { get; }
+
+    /// <summary>
+    ///     The narrowest door this port admits, in cells. Implementations return a value in <c>1..WidthCells</c>;
+    ///     a minimum equal to the width leaves the door no width choice. A port with no range need not implement
+    ///     it: the default is <see cref="WidthCells" />.
+    /// </summary>
+    int MinWidthCells => this.WidthCells;
+
+    /// <summary>
+    ///     The run along the face, from <see cref="OffsetCells" />, where a door of up to <see cref="WidthCells" />
+    ///     may open, in cells. Implementations return at least <see cref="WidthCells" />; a span equal to the width
+    ///     leaves the door no slide. Distinct from a consuming game's own geometry record of a port's span: this is
+    ///     the run a door may take, not that game's cell math. A port with no slide need not implement it: the
+    ///     default is <see cref="WidthCells" />.
+    /// </summary>
+    int SpanCells => this.WidthCells;
 }
