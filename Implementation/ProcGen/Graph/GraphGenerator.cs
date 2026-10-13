@@ -110,6 +110,13 @@ internal static class GraphGenerator
     /// </summary>
     internal const int RouteCompositionPairs = 5;
 
+    /// <summary>
+    ///     How many sequences <c>CommitRoute</c> may reject (port types that do not chain) per trial of
+    ///     <see cref="RouteCompositionCeiling" /> before the composer ends an anchor pair. A rejection spends no trial, so
+    ///     without this bound an authored pool or <c>Length.Max</c> could walk an unbounded enumeration.
+    /// </summary>
+    internal const int RouteScanPerTrial = 64;
+
     private static int s_routeCompositionCeiling = 16;
 
     /// <summary>
@@ -241,10 +248,6 @@ internal static class GraphGenerator
         // disambiguated. One counter threads BOTH loop passes (guaranteed + opportunistic) — a per-pass
         // restart would collide (Loop, 0). Distinct from _ordinal, which counts per-placement attempts.
         private int _routeOrdinal;
-
-        // Why the last advisor-mode guaranteed loop failed: trials spent and pairs tried. Read once, right
-        // after TryLayValidatedLoop returns false.
-        private string _loopFailureDetail = string.Empty;
 
         public GenState(
             ISkeletonConfig config, int floorSeed, Func<int, IRng> rngFactory,
@@ -468,9 +471,9 @@ internal static class GraphGenerator
             cause = default;
             for (int loop = 0; loop < guaranteed; loop++)
             {
-                if (!this.TryLayValidatedLoop(spec, minSep, "guaranteed"))
+                if (!this.TryLayValidatedLoop(spec, minSep, "guaranteed", out string failureDetail))
                 {
-                    cause = new Violation(ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal, this._loopFailureDetail);
+                    cause = new Violation(ViolationKind.GuaranteedRoutesUnfilled, Severity.Fatal, failureDetail);
                     return false;
                 }
             }
@@ -482,17 +485,18 @@ internal static class GraphGenerator
         // gap first, including the spine-folds-back-near-itself case a graph-distance proxy misses). Each
         // pair gets its own trial budget; a pair whose every trial fails is fully rolled back and releases
         // its reserved ports, so the next pair starts clean. On failure the detail names what was spent.
-        private bool TryLayValidatedLoop(AlternateRouteSpec spec, int minSep, string passKey)
+        private bool TryLayValidatedLoop(AlternateRouteSpec spec, int minSep, string passKey, out string failureDetail)
         {
+            failureDetail = string.Empty;
             if (this._advisor == null)
             {
-                this._loopFailureDetail = "A guaranteed alternate route needs a layout advisor, and none is attached.";
+                failureDetail = "A guaranteed alternate route needs a layout advisor, and none is attached.";
                 return false;
             }
 
             if (!this._g.TryGetMetrics(out IGraphMetrics metrics))
             {
-                this._loopFailureDetail = "A guaranteed alternate route could not be laid: the topology has no metrics.";
+                failureDetail = "A guaranteed alternate route could not be laid: the topology has no metrics.";
                 return false;
             }
 
@@ -513,6 +517,7 @@ internal static class GraphGenerator
 
             int pairsTried = 0;
             int trialsSpent = 0;
+            long sequencesScanned = 0;
             foreach ((GraphNode X, GraphNode Y, IGraphPort xPort, IGraphPort yPort) in eligible)
             {
                 if (pairsTried >= RouteCompositionPairs)
@@ -524,8 +529,9 @@ internal static class GraphGenerator
                 this._anchorReservedPorts.Add(PortKey(X.Id, xPort.Name));
                 this._anchorReservedPorts.Add(PortKey(Y.Id, yPort.Name));
 
-                bool laid = this.ComposeRoute(new AnchorPair(X, xPort, Y, yPort), spec, passKey, out int spent);
+                bool laid = this.ComposeRoute(new AnchorPair(X, xPort, Y, yPort), spec, passKey, out int spent, out long rejected);
                 trialsSpent += spent;
+                sequencesScanned += spent + rejected;
                 if (laid)
                 {
                     return true;
@@ -535,8 +541,9 @@ internal static class GraphGenerator
                 this._anchorReservedPorts.Remove(PortKey(Y.Id, yPort.Name));
             }
 
-            this._loopFailureDetail =
-                $"A guaranteed alternate route could not be laid on the frozen spine: {trialsSpent} trials over {pairsTried} anchor pairs ({eligible.Count} eligible).";
+            failureDetail =
+                $"A guaranteed alternate route could not be laid on the frozen spine: {trialsSpent} trials over {pairsTried} anchor pairs ({eligible.Count} eligible); " +
+                $"{sequencesScanned} sequences scanned, {sequencesScanned - trialsSpent} rejected by port chaining before a trial.";
             return false;
         }
 
@@ -578,10 +585,12 @@ internal static class GraphGenerator
         // and offered to the advisor; the first that closes on the frozen layout stays. A sequence CommitRoute
         // rejects (port types do not chain) spends no budget; a sequence the advisor refuses spends one unit
         // and is rolled back, including the node ordinals it consumed. The budget is
-        // min(sequence count, RouteCompositionCeiling). Consumes one route ordinal, like LayRouteBetween.
-        private bool ComposeRoute(AnchorPair pair, AlternateRouteSpec spec, string passKey, out int trialsSpent)
+        // min(sequence count, RouteCompositionCeiling); rejected sequences are bounded separately at
+        // RouteCompositionCeiling * RouteScanPerTrial, after which the pair ends. Consumes one route ordinal, like LayRouteBetween.
+        private bool ComposeRoute(AnchorPair pair, AlternateRouteSpec spec, string passKey, out int trialsSpent, out long sequencesRejected)
         {
             trialsSpent = 0;
+            sequencesRejected = 0;
             int routeOrdinal = this._routeOrdinal++;
 
             List<INodeTemplate> alphabet = this.RouteAlphabet();
@@ -601,9 +610,10 @@ internal static class GraphGenerator
             }
 
             long budget = Math.Min(sequenceCount, RouteCompositionCeiling);
+            long scanCap = (long)RouteCompositionCeiling * RouteScanPerTrial;
             foreach (IReadOnlyList<INodeTemplate> sequence in RouteSequences(alphabet, lengths))
             {
-                if (trialsSpent >= budget)
+                if (trialsSpent >= budget || sequencesRejected >= scanCap)
                 {
                     return false;
                 }
@@ -620,6 +630,7 @@ internal static class GraphGenerator
                 {
                     this._g.RollbackTo(cp);
                     this._ordinal = ordinalBase;
+                    sequencesRejected++;
                     continue;
                 }
 
