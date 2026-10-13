@@ -108,12 +108,14 @@ internal static class SpatialPoseMath
             yield break;
         }
 
-        int minCommon = Math.Max(fromSpan.MinWidthCells, toPort.MinWidthCells);
-        int maxCommon = Math.Min(fromSpan.WidthCells, toPort.WidthCells);
-        if (minCommon < 1 || minCommon > maxCommon)
+        if (PortCompatibility.CommonWidthRange(
+                fromSpan.MinWidthCells, fromSpan.WidthCells, toPort.MinWidthCells, toPort.WidthCells) is not { } range
+            || range.Min < 1)
         {
             yield break;
         }
+
+        int minCommon = range.Min;
 
         int toLength = toPort.SpanCells;
         Vector3I toAnchor = RotateAnchor(toPort.Face, toPort.OffsetCells, toPort.ElevationCells, toLength, toFootprintCells, toYaw);
@@ -159,12 +161,14 @@ internal static class SpatialPoseMath
             return null;
         }
 
-        int minCommon = Math.Max(a.MinWidthCells, b.MinWidthCells);
-        int maxCommon = Math.Min(a.WidthCells, b.WidthCells);
-        if (minCommon < 1 || minCommon > maxCommon)
+        if (PortCompatibility.CommonWidthRange(a.MinWidthCells, a.WidthCells, b.MinWidthCells, b.WidthCells) is not { } range
+            || range.Min < 1)
         {
             return null;
         }
+
+        int minCommon = range.Min;
+        int maxCommon = range.Max;
 
         (int overlapStart, int overlap) = TangentOverlapOf(a, b);
         int width = Math.Min(maxCommon, overlap);
@@ -200,12 +204,13 @@ internal static class SpatialPoseMath
             return null;
         }
 
-        int minCommon = Math.Max(a.MinWidthCells, b.MinWidthCells);
-        int maxCommon = Math.Min(a.WidthCells, b.WidthCells);
-        if (minCommon < 1 || minCommon > maxCommon)
+        if (PortCompatibility.CommonWidthRange(a.MinWidthCells, a.WidthCells, b.MinWidthCells, b.WidthCells) is not { } range
+            || range.Min < 1)
         {
             return null;
         }
+
+        int maxCommon = range.Max;
 
         if (b.Face == Opposite(a.Face))
         {

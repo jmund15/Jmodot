@@ -16,7 +16,19 @@ public static class PortCompatibility
         ISpatialPort aSpatial = AsSpatial(a, nameof(a));
         ISpatialPort bSpatial = AsSpatial(b, nameof(b));
         return PortTypes.Matches(a.Type, b.Type) &&
-               Math.Max(aSpatial.MinWidthCells, bSpatial.MinWidthCells) <= Math.Min(aSpatial.WidthCells, bSpatial.WidthCells);
+               CommonWidthRange(aSpatial.MinWidthCells, aSpatial.WidthCells, bSpatial.MinWidthCells, bSpatial.WidthCells) != null;
+    }
+
+    /// <summary>
+    ///     The door widths two ports both admit: from the larger of the two minimums to the smaller of the two widest
+    ///     doors. Null when the ranges do not intersect. A returned range can still start below one when a port
+    ///     reports no minimum, so a caller that places a door checks <c>Min &gt;= 1</c> itself.
+    /// </summary>
+    public static (int Min, int Max)? CommonWidthRange(int minA, int widestA, int minB, int widestB)
+    {
+        int min = Math.Max(minA, minB);
+        int max = Math.Min(widestA, widestB);
+        return min <= max ? (min, max) : null;
     }
 
     private static ISpatialPort AsSpatial(IGraphPort port, string paramName)
