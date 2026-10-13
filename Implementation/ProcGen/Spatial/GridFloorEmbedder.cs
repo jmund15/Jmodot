@@ -29,7 +29,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph topology,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorRules rules = default)
+        ConnectorRules rules)
     {
         ValidateEmbedArgs(topology, envelope, settings);
         var infos = BuildNodeInfos(topology);
@@ -47,7 +47,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorRules rules = default)
+        ConnectorRules rules)
         => new LayoutSession(this, backbone, envelope, settings, rules);
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorRules rules = default)
+        ConnectorRules rules)
     {
         ValidateEmbedArgs(backbone, envelope, settings);
         var infos = BuildNodeInfos(backbone);
@@ -1354,7 +1354,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         for (int i = 0; i < candidate.Realizations.Count; i++)
         {
             (IGraphEdge edge, ConnectorPath connector) = candidate.Realizations[i];
-            StringName connectorId = new($"conn_{edge.From.Id}_{edge.To.Id}_{i}");
+            StringName connectorId = RealizationId(edge, i);
             foreach ((Vector3I origin, Vector3I connectorSize) in connector.Boxes)
             {
                 state.Occupancy.Add(connectorId, origin, connectorSize);
@@ -1370,7 +1370,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         for (int i = 0; i < candidate.Realizations.Count; i++)
         {
             (IGraphEdge edge, ConnectorPath _) = candidate.Realizations[i];
-            StringName connectorId = new($"conn_{edge.From.Id}_{edge.To.Id}_{i}");
+            StringName connectorId = RealizationId(edge, i);
             state.Occupancy.Remove(connectorId);
             state.Regions.RemoveAll(r => r.Id == connectorId);
             state.PendingRealizations.Remove(edge);
@@ -1455,6 +1455,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     // Endpoint-resolution now lives once, on the shared FloorGraphExtensions.NodeAcrossEdge query.
     // Every call site here passes a nodeId that is an endpoint of the edge (edges come from that
     // node's adjacency), so the non-null result is guaranteed.
+    private static StringName RealizationId(IGraphEdge edge, int ordinal)
+        => new($"conn_{edge.From.Id}_{edge.To.Id}_{ordinal}");
+
     private static StringName OtherEnd(IGraphEdge edge, StringName nodeId)
         => edge.NodeAcrossEdge(nodeId)!.Id;
 
