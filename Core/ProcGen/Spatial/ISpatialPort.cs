@@ -24,7 +24,8 @@ public interface ISpatialPort
     /// <summary>
     ///     The run along the face, from <see cref="OffsetCells" />, where a door of up to <see cref="WidthCells" />
     ///     may open, in cells. Implementations return at least <see cref="WidthCells" />; a span equal to the width
-    ///     leaves the door no slide.
+    ///     leaves the door no slide. Distinct from a consuming game's own geometry record of a port's span: this is
+    ///     the run a door may take, not that game's cell math.
     /// </summary>
     int SpanCells { get; }
 }
