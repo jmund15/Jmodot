@@ -14,7 +14,7 @@ using Jmodot.Core.ProcGen.Spatial;
 ///     graph-only heuristics and runs fully standalone (the two-stage decoupling is preserved).
 ///     <para>
 ///         Lifecycle: an advisor is created from the committed backbone (its spine is embedded + FROZEN
-///         on creation). The generator asks geometric questions (<see cref="GridStepDistance" />,
+///         on creation). The generator asks geometric questions (<see cref="BridgeEstimate" />,
 ///         <see cref="NodesWithFreeSpur" />), then authoritatively reserves a decoration with
 ///         <see cref="TryCommitSubgraph" /> (trial-embed; committed only if it actually closes on the
 ///         grid). The pipeline emits the final layout with <see cref="BuildResult" />, reusing every
@@ -23,9 +23,10 @@ using Jmodot.Core.ProcGen.Spatial;
 /// </summary>
 public interface ILayoutAdvisor
 {
-    /// <summary>Manhattan grid distance (floor XZ cells) between two PLACED nodes, or null if either is
-    /// not yet committed. Orders anchor-pair candidates by real geometric proximity.</summary>
-    int? GridStepDistance(StringName a, StringName b);
+    /// <summary>Shortest corridor length (floor XZ cells) between a PLACED room's port and another's, or null if
+    /// either room is not yet committed or no corridor joins the two doors. Orders anchor pairs by the doors the
+    /// route will leave and rejoin through.</summary>
+    int? BridgeEstimate(StringName a, StringName aPort, StringName b, StringName bPort);
 
     /// <summary>Committed nodes still exposing an unbound port — candidate branch/loop attach points.
     /// A coarse pre-filter; <see cref="TryCommitSubgraph" /> is the authoritative feasibility gate.</summary>

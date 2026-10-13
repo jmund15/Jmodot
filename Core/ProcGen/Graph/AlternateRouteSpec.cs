@@ -22,6 +22,12 @@ public sealed partial class AlternateRouteSpec : Resource
     [Export]
     public ConnectorPolicy ConnectorPolicy { get; private set; } = ConnectorPolicy.Closable;
 
+    /// <summary>Longest corridor, in cells from junction to junction, a loop may synthesize to close; ignored under AbutmentOnly. 0 = bounded only by the envelope's longest side. Guaranteed routes are composed to close within the cap on the progressive-embed path (FloorPipelineSettings.UseProgressiveEmbed); on other paths the cap only rejects longer closures. Too short for the room pool and floors fail to close their loops; raise it.</summary>
+    [Export(PropertyHint.Range, "0,64,or_greater")] public int MaxConnectorLengthCells { get; private set; }
+
+    /// <summary>The loop-closure rules this spec hands the embedder: <see cref="ConnectorPolicy" /> and <see cref="MaxConnectorLengthCells" />.</summary>
+    public ConnectorRules ConnectorRules => new(this.ConnectorPolicy, this.MaxConnectorLengthCells);
+
     /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × MinAnchorSeparation + 3.</summary>
     [ExportGroup("Topology")]
     [Export] public IntRange? GuaranteedCount { get; private set; }
@@ -103,6 +109,11 @@ public sealed partial class AlternateRouteSpec : Resource
                 $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} ({this.MaxAnchorSeparation}) must be >= " +
                 $"{nameof(this.MinAnchorSeparation)} ({this.MinAnchorSeparation}) when bounded.", this);
         }
+        if (this.MaxConnectorLengthCells < 0)
+        {
+            throw new ResourceConfigurationException(
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxConnectorLengthCells)} must be >= 0 (0 = envelope-bounded).", this);
+        }
         if (this.AttachmentWeights.Any(w => w is null))
         {
             throw new ResourceConfigurationException(
@@ -124,6 +135,7 @@ public sealed partial class AlternateRouteSpec : Resource
 #if TOOLS
     internal void SetGuaranteedCount(IntRange? value) => this.GuaranteedCount = value;
     internal void SetConnectorPolicy(ConnectorPolicy value) => this.ConnectorPolicy = value;
+    internal void SetMaxConnectorLengthCells(int value) => this.MaxConnectorLengthCells = value;
     internal void SetOpportunisticCount(IntRange? value) => this.OpportunisticCount = value;
     internal void SetLength(IntRange? value) => this.Length = value;
     internal void SetMinAnchorSeparation(int value) => this.MinAnchorSeparation = value;

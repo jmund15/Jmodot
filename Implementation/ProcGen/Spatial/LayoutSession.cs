@@ -21,7 +21,6 @@ internal sealed class LayoutSession : ILayoutAdvisor
     private readonly GridFloorEmbedder _embedder;
     private readonly GeometryEnvelope _envelope;
     private readonly EmbedderSettings _settings;
-    private readonly ConnectorPolicy _policy;
     private GridFloorEmbedder.SearchState _state;
     private IFloorGraph _committed;
 
@@ -30,33 +29,57 @@ internal sealed class LayoutSession : ILayoutAdvisor
         IFloorGraph backbone,
         GeometryEnvelope envelope,
         EmbedderSettings settings,
-        ConnectorPolicy policy = ConnectorPolicy.Closable)
+        ConnectorRules rules)
     {
         ArgumentNullException.ThrowIfNull(embedder);
         ArgumentNullException.ThrowIfNull(backbone);
         this._embedder = embedder;
         this._envelope = envelope;
         this._settings = settings;
-        this._policy = policy;
-        this._state = embedder.BuildState(backbone, envelope, settings, policy);
+        this._state = embedder.BuildState(backbone, envelope, settings, rules);
         this._committed = backbone;
     }
 
     /// <summary>
-    ///     Manhattan grid distance (in cells, on the floor XZ plane) between two PLACED nodes' origins,
-    ///     or null if either is not yet committed. The generator orders anchor-pair candidates by this so
-    ///     a short route is offered exactly when the anchors are geometrically near — including the
-    ///     spine-turns-back-on-itself case a graph-distance proxy cannot see.
+    ///     The embed failure of the backbone this session was opened on, or null when every backbone room placed.
+    ///     A failed session holds only part of its frozen frame: every <see cref="GridFloorEmbedder.Extend" /> on it
+    ///     returns this failure, so <see cref="TryCommitSubgraph" /> refuses every decoration and
+    ///     <see cref="BuildResult" /> returns it, and the pipeline re-rolls the attempt.
     /// </summary>
-    public int? GridStepDistance(StringName a, StringName b)
+    internal FloorEmbedResult? BackboneFailure => this._state.BackboneFailure;
+
+    /// <summary>
+    ///     Shortest corridor length between two PLACED rooms' ports, or null if either room is not yet committed
+    ///     or no corridor joins the two doors. The generator orders anchor pairs by this so a route is tried first
+    ///     between doors that face each other.
+    /// </summary>
+    public int? BridgeEstimate(StringName a, StringName aPort, StringName b, StringName bPort)
     {
-        if (!this._state.Poses.TryGetValue(a, out CellPose poseA) || !this._state.Poses.TryGetValue(b, out CellPose poseB))
+        WorldPort? from = this.PlacedPortWorld(a, aPort);
+        WorldPort? to = this.PlacedPortWorld(b, bPort);
+        if (!from.HasValue || !to.HasValue)
         {
             return null;
         }
 
-        Vector3I delta = poseA.Origin - poseB.Origin;
-        return Math.Abs(delta.X) + Math.Abs(delta.Z);
+        return ConnectorSolver.EstimateBridgeCells(from.Value, to.Value, this._state.Rules.Policy);
+    }
+
+    private WorldPort? PlacedPortWorld(StringName nodeId, StringName portName)
+    {
+        if (!this._state.Poses.TryGetValue(nodeId, out CellPose pose))
+        {
+            return null;
+        }
+
+        IGraphNode? node = this._committed.Nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node?.Template is not ISpatialNodeTemplate spatial)
+        {
+            return null;
+        }
+
+        ISpatialPort? port = node.Template.Ports.OfType<ISpatialPort>().FirstOrDefault(p => p.NameOf() == portName);
+        return port == null ? null : SpatialPoseMath.WorldPortOf(pose, spatial.FootprintCells, port);
     }
 
     /// <summary>
@@ -95,7 +118,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
     {
         ArgumentNullException.ThrowIfNull(graphSoFar);
         GridFloorEmbedder.SearchState trial = this._state.Clone();
-        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings, this._policy);
+        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings);
         if (!result.Succeeded)
         {
             return false;
@@ -112,5 +135,25 @@ internal sealed class LayoutSession : ILayoutAdvisor
     ///     decoration was already trial-committed), then the whole layout is returned.
     /// </summary>
     public FloorEmbedResult BuildResult(IFloorGraph fullGraph)
-        => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings, this._policy);
+        => this._embedder.Extend(this._state, fullGraph, this._envelope, this._settings);
+
+    #region Test Helpers
+#if TOOLS
+    /// <summary>
+    ///     The committed layout at one moment: poses and bound ports copied, the occupancy index and committed graph shared. A committed
+    ///     trial replaces the session's state rather than mutating it, so a taken snapshot keeps its meaning.
+    /// </summary>
+    internal readonly record struct LayoutSnapshot(
+        IReadOnlyDictionary<StringName, CellPose> Poses,
+        IReadOnlySet<(StringName NodeId, StringName PortName)> BoundPorts,
+        OccupancyIndex Occupancy,
+        IFloorGraph Graph);
+
+    internal LayoutSnapshot Snapshot => new(
+        new Dictionary<StringName, CellPose>(this._state.Poses),
+        new HashSet<(StringName NodeId, StringName PortName)>(this._state.BoundPorts),
+        this._state.Occupancy,
+        this._committed);
+#endif
+    #endregion
 }
