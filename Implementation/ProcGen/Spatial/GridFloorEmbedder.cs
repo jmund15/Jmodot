@@ -1104,6 +1104,13 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 {
                     anySlide = true;
                     var pose = new CellPose(origin, (YawQuadrant)yaw);
+
+                    // The closure search below is the costly step, so a slide onto occupied cells stops here.
+                    if (state.Occupancy.Overlaps(origin, SpatialPoseMath.RotateSize(info.Footprint, pose.Yaw)))
+                    {
+                        spaceConflicts++;
+                        continue;
+                    }
                     WorldPort? window = SpatialPoseMath.SharedOpening(
                         anchorSpan, SpatialPoseMath.SpanOf(pose, info.Footprint, myPort));
                     if (window == null)
