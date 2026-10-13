@@ -76,7 +76,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     /// <summary>
     ///     Resumes a frozen <paramref name="state" /> (from <see cref="BuildState" />) to embed the
     ///     FULL graph: backbone poses are reused unchanged (skipped by the placement order), only the
-    ///     decoration nodes are searched, and the budget is re-sized to the full graph. Returns the
+    ///     decoration nodes are searched, and the budget is <paramref name="budget" /> when given, else re-sized to the
+    ///     full graph. Returns the
     ///     complete layout, or the typed failure if a decoration cannot be placed on the frozen frame. A state whose
     ///     backbone did not fully place returns that <see cref="SearchState.BackboneFailure" /> untouched.
     ///     <paramref name="fullGraph" /> MUST share node/edge INSTANCES with the backbone handed to
@@ -88,7 +89,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         SearchState state,
         IFloorGraph fullGraph,
         GeometryEnvelope envelope,
-        EmbedderSettings settings)
+        EmbedderSettings settings,
+        int? budget = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.BackboneFailure.HasValue)
@@ -98,7 +100,10 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         ValidateEmbedArgs(fullGraph, envelope, settings);
         var infos = BuildNodeInfos(fullGraph);
-        state.Budget = ResolveEffectiveBudget(fullGraph, settings);
+        state.Budget = budget ?? ResolveEffectiveBudget(fullGraph, settings);
+#if TOOLS
+        this.LastGrantedBudget = state.Budget;
+#endif
         state.FrozenNodes.Clear();
         foreach (StringName placed in state.Poses.Keys)
         {
@@ -118,6 +123,12 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         {
             throw new ResourceConfigurationException(
                 $"EmbedderSettings.RepairBudget must be positive; got {settings.RepairBudget}.", settings);
+        }
+
+        if (settings.TrialRepairBudget <= 0)
+        {
+            throw new ResourceConfigurationException(
+                $"EmbedderSettings.TrialRepairBudget must be positive; got {settings.TrialRepairBudget}.", settings);
         }
 
         envelope.Validate();
@@ -181,6 +192,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     /// <summary>How many times the last <see cref="Embed" /> or <see cref="Extend" /> reached <see cref="ConnectorSolver.Solve" />.</summary>
     internal int LastConnectorSolveCalls { get; private set; }
+
+    /// <summary>The repair budget the last <see cref="Extend" /> started its search with.</summary>
+    internal int LastGrantedBudget { get; private set; }
 
     internal static bool OutwardSpanBlockedForTest(CellPose pose, Vector3I footprint, ISpatialPort port, SearchState state)
         => OutwardSpanBlocked(pose, footprint, port, state);

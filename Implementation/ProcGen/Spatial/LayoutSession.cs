@@ -112,7 +112,8 @@ internal sealed class LayoutSession : ILayoutAdvisor
 
     /// <summary>
     ///     Authoritatively validates the decoration nodes in <paramref name="graphSoFar" /> (those not yet
-    ///     placed) by trial-embedding them onto a CLONE of the committed state. On success the clone is
+    ///     placed) by trial-embedding them onto a CLONE of the committed state, searching on
+    ///     <see cref="EmbedderSettings.TrialRepairBudget" /> rather than the floor's budget. On success the clone is
     ///     adopted (the decoration's poses join the frozen set, so later placements pack around it) and
     ///     <paramref name="graphSoFar" /> becomes the committed graph; on failure nothing changes and the
     ///     caller drops/retries the decoration. <paramref name="graphSoFar" /> must share node/edge
@@ -122,7 +123,7 @@ internal sealed class LayoutSession : ILayoutAdvisor
     {
         ArgumentNullException.ThrowIfNull(graphSoFar);
         GridFloorEmbedder.SearchState trial = this._state.Clone();
-        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings);
+        FloorEmbedResult result = this._embedder.Extend(trial, graphSoFar, this._envelope, this._settings, this._settings.TrialRepairBudget);
         if (!result.Succeeded)
         {
             return false;
