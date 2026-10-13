@@ -170,7 +170,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         foreach (GraphBlock block in OrderBlocks(decomposition.Blocks))
         {
-            FloorEmbedResult? parityFailure = CheckClosureParity(block, infos);
+            FloorEmbedResult? parityFailure = CheckClosureParity(block, infos, state);
             if (parityFailure != null)
             {
                 return parityFailure;
@@ -297,13 +297,13 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     // ---- ClosureParity pre-search check ----
 
-    private static FloorEmbedResult? CheckClosureParity(GraphBlock block, Dictionary<StringName, NodeInfo> infos)
+    private static FloorEmbedResult? CheckClosureParity(GraphBlock block, Dictionary<StringName, NodeInfo> infos, SearchState state)
     {
         foreach (IReadOnlyList<IGraphEdge> cycle in block.Cycles)
         {
             var cycleNodes = CycleNodeRing(cycle);
             var perNodeDeltas = cycleNodes
-                .Select(id => AnchorDeltaOptions(infos[id]))
+                .Select(id => AnchorDeltaOptionsOf(infos[id], state))
                 .ToList();
 
             bool parityFeasible = JointParityFeasible(perNodeDeltas);
@@ -376,6 +376,19 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         return ring;
     }
 
+    // A template's anchor deltas depend only on its ports and footprint, and every window choice multiplies them, so one
+    // floor computes them once per template and shares them across trial clones.
+    private static List<Vector2I> AnchorDeltaOptionsOf(NodeInfo info, SearchState state)
+    {
+        if (!state.AnchorDeltaCache.TryGetValue(info.Template, out List<Vector2I>? options))
+        {
+            options = AnchorDeltaOptions(info);
+            state.AnchorDeltaCache[info.Template] = options;
+        }
+
+        return options;
+    }
+
     /// <summary>
     ///     Every achievable (Δx, Δz) between two distinct port anchors of the node, over all four
     ///     yaws — the node's possible contribution to a cycle's closure displacement.
@@ -427,12 +440,13 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         var reachable = new HashSet<(int X, int Z)> { (0, 0) };
         foreach (List<Vector2I> options in perNodeDeltas)
         {
+            var parities = options.Select(d => (d.X & 1, d.Y & 1)).Distinct().ToList();
             var next = new HashSet<(int X, int Z)>();
             foreach ((int X, int Z) sum in reachable)
             {
-                foreach (Vector2I delta in options)
+                foreach ((int x, int z) in parities)
                 {
-                    next.Add(((sum.X + delta.X) & 1, (sum.Z + delta.Y) & 1));
+                    next.Add(((sum.X + x) & 1, (sum.Z + z) & 1));
                 }
             }
 
@@ -447,12 +461,13 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         var reachable = new HashSet<int> { 0 };
         foreach (List<Vector2I> options in perNodeDeltas)
         {
+            var values = options.Select(axis).Distinct().ToList();
             var next = new HashSet<int>();
             foreach (int sum in reachable)
             {
-                foreach (Vector2I delta in options)
+                foreach (int value in values)
                 {
-                    next.Add(sum + axis(delta));
+                    next.Add(sum + value);
                 }
             }
 
@@ -483,6 +498,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         internal OccupancyIndex Occupancy { get; private set; } = new();
 
         internal HashSet<(StringName NodeId, StringName PortName)> BoundPorts { get; } = new();
+
+        internal Dictionary<ISpatialNodeTemplate, List<Vector2I>> AnchorDeltaCache { get; private init; } = new();
 
         internal Dictionary<IGraphEdge, (StringName FromPort, PortOpening FromOpening, StringName ToPort, PortOpening ToOpening)> EdgeBindings { get; } = new();
 
@@ -530,6 +547,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             var copy = new SearchState(this.Budget, this.EnvelopeSize, this.Rules)
             {
                 Occupancy = this.Occupancy.Clone(),
+                AnchorDeltaCache = this.AnchorDeltaCache,
                 LastConflictCause = this.LastConflictCause,
                 BackboneFailure = this.BackboneFailure,
             };
