@@ -445,7 +445,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal HashSet<(StringName NodeId, StringName PortName)> BoundPorts { get; } = new();
 
-        internal Dictionary<IGraphEdge, (StringName FromPort, StringName ToPort)> EdgeBindings { get; } = new();
+        internal Dictionary<IGraphEdge, (StringName FromPort, PortOpening FromOpening, StringName ToPort, PortOpening ToOpening)> EdgeBindings { get; } = new();
 
         internal Dictionary<IGraphEdge, ConnectorPath> PendingRealizations { get; } = new();
 
@@ -504,7 +504,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     private sealed class Candidate
     {
-        internal Candidate(CellPose pose, List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> bindings)
+        internal Candidate(CellPose pose, List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)> bindings)
         {
             this.Pose = pose;
             this.Bindings = bindings;
@@ -512,7 +512,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal CellPose Pose { get; }
 
-        internal List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> Bindings { get; }
+        internal List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)> Bindings { get; }
 
         internal List<(IGraphEdge Edge, ConnectorPath Connector)> Realizations { get; } = new();
     }
@@ -852,9 +852,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         {
             foreach (CellPose pose in RootPoses(info, state))
             {
-                if (PassesPlacementFilters(nodeId, pose, new List<(IGraphEdge, StringName, StringName)>(), info, state, ref spaceConflicts, ref bindingConflicts))
+                if (PassesPlacementFilters(nodeId, pose, new List<(IGraphEdge, StringName, StringName, PortOpening, PortOpening)>(), info, state, ref spaceConflicts, ref bindingConflicts))
                 {
-                    candidates.Add(new Candidate(pose, new List<(IGraphEdge, StringName, StringName)>()));
+                    candidates.Add(new Candidate(pose, new List<(IGraphEdge, StringName, StringName, PortOpening, PortOpening)>()));
                 }
             }
         }
@@ -936,37 +936,53 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 continue;
             }
 
-            WorldPort anchorWorld = SpatialPoseMath.WorldPortOf(anchorPose, anchorInfo.Footprint, anchorPort);
+            WorldSpan anchorSpan = SpatialPoseMath.SpanOf(anchorPose, anchorInfo.Footprint, anchorPort);
             for (int yaw = 0; yaw < 4; yaw++)
             {
-                Vector3I? origin = SpatialPoseMath.SolveAbutment(anchorWorld, myPort, info.Footprint, (YawQuadrant)yaw);
-                if (origin == null)
+                bool anySlide = false;
+                foreach (Vector3I origin in SpatialPoseMath.AbutmentSlides(anchorSpan, myPort, info.Footprint, (YawQuadrant)yaw))
+                {
+                    anySlide = true;
+                    var pose = new CellPose(origin, (YawQuadrant)yaw);
+                    WorldPort? window = SpatialPoseMath.SharedOpening(
+                        anchorSpan, SpatialPoseMath.SpanOf(pose, info.Footprint, myPort));
+                    if (window == null)
+                    {
+                        bindingConflicts++;
+                        continue;
+                    }
+
+                    var bindings = new List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)>
+                    {
+                        (
+                            anchorEdge,
+                            myPort.NameOf(),
+                            anchorPort.NameOf(),
+                            SpatialPoseMath.ToOpening(window.Value, pose, info.Footprint, myPort),
+                            SpatialPoseMath.ToOpening(window.Value, anchorPose, anchorInfo.Footprint, anchorPort)),
+                    };
+
+                    var realizations = new List<(IGraphEdge Edge, ConnectorPath Connector)>();
+                    if (!TryCloseRemainingEdges(nodeId, pose, placedNeighborEdges, anchorEdge, bindings, realizations, rebind, info, infos, state))
+                    {
+                        bindingConflicts++;
+                        continue;
+                    }
+
+                    if (!PassesPlacementFilters(nodeId, pose, bindings, info, state, ref spaceConflicts, ref bindingConflicts))
+                    {
+                        continue;
+                    }
+
+                    var candidate = new Candidate(pose, bindings);
+                    candidate.Realizations.AddRange(realizations);
+                    results.Add(candidate);
+                }
+
+                if (!anySlide)
                 {
                     bindingConflicts++;
-                    continue;
                 }
-
-                var pose = new CellPose(origin.Value, (YawQuadrant)yaw);
-                var bindings = new List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)>
-                {
-                    (anchorEdge, myPort.NameOf(), anchorPort.NameOf()),
-                };
-
-                var realizations = new List<(IGraphEdge Edge, ConnectorPath Connector)>();
-                if (!TryCloseRemainingEdges(nodeId, pose, placedNeighborEdges, anchorEdge, bindings, realizations, rebind, info, infos, state))
-                {
-                    bindingConflicts++;
-                    continue;
-                }
-
-                if (!PassesPlacementFilters(nodeId, pose, bindings, info, state, ref spaceConflicts, ref bindingConflicts))
-                {
-                    continue;
-                }
-
-                var candidate = new Candidate(pose, bindings);
-                candidate.Realizations.AddRange(realizations);
-                results.Add(candidate);
             }
         }
 
@@ -1032,7 +1048,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         CellPose pose,
         List<IGraphEdge> placedNeighborEdges,
         IGraphEdge anchorEdge,
-        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> bindings,
+        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)> bindings,
         List<(IGraphEdge Edge, ConnectorPath Connector)> realizations,
         bool rebind,
         NodeInfo info,
@@ -1065,11 +1081,17 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     continue;
                 }
 
-                WorldPort otherWorld = SpatialPoseMath.WorldPortOf(otherPose, otherInfo.Footprint, otherPort);
-                Vector3I? required = SpatialPoseMath.SolveAbutment(otherWorld, myPort, info.Footprint, pose.Yaw);
-                if (required == pose.Origin)
+                WorldPort? shared = SpatialPoseMath.SharedOpening(
+                    SpatialPoseMath.SpanOf(otherPose, otherInfo.Footprint, otherPort),
+                    SpatialPoseMath.SpanOf(pose, info.Footprint, myPort));
+                if (shared != null)
                 {
-                    bindings.Add((edge, myPort.NameOf(), otherPort.NameOf()));
+                    bindings.Add((
+                        edge,
+                        myPort.NameOf(),
+                        otherPort.NameOf(),
+                        SpatialPoseMath.ToOpening(shared.Value, pose, info.Footprint, myPort),
+                        SpatialPoseMath.ToOpening(shared.Value, otherPose, otherInfo.Footprint, otherPort)));
                     closed = true;
                     break;
                 }
@@ -1080,6 +1102,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     continue;
                 }
 
+                WorldPort otherWorld = SpatialPoseMath.WorldPortOf(otherPose, otherInfo.Footprint, otherPort);
                 WorldPort myWorld = SpatialPoseMath.WorldPortOf(pose, info.Footprint, myPort);
                 int maxLengthCells = state.Rules.MaxLengthCells > 0
                     ? state.Rules.MaxLengthCells
@@ -1103,7 +1126,12 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     continue;
                 }
 
-                bindings.Add((edge, myPort.NameOf(), otherPort.NameOf()));
+                bindings.Add((
+                    edge,
+                    myPort.NameOf(),
+                    otherPort.NameOf(),
+                    new PortOpening(myPort.OffsetCells, myPort.WidthCells),
+                    new PortOpening(otherPort.OffsetCells, otherPort.WidthCells)));
                 realizations.Add((edge, connector));
                 candidateLocalObstacles.AddRange(connector.Boxes);
                 closed = true;
@@ -1127,7 +1155,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         NodeInfo info,
         bool rebind,
         SearchState state,
-        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> bindings)
+        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)> bindings)
     {
         if (!rebind)
         {
@@ -1163,7 +1191,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     private static bool PassesPlacementFilters(
         StringName nodeId,
         CellPose pose,
-        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> bindings,
+        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)> bindings,
         NodeInfo info,
         SearchState state,
         ref int spaceConflicts,
@@ -1196,7 +1224,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     private static bool PassesResidualDegreePruning(
         StringName nodeId,
         CellPose pose,
-        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort)> bindings,
+        List<(IGraphEdge Edge, StringName MyPort, StringName OtherPort, PortOpening MyOpening, PortOpening OtherOpening)> bindings,
         NodeInfo info,
         SearchState state)
     {
@@ -1343,12 +1371,14 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         state.Occupancy.Add(nodeId, candidate.Pose.Origin, size);
         state.Regions.Add((nodeId, candidate.Pose.Origin, size));
         state.PlacementOrder.Add(nodeId);
-        foreach ((IGraphEdge edge, StringName myPort, StringName otherPort) in candidate.Bindings)
+        foreach ((IGraphEdge edge, StringName myPort, StringName otherPort, PortOpening myOpening, PortOpening otherOpening) in candidate.Bindings)
         {
             StringName otherId = OtherEnd(edge, nodeId);
             state.BoundPorts.Add((nodeId, myPort));
             state.BoundPorts.Add((otherId, otherPort));
-            state.EdgeBindings[edge] = edge.From.Id == nodeId ? (myPort, otherPort) : (otherPort, myPort);
+            state.EdgeBindings[edge] = edge.From.Id == nodeId
+                ? (myPort, myOpening, otherPort, otherOpening)
+                : (otherPort, otherOpening, myPort, myOpening);
         }
 
         for (int i = 0; i < candidate.Realizations.Count; i++)
@@ -1380,7 +1410,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         state.Occupancy.Remove(nodeId);
         state.Regions.RemoveAll(r => r.Id == nodeId);
         state.PlacementOrder.RemoveAt(state.PlacementOrder.Count - 1);
-        foreach ((IGraphEdge edge, StringName myPort, StringName otherPort) in candidate.Bindings)
+        foreach ((IGraphEdge edge, StringName myPort, StringName otherPort, PortOpening myOpening, PortOpening otherOpening) in candidate.Bindings)
         {
             StringName otherId = OtherEnd(edge, nodeId);
             state.BoundPorts.Remove((nodeId, myPort));
@@ -1405,10 +1435,10 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         var connectors = new List<ConnectorRealization>();
         foreach (IGraphEdge edge in topology.Edges)
         {
-            (StringName fromPort, StringName toPort) = state.EdgeBindings[edge];
+            (StringName fromPort, PortOpening fromOpening, StringName toPort, PortOpening _) = state.EdgeBindings[edge];
             NodeInfo fromInfo = infos[edge.From.Id];
             CellPose normalizedPose = new(state.Poses[edge.From.Id].Origin - min, state.Poses[edge.From.Id].Yaw);
-            WorldPort fromWorld = SpatialPoseMath.WorldPortOf(normalizedPose, fromInfo.Footprint, PortByName(fromInfo, fromPort));
+            WorldPort fromWorld = SpatialPoseMath.WindowOf(normalizedPose, fromInfo.Footprint, PortByName(fromInfo, fromPort), fromOpening);
             doorways.Add(SpatialPoseMath.DeriveDoorway(edge.From.Id, edge.To.Id, fromPort, toPort, fromWorld));
 
             if (!state.PendingRealizations.TryGetValue(edge, out ConnectorPath connector))

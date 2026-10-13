@@ -20,4 +20,11 @@ public interface ISpatialPort
 
     /// <summary>Port width along the face, in cells. 0 = unbaked (rejected); v1 compatibility is exact-match.</summary>
     int WidthCells { get; }
+
+    /// <summary>
+    ///     The run along the face, from <see cref="OffsetCells" />, where a door of up to <see cref="WidthCells" />
+    ///     may open, in cells. Implementations return at least <see cref="WidthCells" />; a span equal to the width
+    ///     leaves the door no slide.
+    /// </summary>
+    int SpanCells { get; }
 }

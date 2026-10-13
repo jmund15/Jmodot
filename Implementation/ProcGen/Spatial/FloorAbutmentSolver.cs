@@ -27,4 +27,22 @@ public static class FloorAbutmentSolver
         var fromWorld = SpatialPoseMath.WorldPortOf(new CellPose(fromOrigin, fromYaw), fromFootprintCells, fromPort);
         return SpatialPoseMath.SolveAbutment(fromWorld, toPort, toFootprintCells, toYaw);
     }
+
+    /// <summary>
+    ///     The door window two posed nodes share when <paramref name="aPort" /> and <paramref name="bPort" /> abut,
+    ///     in <paramref name="aPort" />'s template-local frame, or null when they do not abut through these ports.
+    /// </summary>
+    public static PortOpening? SharedOpening(
+        Vector3I aOrigin, YawQuadrant aYaw, Vector3I aFootprintCells, ISpatialPort aPort,
+        Vector3I bOrigin, YawQuadrant bYaw, Vector3I bFootprintCells, ISpatialPort bPort)
+    {
+        var aPose = new CellPose(aOrigin, aYaw);
+        var bPose = new CellPose(bOrigin, bYaw);
+        WorldPort? window = SpatialPoseMath.SharedOpening(
+            SpatialPoseMath.SpanOf(aPose, aFootprintCells, aPort),
+            SpatialPoseMath.SpanOf(bPose, bFootprintCells, bPort));
+        return window.HasValue
+            ? SpatialPoseMath.ToOpening(window.Value, aPose, aFootprintCells, aPort)
+            : null;
+    }
 }
