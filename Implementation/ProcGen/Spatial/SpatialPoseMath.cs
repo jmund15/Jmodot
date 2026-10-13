@@ -85,34 +85,6 @@ internal static class SpatialPoseMath
         return new Vector3I(minCorner.X, elevationCells, minCorner.Y);
     }
 
-    internal static WorldPort WorldPortOf(CellPose pose, Vector3I footprintCells, ISpatialPort port)
-    {
-        var worldFace = RotateFace(port.Face, pose.Yaw);
-        Vector3I anchor = pose.Origin + RotateLocalAnchor(port, footprintCells, pose.Yaw);
-        return new WorldPort(worldFace, anchor, port.WidthCells);
-    }
-
-    /// <summary>
-    ///     The neighbor origin that makes <paramref name="toPort" /> (under <paramref name="toYaw" />)
-    ///     abut <paramref name="fromWorld" /> with exactly coinciding spans — or null when the world
-    ///     faces don't oppose / widths differ. Exact span coincidence means a binding leaves no slide
-    ///     freedom: the neighbor's pose is fully determined.
-    /// </summary>
-    internal static Vector3I? SolveAbutment(WorldPort fromWorld, ISpatialPort toPort, Vector3I toFootprintCells, YawQuadrant toYaw)
-    {
-        if (RotateFace(toPort.Face, toYaw) != Opposite(fromWorld.Face))
-        {
-            return null;
-        }
-
-        if (toPort.WidthCells != fromWorld.WidthCells)
-        {
-            return null;
-        }
-
-        return fromWorld.AnchorCells - RotateLocalAnchor(toPort, toFootprintCells, toYaw);
-    }
-
     /// <summary>The openable run of <paramref name="port" /> on a node posed at <paramref name="pose" />.</summary>
     internal static WorldSpan SpanOf(CellPose pose, Vector3I footprintCells, ISpatialPort port)
     {

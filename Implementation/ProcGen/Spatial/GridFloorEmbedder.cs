@@ -179,6 +179,12 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 #if TOOLS
     internal IReadOnlyList<StringName>? LastPlacementTrace { get; private set; }
 
+    /// <summary>How many times the last <see cref="Embed" /> or <see cref="Extend" /> reached <see cref="ConnectorSolver.Solve" />.</summary>
+    internal int LastConnectorSolveCalls { get; private set; }
+
+    internal static bool OutwardSpanBlockedForTest(CellPose pose, Vector3I footprint, ISpatialPort port, SearchState state)
+        => OutwardSpanBlocked(pose, footprint, port, state);
+
     /// <summary>The steering key of one candidate pose of <paramref name="nodeId" /> on <paramref name="state" />, as <c>GenerateCandidates</c> computes it.</summary>
     internal static int SteerDistanceForTest(
         IFloorGraph graph,
@@ -198,6 +204,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     {
 #if TOOLS
         this.LastPlacementTrace = state.PlacementOrder.ToList();
+        this.LastConnectorSolveCalls = state.ConnectorSolveCalls;
 #endif
         return result;
     }
@@ -361,7 +368,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     /// </summary>
     private static List<Vector2I> AnchorDeltaOptions(NodeInfo info)
     {
-        var options = new List<Vector2I>();
+        var options = new HashSet<Vector2I>();
         foreach (ISpatialPort exit in info.Ports)
         {
             foreach (ISpatialPort entry in info.Ports)
@@ -373,14 +380,32 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
                 for (int yaw = 0; yaw < 4; yaw++)
                 {
-                    Vector3I a = SpatialPoseMath.RotateLocalAnchor(exit, info.Footprint, (YawQuadrant)yaw);
-                    Vector3I b = SpatialPoseMath.RotateLocalAnchor(entry, info.Footprint, (YawQuadrant)yaw);
-                    options.Add(new Vector2I(a.X - b.X, a.Z - b.Z));
+                    foreach (Vector3I a in WindowAnchors(exit, info.Footprint, (YawQuadrant)yaw))
+                    {
+                        foreach (Vector3I b in WindowAnchors(entry, info.Footprint, (YawQuadrant)yaw))
+                        {
+                            options.Add(new Vector2I(a.X - b.X, a.Z - b.Z));
+                        }
+                    }
                 }
             }
         }
 
-        return options;
+        return options.ToList();
+    }
+
+    // The min-corner anchor of every door window a port admits, template-local after the yaw: each width in its range at
+    // each start inside its run. A port whose run equals its width has one.
+    private static IEnumerable<Vector3I> WindowAnchors(ISpatialPort port, Vector3I footprint, YawQuadrant yaw)
+    {
+        var pose = new CellPose(Vector3I.Zero, yaw);
+        for (int width = port.MinWidthCells; width <= port.WidthCells; width++)
+        {
+            for (int offset = port.OffsetCells; offset + width <= port.OffsetCells + port.SpanCells; offset++)
+            {
+                yield return SpatialPoseMath.WindowOf(pose, footprint, port, new PortOpening(offset, width)).AnchorCells;
+            }
+        }
     }
 
     private static bool JointParityFeasible(List<List<Vector2I>> perNodeDeltas)
@@ -456,6 +481,10 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
         internal List<StringName> PlacementOrder { get; } = new();
 
+#if TOOLS
+        internal int ConnectorSolveCalls { get; set; }
+#endif
+
         /// <summary>
         ///     Nodes already placed when the CURRENT placement pass began (populated by <see cref="Extend" />).
         ///     Their declared edge ports are HONORED during rebind, so a committed loop/branch cannot
@@ -498,6 +527,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
             foreach (var frozen in this.FrozenNodes) { copy.FrozenNodes.Add(frozen); }
             copy.Regions.AddRange(this.Regions);
             copy.PlacementOrder.AddRange(this.PlacementOrder);
+#if TOOLS
+            copy.ConnectorSolveCalls = this.ConnectorSolveCalls;
+#endif
             return copy;
         }
     }
@@ -540,7 +572,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
     // then the candidate nearest the placed room its loop rejoins. Spine rooms keep enumeration order.
 
     // A rejoin door a candidate steers toward, and whether its room's port choice is frozen.
-    private readonly record struct SteerTarget(ISpatialPort Port, WorldPort World, bool Frozen);
+    private readonly record struct SteerTarget(ISpatialPort Port, WorldSpan Span, bool Frozen);
 
     // The pose-independent half of the steering key, computed once per GenerateCandidates.
     private static List<SteerTarget> SteerTargetsOf(
@@ -560,7 +592,7 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                 : targetInfo.Ports.Where(p => IsUnclaimed(targetId, p, state));
             foreach (ISpatialPort targetPort in targetPorts)
             {
-                targets.Add(new SteerTarget(targetPort, SpatialPoseMath.WorldPortOf(targetPose, targetInfo.Footprint, targetPort), frozen));
+                targets.Add(new SteerTarget(targetPort, SpatialPoseMath.SpanOf(targetPose, targetInfo.Footprint, targetPort), frozen));
             }
         }
 
@@ -588,20 +620,28 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
         NodeInfo info = infos[nodeId];
         var freeAnchors = info.Ports
             .Where(p => !boundByCandidate.Contains(p.NameOf()) && IsUnclaimed(nodeId, p, state))
-            .Select(p => (Port: p, World: SpatialPoseMath.WorldPortOf(pose, info.Footprint, p)))
+            .Select(p => (Port: p, Span: SpatialPoseMath.SpanOf(pose, info.Footprint, p)))
             .ToList();
 
         int best = int.MaxValue;
         foreach (SteerTarget target in targets)
         {
-            foreach ((ISpatialPort port, WorldPort world) in freeAnchors)
+            foreach ((ISpatialPort port, WorldSpan span) in freeAnchors)
             {
                 if (!target.Frozen && !PortCompatibility.Matches((IGraphPort)target.Port, (IGraphPort)port))
                 {
                     continue;
                 }
 
-                best = Math.Min(best, ConnectorSolver.EstimateBridgeCells(world, target.World, state.Rules.Policy) ?? int.MaxValue);
+                (WorldPort AWindow, WorldPort BWindow)? windows = SpatialPoseMath.ConnectorWindows(span, target.Span);
+                if (!windows.HasValue)
+                {
+                    continue;
+                }
+
+                best = Math.Min(
+                    best,
+                    ConnectorSolver.EstimateBridgeCells(windows.Value.AWindow, windows.Value.BWindow, state.Rules.Policy) ?? int.MaxValue);
             }
         }
 
@@ -1081,9 +1121,9 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     continue;
                 }
 
-                WorldPort? shared = SpatialPoseMath.SharedOpening(
-                    SpatialPoseMath.SpanOf(otherPose, otherInfo.Footprint, otherPort),
-                    SpatialPoseMath.SpanOf(pose, info.Footprint, myPort));
+                WorldSpan otherSpan = SpatialPoseMath.SpanOf(otherPose, otherInfo.Footprint, otherPort);
+                WorldSpan mySpan = SpatialPoseMath.SpanOf(pose, info.Footprint, myPort);
+                WorldPort? shared = SpatialPoseMath.SharedOpening(otherSpan, mySpan);
                 if (shared != null)
                 {
                     bindings.Add((
@@ -1102,14 +1142,27 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     continue;
                 }
 
-                WorldPort otherWorld = SpatialPoseMath.WorldPortOf(otherPose, otherInfo.Footprint, otherPort);
-                WorldPort myWorld = SpatialPoseMath.WorldPortOf(pose, info.Footprint, myPort);
+                (WorldPort OtherWindow, WorldPort MyWindow)? windows = SpatialPoseMath.ConnectorWindows(otherSpan, mySpan);
+                if (!windows.HasValue)
+                {
+                    continue;
+                }
+
                 int maxLengthCells = state.Rules.MaxLengthCells > 0
                     ? state.Rules.MaxLengthCells
                     : Math.Max(state.EnvelopeSize.X, state.EnvelopeSize.Z);
+                int? estimate = ConnectorSolver.EstimateBridgeCells(windows.Value.OtherWindow, windows.Value.MyWindow, state.Rules.Policy);
+                if (!estimate.HasValue || estimate.Value > maxLengthCells)
+                {
+                    continue;
+                }
+
+#if TOOLS
+                state.ConnectorSolveCalls++;
+#endif
                 ConnectorPath? path = ConnectorSolver.Solve(
-                    otherWorld, myWorld, state.Occupancy, candidateLocalObstacles, state.EnvelopeSize, maxLengthCells,
-                    state.Rules.Policy);
+                    windows.Value.OtherWindow, windows.Value.MyWindow, state.Occupancy, candidateLocalObstacles, state.EnvelopeSize,
+                    maxLengthCells, state.Rules.Policy);
                 if (path == null)
                 {
                     continue;
@@ -1130,8 +1183,8 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
                     edge,
                     myPort.NameOf(),
                     otherPort.NameOf(),
-                    new PortOpening(myPort.OffsetCells, myPort.WidthCells),
-                    new PortOpening(otherPort.OffsetCells, otherPort.WidthCells)));
+                    SpatialPoseMath.ToOpening(windows.Value.MyWindow, pose, info.Footprint, myPort),
+                    SpatialPoseMath.ToOpening(windows.Value.OtherWindow, otherPose, otherInfo.Footprint, otherPort)));
                 realizations.Add((edge, connector));
                 candidateLocalObstacles.AddRange(connector.Boxes);
                 closed = true;
@@ -1279,41 +1332,39 @@ public sealed class GridFloorEmbedder : IFloorEmbedder
 
     private static bool OutwardSpanBlocked(CellPose pose, Vector3I footprint, ISpatialPort port, SearchState state)
     {
-        WorldPort world = SpatialPoseMath.WorldPortOf(pose, footprint, port);
-        Vector3I outwardStep = world.Face switch
+        WorldSpan span = SpatialPoseMath.SpanOf(pose, footprint, port);
+        Vector3I outwardStep = span.Face switch
         {
             PortFace.XPos => new Vector3I(0, 0, 0),
             PortFace.XNeg => new Vector3I(-1, 0, 0),
             PortFace.ZPos => new Vector3I(0, 0, 0),
             PortFace.ZNeg => new Vector3I(0, 0, -1),
-            _ => throw new ArgumentException($"Concrete PortFace required; got {world.Face}.", nameof(port)),
+            _ => throw new ArgumentException($"Concrete PortFace required; got {span.Face}.", nameof(port)),
         };
-        Vector3I tangent = world.Face is PortFace.XPos or PortFace.XNeg ? new Vector3I(0, 0, 1) : new Vector3I(1, 0, 0);
+        Vector3I tangent = span.Face is PortFace.XPos or PortFace.XNeg ? new Vector3I(0, 0, 1) : new Vector3I(1, 0, 0);
 
-        for (int t = 0; t < world.WidthCells; t++)
+        // A face pressed against the envelope boundary cannot expose an edge either: an outward cell that would push
+        // the layout's span past the envelope can never take a neighbor (coordinates are translation-relative, so
+        // this is a SIZE fold). The candidate's own region is folded explicitly — it is not in state yet.
+        Vector3I ownSize = SpatialPoseMath.RotateSize(footprint, pose.Yaw);
+        (Vector3I ownMin, Vector3I ownMax) = CurrentBounds(state, (pose.Origin, ownSize));
+        int freeRun = 0;
+        for (int t = 0; t < span.SpanCells; t++)
         {
-            Vector3I cell = world.AnchorCells + outwardStep + (tangent * t);
-            if (state.Occupancy.Overlaps(cell, new Vector3I(1, 1, 1)))
+            Vector3I cell = span.AnchorCells + outwardStep + (tangent * t);
+            Vector3I min = new(Math.Min(ownMin.X, cell.X), Math.Min(ownMin.Y, cell.Y), Math.Min(ownMin.Z, cell.Z));
+            Vector3I max = new(Math.Max(ownMax.X, cell.X + 1), Math.Max(ownMax.Y, cell.Y + 1), Math.Max(ownMax.Z, cell.Z + 1));
+            Vector3I grown = max - min;
+            bool blocked = state.Occupancy.Overlaps(cell, new Vector3I(1, 1, 1)) ||
+                grown.X > state.EnvelopeSize.X || grown.Y > state.EnvelopeSize.Y || grown.Z > state.EnvelopeSize.Z;
+            freeRun = blocked ? 0 : freeRun + 1;
+            if (freeRun >= span.MinWidthCells)
             {
-                return true;
-            }
-
-            // A face pressed against the envelope boundary cannot expose an edge either: if even
-            // one outward cell would push the layout's span past the envelope, no future neighbor
-            // can ever abut here (coordinates are translation-relative, so this is a SIZE fold).
-            // The candidate's own region is folded explicitly — it is not in state yet.
-            Vector3I ownSize = SpatialPoseMath.RotateSize(footprint, pose.Yaw);
-            (Vector3I min, Vector3I max) = CurrentBounds(state, (pose.Origin, ownSize));
-            min = new Vector3I(Math.Min(min.X, cell.X), Math.Min(min.Y, cell.Y), Math.Min(min.Z, cell.Z));
-            max = new Vector3I(Math.Max(max.X, cell.X + 1), Math.Max(max.Y, cell.Y + 1), Math.Max(max.Z, cell.Z + 1));
-            Vector3I span = max - min;
-            if (span.X > state.EnvelopeSize.X || span.Y > state.EnvelopeSize.Y || span.Z > state.EnvelopeSize.Z)
-            {
-                return true;
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     private static bool RealizationFitsEnvelope(
