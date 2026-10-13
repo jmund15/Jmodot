@@ -54,7 +54,7 @@ public static class FloorPipeline
         embedder ??= new GridFloorEmbedder();
 
         bool parityUniform = PoolIsParityUniform(config.TemplatePool);
-        ConnectorPolicy connectorPolicy = config.AlternateRoutes?.ConnectorPolicy ?? ConnectorPolicy.Closable;
+        ConnectorRules connectorRules = config.AlternateRoutes?.ConnectorRules ?? default;
 
         IReadOnlyList<Violation> lastViolations = new List<Violation>
         {
@@ -67,7 +67,7 @@ public static class FloorPipeline
         // fresh holistic Embed. Reset per attempt so a pre-spine failure never reuses a stale session.
         ILayoutAdvisor? sessionAdvisor = null;
         Func<IFloorGraph, ILayoutAdvisor>? advisorFactory = settings.UseProgressiveEmbed
-            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder, connectorPolicy)
+            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder, connectorRules)
             : null;
 
         for (int attempt = 0; attempt < settings.MaxFloorAttempts; attempt++)
@@ -97,7 +97,7 @@ public static class FloorPipeline
             // decoration; otherwise run the classic holistic embed. Both yield the same result shape.
             FloorEmbedResult embed = sessionAdvisor != null
                 ? sessionAdvisor.BuildResult(topology)
-                : embedder.Embed(topology, envelope, settings.Embedder, connectorPolicy);
+                : embedder.Embed(topology, envelope, settings.Embedder, connectorRules);
             if (!embed.Succeeded)
             {
                 EmbedFailureCause cause = embed.FailureCause!.Value;

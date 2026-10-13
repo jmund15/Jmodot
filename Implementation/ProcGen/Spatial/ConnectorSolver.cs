@@ -7,13 +7,89 @@ using Godot;
 using Jmodot.Core.ProcGen.Graph;
 using Jmodot.Core.ProcGen.Spatial;
 
+/// <summary>An accepted corridor: its boxes and its junction-to-junction length in cells.</summary>
+internal readonly record struct ConnectorPath(IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes, int LengthCells);
+
+/// <summary>How two door faces face each other; decides which corridor families the solver offers between them.</summary>
+internal enum DoorRelation
+{
+    /// <summary>Same axis, opposite faces, pointing at each other.</summary>
+    Facing,
+
+    /// <summary>Same axis, opposite faces, pointing away from each other.</summary>
+    BackToBack,
+
+    /// <summary>Same axis, same face direction.</summary>
+    SameDirection,
+
+    /// <summary>Perpendicular axes, the faces pointing toward the other door's line.</summary>
+    CornerFacing,
+
+    /// <summary>Perpendicular axes, at least one face pointing away from the other door.</summary>
+    CornerAway,
+}
+
 /// <summary>Deterministic axis-aligned connector-path search used when a loop edge cannot abut directly.</summary>
 internal static class ConnectorSolver
 {
     private readonly record struct Path(IReadOnlyList<(Vector3I Origin, Vector3I Size)> Boxes, int Length, int FirstCorner);
 
+    /// <summary>The door relation of two ports, as <see cref="EnumeratePaths" /> branches on it.</summary>
+    internal static DoorRelation Relate(WorldPort from, WorldPort to)
+    {
+        if (Axis(from.Face) != Axis(to.Face))
+        {
+            return FacesTowardEachOther(from, to) ? DoorRelation.CornerFacing : DoorRelation.CornerAway;
+        }
+
+        if (Sign(from.Face) == Sign(to.Face))
+        {
+            return DoorRelation.SameDirection;
+        }
+
+        return FacesTowardEachOther(from, to) ? DoorRelation.Facing : DoorRelation.BackToBack;
+    }
+
+    /// <summary>
+    ///     Junction-to-junction length of the shortest corridor between two doors, ignoring other rooms, obstacles and
+    ///     the cap. Zero when the doors abut (one anchor, opposite faces). Null when the ports differ in width or level,
+    ///     or no family <paramref name="policy" /> offers joins them: under <see cref="ConnectorPolicy.Closable" /> a
+    ///     back-to-back pair has none, exactly as in <see cref="Solve" />.
+    /// </summary>
+    internal static int? EstimateBridgeCells(WorldPort from, WorldPort to, ConnectorPolicy policy)
+    {
+        if (from.WidthCells <= 0 || from.WidthCells != to.WidthCells || from.AnchorCells.Y != to.AnchorCells.Y)
+        {
+            return null;
+        }
+
+        if (Axis(from.Face) == Axis(to.Face) && Sign(from.Face) != Sign(to.Face) && from.AnchorCells == to.AnchorCells)
+        {
+            return 0;
+        }
+
+        int width = from.WidthCells;
+        int bound = width + Math.Abs(from.AnchorCells.X - to.AnchorCells.X) + Math.Abs(from.AnchorCells.Z - to.AnchorCells.Z);
+        int? shortest = null;
+        foreach (Path path in EnumeratePaths(from, to, width, bound, policy))
+        {
+            if (FoldsOnItself(path.Boxes))
+            {
+                continue;
+            }
+
+            if (!shortest.HasValue || path.Length < shortest.Value)
+            {
+                shortest = path.Length;
+            }
+        }
+
+        return shortest;
+    }
+
     /// <summary>
     ///     Finds the first collision-free corridor path between two world ports, or null when none fits.
+    ///     The result carries the accepted path's junction-to-junction length, which <paramref name="maxLengthCells" /> bounds.
     ///     <paramref name="policy" /> gates exactly one path family: the BACK-TO-BACK wrap-around, offered
     ///     only under <see cref="ConnectorPolicy.ClosableWraparound" />. Every other family — including the
     ///     wrap that joins two ports facing the SAME direction — is offered under
@@ -21,7 +97,7 @@ internal static class ConnectorSolver
     ///     <see cref="ConnectorPolicy.AbutmentOnly" /> nowhere — that policy is expected to short-circuit
     ///     before reaching the solver at all.
     /// </summary>
-    internal static IReadOnlyList<(Vector3I Origin, Vector3I Size)>? Solve(
+    internal static ConnectorPath? Solve(
         WorldPort from,
         WorldPort to,
         OccupancyIndex committed,
@@ -41,14 +117,14 @@ internal static class ConnectorSolver
         int width = from.WidthCells;
         foreach (Path path in EnumeratePaths(from, to, width, maxLengthCells, policy))
         {
-            if (path.Length > maxLengthCells || !FitsEnvelope(path.Boxes, candidateLocalObstacles, envelopeSize))
+            if (path.Length > maxLengthCells || FoldsOnItself(path.Boxes) || !FitsEnvelope(path.Boxes, candidateLocalObstacles, envelopeSize))
             {
                 continue;
             }
 
             if (IsClear(path.Boxes, committed, candidateLocalObstacles))
             {
-                return path.Boxes;
+                return new ConnectorPath(path.Boxes, path.Length);
             }
         }
 
@@ -62,11 +138,8 @@ internal static class ConnectorSolver
         int maxLength,
         ConnectorPolicy policy)
     {
-        bool sameAxis = Axis(from.Face) == Axis(to.Face);
-        bool opposite = Sign(from.Face) == -Sign(to.Face);
-        bool facing = FacesTowardEachOther(from, to);
-
-        if (sameAxis && opposite && facing)
+        DoorRelation relation = Relate(from, to);
+        if (relation == DoorRelation.Facing)
         {
             if (SameTangent(from, to, width))
             {
@@ -83,7 +156,7 @@ internal static class ConnectorSolver
             yield break;
         }
 
-        if (sameAxis && opposite)
+        if (relation == DoorRelation.BackToBack)
         {
             // Back-to-back ports can only join by wrapping a corridor all the way around behind one
             // room. That ring commits a large contiguous span the later placements cannot reuse, so
@@ -101,7 +174,7 @@ internal static class ConnectorSolver
             yield break;
         }
 
-        if (sameAxis)
+        if (relation == DoorRelation.SameDirection)
         {
             foreach (Path path in UPaths(from, to, width, maxLength))
             {
@@ -116,7 +189,7 @@ internal static class ConnectorSolver
             yield break;
         }
 
-        if (facing)
+        if (relation == DoorRelation.CornerFacing)
         {
             Path? l = LPath(from, to, width);
             if (l.HasValue)
@@ -429,20 +502,27 @@ internal static class ConnectorSolver
                     return false;
                 }
             }
+        }
 
-            // A path must not fold back onto itself: U legs whose tangent gap is under the
-            // corridor width intersect while clearing every external obstacle. Adjacent segments
-            // are exempt — they legitimately double-cover the shared corner block.
+        return true;
+    }
+
+    // U legs whose tangent gap is under the corridor width intersect while clearing every external obstacle.
+    // Adjacent segments are exempt: they legitimately double-cover the shared corner block.
+    private static bool FoldsOnItself(IReadOnlyList<(Vector3I Origin, Vector3I Size)> boxes)
+    {
+        for (int i = 0; i < boxes.Count; i++)
+        {
             for (int j = 0; j < i - 1; j++)
             {
-                if (Intersects(origin, size, boxes[j].Origin, boxes[j].Size))
+                if (Intersects(boxes[i].Origin, boxes[i].Size, boxes[j].Origin, boxes[j].Size))
                 {
-                    return false;
+                    return true;
                 }
             }
         }
 
-        return true;
+        return false;
     }
 
     private static bool FitsEnvelope(
