@@ -10,6 +10,8 @@ using Jmodot.Core.Combat;
 /// <see cref="DamageResult"/> (e.g., a hit that both damages and knocks back) and
 /// <see cref="KnockbackResult"/> (e.g., a Wind-Blast push that delivers impulse without damage).
 /// Enables data-driven reaction tiers (flinch/hurt/launch/crumple) via .tres configuration.
+/// A sustained result (<see cref="CombatResult.Sustained"/>) never matches: a held contact's push is
+/// not a blow, and re-entering a reaction tier every tick would lock its target in it.
 ///
 /// Example configurations:
 /// - Flinch: MinForce=0, MaxForce=15
@@ -71,6 +73,8 @@ public partial class KnockbackCondition : CombatLogCondition
 
     private bool MatchesEntry<T>(T r) where T : CombatResult, IForceCarrier
     {
+        if (r.Sustained) { return false; }
+
         if (r.Force < MinForce || r.Force > MaxForce)
         {
             return false;

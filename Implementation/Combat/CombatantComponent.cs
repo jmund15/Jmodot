@@ -99,6 +99,13 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         // The Combatant just provides the context (itself).
         CombatResult? result = effect.Apply(this, context, incomingMagnitudeScale);
 
+        // Stamped here, once, so no effect has to remember it: every result of a held contact is
+        // sustained, whatever effect produced it.
+        if (context.Continuous && result is { Sustained: false })
+        {
+            result = result with { Sustained = true };
+        }
+
         // 2. VISUALS
         // Trigger any associated visual effect on the target. Controller is cached on first access
         // (see _cachedVisualController XML doc for assumptions).

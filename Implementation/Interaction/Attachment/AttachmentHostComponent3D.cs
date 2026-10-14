@@ -561,7 +561,8 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     /// resolvers, payload interceptors and i-frames all run. The host performs the call rather than the
     /// rider reaching across into another entity's components — the mirror of
     /// <see cref="IAttachmentRider.TryApplyShedDamage"/>, and for the same reason: a hurtbox is resolved
-    /// from its owning entity's blackboard.
+    /// from its owning entity's blackboard. A rider grinds on its host for as long as it rides, so each
+    /// application is a continuous hit (<see cref="HitContext.Continuous"/>).
     /// </summary>
     /// <returns>True when the hurtbox processed the hit; false when it rejected it or none exists.</returns>
     public bool TryApplyRideDamage(IAttackPayload payload)
@@ -569,7 +570,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (payload == null) { return false; }
         if (this._hurtbox == null || !GodotObject.IsInstanceValid(this._hurtbox)) { return false; }
 
-        return this._hurtbox.ProcessHit(payload);
+        return this._hurtbox.ProcessHit(payload, continuous: true);
     }
 
     #region IComponent

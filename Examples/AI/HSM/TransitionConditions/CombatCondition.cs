@@ -10,7 +10,8 @@ using Jmodot.Core.Combat;
 /// <summary>
 /// Generic combat condition that can filter any CombatResult type by tags,
 /// amount thresholds, and force thresholds. Designed to replace or complement
-/// specialized conditions (DamageCondition, KnockbackCondition, etc.).
+/// specialized conditions (DamageCondition, KnockbackCondition, etc.). A sustained result
+/// (<see cref="CombatResult.Sustained"/>) never matches, as in those conditions.
 /// </summary>
 [GlobalClass, Tool]
 public partial class CombatCondition : CombatLogCondition
@@ -31,13 +32,13 @@ public partial class CombatCondition : CombatLogCondition
     {
         return ResultType switch
         {
-            CombatResultType.Damage => log.HasEvent<DamageResult>(CheckDamageResult),
-            CombatResultType.Heal => log.HasEvent<HealResult>(CheckHealResult),
-            CombatResultType.Status => log.HasEvent<StatusResult>(CheckStatusResult),
-            CombatResultType.StatusExpired => log.HasEvent<StatusExpiredResult>(CheckResult),
-            CombatResultType.Stat => log.HasEvent<StatResult>(CheckResult),
-            CombatResultType.Effect => log.HasEvent<EffectResult>(CheckResult),
-            CombatResultType.Any => log.HasEvent<CombatResult>(CheckResult),
+            CombatResultType.Damage => log.HasEvent<DamageResult>(r => !r.Sustained && CheckDamageResult(r)),
+            CombatResultType.Heal => log.HasEvent<HealResult>(r => !r.Sustained && CheckHealResult(r)),
+            CombatResultType.Status => log.HasEvent<StatusResult>(r => !r.Sustained && CheckStatusResult(r)),
+            CombatResultType.StatusExpired => log.HasEvent<StatusExpiredResult>(r => !r.Sustained && CheckResult(r)),
+            CombatResultType.Stat => log.HasEvent<StatResult>(r => !r.Sustained && CheckResult(r)),
+            CombatResultType.Effect => log.HasEvent<EffectResult>(r => !r.Sustained && CheckResult(r)),
+            CombatResultType.Any => log.HasEvent<CombatResult>(r => !r.Sustained && CheckResult(r)),
             _ => false
         };
     }

@@ -140,8 +140,10 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
     /// <param name="impactDirection">The direction the blow travelled, when the attacker knows it and
     /// the geometry cannot say. Carried on the context verbatim — it never displaces the inferred
     /// <see cref="HitContext.HitDirection"/>, so knockback is untouched by supplying it.</param>
+    /// <param name="continuous">True when this hit is one contact of a held source; carried on the
+    /// context as <see cref="HitContext.Continuous"/>.</param>
     /// <returns>True if the hit was processed, False if rejected.</returns>
-    public bool ProcessHit(IAttackPayload payload, Vector3? impactDirection = null)
+    public bool ProcessHit(IAttackPayload payload, Vector3? impactDirection = null, bool continuous = false)
     {
         if (!CanReceiveHit()) { return false; }
 
@@ -162,6 +164,7 @@ public partial class HurtboxComponent3D : Area3D, IComponent, IBlackboardProvide
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
             HitSeed = hitSeed,
             ImpactDirection = impactDirection,
+            Continuous = continuous,
         };
 
         // 3.5. Effectiveness-resolution consultation
