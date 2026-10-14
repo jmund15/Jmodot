@@ -6,6 +6,7 @@ using Core.Combat;
 using Core.Combat.Reactions;
 using Core.Health;
 using Core.Identification;
+using AI.BB;
 using Shared;
 
 /// <summary>
@@ -14,15 +15,17 @@ using Shared;
 /// </summary>
 internal sealed class PayloadScope
 {
-    internal PayloadScope(HitContext context, float healthBefore, PayloadScope? outer)
+    internal PayloadScope(HitContext context, float healthBefore, int appliedPushesBefore, PayloadScope? outer)
     {
         Context = context;
         HealthBefore = healthBefore;
+        AppliedPushesBefore = appliedPushesBefore;
         Outer = outer;
     }
 
     internal HitContext Context { get; }
     internal float HealthBefore { get; }
+    internal int AppliedPushesBefore { get; }
     internal PayloadScope? Outer { get; }
     internal List<CombatResult> Results { get; } = new();
 
@@ -48,7 +51,8 @@ internal sealed class ImpactReporter
 
     internal PayloadScope BeginPayload(HitContext context)
     {
-        var scope = new PayloadScope(context, _owner.Health?.CurrentHealth ?? 0f, _open);
+        var scope = new PayloadScope(
+            context, _owner.Health?.CurrentHealth ?? 0f, AppliedPushes(LogOf())?.Count() ?? 0, _open);
         _open ??= scope;
         return scope;
     }
@@ -85,13 +89,21 @@ internal sealed class ImpactReporter
             health.IsDead && scope.HealthBefore > 0f,
             scope.Results.OfType<DamageResult>().ToList(),
             scope.Results.OfType<IForceCarrier>().Sum(c => c.Force),
-            0f,
+            AppliedDeltaV(scope),
             CategoriesOf(victim),
             context.Continuous);
 
         var report = HitReportBuilder.FromPayload(profile, inputs);
         if (report != null) { _owner.PublishReport(report); }
     }
+
+    private CombatLog? LogOf() =>
+        _owner.Blackboard != null && _owner.Blackboard.TryGet<CombatLog>(BBDataSig.CombatLog, out var log) ? log : null;
+
+    private static IEnumerable<KnockbackAppliedResult>? AppliedPushes(CombatLog? log) => log?.GetEvents<KnockbackAppliedResult>();
+
+    private float AppliedDeltaV(PayloadScope scope) =>
+        AppliedPushes(LogOf())?.Skip(scope.AppliedPushesBefore).Sum(push => push.DeltaV) ?? 0f;
 
     private Node ResolveVictim() => _owner.OwnerNode ?? _owner.GetParent() ?? _owner;
 

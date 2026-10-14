@@ -165,6 +165,10 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
                 sb.AppendLine($"║ Attacker:        {hit.Attacker.IfValid()?.Name.ToString() ?? "(null)"} | Point: {hit.Point}");
                 break;
 
+            case KnockbackAppliedResult push:
+                sb.AppendLine($"║ Applied push:    {push.DeltaV:F2} m/s toward {push.Direction}");
+                break;
+
             case HealResult heal:
                 sb.AppendLine($"║ Amount Healed:   {heal.AmountHealed:F2}");
                 sb.AppendLine($"║ Overhealing:     {heal.Overhealing:F2}");

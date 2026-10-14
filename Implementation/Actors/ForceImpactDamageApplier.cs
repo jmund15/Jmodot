@@ -196,7 +196,7 @@ public partial class ForceImpactDamageApplier : Node, IComponent
             return;
         }
 
-        // Three-step attribution chain: most-recent KnockbackResult in CombatLog →
+        // Three-step attribution chain: most-recent KnockbackAppliedResult in CombatLog →
         // dominant force from receiver → collider fallback. Extracted as a pure static
         // (SourceAttributionResolver) so chain ordering, window expiry, and
         // null-degradation paths are unit-tested independently of this Node's lifecycle.
