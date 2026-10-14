@@ -76,9 +76,17 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         {
             return;
         }
-        foreach (var effect in payload.Effects)
+        var scope = Reporter.BeginPayload(context);
+        try
         {
-            ApplyEffect(effect, context, incomingMagnitudeScale);
+            foreach (var effect in payload.Effects)
+            {
+                scope.Collect(ApplyEffectCore(effect, context, incomingMagnitudeScale));
+            }
+        }
+        finally
+        {
+            Reporter.EndPayload(scope);
         }
     }
 
@@ -88,10 +96,13 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     /// <param name="effect"></param>
     /// <param name="context"></param>
     public void ApplyEffect(ICombatEffect effect, HitContext context, float incomingMagnitudeScale = 1.0f)
+        => ApplyEffectCore(effect, context, incomingMagnitudeScale);
+
+    private CombatResult? ApplyEffectCore(ICombatEffect effect, HitContext context, float incomingMagnitudeScale)
     {
         if (effect == null)
         {
-            return;
+            return null;
         }
 
         // 1. EXECUTE
@@ -121,9 +132,24 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         {
             CombatResultEvent?.Invoke(result);
         }
+
+        return result;
     }
 
     #endregion
+
+    private ImpactReporter? _reporter;
+    private ImpactReporter Reporter => _reporter ??= new ImpactReporter(this);
+
+    /// <summary>
+    /// Raises <paramref name="report"/> on <see cref="CombatResultEvent"/> and hands it to the scene sink,
+    /// the one path every impact report takes out of this combatant.
+    /// </summary>
+    internal void PublishReport(ImpactReport report)
+    {
+        CombatResultEvent?.Invoke(report);
+        HitReportSeam.Sink?.Receive(report);
+    }
 
     /// <summary>
     /// Called by StatusEffectComponent when a runner finishes.
