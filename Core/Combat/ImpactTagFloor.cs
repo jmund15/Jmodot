@@ -9,7 +9,7 @@ using Shared.Attributes;
 [GlobalClass, Tool]
 public partial class ImpactTagFloor : Resource
 {
-    /// <summary>The tag that raises the floor. Matches a hit's tags by identity, not by parent category.</summary>
+    /// <summary>The tag that raises the floor. Matches a hit's tags by <see cref="CombatTag.TagId"/>.</summary>
     [Export, RequiredExport] public CombatTag Tag { get; set; } = null!;
 
     /// <summary>The weight floor in [0, 1] this tag gives a hit.</summary>

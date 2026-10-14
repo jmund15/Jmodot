@@ -28,7 +28,10 @@ public static class HitReportBuilder
         float damage = i.Indestructible
             ? i.Damage.Sum(d => d.FinalAmount)
             : Math.Max(0f, i.HealthBefore - i.HealthAfter);
+        if (!(damage > 0f) && !(i.AppliedDeltaV > 0f)) { return null; }
+
         float requestedDamage = i.Damage.Sum(d => d.OriginalAmount);
+        float scaledRequest = i.Damage.Sum(d => d.FinalAmount);
         bool critical = i.Damage.Any(d => d.IsCritical);
         var tags = i.Damage.SelectMany(d => d.Tags ?? []).Distinct().ToList();
 
@@ -47,6 +50,7 @@ public static class HitReportBuilder
             Categories = i.Categories,
             Damage = damage,
             Killed = i.Died,
+            Overkill = i.Died ? Math.Max(0f, scaledRequest - i.HealthBefore) : 0f,
             AppliedDeltaV = i.AppliedDeltaV,
             IsCritical = critical,
             Weight = weight,
@@ -61,7 +65,11 @@ public static class HitReportBuilder
         ImpactWeightProfile profile, float damage, float victimMaxHealth, float appliedDeltaV,
         float requestedDamage, float requestedImpulse, bool isCritical, IEnumerable<CombatTag> tags)
     {
-        float damageFraction = Math.Clamp(damage / victimMaxHealth, 0f, 1f);
-        return (damageFraction, 0f, damageFraction, 0f);
+        float damageFraction = ImpactWeightProfile.Fraction(damage, victimMaxHealth);
+        float pushFraction = ImpactWeightProfile.Fraction(appliedDeltaV, profile.ReferenceDeltaV);
+        float weight = Math.Max(Math.Max(damageFraction, pushFraction), profile.FloorFor(tags));
+        if (isCritical) { weight *= profile.CritMultiplier; }
+
+        return (Math.Min(1f, weight), profile.MagnitudeOf(requestedDamage, requestedImpulse), damageFraction, pushFraction);
     }
 }
