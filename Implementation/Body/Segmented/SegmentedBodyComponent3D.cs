@@ -54,7 +54,10 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     /// <summary>Hard ceiling on units, so total body length caps at MaxSegments + 1.</summary>
     [Export] public int MaxSegments { get; private set; } = 11;
 
-    /// <summary>Shortest total body — head included — that stays alive. Never below 2.</summary>
+    /// <summary>
+    /// Shortest total body, head included, that a severed run needs to stand as its own body, and the length at
+    /// which losing a unit kills the head. A longer body that loses units leaves its head alive. Never below 2.
+    /// </summary>
     [Export] public int MinLength { get; private set; } = 2;
 
     private readonly List<BodySegment3D> _segments = new();
@@ -198,8 +201,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     public event Action<BodySegment3D, int>? SegmentAdopted;
 
     /// <summary>
-    /// Raised once when a split leaves the head with a body shorter than it can live as, immediately
-    /// before the head kills itself through its own health — which is the kill an encounter counts.
+    /// Raised once when a body already at <see cref="MinLength"/> loses a unit, immediately before the head
+    /// kills itself through its own health, which is the kill an encounter counts.
     /// </summary>
     public event Action? BelowMinimumLength;
 
@@ -707,7 +710,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             this.ProgenySpawned?.Invoke(progeny);
         }
 
-        if (headDead || this.Length >= this.MinLength) { return; }
+        // Only a body already at its minimum dies with a lost unit; a longer one leaves the head standing alone.
+        if (headDead || this.Length >= this.MinLength || roster.Length + 1 > this.MinLength) { return; }
 
         this.BelowMinimumLength?.Invoke();
         this._headHealth?.Kill(this);
