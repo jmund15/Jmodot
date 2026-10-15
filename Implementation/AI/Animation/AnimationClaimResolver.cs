@@ -147,7 +147,7 @@ public partial class AnimationClaimResolver : Node, IComponent
             return;
         }
 
-        var stateLeaf = this.ResolveActiveStateLeaf();
+        var stateLeaf = this.HsmRoot?.ActiveLeaf;
 
         // The task tier is sampled, not committed: debounce it. The state tier is not — HSM
         // transitions are committed, so a grace there would delay every real handoff by a frame.
@@ -279,28 +279,6 @@ public partial class AnimationClaimResolver : Node, IComponent
 
         orchestrator = null;
         return false;
-    }
-
-    /// <summary>
-    ///     Descends PrimarySubState to the active leaf. Stops on a null link (the root has not
-    ///     entered yet — this resolver's physics tick can precede it) and rejects an inactive leaf:
-    ///     CompoundState.OnExit deliberately leaves PrimarySubState pointing at the last substate to
-    ///     support history states, so after the HSM exits, a stale leaf would read as a live
-    ///     claimant and silence this resolver permanently.
-    /// </summary>
-    private State? ResolveActiveStateLeaf()
-    {
-        State? current = this.HsmRoot;
-        while (current is CompoundState compound)
-        {
-            var next = compound.PrimarySubState;
-            if (next == null || !next.IsActive)
-            {
-                break;
-            }
-            current = next;
-        }
-        return current != null && current.IsActive ? current : null;
     }
 
     /// <summary>

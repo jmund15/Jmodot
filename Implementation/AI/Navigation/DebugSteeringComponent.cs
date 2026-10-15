@@ -44,6 +44,18 @@ public partial class DebugSteeringComponent : Node
         if (_recorder == null) { SetProcess(false); }
     }
 
+    /// <summary>
+    /// Turns the overlay on at runtime for an instance whose <c>_enableDebug</c> was off at <c>_Ready</c>:
+    /// resolves the sibling processor once and, when that yields a recorder, resumes per-frame drawing.
+    /// </summary>
+    public void EnableOverlay()
+    {
+        if (_recorder != null) { return; }
+        _enableDebug = true;
+        ResolveAndEnable();
+        if (_recorder != null) { SetProcess(true); }
+    }
+
     private void ResolveAndEnable()
     {
         if (!_enableDebug) { return; }

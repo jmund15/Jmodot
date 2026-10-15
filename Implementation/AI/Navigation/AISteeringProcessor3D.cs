@@ -434,18 +434,16 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         _recorder?.BeginFrame(_map);
 
         // --- 2. Evaluate all environmental considerations ---
-        // NavigationOnly claim skips consideration scoring entirely.
-        if (mode != SteeringControlMode.NavigationOnly)
+        // A NavigationOnly claim skips scoring except for terms that are ambient by nature.
+        // Indexed rather than foreach: ActiveConsiderations is typed as the interface, so foreach
+        // would box the List enumerator once per agent per physics frame on a hot path.
+        for (int i = 0; i < ActiveConsiderations.Count; i++)
         {
-            // Indexed rather than foreach: ActiveConsiderations is typed as the interface, so foreach
-            // would box the List enumerator once per agent per physics frame on a hot path.
-            for (int i = 0; i < ActiveConsiderations.Count; i++)
-            {
-                var consideration = ActiveConsiderations[i];
-                _recorder?.CaptureBefore(_map);
-                consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(consideration));
-                _recorder?.CaptureAfter(consideration, _map);
-            }
+            var consideration = ActiveConsiderations[i];
+            if (mode == SteeringControlMode.NavigationOnly && consideration is not IAmbientSteeringConsideration) { continue; }
+            _recorder?.CaptureBefore(_map);
+            consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(consideration));
+            _recorder?.CaptureAfter(consideration, _map);
         }
 
         // --- 2b. Evaluate the dedicated nav path consideration ---
