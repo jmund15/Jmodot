@@ -96,6 +96,27 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// </summary>
 	[Export] public BaseFloatValueDefinition? Mass { get; private set; }
 
+	/// <summary>Pushes closer together than this are damped by <see cref="RepeatFactor"/>. 0 = never.</summary>
+	[ExportGroup("Repeat Hits")]
+	[Export(PropertyHint.Range, "0,2,0.05,suffix:s")] public float RepeatWindowSeconds { get; private set; }
+
+	/// <summary>Force multiplier for a push inside the window (first-hit-strong). 1 = no damping; valid range (0, 1].</summary>
+	[Export(PropertyHint.Range, "0.05,1,0.05")] public float RepeatFactor { get; private set; } = 1f;
+
+	/// <summary>When true a push also lifts the body a little, in proportion to its horizontal impulse.</summary>
+	[ExportGroup("Vertical Pop")]
+	[Export] public bool VerticalPop { get; private set; }
+
+	/// <summary>Share of the horizontal velocity-delta added as lift.</summary>
+	[Export(PropertyHint.Range, "0,1,0.05")] public float PopFactor { get; private set; } = 0.25f;
+
+	/// <summary>Cap on the lift speed (m/s), whatever the push or the mass.</summary>
+	[Export(PropertyHint.Range, "0,10,0.1,suffix:m/s")] public float PopMaxSpeed { get; private set; } = 1.5f;
+
+	// Unaffected by hitstop's time scale; double.NegativeInfinity stamp makes the first push ever full.
+	private double _lastAppliedAt = double.NegativeInfinity;
+	private Func<double> _unscaledSeconds = static () => Time.GetTicksMsec() / 1000.0;
+
 	#endregion
 
 	#region COMPONENT_UPDATES
@@ -166,7 +187,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			return;
 		}
 
-		var resolved = KnockbackPolicy.Resolve(direction, incomingForce, stability, PreserveVertical || preserveVertical);
+		var now = _unscaledSeconds();
+		var shaping = new KnockbackShaping(
+			Damping: sustained ? 1f : KnockbackPolicy.DampingFactor(now - _lastAppliedAt, RepeatWindowSeconds, RepeatFactor),
+			PopRatio: VerticalPop ? PopFactor : 0f,
+			PopMaxImpulse: PopMaxSpeed * mass);
+		if (!sustained) { _lastAppliedAt = now; }
+		var resolved = KnockbackPolicy.Resolve(direction, incomingForce, stability, PreserveVertical || preserveVertical, shaping);
 		// CharacterBody regime: input is N·s; manual mass-division to convert to velocity-delta (m/s).
 		var velocityDelta = resolved.Impulse / mass;
 
@@ -242,6 +269,8 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	{
 		var warnings = new List<string>();
 		// Dependencies are retrieved from Blackboard at runtime; no scene-time validation needed.
+		if (RepeatFactor is <= 0f or > 1f) { warnings.Add("RepeatFactor must be in (0, 1]."); }
+		if (PopMaxSpeed < 0f) { warnings.Add("PopMaxSpeed must be >= 0."); }
 		return warnings.Concat(base._GetConfigurationWarnings() ?? []).ToArray();
 	}
 
@@ -260,6 +289,15 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	internal void SetStability(BaseFloatValueDefinition? value) => Stability = value;
 	internal void SetMass(BaseFloatValueDefinition? value) => Mass = value;
 	internal void SetPreserveVertical(bool value) => PreserveVertical = value;
+	internal void SetShapingForTesting(float windowSeconds, float repeatFactor, bool verticalPop, float popFactor, float popMaxSpeed, Func<double> unscaledSeconds)
+	{
+		RepeatWindowSeconds = windowSeconds;
+		RepeatFactor = repeatFactor;
+		VerticalPop = verticalPop;
+		PopFactor = popFactor;
+		PopMaxSpeed = popMaxSpeed;
+		_unscaledSeconds = unscaledSeconds;
+	}
 
 	#endregion
 #endif
