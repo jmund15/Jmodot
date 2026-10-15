@@ -23,6 +23,7 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
     private CombatantComponent? _combatant;
     private readonly List<IEntityBodyGraph> _graphs = new();
     private readonly List<CombatantComponent> _bodyCombatants = new();
+    private readonly List<CombatantComponent> _dyingMembers = new();
 
     /// <summary>
     /// Set to true to enable verbose logging of combat events to the Godot console.
@@ -98,8 +99,9 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
             if (!GodotObject.IsInstanceValid(member)) { continue; }
             if (member.Health is { IsDead: true })
             {
-                // A killing payload publishes its hit report after the death that dropped the member.
-                Callable.From(() => ReleaseBodyCombatant(member)).CallDeferred();
+                // A killing payload publishes its hit report after the death that dropped the member,
+                // so the member stays subscribed until that report arrives.
+                _dyingMembers.Add(member);
             }
             else { member.CombatResultEvent -= HandleBodyResultEvent; }
         }
@@ -111,14 +113,20 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
         }
     }
 
-    private void ReleaseBodyCombatant(CombatantComponent member)
-    {
-        if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
-    }
-
     private void HandleBodyResultEvent(CombatResult result)
     {
-        if (result is HitReport) { HandleCombatResultEvent(result); }
+        if (result is not HitReport hit) { return; }
+        HandleCombatResultEvent(result);
+        if (hit.Killed) { ReleaseDyingMembers(); }
+    }
+
+    private void ReleaseDyingMembers()
+    {
+        foreach (var member in _dyingMembers)
+        {
+            if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
+        }
+        _dyingMembers.Clear();
     }
 
     private void HandleCombatResultEvent(CombatResult result)
@@ -162,6 +170,7 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
             if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
         }
         _bodyCombatants.Clear();
+        ReleaseDyingMembers();
     }
 
     #region Verbose Logging
