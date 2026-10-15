@@ -6,6 +6,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Implementation.Health;
 using Jmodot.Core.Health;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat;
@@ -152,6 +153,12 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     }
 
     /// <summary>
+    /// Publishes the hit report for this body striking a surface; the caller has already applied the damage.
+    /// </summary>
+    public void ReportImpact(in ImpactInfo info, object source, float healthBefore, float requestedDamage)
+        => Reporter.ReportImpact(info, source, healthBefore, requestedDamage);
+
+    /// <summary>
     /// Called by StatusEffectComponent when a runner finishes.
     /// Bridges the gap between the Status system and the generic Reaction system.
     /// </summary>
@@ -196,12 +203,22 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
 
     public void OnPostInitialize()
     {
+        SubscribeReportHooks();
+
         if (StatusComponent != null)
         {
             StatusComponent.StatusRemoved += StatusRemoved;
         }
     }
     public event Action Initialized = delegate { };
+
+    // A health component clears its subscribers when a pooled owner resets, so this runs again on the next life.
+    private void SubscribeReportHooks()
+    {
+        if (Health == null) { return; }
+        Health.OnDamaged -= Reporter.OnDamaged;
+        Health.OnDamaged += Reporter.OnDamaged;
+    }
 
     public Node GetUnderlyingNode() => this;
     #endregion

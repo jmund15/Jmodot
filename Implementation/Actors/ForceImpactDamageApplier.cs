@@ -9,6 +9,7 @@ using Core.Combat;
 using Core.Combat.EffectDefinitions;
 using Core.Combat.Reactions;
 using Core.Components;
+using Core.Health;
 using Core.Shared.Attributes;
 using Core.Stats;
 using Implementation.AI.BB;
@@ -73,6 +74,7 @@ public partial class ForceImpactDamageApplier : Node, IComponent
 
     private ImpactDetector? _detector;
     private HealthComponent? _health;
+    private CombatantComponent? _combatant;
     private Node3D? _self;
     private CombatLog? _combatLog;
     private IExternalForceReceiver? _forceReceiver;
@@ -128,6 +130,7 @@ public partial class ForceImpactDamageApplier : Node, IComponent
 
         // Optional siblings: degrade gracefully when not BB-published.
         bb.TryGet(BBDataSig.CombatLog, out _combatLog);
+        bb.TryGet(BBDataSig.CombatantComponent, out _combatant);
         bb.TryGet(BBDataSig.ExternalForceReceiver, out _forceReceiver);
         bb.TryGet(BBDataSig.Stats, out _launcherStats);
 
@@ -210,7 +213,9 @@ public partial class ForceImpactDamageApplier : Node, IComponent
             return;
         }
 
-        _health.TakeDamage(damage, source);
+        var healthBefore = _health.CurrentHealth;
+        _health.TakeDamage(damage, source, DamageKind.Environmental, -info.Normal);
+        _combatant?.ReportImpact(info, source, healthBefore, damage);
 
         ApplyVelocityLoss(damage, info.Collider);
     }

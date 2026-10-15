@@ -5,6 +5,7 @@ using System.Linq;
 using Core.Combat;
 using Core.Combat.Reactions;
 using Core.Health;
+using Actors;
 using Core.Identification;
 using AI.BB;
 using Shared;
@@ -66,12 +67,8 @@ internal sealed class ImpactReporter
         var health = _owner.Health;
         if (health == null) { return; }
 
-        var profile = CombatFactoryDefaults.ImpactWeight;
-        if (profile == null)
-        {
-            HitReportSeam.TryWarnMissingProfile(_owner);
-            return;
-        }
+        var profile = ProfileOrWarn();
+        if (profile == null) { return; }
 
         var victim = ResolveVictim();
         var context = scope.Context;
@@ -95,6 +92,45 @@ internal sealed class ImpactReporter
 
         var report = HitReportBuilder.FromPayload(profile, inputs);
         if (report != null) { _owner.PublishReport(report); }
+    }
+
+    /// <summary>Reports direct damage that reached health outside any payload: reactions, shatters, kill volumes.</summary>
+    internal void OnDamaged(HealthChangeEventArgs args)
+    {
+        if (_open != null || args.Kind != DamageKind.Direct) { return; }
+
+        var profile = ProfileOrWarn();
+        if (profile == null) { return; }
+
+        var victim = ResolveVictim();
+        var attacker = args.Source is Node node && GodotObject.IsInstanceValid(node) && !ReferenceEquals(node, victim) ? node : null;
+        var report = HitReportBuilder.FromHealthChange(profile, args, victim, attacker, PointOf(victim), CategoriesOf(victim));
+        if (report != null) { _owner.PublishReport(report); }
+    }
+
+    /// <summary>Reports this body striking a surface; the caller has already applied the damage.</summary>
+    internal void ReportImpact(in ImpactInfo info, object source, float healthBefore, float requestedDamage)
+    {
+        var health = _owner.Health;
+        if (health == null) { return; }
+
+        var profile = ProfileOrWarn();
+        if (profile == null) { return; }
+
+        var victim = ResolveVictim();
+        var sourceNode = source is Node node && GodotObject.IsInstanceValid(node) ? node : null;
+        var report = HitReportBuilder.FromImpact(profile, new ImpactHitInputs(
+            victim, sourceNode, PointOf(victim), info.Normal, info.SpeedAlongNormal, healthBefore,
+            health.CurrentHealth, health.MaxHealth, health.IsDead && healthBefore > 0f, requestedDamage,
+            CategoriesOf(victim)));
+        if (report != null) { _owner.PublishReport(report); }
+    }
+
+    private ImpactWeightProfile? ProfileOrWarn()
+    {
+        var profile = CombatFactoryDefaults.ImpactWeight;
+        if (profile == null) { HitReportSeam.TryWarnMissingProfile(_owner); }
+        return profile;
     }
 
     private CombatLog? LogOf() =>

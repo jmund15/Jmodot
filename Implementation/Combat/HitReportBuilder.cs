@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.Combat;
 using Core.Combat.Reactions;
+using Core.Health;
 using Core.Identification;
 
 /// <summary>
@@ -16,6 +17,14 @@ public readonly record struct PayloadHitInputs(
     float HealthBefore, float HealthAfter, float VictimMaxHealth, bool Indestructible, bool Died,
     IReadOnlyList<DamageResult> Damage, float RequestedImpulse, float AppliedDeltaV,
     IReadOnlyList<Category> Categories, bool Sustained);
+
+/// <summary>
+/// Everything <see cref="HitReportBuilder.FromImpact"/> needs: a body that struck a surface hard enough to be hurt.
+/// </summary>
+public readonly record struct ImpactHitInputs(
+    Node Victim, Node? Source, Vector3 Point, Vector3 Normal, float SpeedAlongNormal,
+    float HealthBefore, float HealthAfter, float VictimMaxHealth, bool Died, float RequestedDamage,
+    IReadOnlyList<Category> Categories);
 
 /// <summary>
 /// Turns a resolved hit into a <see cref="HitReport"/>: the one place hit intensity is computed.
@@ -57,7 +66,66 @@ public static class HitReportBuilder
             Magnitude = magnitude,
             DamageFraction = damageFraction,
             PushFraction = pushFraction,
-            Kind = Core.Health.DamageKind.Direct,
+            Kind = DamageKind.Direct,
+        };
+    }
+
+    /// <summary>Builds the report for a body hurt by striking a surface; null when it lost no health.</summary>
+    public static HitReport? FromImpact(ImpactWeightProfile profile, in ImpactHitInputs i)
+    {
+        float damage = Math.Max(0f, i.HealthBefore - i.HealthAfter);
+        if (!(damage > 0f)) { return null; }
+
+        var (weight, magnitude, damageFraction, pushFraction) = Derive(
+            profile, damage, i.VictimMaxHealth, i.SpeedAlongNormal, i.RequestedDamage, 0f, false, []);
+
+        return new HitReport
+        {
+            Source = i.Source,
+            Target = i.Victim,
+            Attacker = i.Source,
+            Tags = [],
+            Point = i.Point,
+            Direction = (-i.Normal).Normalized(),
+            Categories = i.Categories,
+            Damage = damage,
+            Killed = i.Died,
+            Overkill = i.Died ? Math.Max(0f, i.RequestedDamage - i.HealthBefore) : 0f,
+            Weight = weight,
+            Magnitude = magnitude,
+            DamageFraction = damageFraction,
+            PushFraction = pushFraction,
+            Kind = DamageKind.Environmental,
+        };
+    }
+
+    /// <summary>Builds the report for direct damage that reached a health component outside any payload; null on no health lost.</summary>
+    public static HitReport? FromHealthChange(
+        ImpactWeightProfile profile, in HealthChangeEventArgs args, Node victim, Node? attacker,
+        Vector3 victimPoint, IReadOnlyList<Category> categories)
+    {
+        float damage = -args.HealthDelta;
+        if (!(damage > 0f)) { return null; }
+
+        var (weight, magnitude, damageFraction, pushFraction) = Derive(
+            profile, damage, args.MaxHealth, 0f, damage, 0f, false, []);
+
+        return new HitReport
+        {
+            Source = attacker,
+            Target = victim,
+            Attacker = attacker,
+            Tags = [],
+            Point = victimPoint,
+            Direction = (args.ImpactDirection ?? Vector3.Zero).Normalized(),
+            Categories = categories,
+            Damage = damage,
+            Killed = args.NewHealth <= 0f,
+            Weight = weight,
+            Magnitude = magnitude,
+            DamageFraction = damageFraction,
+            PushFraction = pushFraction,
+            Kind = DamageKind.Direct,
         };
     }
 
