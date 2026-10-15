@@ -17,6 +17,13 @@ public interface IEntityBodyGraph
     IEnumerable<Node> BodyGraphNodes { get; }
 
     /// <summary>
+    /// True when the members are this entity's own body, so a hit on one is a hit on the entity
+    /// (segments). False when they are separate entities it carries (attached riders), which keep
+    /// their hits to themselves.
+    /// </summary>
+    bool MemberHitsAreOwn { get; }
+
+    /// <summary>
     /// Raised synchronously after membership changes; subscribers may enumerate the updated roster
     /// inside the callback.
     /// </summary>

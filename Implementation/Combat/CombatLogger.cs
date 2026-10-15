@@ -64,6 +64,7 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
         if (entity == null) { return; }
         foreach (var graph in entity.GetChildrenOfInterface<IEntityBodyGraph>())
         {
+            if (!graph.MemberHitsAreOwn) { continue; }
             _graphs.Add(graph);
             graph.BodyGraphChanged += RefreshBodyCombatants;
         }

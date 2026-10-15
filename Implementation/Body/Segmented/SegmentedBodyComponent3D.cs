@@ -94,6 +94,9 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     public IEnumerable<Node> BodyGraphNodes => this._segments.Select(segment => segment.Body);
 
     /// <inheritdoc />
+    public bool MemberHitsAreOwn => true;
+
+    /// <inheritdoc />
     public event Action BodyGraphChanged = delegate { };
 
     /// <summary>Total body length: the units plus the head.</summary>

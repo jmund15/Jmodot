@@ -86,6 +86,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public IReadOnlyList<AttachmentRecord> Attachments => this._records;
 
     /// <inheritdoc />
+    public bool MemberHitsAreOwn => false;
+
+    /// <inheritdoc />
     public event Action BodyGraphChanged = delegate { };
 
     /// <inheritdoc />
