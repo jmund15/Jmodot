@@ -226,4 +226,11 @@ public static partial class BBDataSig
     public static readonly StringName AttachmentRider = new("AttachmentRider");
 
     #endregion
+
+    #region PHYSICS
+
+    /// <summary>The entity's <see cref="Jmodot.Core.Physics.IImpactable"/>, which <see cref="Jmodot.Implementation.Physics.ImpactPhysics"/> routes impacts through.</summary>
+    public static readonly StringName PhysicsInteraction = new("PhysicsInteraction");
+
+    #endregion
 }
