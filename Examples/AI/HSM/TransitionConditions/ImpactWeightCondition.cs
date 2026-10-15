@@ -25,6 +25,13 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
     /// <summary>Combat-time window for linear decay.</summary>
     [Export(PropertyHint.Range, "0.05,2,0.05,suffix:s")] public float WithinSeconds { get; private set; } = 0.5f;
 
+    /// <summary>
+    /// A hit counts once it is this old in combat time, which advances once per physics tick. Transitions are
+    /// checked every process frame but a hit's knockback lands in the next physics tick, so an edge ordered after
+    /// the launch edge sets a value above zero to let the launch edge see the velocity first. Zero routes at once.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,0.1,0.005,suffix:s")] public float SettleSeconds { get; private set; }
+
     /// <summary>Only count results logged after the emitting state entered; disable on escalation edges.</summary>
     [Export] public bool CountOnlyAfterStateEntry { get; private set; } = true;
 
@@ -41,9 +48,9 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
         if (!float.IsFinite(min) || !float.IsFinite(poise)
             || (max.HasValue && (!float.IsFinite(max.Value) || max.Value <= min))) { return false; }
         var mark = CountOnlyAfterStateEntry ? entry : CombatLogMark.Origin;
-        float qualifying = log.SumDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : 1f);
+        float qualifying = log.SumDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : 1f, SettleSeconds);
         if (!(qualifying > 0f)) { return false; }
-        float weight = log.SumDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : r.Weight);
+        float weight = log.SumDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : r.Weight, SettleSeconds);
         return float.IsFinite(weight) && weight >= min && (!max.HasValue || weight < max.Value);
     }
 
@@ -60,8 +67,9 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
 
     #region Test Helpers
 #if TOOLS
-    internal void ConfigureForTesting(BaseFloatValueDefinition min, BaseFloatValueDefinition? max, Jmodot.Core.Stats.Attribute poise, bool entryOnly = true)
+    internal void ConfigureForTesting(BaseFloatValueDefinition min, BaseFloatValueDefinition? max, Jmodot.Core.Stats.Attribute poise, bool entryOnly = true, float settleSeconds = 0f)
     {
+        SettleSeconds = settleSeconds;
         MinWeight = min;
         MaxWeight = max;
         PoiseAttribute = poise;

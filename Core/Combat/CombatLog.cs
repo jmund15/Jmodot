@@ -30,8 +30,12 @@ public class CombatLog
     public CombatLogMark Mark() => new(CombatTimeElapsed,
         _resultsByCombatTime.TryGetValue(CombatTimeElapsed, out var list) ? list.Count : 0);
 
-    /// <summary>Linearly decayed sum strictly after the mark and strictly inside the window.</summary>
-    public float SumDecayedSince<T>(in CombatLogMark since, float withinSeconds, System.Func<T, float> valueOf) where T : CombatResult
+    /// <summary>
+    /// Linearly decayed sum strictly after the mark and strictly inside the window. Results younger than
+    /// <paramref name="minAgeSeconds"/> are skipped, so a caller can wait out the physics tick that applies a hit's consequences;
+    /// the wait does not decay a result, whose age counts from the end of it.
+    /// </summary>
+    public float SumDecayedSince<T>(in CombatLogMark since, float withinSeconds, System.Func<T, float> valueOf, float minAgeSeconds = 0f) where T : CombatResult
     {
         if (!(withinSeconds > 0f) || !float.IsFinite(withinSeconds)) { return 0f; }
         double sum = 0d;
@@ -39,14 +43,15 @@ public class CombatLog
         {
             float time = _resultsByCombatTime.Keys[k];
             float age = CombatTimeElapsed - time;
-            if (age >= withinSeconds || time < since.CombatTime) { break; }
+            if (age - minAgeSeconds >= withinSeconds || time < since.CombatTime) { break; }
+            if (age < minAgeSeconds) { continue; }
             var list = _resultsByCombatTime.Values[k];
             int start = time == since.CombatTime ? since.CountAtTime : 0;
             for (int i = start; i < list.Count; i++)
             {
                 if (list[i] is T match)
                 {
-                    sum += valueOf(match) * (1d - age / withinSeconds);
+                    sum += valueOf(match) * (1d - (age - minAgeSeconds) / withinSeconds);
                 }
             }
         }
