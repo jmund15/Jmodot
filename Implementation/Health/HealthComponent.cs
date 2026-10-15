@@ -375,7 +375,7 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
             JmoLogger.Warning(this, $"Can't kill an entity that's already dead!");
             return;
         }
-        SetHealth(0, source);
+        SetHealth(0, source, DamageKind.Removal);
     }
 
     /// <summary>

@@ -78,7 +78,7 @@ public partial class RecentHitCondition : BTCondition
 
     private bool MatchesType(CombatResult r) => ResultType switch
     {
-        CombatResultType.Any => true,
+        CombatResultType.Any => r is not ImpactReport,
         CombatResultType.Damage => r is DamageResult,
         CombatResultType.Heal => r is HealResult,
         CombatResultType.Status => r is StatusResult,

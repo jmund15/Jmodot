@@ -6,6 +6,7 @@ using Jmodot.Core.AI.BB;
 using Jmodot.Implementation.Health;
 using Jmodot.Core.Health;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.Shared;
 
 namespace Jmodot.Implementation.Combat;
@@ -76,9 +77,17 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         {
             return;
         }
-        foreach (var effect in payload.Effects)
+        var scope = Reporter.BeginPayload(context);
+        try
         {
-            ApplyEffect(effect, context, incomingMagnitudeScale);
+            foreach (var effect in payload.Effects)
+            {
+                scope.Collect(ApplyEffectCore(effect, context, incomingMagnitudeScale));
+            }
+        }
+        finally
+        {
+            Reporter.EndPayload(scope);
         }
     }
 
@@ -88,10 +97,13 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     /// <param name="effect"></param>
     /// <param name="context"></param>
     public void ApplyEffect(ICombatEffect effect, HitContext context, float incomingMagnitudeScale = 1.0f)
+        => ApplyEffectCore(effect, context, incomingMagnitudeScale);
+
+    private CombatResult? ApplyEffectCore(ICombatEffect effect, HitContext context, float incomingMagnitudeScale)
     {
         if (effect == null)
         {
-            return;
+            return null;
         }
 
         // 1. EXECUTE
@@ -121,9 +133,36 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         {
             CombatResultEvent?.Invoke(result);
         }
+
+        return result;
     }
 
     #endregion
+
+    private ImpactReporter? _reporter;
+    private ImpactReporter Reporter => _reporter ??= new ImpactReporter(this);
+
+    /// <summary>
+    /// Raises <paramref name="report"/> on <see cref="CombatResultEvent"/> and hands it to the scene sink,
+    /// the one path every impact report takes out of this combatant.
+    /// </summary>
+    internal void PublishReport(ImpactReport report)
+    {
+        CombatResultEvent?.Invoke(report);
+        HitReportSeam.Sink?.Receive(report);
+    }
+
+    /// <summary>
+    /// Holds this body's death report until the returned scope is disposed. Wrap a damage call and its
+    /// <see cref="ReportImpact"/> in it so a lethal blow pairs with the report that follows it.
+    /// </summary>
+    public IDisposable HoldDeathReport() => Reporter.HoldDeath();
+
+    /// <summary>
+    /// Publishes the hit report for this body striking a surface; the caller has already applied the damage.
+    /// </summary>
+    public void ReportImpact(in ImpactInfo info, object source, float healthBefore, float requestedDamage)
+        => Reporter.ReportImpact(info, source, healthBefore, requestedDamage);
 
     /// <summary>
     /// Called by StatusEffectComponent when a runner finishes.
@@ -170,12 +209,24 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
 
     public void OnPostInitialize()
     {
+        SubscribeReportHooks();
+
         if (StatusComponent != null)
         {
             StatusComponent.StatusRemoved += StatusRemoved;
         }
     }
     public event Action Initialized = delegate { };
+
+    // A health component clears its subscribers when a pooled owner resets, so this runs again on the next life.
+    private void SubscribeReportHooks()
+    {
+        if (Health == null) { return; }
+        Health.OnDamaged -= Reporter.OnDamaged;
+        Health.OnDamaged += Reporter.OnDamaged;
+        Health.OnDied -= Reporter.OnDied;
+        Health.OnDied += Reporter.OnDied;
+    }
 
     public Node GetUnderlyingNode() => this;
     #endregion

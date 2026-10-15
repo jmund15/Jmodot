@@ -61,6 +61,12 @@ public static class CombatFactoryDefaults
     public static IEffectivenessResolver? EffectivenessResolver;
 
     /// <summary>
+    /// The numbers behind every <see cref="Reactions.HitReport"/>'s weight and magnitude. Null
+    /// publishes no impact reports and logs one Warning on the first hit.
+    /// </summary>
+    public static ImpactWeightProfile? ImpactWeight;
+
+    /// <summary>
     /// Clears every default to null. Intended for test teardown — lets Jmodot-only
     /// test suites reset shared static state without depending on a specific
     /// consuming project's autoload reset path. Production code should not call this.
@@ -71,5 +77,6 @@ public static class CombatFactoryDefaults
         DefaultCritMultiplierAttr = null;
         ReactionResolver = null;
         EffectivenessResolver = null;
+        ImpactWeight = null;
     }
 }

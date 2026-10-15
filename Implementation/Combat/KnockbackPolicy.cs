@@ -53,12 +53,12 @@ public static class KnockbackPolicy
         float velocityDeltaMagnitude,
         bool sustained = false)
     {
-        log?.Log(new KnockbackResult
+        log?.Log(new KnockbackAppliedResult
         {
             Source = attributedSource,
             Target = target,
             Direction = appliedDirection,
-            Force = velocityDeltaMagnitude,
+            DeltaV = velocityDeltaMagnitude,
             Tags = System.Array.Empty<CombatTag>(),
             Sustained = sustained,
         });
