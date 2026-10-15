@@ -37,4 +37,14 @@ public partial class MovementCadenceResource : Resource
         newTimer = pauseSeconds;
         return false;
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void SetTimingForTest(float moveSeconds, float pauseSeconds)
+    {
+        MoveSeconds = moveSeconds;
+        PauseSeconds = pauseSeconds;
+    }
+#endif
+    #endregion
 }

@@ -121,8 +121,7 @@ public abstract partial class BaseAIConsideration3D : Resource
     // JmoRng construction (keeps this off the SIGSEGV-prone ctor and avoids a per-frame alloc).
     private static float DeriveSeededPhaseOffset(int entitySeed, string seedKind)
     {
-        int derived = SeedManager.DeriveChild(entitySeed, seedKind);
-        return (uint)derived % 1_000_000u / 1000f;
+        return SeedManager.DeriveMillionth(entitySeed, seedKind) / 1000f;
     }
 
     /// <summary>
