@@ -20,6 +20,9 @@ public abstract partial class TransitionCondition : Resource
     /// <returns>True if the transition is allowed, otherwise false.</returns>
     public abstract bool Check(Node agent, IBlackboard bb);
 
+    /// <summary>Evaluates with the emitting state's entry position; existing conditions ignore that context.</summary>
+    public virtual bool Check(Node agent, IBlackboard bb, in Jmodot.Core.Combat.CombatLogMark entry) => Check(agent, bb);
+
     /// <summary>
     /// Called after a transition using this condition has been fully committed
     /// (target state entered, old state exited). Use for deferred side effects

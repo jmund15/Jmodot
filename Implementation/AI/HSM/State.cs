@@ -54,6 +54,7 @@ public partial class State : Node, IState
     public bool HasRoute(Func<StateTransition, bool> predicate) => Routes.Any(predicate);
 
     protected List<StateTransition> UniqueTransitions { get; private set; } = new();
+    private Jmodot.Core.Combat.CombatLogMark _entryMark;
     private Dictionary<StateTransition, State> _resolvedTransitions = new();
 
     /// <summary>
@@ -139,6 +140,8 @@ public partial class State : Node, IState
     /// </summary>
     public void Enter()
     {
+        _entryMark = BB.TryGet<Jmodot.Core.Combat.CombatLog>(BBDataSig.CombatLog, out var log) && log != null
+            ? log.Mark() : Jmodot.Core.Combat.CombatLogMark.Origin;
         _statContextRegistration.Apply();
         _quirkRegistration.Register();
 
@@ -257,7 +260,7 @@ public partial class State : Node, IState
                 continue;
             }
 
-            bool conditionsMet = transition.AreConditionsMet(Agent, BB);
+            bool conditionsMet = transition.AreConditionsMet(Agent, BB, _entryMark);
 
             if (conditionsMet && _resolvedTransitions.TryGetValue(transition, out State targetState))
             {
