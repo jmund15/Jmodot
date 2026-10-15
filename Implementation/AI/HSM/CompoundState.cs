@@ -38,6 +38,29 @@ using Shared.GodotExceptions;
 
         public State PrimarySubState { get; protected set; }
 
+        /// <summary>
+        /// The innermost active state under this compound: descends PrimarySubState while the link is active.
+        /// Returns this compound when no substate is active, and null when this compound is not active.
+        /// Stops at an inactive link because OnExit keeps PrimarySubState on the last substate for history states.
+        /// </summary>
+        public State? ActiveLeaf
+        {
+            get
+            {
+                State? current = this;
+                while (current is CompoundState compound)
+                {
+                    var next = compound.PrimarySubState;
+                    if (next == null || !next.IsActive)
+                    {
+                        break;
+                    }
+                    current = next;
+                }
+                return current.IsActive ? current : null;
+            }
+        }
+
         public Dictionary<State, bool> FiniteSubStates { get; protected set; } = new();
 
         private DebugSMComponent _debugComponent;
