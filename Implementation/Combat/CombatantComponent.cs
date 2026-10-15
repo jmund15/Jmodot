@@ -153,6 +153,12 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
     }
 
     /// <summary>
+    /// Holds this body's death report until the returned scope is disposed. Wrap a damage call and its
+    /// <see cref="ReportImpact"/> in it so a lethal blow pairs with the report that follows it.
+    /// </summary>
+    public IDisposable HoldDeathReport() => Reporter.HoldDeath();
+
+    /// <summary>
     /// Publishes the hit report for this body striking a surface; the caller has already applied the damage.
     /// </summary>
     public void ReportImpact(in ImpactInfo info, object source, float healthBefore, float requestedDamage)
@@ -218,6 +224,8 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         if (Health == null) { return; }
         Health.OnDamaged -= Reporter.OnDamaged;
         Health.OnDamaged += Reporter.OnDamaged;
+        Health.OnDied -= Reporter.OnDied;
+        Health.OnDied += Reporter.OnDied;
     }
 
     public Node GetUnderlyingNode() => this;

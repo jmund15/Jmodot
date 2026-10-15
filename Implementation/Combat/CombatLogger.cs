@@ -165,6 +165,11 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
                 sb.AppendLine($"║ Attacker:        {hit.Attacker.IfValid()?.Name.ToString() ?? "(null)"} | Point: {hit.Point}");
                 break;
 
+            case DeathReport death:
+                sb.AppendLine($"║ Killer:          {death.Killer.IfValid()?.Name.ToString() ?? "(none)"} | Kind: {death.Kind} | Paired: {death.Paired}");
+                sb.AppendLine($"║ Magnitude:       {death.Magnitude:F2} | Overkill: {death.Overkill:F2} | Point: {death.Point}");
+                break;
+
             case KnockbackAppliedResult push:
                 sb.AppendLine($"║ Applied push:    {push.DeltaV:F2} m/s toward {push.Direction}");
                 break;

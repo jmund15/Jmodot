@@ -26,6 +26,29 @@ public abstract record ImpactReport : CombatResult
 }
 
 /// <summary>
+/// The end of an entity with health, however it happened. <see cref="CombatResult.Target"/> is the dead
+/// entity. A death that a recent hit explains is <see cref="Paired"/> with it and reads its direction and
+/// magnitude; any other reads the profile's default magnitude and has no direction.
+/// </summary>
+public record DeathReport : ImpactReport
+{
+    /// <summary>What dealt the blow; null for a removal by rule or when the dead entity did it to itself.</summary>
+    public Node? Killer { get; init; }
+
+    /// <summary>Unit vector of the killing blow when <see cref="Paired"/>; zero otherwise.</summary>
+    public Vector3 Direction { get; init; }
+
+    /// <summary>Requested damage beyond the health that remained, when a paired hit knew it; zero otherwise.</summary>
+    public float Overkill { get; init; }
+
+    /// <summary>The cause of the final health change; <see cref="DamageKind.Removal"/> for a kill by rule.</summary>
+    public DamageKind Kind { get; init; }
+
+    /// <summary>True when a hit within the profile's window explains this death.</summary>
+    public bool Paired { get; init; }
+}
+
+/// <summary>
 /// A direct hit that changed something with health. <see cref="CombatResult.Target"/> is the victim's
 /// owner node and <see cref="CombatResult.Source"/> the hitting body or spell.
 /// </summary>

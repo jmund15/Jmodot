@@ -213,9 +213,12 @@ public partial class ForceImpactDamageApplier : Node, IComponent
             return;
         }
 
-        var healthBefore = _health.CurrentHealth;
-        _health.TakeDamage(damage, source, DamageKind.Environmental, -info.Normal);
-        _combatant?.ReportImpact(info, source, healthBefore, damage);
+        using (_combatant?.HoldDeathReport())
+        {
+            var healthBefore = _health.CurrentHealth;
+            _health.TakeDamage(damage, source, DamageKind.Environmental, -info.Normal);
+            _combatant?.ReportImpact(info, source, healthBefore, damage);
+        }
 
         ApplyVelocityLoss(damage, info.Collider);
     }

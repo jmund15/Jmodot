@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Combat;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Core.Combat;
@@ -44,6 +45,10 @@ internal sealed class ImpactReporter
 {
     private readonly CombatantComponent _owner;
     private PayloadScope? _open;
+    private int _holds;
+    private HealthChangeEventArgs? _pendingDeath;
+    private HitReport? _lastHit;
+    private ulong _lastHitFrame;
 
     internal ImpactReporter(CombatantComponent owner)
     {
@@ -63,6 +68,18 @@ internal sealed class ImpactReporter
         if (scope.Outer != null) { return; }
         _open = null;
 
+        try
+        {
+            PublishPayloadReport(scope);
+        }
+        finally
+        {
+            FlushPendingDeath();
+        }
+    }
+
+    private void PublishPayloadReport(PayloadScope scope)
+    {
         if (scope.Context.Kind != DamageKind.Direct) { return; }
         var health = _owner.Health;
         if (health == null) { return; }
@@ -91,7 +108,7 @@ internal sealed class ImpactReporter
             context.Continuous);
 
         var report = HitReportBuilder.FromPayload(profile, inputs);
-        if (report != null) { _owner.PublishReport(report); }
+        if (report != null) { Publish(report); }
     }
 
     /// <summary>Reports direct damage that reached health outside any payload: reactions, shatters, kill volumes.</summary>
@@ -105,7 +122,7 @@ internal sealed class ImpactReporter
         var victim = ResolveVictim();
         var attacker = args.Source is Node node && GodotObject.IsInstanceValid(node) && !ReferenceEquals(node, victim) ? node : null;
         var report = HitReportBuilder.FromHealthChange(profile, args, victim, attacker, PointOf(victim), CategoriesOf(victim));
-        if (report != null) { _owner.PublishReport(report); }
+        if (report != null) { Publish(report); }
     }
 
     /// <summary>Reports this body striking a surface; the caller has already applied the damage.</summary>
@@ -123,7 +140,71 @@ internal sealed class ImpactReporter
             victim, sourceNode, PointOf(victim), info.Normal, info.SpeedAlongNormal, healthBefore,
             health.CurrentHealth, health.MaxHealth, health.IsDead && healthBefore > 0f, requestedDamage,
             CategoriesOf(victim)));
-        if (report != null) { _owner.PublishReport(report); }
+        if (report != null) { Publish(report); }
+    }
+
+    /// <summary>
+    /// Holds any death that happens until the returned scope is disposed, so a caller that applies damage and
+    /// reports it afterwards (a wall slam) still has its hit report recorded when the death pairs with it.
+    /// </summary>
+    internal IDisposable HoldDeath()
+    {
+        _holds++;
+        return new DeathHold(this);
+    }
+
+    private void ReleaseDeathHold()
+    {
+        if (--_holds > 0) { return; }
+        FlushPendingDeath();
+    }
+
+    private sealed class DeathHold : IDisposable
+    {
+        private ImpactReporter? _reporter;
+
+        internal DeathHold(ImpactReporter reporter) => _reporter = reporter;
+
+        public void Dispose()
+        {
+            _reporter?.ReleaseDeathHold();
+            _reporter = null;
+        }
+    }
+
+    /// <summary>Records the death, publishing it at once unless a payload or a hold is still reporting the hit behind it.</summary>
+    internal void OnDied(HealthChangeEventArgs args)
+    {
+        _pendingDeath = args;
+        if (_open != null || _holds > 0) { return; }
+        FlushPendingDeath();
+    }
+
+    private void FlushPendingDeath()
+    {
+        if (_pendingDeath is not { } args) { return; }
+        _pendingDeath = null;
+
+        var profile = ProfileOrWarn();
+        if (profile == null) { return; }
+
+        var victim = ResolveVictim();
+        bool pairable = args.Kind is DamageKind.Direct or DamageKind.Environmental or DamageKind.Reaction;
+        var hit = pairable ? _lastHit : null;
+        int framesSinceHit = hit == null ? 0 : (int)Math.Min(int.MaxValue, Engine.GetPhysicsFrames() - _lastHitFrame);
+        var killer = args.Kind != DamageKind.Removal && args.Source is Node node && GodotObject.IsInstanceValid(node) ? node : null;
+
+        var death = DeathReportBuilder.Build(
+            profile, victim, PointOf(victim), CategoriesOf(victim), killer, args.Kind,
+            hit?.Overkill ?? 0f, hit, framesSinceHit);
+        _owner.PublishReport(death);
+    }
+
+    private void Publish(HitReport report)
+    {
+        _lastHit = report;
+        _lastHitFrame = Engine.GetPhysicsFrames();
+        _owner.PublishReport(report);
     }
 
     private ImpactWeightProfile? ProfileOrWarn()
