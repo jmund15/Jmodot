@@ -124,6 +124,24 @@ public partial class SeedManager : Node
     }
 
     /// <summary>
+    /// The derived child seed for <paramref name="kind"/> as a millionth in [0, 1_000_000): a single value
+    /// folded straight from the seed, with no <c>JmoRng</c> construction.
+    /// </summary>
+    internal static uint DeriveMillionth(int parentSeed, string kind)
+    {
+        return (uint)DeriveChild(parentSeed, kind) % 1_000_000u;
+    }
+
+    /// <summary>
+    /// A deterministic per-entity value in [0, 1) for <paramref name="kind"/>, folded from
+    /// <paramref name="parentSeed"/>. One seed and kind give one value; the use of it (a phase, a delay) is the caller's.
+    /// </summary>
+    public static float DeriveUnit(int parentSeed, string kind)
+    {
+        return DeriveMillionth(parentSeed, kind) / 1_000_000f;
+    }
+
+    /// <summary>
     /// Hit-path lineage derivation: folds <paramref name="label"/> as a string segment,
     /// then folds <paramref name="index"/> directly as an int (no stringification).
     /// This is the int-segment index domain — deliberately distinct from
