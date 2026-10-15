@@ -64,7 +64,8 @@ public static class GroundOffsetCalculator
     /// hurtboxes, interactors) are separate collision objects the body never rests on, and measuring
     /// them lifts it into the air by their radius.
     /// </para>
-    /// Returns false when no shape of a supported type is found.
+    /// Returns false when no shape of a supported type is found. A body or shape outside the tree has no
+    /// global transform (a host mid-teardown), so it contributes nothing.
     /// </summary>
     public static bool TryCalculateLowestLocalY(CollisionObject3D body, out float lowestLocalY)
         => TryCalculateLocalYExtent(body, out lowestLocalY, out _);
@@ -80,11 +81,13 @@ public static class GroundOffsetCalculator
         lowestLocalY = 0f;
         highestLocalY = 0f;
         bool found = false;
+        if (!body.IsInsideTree()) { return false; }
         Transform3D toBody = body.GlobalTransform.AffineInverse();
 
         foreach (CollisionShape3D collisionShape in body.GetChildrenOfType<CollisionShape3D>(includeSubChildren: false))
         {
             if (collisionShape.Disabled || collisionShape.Shape == null) { continue; }
+            if (!collisionShape.IsInsideTree()) { continue; }
             if (!TryGetHalfExtents(collisionShape.Shape, out Vector3 half)) { continue; }
 
             Transform3D relative = toBody * collisionShape.GlobalTransform;
