@@ -140,7 +140,7 @@ public partial class State : Node, IState
     /// </summary>
     public void Enter()
     {
-        _entryMark = BB.TryGet<Jmodot.Core.Combat.CombatLog>(BBDataSig.CombatLog, out var log) && log != null
+        _entryMark = BB != null && BB.TryGet<Jmodot.Core.Combat.CombatLog>(BBDataSig.CombatLog, out var log) && log != null
             ? log.Mark() : Jmodot.Core.Combat.CombatLogMark.Origin;
         _statContextRegistration.Apply();
         _quirkRegistration.Register();
