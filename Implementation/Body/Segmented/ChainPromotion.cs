@@ -61,6 +61,33 @@ internal static class ChainPromotion
         return targetMax * (sourceCurrent / sourceMax);
     }
 
+    private static readonly Dictionary<string, PackedScene> SceneCache = new();
+
+    internal static int SceneLoadCount { get; private set; }
+
+    internal static void ClearSceneCache()
+    {
+        SceneCache.Clear();
+        SceneLoadCount = 0;
+    }
+
+    /// <summary>
+    /// The head scene at <paramref name="scenePath"/>, loaded once per path and kept. Promotion runs once per severed
+    /// tail, so reloading and dropping the scene each time leaves its scripted dependencies to the weak-handle
+    /// reload race (Godot #83762).
+    /// </summary>
+    internal static PackedScene? SceneFor(string scenePath)
+    {
+        if (SceneCache.TryGetValue(scenePath, out var cached)) { return cached; }
+
+        var scene = ResourceLoader.Load<PackedScene>(scenePath);
+        if (scene == null) { return null; }
+
+        SceneLoadCount++;
+        SceneCache[scenePath] = scene;
+        return scene;
+    }
+
     /// <summary>
     /// Instantiates <paramref name="headRoot"/>'s own scene for <paramref name="fragment"/>, seeds
     /// it, hands it the fragment behind its front unit, parents it beside the body it split from,
@@ -91,7 +118,7 @@ internal static class ChainPromotion
                 headRoot);
         }
 
-        var scene = ResourceLoader.Load<PackedScene>(scenePath);
+        var scene = SceneFor(scenePath);
         if (scene == null)
         {
             throw new NodeConfigurationException(
