@@ -110,6 +110,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public Node3D HostEntity => GodotObject.IsInstanceValid(this._entity) ? this._entity : this;
 
     /// <inheritdoc />
+    public event Action<IAttachmentRider> RiderAttached = delegate { };
+
+    /// <inheritdoc />
     public event Action<IAttachmentRider, DetachCause> RiderDetached = delegate { };
 
     public override void _Ready()
@@ -284,6 +287,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
         this._records[index] = this._records[index] with { Phase = AttachmentPhase.Riding };
         rider.OnAttached(this, this._records[index].LocalAnchor);
+        this.RiderAttached.Invoke(rider);
     }
 
     /// <inheritdoc />

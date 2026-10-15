@@ -92,6 +92,15 @@ public interface IAttachmentHost : IGodotNodeInterface
     /// <returns>True when the hurtbox processed the hit; false when it rejected it or none exists.</returns>
     bool TryApplyRideDamage(IAttackPayload payload);
 
+    /// <summary>
+    /// Raised once per rider when <see cref="ConfirmAttach"/> advances its record to
+    /// <see cref="AttachmentPhase.Riding"/>, after <see cref="IAttachmentRider.OnAttached"/> has run.
+    /// Never raised for a reservation. Every raise is followed by exactly one <see cref="RiderDetached"/>
+    /// for that rider; <see cref="RiderDetached"/> also fires for a reservation that never confirmed, so a
+    /// subscriber ignores riders it never saw attach.
+    /// </summary>
+    event Action<IAttachmentRider> RiderAttached;
+
     /// <summary>Raised after a rider's record is released, whatever the cause.</summary>
     event Action<IAttachmentRider, DetachCause> RiderDetached;
 }
