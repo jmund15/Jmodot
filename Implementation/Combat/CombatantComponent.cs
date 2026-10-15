@@ -77,7 +77,7 @@ public partial class CombatantComponent : Node, IComponent, ICombatant, IBlackbo
         {
             return;
         }
-        var scope = Reporter.BeginPayload(context);
+        var scope = Reporter.BeginPayload(context, incomingMagnitudeScale);
         try
         {
             foreach (var effect in payload.Effects)

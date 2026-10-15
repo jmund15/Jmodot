@@ -17,13 +17,18 @@ using Shared;
 /// </summary>
 internal sealed class PayloadScope
 {
-    internal PayloadScope(HitContext context, float healthBefore, int appliedPushesBefore, PayloadScope? outer)
+    internal PayloadScope(
+        HitContext context, float healthBefore, int appliedPushesBefore, PayloadScope? outer, float effectivenessScale)
     {
         Context = context;
         HealthBefore = healthBefore;
         AppliedPushesBefore = appliedPushesBefore;
         Outer = outer;
+        EffectivenessScale = effectivenessScale;
     }
+
+    /// <summary>The damage scale the payload arrived with, carried so the report can state it.</summary>
+    internal float EffectivenessScale { get; }
 
     internal HitContext Context { get; }
     internal float HealthBefore { get; }
@@ -55,10 +60,11 @@ internal sealed class ImpactReporter
         _owner = owner;
     }
 
-    internal PayloadScope BeginPayload(HitContext context)
+    internal PayloadScope BeginPayload(HitContext context, float effectivenessScale = 1f)
     {
         var scope = new PayloadScope(
-            context, _owner.Health?.CurrentHealth ?? 0f, AppliedPushes(LogOf())?.Count() ?? 0, _open);
+            context, _owner.Health?.CurrentHealth ?? 0f, AppliedPushes(LogOf())?.Count() ?? 0, _open,
+            effectivenessScale);
         _open ??= scope;
         return scope;
     }
@@ -105,7 +111,8 @@ internal sealed class ImpactReporter
             scope.Results.OfType<IForceCarrier>().Sum(c => c.Force),
             AppliedDeltaV(scope),
             CategoriesOf(victim),
-            context.Continuous);
+            context.Continuous,
+            scope.EffectivenessScale);
 
         var report = HitReportBuilder.FromPayload(profile, inputs);
         if (report != null) { Publish(report); }

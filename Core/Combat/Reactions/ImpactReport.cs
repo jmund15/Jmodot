@@ -99,4 +99,11 @@ public record HitReport : ImpactReport
 
     /// <summary><see cref="DamageKind.Direct"/> for payloads and health changes, <see cref="DamageKind.Environmental"/> for slams.</summary>
     public DamageKind Kind { get; init; }
+
+    /// <summary>
+    /// The damage scale the hit arrived with, 1 when nothing scaled it. The victim's health applied it before
+    /// the report existed, so without it here a reader cannot tell a weak hit on a tough victim from a full
+    /// one — the number a floater shows would be the raw damage either way.
+    /// </summary>
+    public float EffectivenessScale { get; init; } = 1f;
 }

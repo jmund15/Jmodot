@@ -16,7 +16,7 @@ public readonly record struct PayloadHitInputs(
     Node Victim, Node? Attacker, Node? Source, Vector3 Point, Vector3 Direction,
     float HealthBefore, float HealthAfter, float VictimMaxHealth, bool Indestructible, bool Died,
     IReadOnlyList<DamageResult> Damage, float RequestedImpulse, float AppliedDeltaV,
-    IReadOnlyList<Category> Categories, bool Sustained);
+    IReadOnlyList<Category> Categories, bool Sustained, float EffectivenessScale = 1f);
 
 /// <summary>
 /// Everything <see cref="HitReportBuilder.FromImpact"/> needs: a body that struck a surface hard enough to be hurt.
@@ -67,6 +67,7 @@ public static class HitReportBuilder
             DamageFraction = damageFraction,
             PushFraction = pushFraction,
             Kind = DamageKind.Direct,
+            EffectivenessScale = i.EffectivenessScale,
         };
     }
 
@@ -126,6 +127,7 @@ public static class HitReportBuilder
             DamageFraction = damageFraction,
             PushFraction = pushFraction,
             Kind = DamageKind.Direct,
+            EffectivenessScale = args.IncomingMagnitudeScale,
         };
     }
 
