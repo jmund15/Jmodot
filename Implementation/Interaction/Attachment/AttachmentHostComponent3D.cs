@@ -6,6 +6,7 @@ using Godot;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
+using Jmodot.Core.Health;
 using Jmodot.Core.Interaction;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Stats;
@@ -34,9 +35,16 @@ using Jmodot.Implementation.Visual;
 /// <c>QueueFree</c>d and will be gone next frame.
 /// </para>
 ///
+/// <para>
+/// <b>A host's own end releases its riders.</b> Leaving the tree does, and so does the death of
+/// the host's entity — a killed entity can linger in the tree (a knocked-out wizard), carrying riders
+/// nothing would otherwise shake off. Both detach with <see cref="DetachCause.HostRemoved"/>.
+/// </para>
+///
 /// <para>Required BB key: none. Optional: <see cref="BBDataSig.Agent"/> (the entity whose art is
 /// measured and whose transform anchors are expressed in — falls back to this node),
-/// <see cref="BBDataSig.Stats"/>, <see cref="BBDataSig.EntitySeed"/>.</para>
+/// <see cref="BBDataSig.Stats"/>, <see cref="BBDataSig.EntitySeed"/>,
+/// <see cref="BBDataSig.HealthComponent"/> (a host with none is released only by leaving the tree).</para>
 /// </summary>
 [GlobalClass]
 public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentHost, IEntityBodyGraph
@@ -58,6 +66,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     private readonly Dictionary<IAttachmentRider, Action> _treeExitHandlers = new();
 
     private IStatProvider? _stats;
+    private IHealth? _health;
     private Node3D _entity = null!;
     private JmoRng _rng = null!;
     private bool _warnedMissingSeed;
@@ -135,17 +144,39 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     }
 
     /// <summary>
+    /// Re-arms the death hook that <see cref="_ExitTree"/> drops. Reparenting fires both, so without
+    /// this a moved host could no longer release its riders when its entity dies.
+    /// </summary>
+    public override void _EnterTree() => this.SubscribeHostDeath();
+
+    /// <summary>
     /// The host is leaving: every rider is released here, because <c>QueueFree</c> raises no domain
     /// event a rider could subscribe to. Riders additionally poll this host's validity, which is
     /// what covers a host freed without this ever running.
     /// </summary>
     public override void _ExitTree()
     {
+        this.UnsubscribeHostDeath();
 #if TOOLS
         if (this._TestSuppressExitTreeDetach) { return; }
 #endif
         this.DetachAll(DetachCause.HostRemoved);
     }
+
+    private void SubscribeHostDeath()
+    {
+        if (this._health == null) { return; }
+
+        this._health.OnDied -= this.OnHostDied;
+        this._health.OnDied += this.OnHostDied;
+    }
+
+    private void UnsubscribeHostDeath()
+    {
+        if (this._health != null) { this._health.OnDied -= this.OnHostDied; }
+    }
+
+    private void OnHostDied(HealthChangeEventArgs args) => this.DetachAll(DetachCause.HostRemoved);
 
     /// <inheritdoc />
     public bool TryReserve(IAttachmentRider rider, out AttachmentRecord record)
@@ -607,6 +638,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         this._entity = bb.TryGet<Node3D>(BBDataSig.Agent, out var agent) && agent != null ? agent : this;
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out this._stats);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
+        bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
         this._rng = EntityRngResolver.Resolve(bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
 
         IsInitialized = true;
@@ -617,6 +649,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public void OnPostInitialize()
     {
         ProcessMode = ProcessModeEnum.Inherit;
+
+        // Idempotent: OnPostInitialize re-runs on pool reuse and scene rebind.
+        this.SubscribeHostDeath();
 
         if (this._hurtbox == null)
         {
