@@ -448,13 +448,33 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     /// degradation the play path uses (exact directional → nearest directional → bare base name),
     /// not just the exact directional name. A stricter gate here would report "no animation" for a
     /// bare-named clip the play path would happily start, wrongly skipping it (e.g. a spell body's
-    /// "spawn" clip authored without directional variants).
+    /// "spawn" clip authored without directional variants). A base the entity varies through
+    /// <see cref="VariantSources"/> counts when any one of its varied names resolves, since the play
+    /// path would compose that name.
     /// </summary>
     public bool HasAnimationBase(StringName baseName)
     {
+        if (ResolvesClip(baseName)) { return true; }
+
+        var convention = ActiveNamingConvention();
+        foreach (var source in VariantSources)
+        {
+            if (source == null) { continue; }
+
+            foreach (var label in source.PossibleVariants(baseName))
+            {
+                if (ResolvesClip(convention.GetFullAnimationName(baseName, new[] { label }))) { return true; }
+            }
+        }
+
+        return false;
+    }
+
+    private bool ResolvesClip(StringName stem)
+    {
         return DirectionalClipResolver.Resolve(
             HasAnimation,
-            baseName,
+            stem,
             ActiveDirectionLabel(),
             ActiveDirection(),
             DirectionLabels,

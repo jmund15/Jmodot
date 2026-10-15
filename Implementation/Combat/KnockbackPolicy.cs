@@ -5,6 +5,16 @@ using Jmodot.Core.Combat.Reactions;
 using Jmodot.Implementation.Actors;
 
 /// <summary>
+/// Per-push shaping from the receiver. <paramref name="Damping"/> scales the incoming force before
+/// stability; <paramref name="PopRatio"/> adds that share of the horizontal impulse to Y, capped at
+/// <paramref name="PopMaxImpulse"/> (N·s, so the cap is a speed once mass divides).
+/// </summary>
+public readonly record struct KnockbackShaping(float Damping, float PopRatio, float PopMaxImpulse)
+{
+    public static KnockbackShaping None => new(1f, 0f, 0f);
+}
+
+/// <summary>
 /// Pure resolution policy shared by every <see cref="IKnockbackReceiver3D" /> regime. Holds the
 /// parts of knockback that do NOT vary by body type — stability scaling, the vertical-axis
 /// decision, the applied-direction fallback and the audit-log write — so the next vertical-axis
@@ -13,6 +23,7 @@ using Jmodot.Implementation.Actors;
 /// </summary>
 public static class KnockbackPolicy
 {
+
     /// <summary>
     /// The post-stability, post-vertical-decision impulse (N·s) and the direction the body
     /// actually received.
@@ -24,11 +35,23 @@ public static class KnockbackPolicy
     /// <see cref="KnockbackResult.PreserveVertical" />. False zeroes the impulse's Y.
     /// </param>
     public static Resolved Resolve(Vector3 direction, float incomingForce, float stability, bool preserveVertical)
+        => Resolve(direction, incomingForce, stability, preserveVertical, KnockbackShaping.None);
+
+    public static Resolved Resolve(Vector3 direction, float incomingForce, float stability, bool preserveVertical, in KnockbackShaping shaping)
     {
-        var impulse = StabilityScaling.ScaleForce(direction * incomingForce, stability);
+        var impulse = StabilityScaling.ScaleForce(direction * (incomingForce * shaping.Damping), stability);
         if (!preserveVertical)
         {
             impulse = new Vector3(impulse.X, 0f, impulse.Z);
+        }
+
+        if (shaping.PopRatio > 0f)
+        {
+            var pop = Mathf.Min(shaping.PopRatio * new Vector2(impulse.X, impulse.Z).Length(), shaping.PopMaxImpulse);
+            if (pop > impulse.Y)
+            {
+                impulse = new Vector3(impulse.X, pop, impulse.Z);
+            }
         }
 
         // Falling back to `direction` on a zero impulse matters: normalizing zero yields zero,
@@ -37,6 +60,13 @@ public static class KnockbackPolicy
         var appliedDirection = impulse.IsZeroApprox() ? direction : impulse.Normalized();
         return new Resolved(impulse, appliedDirection);
     }
+
+    /// <summary>
+    /// The force factor for a push <paramref name="secondsSinceLast"/> after the previous one:
+    /// <paramref name="repeatFactor"/> strictly inside the window, 1 at or beyond it.
+    /// </summary>
+    public static float DampingFactor(double secondsSinceLast, float windowSeconds, float repeatFactor)
+        => secondsSinceLast < windowSeconds ? repeatFactor : 1f;
 
     /// <summary>
     /// Audit-logs the applied knockback so HSM transition conditions (KnockbackCondition) can gate
