@@ -9,7 +9,7 @@ namespace Jmodot.Core.Health;
 /// </summary>
 public enum DamageKind
 {
-    /// <summary>Primary impact — projectile contact, melee swing, explicit kill. Default.</summary>
+    /// <summary>Primary impact — projectile contact, melee swing. Default.</summary>
     Direct = 0,
 
     /// <summary>Recurring damage from a status effect (burn, poison, bleed). Has its own per-tick visual.</summary>
@@ -27,6 +27,10 @@ public enum DamageKind
     /// <summary>Self-inflicted continuous drain — a body decaying over its own lifetime. Not a hit: no hit
     /// feedback, and logged at Debug because it fires every frame.</summary>
     Attrition = 5,
+
+    /// <summary>An outright kill applied by rule, not by a blow: out of bounds, a severed chain, a spell's end.
+    /// Not a hit — no hit report is published; the death still is.</summary>
+    Removal = 6,
 }
 
 /// <summary>

@@ -38,7 +38,7 @@ public partial class CombatCondition : CombatLogCondition
             CombatResultType.StatusExpired => log.HasEvent<StatusExpiredResult>(r => !r.Sustained && CheckResult(r)),
             CombatResultType.Stat => log.HasEvent<StatResult>(r => !r.Sustained && CheckResult(r)),
             CombatResultType.Effect => log.HasEvent<EffectResult>(r => !r.Sustained && CheckResult(r)),
-            CombatResultType.Any => log.HasEvent<CombatResult>(r => !r.Sustained && CheckResult(r)),
+            CombatResultType.Any => log.HasEvent<CombatResult>(r => !r.Sustained && r is not ImpactReport && CheckResult(r)),
             _ => false
         };
     }

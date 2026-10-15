@@ -17,7 +17,7 @@ public partial class CombatResultTagCondition : CombatLogCondition
     {
         return log.HasEvent<CombatResult>(r =>
         {
-            return !r.Sustained && CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
+            return !r.Sustained && r is not ImpactReport && CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
         });
     }
 }

@@ -27,7 +27,7 @@ namespace Jmodot.Implementation.Combat;
 /// OPTIONAL BLACKBOARD DEPENDENCIES:
 /// - BBDataSig.Stats (IStatProvider) — feeds <see cref="AttributeFloatDefinition"/> resolution
 ///   for <see cref="Stability"/> / <see cref="Mass"/>. ConstantFloatDefinition users sidestep this.
-/// - BBDataSig.CombatLog (CombatLog) — receives a <see cref="KnockbackResult"/> entry every
+/// - BBDataSig.CombatLog (CombatLog) — receives a <see cref="KnockbackAppliedResult"/> entry every
 ///   time <see cref="ApplyKnockback"/> succeeds, so HSM transition conditions
 ///   (<see cref="Jmodot.Examples.AI.HSM.TransitionConditions.KnockbackCondition"/>) can gate launch/stagger/ragdoll states off post-resistance
 ///   velocity-delta magnitude. Soft dep — null is acceptable; consumers without HSM
@@ -154,7 +154,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			return;
 		}
 		// A suspended movement processor DISCARDS every queued impulse — applying one, or logging
-		// the KnockbackResult HSM launch conditions read, would report a launch that never happened.
+		// the KnockbackAppliedResult HSM launch conditions read, would report a launch that never happened.
 		// Suspension's only production claimant is an attached rider; a shed releases suspension
 		// BEFORE applying the fling, so genuine flings are untouched by this guard.
 		if (_movementProcessor.IsSuspended) { return; }

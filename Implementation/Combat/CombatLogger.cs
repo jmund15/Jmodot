@@ -158,6 +158,22 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
                 sb.AppendLine($"║ Is Fatal:        {dmg.IsFatal}");
                 break;
 
+            case HitReport hit:
+                sb.AppendLine($"║ Damage:          {hit.Damage:F2} | Killed: {hit.Killed} | Overkill: {hit.Overkill:F2}");
+                sb.AppendLine($"║ Push (m/s):      {hit.AppliedDeltaV:F2} | Critical: {hit.IsCritical} | Kind: {hit.Kind}");
+                sb.AppendLine($"║ Weight:          {hit.Weight:F2} (damage {hit.DamageFraction:F2}, push {hit.PushFraction:F2}) | Magnitude: {hit.Magnitude:F2}");
+                sb.AppendLine($"║ Attacker:        {hit.Attacker.IfValid()?.Name.ToString() ?? "(null)"} | Point: {hit.Point}");
+                break;
+
+            case DeathReport death:
+                sb.AppendLine($"║ Killer:          {death.Killer.IfValid()?.Name.ToString() ?? "(none)"} | Kind: {death.Kind} | Paired: {death.Paired}");
+                sb.AppendLine($"║ Magnitude:       {death.Magnitude:F2} | Overkill: {death.Overkill:F2} | Point: {death.Point}");
+                break;
+
+            case KnockbackAppliedResult push:
+                sb.AppendLine($"║ Applied push:    {push.DeltaV:F2} m/s toward {push.Direction}");
+                break;
+
             case HealResult heal:
                 sb.AppendLine($"║ Amount Healed:   {heal.AmountHealed:F2}");
                 sb.AppendLine($"║ Overhealing:     {heal.Overhealing:F2}");

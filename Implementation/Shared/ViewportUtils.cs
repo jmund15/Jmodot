@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.Shared;
 
 using Godot;
+using Jmodot.Core.Visual;
 
 public static class ViewportUtils
 {
@@ -27,14 +28,15 @@ public static class ViewportUtils
         }
 
         var mousePosition = root.GetMousePosition();
-        var rayOrigin = camera.ProjectRayOrigin(mousePosition);
-        var rayDirection = camera.ProjectRayNormal(mousePosition);
-        var orthographic = camera.Projection == Camera3D.ProjectionType.Orthogonal;
+        var ray = camera is IAimRaySource source
+            ? source.ProjectRay(mousePosition)
+            : new AimRay(camera.ProjectRayOrigin(mousePosition), camera.ProjectRayNormal(mousePosition),
+                camera.Projection == Camera3D.ProjectionType.Orthogonal);
 
-        if (!TryIntersectFloor(rayOrigin, rayDirection, orthographic, out position))
+        if (!TryIntersectFloor(ray.Origin, ray.Direction, ray.Orthographic, out position))
         {
             JmoLogger.Error(root,
-                $"Couldn't find mouse intersection for origin '{rayOrigin}' and direction '{rayDirection}'");
+                $"Couldn't find mouse intersection for origin '{ray.Origin}' and direction '{ray.Direction}'");
             return false;
         }
 
