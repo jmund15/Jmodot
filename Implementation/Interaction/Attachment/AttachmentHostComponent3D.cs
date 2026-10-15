@@ -86,6 +86,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public IReadOnlyList<AttachmentRecord> Attachments => this._records;
 
     /// <inheritdoc />
+    public event Action BodyGraphChanged = delegate { };
+
+    /// <inheritdoc />
     public IEnumerable<Node> BodyGraphNodes
     {
         get
@@ -190,6 +193,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             pose);
 
         this._records.Add(record);
+        this.BodyGraphChanged();
         this.SubscribeTreeExiting(rider);
         rider.OnReserved(this, localAnchor);
         return true;
@@ -419,6 +423,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (index < 0) { return false; }
 
         this._records.RemoveAt(index);
+        this.BodyGraphChanged();
         this.UnsubscribeTreeExiting(rider);
         this.RiderDetached.Invoke(rider, cause);
         return true;

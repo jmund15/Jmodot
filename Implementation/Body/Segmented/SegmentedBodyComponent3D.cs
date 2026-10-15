@@ -93,6 +93,9 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     /// <inheritdoc />
     public IEnumerable<Node> BodyGraphNodes => this._segments.Select(segment => segment.Body);
 
+    /// <inheritdoc />
+    public event Action BodyGraphChanged = delegate { };
+
     /// <summary>Total body length: the units plus the head.</summary>
     public int Length => this._segments.Count + 1;
 
@@ -250,6 +253,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         this.Reindex();
+        if (adopted.Count > 0) { this.BodyGraphChanged(); }
         foreach (var segment in adopted)
         {
             this.SegmentAdopted?.Invoke(segment, this._segments.IndexOf(segment));
@@ -537,6 +541,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         segment.Died += this.OnSegmentDied;
         this.HookSegment(segment);
         this.Reindex();
+        this.BodyGraphChanged();
         this.SegmentAdopted?.Invoke(segment, index);
     }
 
@@ -750,6 +755,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         this.Reindex();
+        this.BodyGraphChanged();
     }
 
     private static void KillFragment(IReadOnlyList<BodySegment3D> members, object source)
@@ -793,6 +799,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         this.Reindex();
+        this.BodyGraphChanged();
     }
 
     private void Reindex()
@@ -841,6 +848,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
         this._segments.Clear();
         this._exitHooks.Clear();
+        this.BodyGraphChanged();
     }
 
     #region Test Helpers

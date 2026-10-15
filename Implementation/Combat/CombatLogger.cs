@@ -9,6 +9,8 @@ using Jmodot.Implementation.Combat;
 using Jmodot.Core.Combat;
 using Shared;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Status;
 
@@ -19,6 +21,8 @@ using Status;
 public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 {
     private CombatantComponent? _combatant;
+    private readonly List<IEntityBodyGraph> _graphs = new();
+    private readonly List<CombatantComponent> _bodyCombatants = new();
 
     /// <summary>
     /// Set to true to enable verbose logging of combat events to the Godot console.
@@ -55,6 +59,65 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
     {
         if (_combatant == null) { return; }
         _combatant.CombatResultEvent += HandleCombatResultEvent;
+
+        var entity = Owner ?? GetParent();
+        if (entity == null) { return; }
+        foreach (var graph in entity.GetChildrenOfInterface<IEntityBodyGraph>())
+        {
+            _graphs.Add(graph);
+            graph.BodyGraphChanged += RefreshBodyCombatants;
+        }
+        RefreshBodyCombatants();
+    }
+
+    /// <summary>
+    /// Re-reads every body graph's roster so a hit on any member reaches this log once. Only
+    /// <see cref="HitReport"/> is forwarded: a member's death is not the creature's death.
+    /// </summary>
+    private void RefreshBodyCombatants()
+    {
+        var wanted = new HashSet<CombatantComponent>();
+        foreach (var graph in _graphs)
+        {
+            foreach (var node in graph.BodyGraphNodes.ToArray())
+            {
+                if (!GodotObject.IsInstanceValid(node)) { continue; }
+                if (node.TryGetFirstChildOfType<CombatantComponent>(out var member, includeSubChildren: true)
+                    && member != null && member != _combatant)
+                {
+                    wanted.Add(member);
+                }
+            }
+        }
+
+        foreach (var member in _bodyCombatants.ToArray())
+        {
+            if (wanted.Remove(member)) { continue; }
+            _bodyCombatants.Remove(member);
+            if (!GodotObject.IsInstanceValid(member)) { continue; }
+            if (member.Health is { IsDead: true })
+            {
+                // A killing payload publishes its hit report after the death that dropped the member.
+                Callable.From(() => ReleaseBodyCombatant(member)).CallDeferred();
+            }
+            else { member.CombatResultEvent -= HandleBodyResultEvent; }
+        }
+
+        foreach (var member in wanted)
+        {
+            _bodyCombatants.Add(member);
+            member.CombatResultEvent += HandleBodyResultEvent;
+        }
+    }
+
+    private void ReleaseBodyCombatant(CombatantComponent member)
+    {
+        if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
+    }
+
+    private void HandleBodyResultEvent(CombatResult result)
+    {
+        if (result is HitReport) { HandleCombatResultEvent(result); }
     }
 
     private void HandleCombatResultEvent(CombatResult result)
@@ -90,6 +153,14 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
         {
             _combatant.CombatResultEvent -= HandleCombatResultEvent;
         }
+
+        foreach (var graph in _graphs) { graph.BodyGraphChanged -= RefreshBodyCombatants; }
+        _graphs.Clear();
+        foreach (var member in _bodyCombatants)
+        {
+            if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
+        }
+        _bodyCombatants.Clear();
     }
 
     #region Verbose Logging

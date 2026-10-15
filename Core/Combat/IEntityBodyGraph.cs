@@ -1,5 +1,6 @@
 namespace Jmodot.Core.Combat;
 
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -14,4 +15,10 @@ public interface IEntityBodyGraph
 {
     /// <summary>Returns the entity's current body-graph nodes beyond its own root.</summary>
     IEnumerable<Node> BodyGraphNodes { get; }
+
+    /// <summary>
+    /// Raised synchronously after membership changes; subscribers may enumerate the updated roster
+    /// inside the callback.
+    /// </summary>
+    event Action BodyGraphChanged;
 }
