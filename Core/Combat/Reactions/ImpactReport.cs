@@ -3,6 +3,7 @@ namespace Jmodot.Core.Combat.Reactions;
 using System.Collections.Generic;
 using Health;
 using Identification;
+using Physics;
 
 /// <summary>
 /// Base of the records combat publishes once per event so nothing downstream recomputes hit
@@ -46,6 +47,20 @@ public record DeathReport : ImpactReport
 
     /// <summary>True when a hit within the profile's window explains this death.</summary>
     public bool Paired { get; init; }
+}
+
+/// <summary>
+/// A spell striking something without health: a wall, the floor, a prop. There is no victim combatant to carry
+/// it, so it reaches the scene sink only. <see cref="CombatResult.Source"/> is the spell and
+/// <see cref="CombatResult.Target"/> is null; <see cref="ImpactReport.Categories"/> are the spell's.
+/// </summary>
+public record SurfaceImpactReport : ImpactReport
+{
+    /// <summary>Surface normal at the contact.</summary>
+    public Vector3 Normal { get; init; }
+
+    /// <summary>What kind of surface was struck, as the project's collision resolver classifies it.</summary>
+    public CollisionReason Surface { get; init; }
 }
 
 /// <summary>
