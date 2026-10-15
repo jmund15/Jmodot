@@ -36,7 +36,7 @@ public static class ConfigWarnings
     {
         for (var ancestor = self.GetParent(); ancestor != null; ancestor = ancestor.GetParent())
         {
-            if (ancestor.TryGetFirstChildOfType<T>(out found))
+            if (ancestor.TryGetFirstChildOfType<T>(out found, includeSubChildren: true))
             {
                 return true;
             }
