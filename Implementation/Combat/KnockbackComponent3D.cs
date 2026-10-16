@@ -207,6 +207,17 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		JmoLogger.Debug(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
 	}
 
+	public override void _EnterTree()
+	{
+		base._EnterTree();
+		// A reparent unsubscribes in _ExitTree and Phase 2 does not run again, so a built component re-arms here.
+		if (IsInitialized)
+		{
+			_combatant.CombatResultEvent -= OnCombatResult;
+			_combatant.CombatResultEvent += OnCombatResult;
+		}
+	}
+
 	public override void _ExitTree()
 	{
 		// Disposal-race guard: CombatantComponent is a Godot Node and may be freed
