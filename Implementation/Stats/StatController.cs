@@ -36,7 +36,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     private readonly IntCalculationStrategy _defaultIntCalcStrat = new();
     private readonly BoolCalculationStrategy _defaultBoolCalcStrat = new();
 
-    private readonly HashSet<StatContext> _activeContexts = new();
+    private readonly Dictionary<StatContext, int> _activeContexts = new();
 
 
     private EntityStatSheet _archetype = null!;
@@ -354,11 +354,17 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <c>MovementQuirkProcessor3D.ActiveQuirks</c>: a scoped hold is only auditable if what
     /// is held can be read back.
     /// </summary>
-    public IReadOnlyCollection<StatContext> ActiveContexts => _activeContexts;
+    public IReadOnlyCollection<StatContext> ActiveContexts => _activeContexts.Keys;
 
+    /// <summary>
+    /// Holds <paramref name="context"/>. Contexts are refcounted: the first hold installs its modifiers, later
+    /// holds only count, and <see cref="RemoveActiveContext"/> drops them on the last release.
+    /// </summary>
     public void AddActiveContext(StatContext context)
     {
-        _activeContexts.Add(context);
+        _activeContexts.TryGetValue(context, out var holds);
+        _activeContexts[context] = holds + 1;
+        if (holds > 0) { return; }
 
         foreach (var (attribute, modifier) in context.Modifiers)
         {
@@ -368,8 +374,16 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
     }
 
+    /// <summary>Releases one hold on <paramref name="context"/>; a release with no hold is inert.</summary>
     public void RemoveActiveContext(StatContext context)
     {
+        if (!_activeContexts.TryGetValue(context, out var holds)) { return; }
+        if (holds > 1)
+        {
+            _activeContexts[context] = holds - 1;
+            return;
+        }
+
         _activeContexts.Remove(context);
         // This is a simple, powerful shorthand for the most common cleanup operation.
         RemoveAllModifiersFromSource(context);
@@ -559,11 +573,11 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
 
         // 5. Copy Active Contexts
-        // Contexts act as tags/flags, so shallow copying the list is sufficient
-        // (Assuming StatContext is a shared Resource)
-        foreach (var context in original._activeContexts)
+        // Contexts are shared Resources, so the hold counts copy with their keys; the cloned
+        // properties already carry the modifiers each context installed.
+        foreach (var (context, holds) in original._activeContexts)
         {
-            _activeContexts.Add(context);
+            _activeContexts[context] = holds;
         }
 
         // 6. Notify Initial State

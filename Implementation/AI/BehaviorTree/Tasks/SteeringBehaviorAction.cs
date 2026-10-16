@@ -34,8 +34,8 @@ public partial class SteeringBehaviorAction : BehaviorAction
     [Export] private SteeringSynthesisStrategy3D? _synthesisOverride;
 
     private AISteeringProcessor3D? _cachedSteering;
-    private bool _cadencePaused;
-    private float _cadenceTimer;
+    private MovementCadenceClock _cadence;
+    private bool _warnedNoSeed;
     private bool _cadenceClaimed;
 
     /// <summary>
@@ -49,8 +49,12 @@ public partial class SteeringBehaviorAction : BehaviorAction
     {
         base.OnEnter();
 
-        _cadencePaused = false;
-        _cadenceTimer = Cadence?.MoveSeconds ?? 0f;
+        _cadence = default;
+        if (Cadence != null)
+        {
+            _cadence.Start(Cadence.MoveSeconds, Cadence.PauseSeconds,
+                EntityRngResolver.ResolveUnit(BB, SeedKinds.CadencePhase, this, ref _warnedNoSeed));
+        }
 
         if (!TryGetSteering(out var steering))
         {
@@ -88,20 +92,12 @@ public partial class SteeringBehaviorAction : BehaviorAction
     protected virtual void OnProcessSteeringPhysics(float delta) { }
 
     /// <summary>True when the cadence permits a destination or consideration update this tick.</summary>
-    protected bool CadenceAllowsSteering => !_cadencePaused;
+    protected bool CadenceAllowsSteering => !_cadence.Paused;
 
     private bool TickCadence(float delta)
     {
-        if (Cadence == null || !(Cadence.MoveSeconds > 0f))
-        {
-            _cadencePaused = false;
-            return true;
-        }
-
-        var moving = MovementCadenceResource.AdvanceCadence(
-            _cadencePaused, _cadenceTimer, Cadence.MoveSeconds, Cadence.PauseSeconds, delta,
-            out _cadencePaused, out _cadenceTimer);
-        return moving;
+        if (Cadence == null) { return true; }
+        return _cadence.Advance(Cadence.MoveSeconds, Cadence.PauseSeconds, delta);
     }
 
     private void UpdateCadenceControl(bool steeringAllowed)
@@ -128,8 +124,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
             _cachedSteering.ReleaseControl(this.Name);
             _cadenceClaimed = false;
         }
-        _cadencePaused = false;
-        _cadenceTimer = 0f;
+        _cadence = default;
 
         base.OnExit();
 
@@ -175,6 +170,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     #region Test Helpers
 #if TOOLS
+    internal void SetCadenceForTest(MovementCadenceResource? cadence) => Cadence = cadence;
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;

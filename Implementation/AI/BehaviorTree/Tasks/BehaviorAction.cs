@@ -7,10 +7,12 @@ using Core.AI.BB;
 using Core.AI.BehaviorTree;
 using Core.Actors;
 using Core.Movement.Quirks;
+using Core.Stats;
 using Movement.Quirks;
 using Movement.Strategies;
 using Shared;
 using Shared.GodotExceptions;
+using Stats;
 using GColl = Godot.Collections;
 
 /// <summary>
@@ -38,11 +40,21 @@ public abstract partial class BehaviorAction : BehaviorTask
     [Export] public BaseMovementStrategy3D? MovementStrategyOverride { get; private set; }
 
     private MovementOverrideLatch _movementOverrideLatch;
+    private StatContextRegistration _statContextRegistration;
+
+    /// <summary>
+    /// Optional stat context applied while this action runs: its modifiers install on enter and
+    /// drop on exit. The provider refcounts a context, so one shared with a State or another
+    /// action survives until every holder releases it.
+    /// </summary>
+    [ExportGroup("Stat Context")]
+    [Export] public StatContext? ActiveStatContext { get; private set; }
 
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
         _quirkRegistration.Resolve(bb, MovementQuirks, this);
+        _statContextRegistration.Resolve(bb, ActiveStatContext);
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
         if (this.MovementStrategyOverride != null && movement == null)
         {
@@ -57,11 +69,13 @@ public abstract partial class BehaviorAction : BehaviorTask
         this.BB.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
         this._movementOverrideLatch.Apply(movement, this.MovementStrategyOverride);
         this._quirkRegistration.Register();
+        this._statContextRegistration.Apply();
     }
 
     protected override void OnExit()
     {
         this._movementOverrideLatch.Restore();
+        this._statContextRegistration.Remove();
         this._quirkRegistration.Release();
 
         base.OnExit();
@@ -85,6 +99,7 @@ public abstract partial class BehaviorAction : BehaviorTask
     #region Test Helpers
 #if TOOLS
     internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => this.MovementStrategyOverride = strategy;
+    internal void SetActiveStatContext(StatContext? context) => this.ActiveStatContext = context;
 #endif
     #endregion
 }
