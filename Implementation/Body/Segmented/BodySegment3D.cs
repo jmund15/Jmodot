@@ -50,6 +50,12 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
     /// <summary>Position in the chain: 0 is the unit directly behind the head. Meaningful only until the next death in the same frame.</summary>
     public int Index { get; private set; } = -1;
 
+    /// <summary>
+    /// The position this unit last held in a chain. Unlike <see cref="Index"/> it survives <see cref="Unbind"/>, so a
+    /// unit killed after its body detaches it still reports where it stood; -1 until first bound.
+    /// </summary>
+    public int LastBoundIndex { get; private set; } = -1;
+
     /// <summary>The chain that owns this unit's pose, or null while it is unbound.</summary>
     public SegmentedBodyComponent3D? Host { get; private set; }
 
@@ -94,6 +100,7 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
     {
         this.Host = host;
         this.Index = index;
+        this.LastBoundIndex = index;
     }
 
     /// <summary>Releases this unit from its host. The unit keeps its pose; nothing frees it.</summary>
