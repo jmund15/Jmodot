@@ -55,8 +55,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     [Export] public int MaxSegments { get; private set; } = 11;
 
     /// <summary>
-    /// Shortest total body, head included, that a severed run needs to stand as its own body, and the length at
-    /// which losing a unit kills the head. A longer body that loses units leaves its head alive. Never below 2.
+    /// Shortest total body, head included, that stays alive: a severed run shorter than this dies, and a head
+    /// left shorter than this kills itself. Never below 2.
     /// </summary>
     [Export] public int MinLength { get; private set; } = 2;
 
@@ -207,7 +207,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     public event Action<BodySegment3D, int>? SegmentAdopted;
 
     /// <summary>
-    /// Raised once when a body already at <see cref="MinLength"/> loses a unit, immediately before the head
+    /// Raised once when a split leaves the head shorter than <see cref="MinLength"/>, immediately before the head
     /// kills itself through its own health, which is the kill an encounter counts.
     /// </summary>
     public event Action? BelowMinimumLength;
@@ -599,13 +599,21 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
     private void RecordDeath(BodySegment3D segment)
     {
+        if (!this.RecordLoss(segment, out var index)) { return; }
+
+        this.SegmentDied?.Invoke(segment, index);
+    }
+
+    // A loss joins the frame's dead set and queues the split; only a death also raises SegmentDied.
+    private bool RecordLoss(BodySegment3D segment, out int index)
+    {
         this.OpenResolution();
-        var index = this._resolutionRoster.IndexOf(segment);
-        if (index < 0) { return; }
+        index = this._resolutionRoster.IndexOf(segment);
+        if (index < 0) { return false; }
 
         this._deadIndices.Add(index);
-        this.SegmentDied?.Invoke(segment, index);
         this.QueueResolution();
+        return true;
     }
 
     // The roster is frozen at the frame's FIRST death: every later index this frame addresses the
@@ -715,12 +723,13 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             }
 
             var progeny = ChainPromotion.Promote(this, headRoot, members, container, parentSeed, this._progenyOrdinal++);
+            JmoLogger.Info(this, $"[SegmentedBody] promoted a {members.Count}-unit fragment into its own body.");
             this.ProgenySpawned?.Invoke(progeny);
         }
 
-        // Only a body already at its minimum dies with a lost unit; a longer one leaves the head standing alone.
-        if (headDead || this.Length >= this.MinLength || roster.Length + 1 > this.MinLength) { return; }
+        if (headDead || this.Length >= this.MinLength) { return; }
 
+        JmoLogger.Info(this, $"[SegmentedBody] head left at length {this.Length}, under MinLength {this.MinLength} — killed.");
         this.BelowMinimumLength?.Invoke();
         this._headHealth?.Kill(this);
     }
@@ -787,6 +796,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     {
         if (GodotObject.IsInstanceValid(segment) && segment.IsInsideTree()) { return; }
 
+        this.RecordLoss(segment, out _);
         this.DropSegment(segment);
     }
 
