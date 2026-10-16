@@ -86,6 +86,17 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
 
     [Export] private DebugAIPanel.DebugViewPosition _debugViewPosition = DebugAIPanel.DebugViewPosition.TopLeft;
 
+    private const int MaxDeliveriesPerFrame = 8;
+
+    private readonly Queue<TaskStatus> _pendingTerminals = new();
+    private bool _delivering;
+    private bool _backoff;
+    private int _deliveriesThisFrame;
+    private int _deferredInEpisode;
+    private double _simSeconds;
+    private double _nextFinishedLogAt;
+    private double _nextRestartLogAt;
+
     public bool IsInitialized { get; private set; }
     public BehaviorTask RootTask { get; private set; } = null!; // Set in Init(), exception if missing
 
@@ -192,7 +203,11 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
 
     public override void _PhysicsProcess(double delta)
     {
+        _deliveriesThisFrame = 0;
+        _simSeconds += delta;
         if (Engine.IsEditorHint() || !Enabled || !IsInitialized) { return; }
+
+        DrainPendingAtFrameHead();
         RootTask?.ProcessPhysics((float)delta);
     }
 
@@ -256,6 +271,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             return;
         }
 
+        ResetDelivery();
         Enabled = true;
         RootTask.TaskStatusChanged += OnRootTaskStatusChanged;
         RootTask.Enter();
@@ -268,6 +284,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
     {
         if (!IsInitialized) { return; }
 
+        ResetDelivery();
         Enabled = false;
         RootTask.TaskStatusChanged -= OnRootTaskStatusChanged;
         RootTask.Exit();
@@ -285,7 +302,124 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             return;
         }
 
-        JmoLogger.Debug(this, $"[BT] Tree root task '{RootTask.Name}' finished with status {newStatus}.");
+        if (_delivering || _deliveriesThisFrame >= DeliveryLimit)
+        {
+            _pendingTerminals.Enqueue(newStatus);
+            return;
+        }
+
+        DeliverAndDrain(newStatus);
+    }
+
+    /// <summary>
+    /// A terminal that arrives while another is being delivered (a root that fails inside its own
+    /// <c>Enter</c>, or a hosting state that answers <see cref="TreeFinishedLoop"/> with Exit + Enter) is queued
+    /// and delivered after the outer call returns, so same-frame stack depth stays flat.
+    /// </summary>
+    private void DeliverAndDrain(TaskStatus first)
+    {
+        _delivering = true;
+        try
+        {
+            var status = first;
+            while (true)
+            {
+                DeliverTerminal(status);
+                if (!TryDequeueDeliverable(out status)) { break; }
+            }
+        }
+        finally
+        {
+            _delivering = false;
+        }
+
+        NoteDeferred();
+    }
+
+    private int DeliveryLimit => _backoff ? 1 : MaxDeliveriesPerFrame;
+
+    private bool TryDequeueDeliverable(out TaskStatus status)
+    {
+        status = default;
+        while (_pendingTerminals.Count > 0)
+        {
+            if (_deliveriesThisFrame >= DeliveryLimit) { return false; }
+
+            var queued = _pendingTerminals.Dequeue();
+            if (Enabled && RootTask.Status == queued)
+            {
+                status = queued;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void NoteDeferred()
+    {
+        if (_pendingTerminals.Count == 0) { return; }
+
+        if (!_backoff)
+        {
+            _backoff = true;
+            JmoLogger.Warning(this, $"[BT] terminal delivery capped at {MaxDeliveriesPerFrame} per frame for '{Name}'; deferring the rest, one per frame.");
+        }
+
+        _deferredInEpisode += _pendingTerminals.Count;
+    }
+
+    private void DrainPendingAtFrameHead()
+    {
+        if (_pendingTerminals.Count > 0 && !_delivering)
+        {
+            if (TryDequeueDeliverable(out var status)) { DeliverAndDrain(status); }
+            else { NoteDeferred(); }
+        }
+
+        if (_backoff && _pendingTerminals.Count == 0 && RootTask.Status == TaskStatus.Running) { EndBackoff(); }
+    }
+
+    private void EndBackoff()
+    {
+        if (!_backoff) { return; }
+
+        _backoff = false;
+        JmoLogger.Warning(this, $"[BT] terminal delivery resumed, {_deferredInEpisode} deferred for '{Name}'.");
+        _deferredInEpisode = 0;
+    }
+
+    /// <summary>
+    /// A restart that begins outside any delivery starts a new cascade: the queue is dropped (its entries
+    /// belong to the previous root run), and unless a delivery is on the stack the frame count and any backoff
+    /// episode end with it. A reentrant Exit + Enter keeps both, so a hosting state's self-transition stays capped.
+    /// </summary>
+    private void ResetDelivery()
+    {
+        _pendingTerminals.Clear();
+        if (_delivering) { return; }
+
+        _deliveriesThisFrame = 0;
+        EndBackoff();
+    }
+
+    private bool MayLogDelivery(ref double nextAllowedAt)
+    {
+        var throttled = _backoff || _deliveriesThisFrame > 1;
+        if (throttled && _simSeconds < nextAllowedAt) { return false; }
+
+        nextAllowedAt = _simSeconds + 1.0;
+        return true;
+    }
+
+    private void DeliverTerminal(TaskStatus newStatus)
+    {
+        _deliveriesThisFrame++;
+        if (MayLogDelivery(ref _nextFinishedLogAt))
+        {
+            JmoLogger.Debug(this, $"[BT] Tree root task '{RootTask.Name}' finished with status {newStatus}.");
+        }
+
         EmitSignal(SignalName.TreeFinishedLoop, (long)newStatus);
 
         // Tree was already disabled (e.g., external Exit() raced with terminal status) — nothing to do.
@@ -294,7 +428,11 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
         switch (Policy)
         {
             case RestartPolicy.AlwaysRestart:
-                JmoLogger.Info(this, "[BT] Resetting and restarting tree...");
+                if (MayLogDelivery(ref _nextRestartLogAt))
+                {
+                    JmoLogger.Info(this, "[BT] Resetting and restarting tree...");
+                }
+
                 EmitSignal(SignalName.TreeReset);
                 RootTask.Exit();  // Ensure a clean exit before re-entering.
                 RootTask.Enter();
