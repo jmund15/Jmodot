@@ -24,7 +24,12 @@ using Implementation.Shared.GodotExceptions;
 /// <para>
 /// Author this as a DIRECT child of the head scene's root; the root is the pose this chain follows
 /// and its parent is where the units are placed. Units are never reparented under the head, so the
-/// head's subtree still contains exactly one health and the tail is not freed with the head.
+/// head's subtree still contains exactly one health. Freeing the head therefore frees no unit, so the
+/// head's death kills every unit explicitly: a body ends with its head.
+/// </para>
+/// <para>
+/// A unit's death splits the body there. Each piece of at least <see cref="MinLength"/> lives, and the
+/// piece behind the gap promotes its front unit into a new head; a piece shorter than that dies.
 /// </para>
 /// <para>
 /// Sampling and placement run on the idle frame, which always follows the physics frame that moved
@@ -56,7 +61,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
     /// <summary>
     /// Shortest total body, head included, that stays alive: a severed run shorter than this dies, and a head
-    /// left shorter than this kills itself. Never below 2.
+    /// left shorter than this kills itself and its remaining units. Never below 2.
     /// </summary>
     [Export] public int MinLength { get; private set; } = 2;
 
@@ -645,8 +650,9 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         var roster = this._resolutionRoster.ToArray();
         var dead = new HashSet<int>(this._deadIndices);
         var headDead = this._headDead;
-        if (!this._promotionGroundRetryPending
-            && this.RequiresPromotionGroundRetry(roster, dead, headDead))
+        if (!headDead
+            && !this._promotionGroundRetryPending
+            && this.RequiresPromotionGroundRetry(roster, dead))
         {
             this._promotionGroundRetryPending = true;
             this.GetTree().Connect(
@@ -661,6 +667,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         this._resolutionRoster.Clear();
         this._deadIndices.Clear();
         this._headDead = false;
+
+        if (headDead)
+        {
+            this.KillWholeBody(roster);
+            return;
+        }
 
         if (roster.Length == 0) { return; }
 
@@ -680,8 +692,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
             if (members.Count == 0) { continue; }
 
-            // A living head keeps the run still attached to it, which is the one starting at its own end.
-            if (!headDead && range.Start.Value == 0) { continue; }
+            // The living head keeps the run still attached to it, which is the one starting at its own end.
+            if (range.Start.Value == 0) { continue; }
 
             // Refusal targets the BURIED class only: a front unit whose column's walkable surface sits
             // ABOVE it is below the world and would promote into an out-of-bounds fall. A column with no
@@ -727,7 +739,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             this.ProgenySpawned?.Invoke(progeny);
         }
 
-        if (headDead || this.Length >= this.MinLength) { return; }
+        if (this.Length >= this.MinLength) { return; }
 
         JmoLogger.Info(this, $"[SegmentedBody] head left at length {this.Length}, under MinLength {this.MinLength} — killed.");
         this.BelowMinimumLength?.Invoke();
@@ -736,13 +748,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
     private bool RequiresPromotionGroundRetry(
         IReadOnlyList<BodySegment3D> roster,
-        HashSet<int> dead,
-        bool headDead)
+        HashSet<int> dead)
     {
         if (this._head is not PhysicsBody3D || !GodotObject.IsInstanceValid(this._head)) { return false; }
         foreach (var range in SegmentSplitResolver.Resolve(dead, roster.Count))
         {
-            if (!headDead && range.Start.Value == 0) { continue; }
+            if (range.Start.Value == 0) { continue; }
             var front = roster[range.Start.Value];
             if (GodotObject.IsInstanceValid(front)
                 && !this.TryProbeGround(front.Body.GlobalPosition, out _))
@@ -752,6 +763,18 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         return false;
+    }
+
+    // The head's death ends the body: every unit still standing dies through its own death path, with no
+    // run left to promote.
+    private void KillWholeBody(IReadOnlyList<BodySegment3D> roster)
+    {
+        var members = roster.Concat(this._segments).Distinct().Where(GodotObject.IsInstanceValid).ToList();
+        if (members.Count == 0) { return; }
+
+        JmoLogger.Info(this, $"[SegmentedBody] head died — killing its {members.Count} remaining unit(s).");
+        this.Detach(members);
+        KillFragment(members, this);
     }
 
     private void Detach(IReadOnlyList<BodySegment3D> members)
