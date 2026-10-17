@@ -356,10 +356,8 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// </summary>
     public IReadOnlyCollection<StatContext> ActiveContexts => _activeContexts.Keys;
 
-    /// <summary>
-    /// Holds <paramref name="context"/>. Contexts are refcounted: the first hold installs its modifiers, later
-    /// holds only count, and <see cref="RemoveActiveContext"/> drops them on the last release.
-    /// </summary>
+    /// <inheritdoc/>
+    /// <remarks>The installed modifiers are owned by <paramref name="context"/> itself.</remarks>
     public void AddActiveContext(StatContext context)
     {
         _activeContexts.TryGetValue(context, out var holds);
@@ -374,7 +372,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
     }
 
-    /// <summary>Releases one hold on <paramref name="context"/>; a release with no hold is inert.</summary>
+    /// <inheritdoc/>
     public void RemoveActiveContext(StatContext context)
     {
         if (!_activeContexts.TryGetValue(context, out var holds)) { return; }
