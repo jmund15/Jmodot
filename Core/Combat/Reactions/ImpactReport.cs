@@ -39,6 +39,9 @@ public record DeathReport : ImpactReport
     /// <summary>Unit vector of the killing blow when <see cref="Paired"/>; zero otherwise.</summary>
     public Vector3 Direction { get; init; }
 
+    /// <summary>The paired hit's <see cref="HitReport.HarmMagnitude"/>; the default death magnitude when unpaired.</summary>
+    public float HarmMagnitude { get; init; }
+
     /// <summary>Requested damage beyond the health that remained, when a paired hit knew it; zero otherwise.</summary>
     public float Overkill { get; init; }
 
@@ -93,6 +96,12 @@ public record HitReport : ImpactReport
 
     /// <summary>Damage over the victim's maximum health, in [0, 1].</summary>
     public float DamageFraction { get; init; }
+
+    /// <summary>
+    /// The damage part of <see cref="ImpactReport.Magnitude"/>: requested damage over the reference damage, in [0, 1].
+    /// Zero for a hit that dealt no damage, so a sink reads the harm axis without the push.
+    /// </summary>
+    public float HarmMagnitude { get; init; }
 
     /// <summary>Applied delta-v over the reference delta-v, in [0, 1].</summary>
     public float PushFraction { get; init; }

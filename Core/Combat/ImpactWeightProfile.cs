@@ -36,7 +36,10 @@ public partial class ImpactWeightProfile : Resource
 
     /// <summary>Absolute size in [0, 1] of a requested damage and impulse, the larger axis winning.</summary>
     public float MagnitudeOf(float requestedDamage, float requestedImpulse) =>
-        Math.Max(Fraction(requestedDamage, ReferenceDamage), Fraction(requestedImpulse, ReferenceImpulse));
+        Math.Max(HarmOf(requestedDamage), Fraction(requestedImpulse, ReferenceImpulse));
+
+    /// <summary>The damage axis of <see cref="MagnitudeOf"/>: requested damage over <see cref="ReferenceDamage"/>, in [0, 1].</summary>
+    public float HarmOf(float requestedDamage) => Fraction(requestedDamage, ReferenceDamage);
 
     /// <summary><paramref name="amount"/> over <paramref name="reference"/> clamped to [0, 1]; 0 when either is unusable.</summary>
     public static float Fraction(float amount, float reference)

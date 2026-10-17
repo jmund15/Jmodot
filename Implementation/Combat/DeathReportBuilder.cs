@@ -34,6 +34,7 @@ public static class DeathReportBuilder
             Overkill = overkill,
             Direction = paired ? pairedHit!.Direction : Vector3.Zero,
             Magnitude = paired ? pairedHit!.Magnitude : profile.DefaultDeathMagnitude,
+            HarmMagnitude = paired ? pairedHit!.HarmMagnitude : profile.DefaultDeathMagnitude,
             Paired = paired,
         };
     }

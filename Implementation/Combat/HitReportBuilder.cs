@@ -44,7 +44,7 @@ public static class HitReportBuilder
         bool critical = i.Damage.Any(d => d.IsCritical);
         var tags = i.Damage.SelectMany(d => d.Tags ?? []).Distinct().ToList();
 
-        var (weight, magnitude, damageFraction, pushFraction) = Derive(
+        var (weight, magnitude, damageFraction, pushFraction, harm) = Derive(
             profile, damage, i.VictimMaxHealth, i.AppliedDeltaV, requestedDamage, i.RequestedImpulse, critical, tags);
 
         return new HitReport
@@ -64,6 +64,7 @@ public static class HitReportBuilder
             IsCritical = critical,
             Weight = weight,
             Magnitude = magnitude,
+            HarmMagnitude = harm,
             DamageFraction = damageFraction,
             PushFraction = pushFraction,
             Kind = DamageKind.Direct,
@@ -77,7 +78,7 @@ public static class HitReportBuilder
         float damage = Math.Max(0f, i.HealthBefore - i.HealthAfter);
         if (!(damage > 0f)) { return null; }
 
-        var (weight, magnitude, damageFraction, pushFraction) = Derive(
+        var (weight, magnitude, damageFraction, pushFraction, harm) = Derive(
             profile, damage, i.VictimMaxHealth, i.SpeedAlongNormal, i.RequestedDamage, 0f, false, []);
 
         return new HitReport
@@ -94,6 +95,7 @@ public static class HitReportBuilder
             Overkill = i.Died ? Math.Max(0f, i.RequestedDamage - i.HealthBefore) : 0f,
             Weight = weight,
             Magnitude = magnitude,
+            HarmMagnitude = harm,
             DamageFraction = damageFraction,
             PushFraction = pushFraction,
             Kind = DamageKind.Environmental,
@@ -108,7 +110,7 @@ public static class HitReportBuilder
         float damage = -args.HealthDelta;
         if (!(damage > 0f)) { return null; }
 
-        var (weight, magnitude, damageFraction, pushFraction) = Derive(
+        var (weight, magnitude, damageFraction, pushFraction, harm) = Derive(
             profile, damage, args.MaxHealth, 0f, damage, 0f, false, []);
 
         return new HitReport
@@ -124,6 +126,7 @@ public static class HitReportBuilder
             Killed = args.NewHealth <= 0f,
             Weight = weight,
             Magnitude = magnitude,
+            HarmMagnitude = harm,
             DamageFraction = damageFraction,
             PushFraction = pushFraction,
             Kind = DamageKind.Direct,
@@ -131,7 +134,7 @@ public static class HitReportBuilder
         };
     }
 
-    internal static (float Weight, float Magnitude, float DamageFraction, float PushFraction) Derive(
+    internal static (float Weight, float Magnitude, float DamageFraction, float PushFraction, float Harm) Derive(
         ImpactWeightProfile profile, float damage, float victimMaxHealth, float appliedDeltaV,
         float requestedDamage, float requestedImpulse, bool isCritical, IEnumerable<CombatTag> tags)
     {
@@ -140,6 +143,7 @@ public static class HitReportBuilder
         float weight = Math.Max(Math.Max(damageFraction, pushFraction), profile.FloorFor(tags));
         if (isCritical) { weight *= profile.CritMultiplier; }
 
-        return (Math.Min(1f, weight), profile.MagnitudeOf(requestedDamage, requestedImpulse), damageFraction, pushFraction);
+        return (Math.Min(1f, weight), profile.MagnitudeOf(requestedDamage, requestedImpulse), damageFraction, pushFraction,
+            profile.HarmOf(requestedDamage));
     }
 }
