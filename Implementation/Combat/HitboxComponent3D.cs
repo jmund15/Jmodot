@@ -349,8 +349,22 @@ using AI.BB;
         /// Every contact looks the hurtbox up once and passes it on (<see cref="TryHitHurtbox"/>).
         /// </summary>
         public static HurtboxComponent3D? FindHurtbox(Node3D collider, Vector3? strikeOrigin = null)
+            => strikeOrigin is { } origin
+                ? FindHurtbox(collider, origin, static point => point)
+                : FindHurtbox<Vector3>(collider, default, null);
+
+        /// <summary>
+        /// <see cref="FindHurtbox(Node3D, Vector3?)"/> for a caller whose strike origin costs something to
+        /// compute: <paramref name="strikeOrigin"/> runs at most once, with <paramref name="state"/>, and only
+        /// when the collider holds a second hurtbox to rank against the first. A collider with one hurtbox, or
+        /// none, never pays for it. A non-capturing delegate allocates nothing per call.
+        /// </summary>
+        public static HurtboxComponent3D? FindHurtbox<TState>(
+            Node3D collider, TState state, Func<TState, Vector3>? strikeOrigin)
         {
             if (collider is HurtboxComponent3D self) { return self; }
+
+            Vector3 origin = default;
 
             HurtboxComponent3D? first = null;
             HurtboxComponent3D? nearest = null;
@@ -365,7 +379,7 @@ using AI.BB;
                     var child = node.GetChild(i);
                     pending.Enqueue(child);
                     if (child is not HurtboxComponent3D candidate || !CanBeStruck(candidate)) { continue; }
-                    if (strikeOrigin is not { } origin) { return candidate; }
+                    if (strikeOrigin == null) { return candidate; }
 
                     // A lone hurtbox needs no ranking: it is measured only once a second one appears.
                     if (first == null)
@@ -375,6 +389,7 @@ using AI.BB;
                     }
                     if (nearest == null)
                     {
+                        origin = strikeOrigin(state);
                         nearest = first;
                         nearestDistSq = DistanceSqToSurface(origin, first);
                     }

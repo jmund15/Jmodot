@@ -250,6 +250,8 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     {
         var warnings = new List<string>();
         if (_considerations.Count == 0) { warnings.Add("No considerations are assigned. The AI will have no environmental awareness."); }
+        warnings.AddRange(_considerations.OfType<Core.Shared.IResourceConfigurationWarnings>()
+            .SelectMany(c => c.GetResourceConfigurationWarnings().Select(w => $"Consideration '{((Resource)c).ResourceName}': {w}")));
         if (MovementDirections == null || !MovementDirections.Directions.Any()) { warnings.Add("No movement directions are defined. The AI will not know how to score potential moves."); }
         if (_navPathConsideration == null && GetParent()?.FindChild("AINavigator3D") != null)
         {

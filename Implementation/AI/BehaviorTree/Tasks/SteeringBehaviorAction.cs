@@ -1,8 +1,10 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
+using System.Linq;
 using Core.AI;
 using Core.AI.Navigation;
 using Core.AI.Navigation.Considerations;
+using Core.Shared;
 using Jmodot.AI.Navigation;
 using Navigation.Considerations;
 using Shared;
@@ -32,6 +34,13 @@ public partial class SteeringBehaviorAction : BehaviorAction
     /// and released on exit. A conflicting concurrent claim is rejected+warned by the processor.</summary>
     [ExportGroup("Synthesis Override")]
     [Export] private SteeringSynthesisStrategy3D? _synthesisOverride;
+
+    public override string[] _GetConfigurationWarnings()
+    {
+        var considerationWarnings = _considerations.OfType<IResourceConfigurationWarnings>()
+            .SelectMany(c => c.GetResourceConfigurationWarnings().Select(w => $"Consideration '{((Resource)c).ResourceName}': {w}"));
+        return base._GetConfigurationWarnings().Concat(considerationWarnings).ToArray();
+    }
 
     private AISteeringProcessor3D? _cachedSteering;
     private MovementCadenceClock _cadence;
