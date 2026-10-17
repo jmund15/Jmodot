@@ -328,12 +328,35 @@ using AI.BB;
         /// hit of an <see cref="IsContinuous"/> hitbox already is.</param>
         public void TryHitNode(Node3D collider, bool continuous = false)
         {
-            if (collider is HurtboxComponent3D self) { TryHitHurtbox(self, continuous); return; }
+            if (FindHurtbox(collider) is { } hurtbox) { TryHitHurtbox(hurtbox, continuous); }
+        }
 
-            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
+        /// <summary>
+        /// The hurtbox a contact on <paramref name="collider"/> reaches. A collider that is itself a
+        /// <see cref="HurtboxComponent3D"/> is taken as itself; otherwise its hurtbox descendants are
+        /// searched breadth-first, so grouping them under a presentation node does not hide them.
+        /// With several, the first found stands in, unless <paramref name="strikeOrigin"/> is given:
+        /// then the one whose shape surface is nearest that point, as the detector's overlap picks
+        /// the hurtbox a strike reaches. Null when the collider holds none. Every contact looks the
+        /// hurtbox up once and passes it on (<see cref="TryHitHurtbox"/>).
+        /// </summary>
+        public static HurtboxComponent3D? FindHurtbox(Node3D collider, Vector3? strikeOrigin = null)
+        {
+            if (collider is HurtboxComponent3D self) { return self; }
+
+            var hurtboxes = collider.GetChildrenOfType<HurtboxComponent3D>(includeSubChildren: true);
+            if (strikeOrigin is not { } origin) { return hurtboxes.Count > 0 ? hurtboxes[0] : null; }
+
+            HurtboxComponent3D? nearest = null;
+            float nearestDistSq = float.MaxValue;
+            foreach (var candidate in hurtboxes)
             {
-                TryHitHurtbox(hurtbox, continuous);
+                float distSq = origin.DistanceSquaredTo(Physics.ShapeProximityCalculator.GetClosestSurfacePointOnBody(origin, candidate));
+                if (distSq >= nearestDistSq) { continue; }
+                nearest = candidate;
+                nearestDistSq = distSq;
             }
+            return nearest;
         }
 
         /// <summary>
@@ -361,12 +384,7 @@ using AI.BB;
         /// </summary>
         public void ClearHitEntry(Node3D collider)
         {
-            if (collider is HurtboxComponent3D self) { _hitHurtboxes.Remove(self); return; }
-
-            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
-            {
-                _hitHurtboxes.Remove(hurtbox);
-            }
+            if (FindHurtbox(collider) is { } hurtbox) { _hitHurtboxes.Remove(hurtbox); }
         }
 
         public void StartAttack(IAttackPayload payload)
@@ -441,7 +459,7 @@ using AI.BB;
             _pendingOverlapRetries = 0;  // Clear pending scan for clean pool state
 
             // CRITICAL: Clear accumulated event handlers BEFORE the early return.
-            // WireCombatListener subscribes OnHitRegistered += each pool cycle.
+            // WireLandedHitImpact subscribes OnHitRegistered += each pool cycle.
             // Without clearing, Nth reuse fires N handlers per hit → N Destroy calls.
             OnHitRegistered = delegate { };
             OnAttackStarted = delegate { };
@@ -712,7 +730,11 @@ using AI.BB;
             }
         }
 
-        private void TryHitHurtbox(HurtboxComponent3D hurtbox, bool continuous = false)
+        /// <summary>
+        /// Delivers a hit to <paramref name="hurtbox"/> through the same guards as
+        /// <see cref="TryHitNode"/>, for a caller that already holds the hurtbox it resolved.
+        /// </summary>
+        public void TryHitHurtbox(HurtboxComponent3D hurtbox, bool continuous = false)
         {
             if (!IsActive || CurrentPayload == null)
             {
