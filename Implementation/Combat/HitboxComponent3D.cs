@@ -229,7 +229,11 @@ using AI.BB;
 
         public override void _PhysicsProcess(double delta)
         {
-            if (_endPending) { return; }
+            if (_endPending)
+            {
+                EndAttack();
+                return;
+            }
 
             // CRITICAL: Check for pending overlap scan FIRST (before early returns).
             // This catches targets that were already overlapping when the hitbox activated.
@@ -483,24 +487,16 @@ using AI.BB;
         }
 
         /// <summary>
-        /// Ends the attack at the end of this physics frame, for an owner that died. A hit already in
+        /// Ends the attack at the next physics step, for an owner that died. A hit already in
         /// flight still lands (an overlap walk under way, an area signal yet to dispatch: the owner's
         /// death does not unmake the contact that killed it), but the hitbox starts no further
-        /// continuous tick or overlap retry. A new attack started before the frame ends is left alone.
+        /// continuous tick or overlap retry. A new attack started before that step is left alone.
         /// </summary>
         public void EndAttackAtFrameEnd()
         {
             if (!IsActive || _endPending) { return; }
 
             _endPending = true;
-            CallDeferred(MethodName.FinishPendingEnd);
-        }
-
-        private void FinishPendingEnd()
-        {
-            if (!_endPending) { return; }
-
-            EndAttack();
         }
 
         /// <summary>

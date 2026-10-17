@@ -171,7 +171,11 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_endPending) { return; }
+        if (_endPending)
+        {
+            EndAttack();
+            return;
+        }
 
         if (_pendingOverlapRetries > 0 && Monitoring)
         {
@@ -374,9 +378,9 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     }
 
     /// <summary>
-    /// 2D twin of <see cref="HitboxComponent3D.EndAttackAtFrameEnd"/>. Ends the attack at the end of
-    /// this physics frame, for an owner that died. A hit already in flight still lands, but the hitbox
-    /// starts no further continuous tick or overlap retry. A new attack started before the frame ends
+    /// 2D twin of <see cref="HitboxComponent3D.EndAttackAtFrameEnd"/>. Ends the attack at the next
+    /// physics step, for an owner that died. A hit already in flight still lands, but the hitbox
+    /// starts no further continuous tick or overlap retry. A new attack started before that step
     /// is left alone.
     /// </summary>
     public void EndAttackAtFrameEnd()
@@ -384,14 +388,6 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         if (!IsActive || _endPending) { return; }
 
         _endPending = true;
-        CallDeferred(MethodName.FinishPendingEnd);
-    }
-
-    private void FinishPendingEnd()
-    {
-        if (!_endPending) { return; }
-
-        EndAttack();
     }
 
     /// <summary>
