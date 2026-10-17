@@ -14,11 +14,10 @@ using AI.BB;
 /// an owner's exit path runs on more paths than its entry path does, and
 /// <see cref="Jmodot.Implementation.AI.HSM.CompoundState" />'s <c>OnExit</c> calls
 /// <c>PrimarySubState?.Exit()</c> against a substate it deliberately never nulls so history states can
-/// resume. The consequence is worse here than for quirks: the provider's context set is NOT
-/// refcounted, and <c>RemoveActiveContext</c> drops every modifier keyed to that context instance
-/// regardless of which owner contributed it. Two sibling states authoring one shared
-/// <see cref="StatContext" /> — the live shape in <c>hoarder_npc.tscn</c> and <c>loot_box_npc.tscn</c>
-/// — therefore let an unpaired exit on one strip the other's live modifiers.
+/// resume. The provider refcounts a context, so an unpaired remove would still release a hold
+/// another owner took: two sibling states authoring one shared <see cref="StatContext" /> — the live
+/// shape in <c>hoarder_npc.tscn</c> and <c>loot_box_npc.tscn</c> — would let an unpaired exit on one
+/// drop the other's hold.
 /// </para>
 /// <para>
 /// A struct, and a plain field on the owning node — mutating through a property or a

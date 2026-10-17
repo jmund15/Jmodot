@@ -53,11 +53,13 @@ public interface IStatProvider
     /// </summary>
     void RemoveAllModifiersFromSource(object owner);
     /// <summary>
-    /// A convenience method for applying a pre-defined set of modifiers associated with a character state.
+    /// Holds a pre-defined set of modifiers associated with a character state. Holds are counted per context:
+    /// the first hold installs the modifiers, later holds only count, and the last release removes them.
     /// </summary>
     void AddActiveContext(StatContext context);
     /// <summary>
-    /// A convenience method for cleaning up all modifiers applied by a character state.
+    /// Releases one hold on <paramref name="context"/>; the last release removes its modifiers, and a release
+    /// with no hold is inert.
     /// </summary>
     void RemoveActiveContext(StatContext context);
 }
