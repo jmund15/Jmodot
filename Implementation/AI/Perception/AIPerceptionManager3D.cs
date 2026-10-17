@@ -194,23 +194,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
         if (contributions.Count == 0)
         {
             this._sensorContributions.Remove(target);
-
-            if (this._memoryByTarget.TryGetValue(target, out var info))
-            {
-                this.RemoveFromCategoryCache(info);
-                var exitPercept = new Percept3D(
-                    target: target,
-                    position: info.LastKnownPosition,
-                    velocity: Vector3.Zero,
-                    identity: identity,
-                    confidence: 0f,
-                    decayStrategy: info.Identity?.ResolvePerceptionDecay() ?? this.FallbackDecayStrategy
-                );
-                info.Update(exitPercept);
-                this.AddToCategoryCache(info);
-                this.MemoryUpdatedEventHandler.Invoke(this, info);
-            }
-
+            this.LetMemoryDecay(target);
             return;
         }
 
