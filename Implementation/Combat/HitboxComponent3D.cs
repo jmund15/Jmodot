@@ -151,6 +151,7 @@ using AI.BB;
         // _ownsHitLedger is false while that set is on loan: the set's lifetime is the injector's,
         // so start/end of an attack must not empty someone else's record.
         private HashSet<HurtboxComponent3D> _hitHurtboxes = new();
+        private bool _endPending;
         private bool _ownsHitLedger = true;
         private double _tickTimer = 0.0;
 
@@ -228,6 +229,8 @@ using AI.BB;
 
         public override void _PhysicsProcess(double delta)
         {
+            if (_endPending) { return; }
+
             // CRITICAL: Check for pending overlap scan FIRST (before early returns).
             // This catches targets that were already overlapping when the hitbox activated.
             // GetOverlappingAreas() needs the physics broadphase to sync after Monitoring=true.
@@ -396,6 +399,7 @@ using AI.BB;
             }
 
             CurrentPayload = payload;
+            _endPending = false;
             if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
             _tickTimer = 0.0;
             _acceptedHits = 0;
@@ -433,6 +437,7 @@ using AI.BB;
 
         public void EndAttack()
         {
+            _endPending = false;
             if (!IsInitialized || !IsActive) { return; }
 
             // Captured before the clear — subscribers of OnAttackFinished cannot read the count,
@@ -451,12 +456,34 @@ using AI.BB;
         }
 
         /// <summary>
+        /// Ends the attack at the end of this physics frame, for an owner that died. A hit already in
+        /// flight still lands (an overlap walk under way, an area signal yet to dispatch: the owner's
+        /// death does not unmake the contact that killed it), but the hitbox starts no further
+        /// continuous tick or overlap retry. A new attack started before the frame ends is left alone.
+        /// </summary>
+        public void EndAttackAtFrameEnd()
+        {
+            if (!IsActive || _endPending) { return; }
+
+            _endPending = true;
+            CallDeferred(MethodName.FinishPendingEnd);
+        }
+
+        private void FinishPendingEnd()
+        {
+            if (!_endPending) { return; }
+
+            EndAttack();
+        }
+
+        /// <summary>
         /// Resets hitbox state for pool reuse. Called automatically via IPoolResetable.
         /// Uses immediate (synchronous) deactivation since pool reset is NOT a physics callback.
         /// </summary>
         public void OnPoolReset()
         {
             _pendingOverlapRetries = 0;  // Clear pending scan for clean pool state
+            _endPending = false;
 
             // CRITICAL: Clear accumulated event handlers BEFORE the early return.
             // WireLandedHitImpact subscribes OnHitRegistered += each pool cycle.
