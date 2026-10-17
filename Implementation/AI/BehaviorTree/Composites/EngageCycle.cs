@@ -59,7 +59,7 @@ public partial class EngageCycle : CompositeTask
     [Export] public BehaviorTask? Miss { get; set; }
 
     /// <summary>Raised on every transition: from, to (null when the cycle fails), outcome, seconds spent in <c>from</c>.</summary>
-    public event Action<EngagePhase, EngagePhase?, PhaseOutcome, float>? PhaseChanged;
+    public event Action<EngagePhase, EngagePhase?, PhaseOutcome, float> PhaseChanged = delegate { };
 
     private EngagePhase _phase;
     private BehaviorTask? _running;
@@ -81,6 +81,8 @@ public partial class EngageCycle : CompositeTask
         }
     }
 
+    /// <summary>The phase every pass starts in: the first present of Reposition, Position, Commit, Attack.</summary>
+    /// <exception cref="ArgumentException"><paramref name="present"/> has no Attack slot.</exception>
     public static EngagePhase Entry(EngageSlots present)
     {
         RequireAttack(present);
@@ -89,7 +91,10 @@ public partial class EngageCycle : CompositeTask
         return present.Commit ? EngagePhase.Commit : EngagePhase.Attack;
     }
 
-    /// <summary>Pure transition rule. Null means the cycle fails.</summary>
+    /// <summary>
+    /// Pure transition rule. Null means the cycle fails. <paramref name="outcome"/> is ignored when leaving
+    /// Reposition, Recover and Miss; Position, Commit and Attack branch on it.
+    /// </summary>
     public static EngagePhase? Next(EngagePhase from, PhaseOutcome outcome, EngageSlots present)
     {
         var entry = Entry(present);
@@ -277,7 +282,7 @@ public partial class EngageCycle : CompositeTask
 
         var to = next is { } n ? n.ToString() : "exit";
         JmoLogger.Info(this, $"[Engage] {Agent.Name} {from} → {to} ({outcome}, {_secondsInPhase:F2} s)");
-        PhaseChanged?.Invoke(from, next, outcome, _secondsInPhase);
+        PhaseChanged.Invoke(from, next, outcome, _secondsInPhase);
 
         if (next == null) { Status = TaskStatus.Failure; }
         return next;
