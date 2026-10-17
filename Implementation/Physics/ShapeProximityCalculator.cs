@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Physics;
 
+using System.Collections.Generic;
 using Godot;
 using Shared;
 
@@ -29,7 +30,7 @@ public static class ShapeProximityCalculator
         return shape switch
         {
             BoxShape3D box => ClosestPointOnBox(queryPoint, shapeWorldCenter, shapeWorldBasis, box),
-            SphereShape3D sphere => ClosestPointOnSphere(queryPoint, shapeWorldCenter, sphere),
+            SphereShape3D sphere => ClosestPointOnSphere(queryPoint, shapeWorldCenter, shapeWorldBasis, sphere),
             CapsuleShape3D capsule => ClosestPointOnCapsule(queryPoint, shapeWorldCenter, shapeWorldBasis, capsule),
             CylinderShape3D cylinder => ClosestPointOnCylinder(queryPoint, shapeWorldCenter, shapeWorldBasis, cylinder),
             _ => shapeWorldCenter
@@ -37,9 +38,38 @@ public static class ShapeProximityCalculator
     }
 
     /// <summary>
-    /// Convenience method: iterates a body's CollisionShape3D children and returns
-    /// the closest surface point across all shapes. Falls back to body.GlobalPosition
-    /// if no collision shapes are found.
+    /// True when <paramref name="point"/> lies strictly inside the shape placed at
+    /// <paramref name="shapeWorldCenter"/> and oriented by <paramref name="shapeWorldBasis"/>.
+    /// Covers the shapes <see cref="GetClosestSurfacePoint"/> supports; any other shape is
+    /// never inside. A scaled basis scales the shape, as it does for the closest-point test.
+    /// </summary>
+    public static bool IsInside(Vector3 point, Vector3 shapeWorldCenter, Basis shapeWorldBasis, Shape3D shape)
+    {
+        var local = shapeWorldBasis.Inverse() * (point - shapeWorldCenter);
+        switch (shape)
+        {
+            case BoxShape3D box:
+                var half = box.Size / 2f;
+                return Mathf.Abs(local.X) < half.X && Mathf.Abs(local.Y) < half.Y && Mathf.Abs(local.Z) < half.Z;
+            case SphereShape3D sphere:
+                return local.LengthSquared() < sphere.Radius * sphere.Radius;
+            case CapsuleShape3D capsule:
+                float halfSegment = capsule.Height / 2f - capsule.Radius;
+                var onAxis = new Vector3(0f, Mathf.Clamp(local.Y, -halfSegment, halfSegment), 0f);
+                return local.DistanceSquaredTo(onAxis) < capsule.Radius * capsule.Radius;
+            case CylinderShape3D cylinder:
+                return Mathf.Abs(local.Y) < cylinder.Height / 2f
+                    && local.X * local.X + local.Z * local.Z < cylinder.Radius * cylinder.Radius;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Convenience method: returns the closest surface point across a body's enabled
+    /// CollisionShape3D children (or, failing those, its children's enabled shapes, e.g. a
+    /// hurtbox). Each shape is placed by its own transform under the body's. Falls back to
+    /// body.GlobalPosition if no enabled shape is found.
     /// </summary>
     public static Vector3 GetClosestSurfacePointOnBody(Vector3 queryPoint, Node3D body)
     {
@@ -47,32 +77,67 @@ public static class ShapeProximityCalculator
         Vector3 bestPoint = body.GlobalPosition;
         bool foundShape = false;
 
-        var children = body.GetChildren();
-
-        foreach (var child in children)
+        foreach (var (shape, transform) in EnumerateEnabledShapes(body))
         {
-            if (child is not CollisionShape3D { Shape: not null } cs) { continue; }
-            var center = body.GlobalTransform * cs.Position;
-            TryUpdateClosest(queryPoint, center, body.GlobalTransform.Basis, cs.Shape,
+            TryUpdateClosest(queryPoint, transform.Origin, transform.Basis, shape,
                 ref bestDistSq, ref bestPoint, ref foundShape);
         }
 
-        if (foundShape) { return bestPoint; }
+        return foundShape ? bestPoint : body.GlobalPosition;
+    }
 
-        // Fallback: check grandchildren (e.g., CollisionShape3D inside HurtboxComponent3D)
+    /// <summary>
+    /// Enabled shapes directly under <paramref name="body"/>, else those one level down, each
+    /// paired with its world transform (body transform * node transforms down to the shape). The
+    /// one enumeration every body-level shape query shares, so a caller that reads the same
+    /// shapes as <see cref="GetClosestSurfacePointOnBody"/> measures the surface that method does.
+    /// </summary>
+    public static IEnumerable<(Shape3D Shape, Transform3D Transform)> EnumerateEnabledShapes(Node3D body)
+    {
+        var bodyTransform = body.GlobalTransform;
+        var children = body.GetChildren();
+        bool foundDirect = false;
+
+        foreach (var child in children)
+        {
+            if (child is not CollisionShape3D { Shape: not null, Disabled: false } cs) { continue; }
+            foundDirect = true;
+            yield return (cs.Shape, bodyTransform * cs.Transform);
+        }
+
+        if (foundDirect) { yield break; }
+
         foreach (var child in children)
         {
             if (child is not Node3D childNode) { continue; }
             foreach (var grandchild in childNode.GetChildren())
             {
-                if (grandchild is not CollisionShape3D { Shape: not null } cs) { continue; }
-                var center = body.GlobalTransform * (childNode.Transform * cs.Position);
-                TryUpdateClosest(queryPoint, center, body.GlobalTransform.Basis, cs.Shape,
-                    ref bestDistSq, ref bestPoint, ref foundShape);
+                if (grandchild is not CollisionShape3D { Shape: not null, Disabled: false } cs) { continue; }
+                yield return (cs.Shape, bodyTransform * childNode.Transform * cs.Transform);
             }
         }
+    }
 
-        return bestPoint;
+    /// <summary>
+    /// True when <paramref name="body"/> carries collision shapes (directly or one level down) and
+    /// none of them is enabled with a shape: no detector can reach it. A body with no shape node at
+    /// all is not one.
+    /// </summary>
+    public static bool HasOnlyDisabledShapes(Node3D body)
+    {
+        foreach (var _ in EnumerateEnabledShapes(body)) { return false; }
+
+        for (int i = 0; i < body.GetChildCount(); i++)
+        {
+            var child = body.GetChild(i);
+            if (child is CollisionShape3D) { return true; }
+            if (child is not Node3D) { continue; }
+            for (int j = 0; j < child.GetChildCount(); j++)
+            {
+                if (child.GetChild(j) is CollisionShape3D) { return true; }
+            }
+        }
+        return false;
     }
 
     private static void TryUpdateClosest(
@@ -116,36 +181,17 @@ public static class ShapeProximityCalculator
     }
 
     /// <summary>
-    /// Convenience: iterates CollisionShape3D children of a body, returns the max angular
-    /// half-extent across all shapes. Falls back to 0f if no collision shapes are found.
+    /// Convenience: returns the max angular half-extent across a body's enabled shapes,
+    /// walking them as <see cref="GetClosestSurfacePointOnBody"/> does. Returns 0f if none.
     /// </summary>
     public static float GetAngularHalfExtentOnBody(Vector3 queryPoint, Node3D body)
     {
         float maxExtent = 0f;
 
-        var children = body.GetChildren();
-
-        foreach (var child in children)
+        foreach (var (shape, transform) in EnumerateEnabledShapes(body))
         {
-            if (child is not CollisionShape3D { Shape: not null } cs) { continue; }
-            var center = body.GlobalTransform * cs.Position;
-            float extent = GetAngularHalfExtent(queryPoint, center, body.GlobalTransform.Basis, cs.Shape);
+            float extent = GetAngularHalfExtent(queryPoint, transform.Origin, transform.Basis, shape);
             maxExtent = Mathf.Max(maxExtent, extent);
-        }
-
-        if (maxExtent > 0f) { return maxExtent; }
-
-        // Fallback: check grandchildren (mirrors GetClosestSurfacePointOnBody pattern)
-        foreach (var child in children)
-        {
-            if (child is not Node3D childNode) { continue; }
-            foreach (var grandchild in childNode.GetChildren())
-            {
-                if (grandchild is not CollisionShape3D { Shape: not null } cs) { continue; }
-                var center = body.GlobalTransform * (childNode.Transform * cs.Position);
-                float extent = GetAngularHalfExtent(queryPoint, center, body.GlobalTransform.Basis, cs.Shape);
-                maxExtent = Mathf.Max(maxExtent, extent);
-            }
         }
 
         return maxExtent;
@@ -250,16 +296,16 @@ public static class ShapeProximityCalculator
     }
 
     private static Vector3 ClosestPointOnSphere(
-        Vector3 queryPoint, Vector3 center, SphereShape3D sphere)
+        Vector3 queryPoint, Vector3 center, Basis basis, SphereShape3D sphere)
     {
-        var toQuery = queryPoint - center;
-        if (toQuery.LengthSquared() < 0.0001f)
+        var localQuery = basis.Inverse() * (queryPoint - center);
+        if (localQuery.LengthSquared() < 0.0001f)
         {
             // Query at center — return deterministic point (top of sphere)
-            return center + Vector3.Up * sphere.Radius;
+            return center + basis * (Vector3.Up * sphere.Radius);
         }
 
-        return center + toQuery.Normalized() * sphere.Radius;
+        return center + basis * (localQuery.Normalized() * sphere.Radius);
     }
 
     private static Vector3 ClosestPointOnCapsule(
