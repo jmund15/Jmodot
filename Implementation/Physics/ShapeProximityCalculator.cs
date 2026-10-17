@@ -88,9 +88,11 @@ public static class ShapeProximityCalculator
 
     /// <summary>
     /// Enabled shapes directly under <paramref name="body"/>, else those one level down, each
-    /// paired with its world transform (body transform * node transforms down to the shape).
+    /// paired with its world transform (body transform * node transforms down to the shape). The
+    /// one enumeration every body-level shape query shares, so a caller that reads the same
+    /// shapes as <see cref="GetClosestSurfacePointOnBody"/> measures the surface that method does.
     /// </summary>
-    private static IEnumerable<(Shape3D Shape, Transform3D Transform)> EnumerateEnabledShapes(Node3D body)
+    public static IEnumerable<(Shape3D Shape, Transform3D Transform)> EnumerateEnabledShapes(Node3D body)
     {
         var bodyTransform = body.GlobalTransform;
         var children = body.GetChildren();
@@ -114,6 +116,28 @@ public static class ShapeProximityCalculator
                 yield return (cs.Shape, bodyTransform * childNode.Transform * cs.Transform);
             }
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="body"/> carries collision shapes (directly or one level down) and
+    /// none of them is enabled with a shape: no detector can reach it. A body with no shape node at
+    /// all is not one.
+    /// </summary>
+    public static bool HasOnlyDisabledShapes(Node3D body)
+    {
+        foreach (var _ in EnumerateEnabledShapes(body)) { return false; }
+
+        for (int i = 0; i < body.GetChildCount(); i++)
+        {
+            var child = body.GetChild(i);
+            if (child is CollisionShape3D) { return true; }
+            if (child is not Node3D) { continue; }
+            for (int j = 0; j < child.GetChildCount(); j++)
+            {
+                if (child.GetChild(j) is CollisionShape3D) { return true; }
+            }
+        }
+        return false;
     }
 
     private static void TryUpdateClosest(
