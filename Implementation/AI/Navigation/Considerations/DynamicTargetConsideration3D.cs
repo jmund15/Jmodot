@@ -7,6 +7,7 @@ using Core.AI.Navigation.Considerations;
 using Core.AI.Perception;
 using Core.Identification;
 using Core.Movement;
+using Core.Shared;
 using Shared;
 using Shared.GodotExceptions;
 
@@ -29,7 +30,7 @@ public enum TargetResponseMode
 ///   <see cref="_approachSpeedWeight"/>: How much closing speed affects threat DANGER weight
 /// </summary>
 [GlobalClass, Tool]
-public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
+public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IResourceConfigurationWarnings
 {
     #region Exports
 
@@ -41,8 +42,8 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     [Export] public TargetResponseMode Mode { get; private set; } = TargetResponseMode.Chase;
 
     /// <summary>
-    /// Category filter for which perceived targets this consideration reacts to. Ignored while
-    /// <see cref="_trackedTargetKey"/> is set; set one or the other.
+    /// Category filter for which perceived targets this consideration reacts to. Hidden while
+    /// <see cref="_trackedTargetKey"/> is set, which replaces it; set one or the other.
     /// </summary>
     [Export] private Category? _targetCategory;
 
@@ -130,6 +131,33 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     }
 
     private bool IsTracking => !string.IsNullOrEmpty(_trackedTargetKey);
+
+    public override void _ValidateProperty(Godot.Collections.Dictionary property)
+    {
+        var name = property["name"].AsString();
+        var usage = (PropertyUsageFlags)property["usage"].AsInt64();
+        if (name == nameof(_trackedTargetKey))
+        {
+            property["usage"] = (long)(usage | PropertyUsageFlags.UpdateAllIfModified);
+        }
+        else if (name == nameof(_targetCategory) && IsTracking)
+        {
+            property["usage"] = (long)(usage & ~PropertyUsageFlags.Editor);
+        }
+    }
+
+    public string[] GetResourceConfigurationWarnings()
+    {
+        if (_targetCategory != null && IsTracking)
+        {
+            return new[] { "Target Category and Tracked Target Key are both set. The key wins and the category is ignored; clear Target Category." };
+        }
+        if (_targetCategory == null && !IsTracking)
+        {
+            return new[] { "Neither Target Category nor Tracked Target Key is set. Set one, or this consideration fails to initialize." };
+        }
+        return System.Array.Empty<string>();
+    }
 
     /// <summary>Throws <see cref="ResourceConfigurationException"/> when neither a target category nor a tracked-target key is set.</summary>
     public override void Initialize(DirectionSet3D directions)
