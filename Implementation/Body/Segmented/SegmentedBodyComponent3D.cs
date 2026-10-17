@@ -773,6 +773,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         if (members.Count == 0) { return; }
 
         JmoLogger.Info(this, $"[SegmentedBody] head died — killing its {members.Count} remaining unit(s).");
+        foreach (var member in members) { member.EndedWithHead = true; }
+
         this.Detach(members);
         KillFragment(members, this);
     }

@@ -56,6 +56,9 @@ public partial class BodySegment3D : Node3D, IComponent, IBlackboardProvider
     /// </summary>
     public int LastBoundIndex { get; private set; } = -1;
 
+    /// <summary>True once the body ended this unit because its head died. Survives <see cref="Unbind"/>; set before the unit's own death runs.</summary>
+    public bool EndedWithHead { get; internal set; }
+
     /// <summary>The chain that owns this unit's pose, or null while it is unbound.</summary>
     public SegmentedBodyComponent3D? Host { get; private set; }
 
