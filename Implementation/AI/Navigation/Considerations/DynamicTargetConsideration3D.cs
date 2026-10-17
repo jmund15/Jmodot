@@ -115,6 +115,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
 
     private const float Epsilon = 0.001f;
     private bool _missingMemoryLogged;
+    private bool _trackedKeyChecked;
     private readonly List<TargetData> _targetDataCache = new();
 
     /// <summary>Per-target computed data for the two-pass algorithm.</summary>
@@ -162,6 +163,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     /// <summary>Throws <see cref="ResourceConfigurationException"/> when neither a target category nor a tracked-target key is set.</summary>
     public override void Initialize(DirectionSet3D directions)
     {
+        _trackedKeyChecked = false;
         if (_targetCategory == null && !IsTracking)
         {
             throw new ResourceConfigurationException(
@@ -205,6 +207,12 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
             return ZeroScores();
         }
 
+        if (tracked && !_trackedKeyChecked)
+        {
+            _trackedKeyChecked = true;
+            WarnWhenNothingUnderTrackedKey(blackboard);
+        }
+
         float effectiveVelocity = EffectiveVelocityInfluence(blackboard);
         float effectiveApproach = EffectiveApproachSpeedWeight(blackboard);
         float effectiveFocus = EffectiveThreatFocus(blackboard);
@@ -234,6 +242,17 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     }
 
     #region Core Computation
+
+    /// <summary>Logs once per initialization when the blackboard holds no memory under the tracked key; an inactive memory is not missing.</summary>
+    private void WarnWhenNothingUnderTrackedKey(IBlackboard blackboard)
+    {
+        if (blackboard.TryGet<Perception3DInfo>(_trackedTargetKey!, out var tracked) && tracked != null) { return; }
+
+        JmoLogger.Warning(this,
+            $"DynamicTargetConsideration3D '{ResourceName}' reads tracked target key '{_trackedTargetKey}' but the blackboard " +
+            "holds no Perception3DInfo under it. Check the key against the one the target tracker publishes; " +
+            "this consideration scores zero until a memory appears.");
+    }
 
     private bool TryFindTrackedTarget(IBlackboard blackboard, out Perception3DInfo memory)
     {
