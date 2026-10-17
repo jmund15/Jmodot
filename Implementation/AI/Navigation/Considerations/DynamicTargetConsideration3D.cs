@@ -7,8 +7,8 @@ using Core.AI.Navigation.Considerations;
 using Core.AI.Perception;
 using Core.Identification;
 using Core.Movement;
-using Jmodot.Core.Shared.Attributes;
 using Shared;
+using Shared.GodotExceptions;
 
 /// <summary>How a consideration reacts to a perceived target: steer toward it, or away from it.</summary>
 public enum TargetResponseMode
@@ -41,15 +41,17 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     [Export] public TargetResponseMode Mode { get; private set; } = TargetResponseMode.Chase;
 
     /// <summary>
-    /// Category filter for which perceived targets this consideration reacts to.
+    /// Category filter for which perceived targets this consideration reacts to. Ignored while
+    /// <see cref="_trackedTargetKey"/> is set; set one or the other.
     /// </summary>
-    [Export, RequiredExport] private Category _targetCategory = null!;
+    [Export] private Category? _targetCategory;
 
     /// <summary>
     /// Optional BB key holding the <see cref="Perception3DInfo"/> of the one target to react to. When set, this
     /// consideration reacts to that target alone, whatever its category, so a behavior that already tracks a
     /// target (a fight, a pursuit) steers on the same one. Unset (default) = react to every perceived target of
-    /// <see cref="_targetCategory"/>.
+    /// <see cref="_targetCategory"/>. Set this or <see cref="_targetCategory"/>; with neither, the consideration
+    /// fails to initialize.
     /// </summary>
     [Export] private StringName? _trackedTargetKey;
 
@@ -127,6 +129,18 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
         }
     }
 
+    private bool IsTracking => !string.IsNullOrEmpty(_trackedTargetKey);
+
+    /// <summary>Throws <see cref="ResourceConfigurationException"/> when neither a target category nor a tracked-target key is set.</summary>
+    public override void Initialize(DirectionSet3D directions)
+    {
+        if (_targetCategory == null && !IsTracking)
+        {
+            throw new ResourceConfigurationException(
+                $"DynamicTargetConsideration3D '{ResourceName}' needs a target category or a tracked-target key.", this);
+        }
+    }
+
     #region Effective Parameter Accessors
 
     // Current: return exported value directly.
@@ -146,11 +160,11 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
         // dictionary would be allocated only to be discarded in favor of AggregateScores.
         Dictionary<Vector3, float> ZeroScores() => directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-        if (_targetCategory == null) { return ZeroScores(); }
-
         if (IsSuppressedByZone(blackboard)) { return ZeroScores(); }
 
-        bool tracked = !string.IsNullOrEmpty(_trackedTargetKey);
+        bool tracked = IsTracking;
+        if (!tracked && _targetCategory == null) { return ZeroScores(); }
+
         if (!tracked && context3D.Memory == null)
         {
             if (!_missingMemoryLogged)
@@ -163,10 +177,6 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
             return ZeroScores();
         }
 
-        IEnumerable<Perception3DInfo> targets = tracked
-            ? TrackedTarget(blackboard)
-            : context3D.Memory!.GetSensedByCategory(_targetCategory);
-
         float effectiveVelocity = EffectiveVelocityInfluence(blackboard);
         float effectiveApproach = EffectiveApproachSpeedWeight(blackboard);
         float effectiveFocus = EffectiveThreatFocus(blackboard);
@@ -177,21 +187,16 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
         _targetDataCache.Clear();
         float maxWeight = 0f;
 
-        foreach (var target in targets)
+        if (!tracked)
         {
-            Vector3 effectivePos = ComputeEffectivePosition(target, effectiveVelocity);
-            Vector3 toTarget = effectivePos - context3D.AgentPosition;
-            if (!_hasVerticalMovement) { toTarget.Y = 0; }
-            if (toTarget.LengthSquared() < Epsilon * Epsilon) { continue; }
-
-            Vector3 toTargetDir = toTarget.Normalized();
-            Vector3 responseDir = isChase ? toTargetDir : -toTargetDir;
-
-            float weight = ComputeThreatWeight(target, toTargetDir, effectiveApproach);
-            if (weight < Epsilon) { continue; }
-
-            maxWeight = Mathf.Max(maxWeight, weight);
-            _targetDataCache.Add(new TargetData(responseDir, weight));
+            foreach (var target in context3D.Memory!.GetSensedByCategory(_targetCategory!))
+            {
+                AddTargetData(target, context3D.AgentPosition, effectiveVelocity, effectiveApproach, isChase, ref maxWeight);
+            }
+        }
+        else if (TryFindTrackedTarget(blackboard, out var trackedTarget))
+        {
+            AddTargetData(trackedTarget, context3D.AgentPosition, effectiveVelocity, effectiveApproach, isChase, ref maxWeight);
         }
 
         if (_targetDataCache.Count == 0) { return ZeroScores(); }
@@ -202,11 +207,37 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 
     #region Core Computation
 
-    private IEnumerable<Perception3DInfo> TrackedTarget(IBlackboard blackboard)
-        => blackboard.TryGet<Perception3DInfo>(_trackedTargetKey!, out var memory)
-           && memory is { IsActive: true } && GodotObject.IsInstanceValid(memory.Target)
-            ? new[] { memory }
-            : [];
+    private bool TryFindTrackedTarget(IBlackboard blackboard, out Perception3DInfo memory)
+    {
+        if (blackboard.TryGet<Perception3DInfo>(_trackedTargetKey!, out var tracked)
+            && tracked is { IsActive: true } && GodotObject.IsInstanceValid(tracked.Target))
+        {
+            memory = tracked;
+            return true;
+        }
+
+        memory = null!;
+        return false;
+    }
+
+    /// <summary>Pass 1 for one target: its response direction and raw weight, skipped when it sits on the agent or weighs nothing.</summary>
+    private void AddTargetData(Perception3DInfo target, Vector3 agentPosition, float effectiveVelocity,
+        float effectiveApproach, bool isChase, ref float maxWeight)
+    {
+        Vector3 effectivePos = ComputeEffectivePosition(target, effectiveVelocity);
+        Vector3 toTarget = effectivePos - agentPosition;
+        if (!_hasVerticalMovement) { toTarget.Y = 0; }
+        if (toTarget.LengthSquared() < Epsilon * Epsilon) { return; }
+
+        Vector3 toTargetDir = toTarget.Normalized();
+        Vector3 responseDir = isChase ? toTargetDir : -toTargetDir;
+
+        float weight = ComputeThreatWeight(target, toTargetDir, effectiveApproach);
+        if (weight < Epsilon) { return; }
+
+        maxWeight = Mathf.Max(maxWeight, weight);
+        _targetDataCache.Add(new TargetData(responseDir, weight));
+    }
 
     /// <summary>
     /// True when a suppression zone key is configured and its BB Vector4 has a positive radius (W).
@@ -348,7 +379,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 
     #region Test Helpers
 #if TOOLS
-    internal void SetTargetCategory(Category category) => _targetCategory = category;
+    internal void SetTargetCategory(Category? category) => _targetCategory = category!;
     internal void SetSuppressWhileZoneKey(StringName key) => _suppressWhileZoneKey = key;
     internal void SetTrackedTargetKey(StringName key) => _trackedTargetKey = key;
     internal void SetMode(TargetResponseMode mode) => Mode = mode;
