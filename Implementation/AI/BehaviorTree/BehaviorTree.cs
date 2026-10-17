@@ -93,6 +93,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
     private bool _backoff;
     private int _deliveriesThisFrame;
     private int _deferredInEpisode;
+    private int _deferredQueued;
     private double _simSeconds;
     private double _nextFinishedLogAt;
     private double _nextRestartLogAt;
@@ -346,6 +347,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             if (_deliveriesThisFrame >= DeliveryLimit) { return false; }
 
             var queued = _pendingTerminals.Dequeue();
+            if (_deferredQueued > 0) { _deferredQueued--; }
             if (Enabled && RootTask.Status == queued)
             {
                 status = queued;
@@ -366,7 +368,8 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
             JmoLogger.Warning(this, $"[BT] terminal delivery capped at {MaxDeliveriesPerFrame} per frame for '{Name}'; deferring the rest, one per frame.");
         }
 
-        _deferredInEpisode += _pendingTerminals.Count;
+        _deferredInEpisode += _pendingTerminals.Count - _deferredQueued;
+        _deferredQueued = _pendingTerminals.Count;
     }
 
     private void DrainPendingAtFrameHead()
@@ -397,13 +400,14 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
     private void ResetDelivery()
     {
         _pendingTerminals.Clear();
+        _deferredQueued = 0;
         if (_delivering) { return; }
 
         _deliveriesThisFrame = 0;
         EndBackoff();
     }
 
-    private bool MayLogDelivery(ref double nextAllowedAt)
+    private bool TryClaimLogSlot(ref double nextAllowedAt)
     {
         var throttled = _backoff || _deliveriesThisFrame > 1;
         if (throttled && _simSeconds < nextAllowedAt) { return false; }
@@ -415,7 +419,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
     private void DeliverTerminal(TaskStatus newStatus)
     {
         _deliveriesThisFrame++;
-        if (MayLogDelivery(ref _nextFinishedLogAt))
+        if (TryClaimLogSlot(ref _nextFinishedLogAt))
         {
             JmoLogger.Debug(this, $"[BT] Tree root task '{RootTask.Name}' finished with status {newStatus}.");
         }
@@ -428,7 +432,7 @@ public partial class BehaviorTree : Node, IDebugPanelProvider
         switch (Policy)
         {
             case RestartPolicy.AlwaysRestart:
-                if (MayLogDelivery(ref _nextRestartLogAt))
+                if (TryClaimLogSlot(ref _nextRestartLogAt))
                 {
                     JmoLogger.Info(this, "[BT] Resetting and restarting tree...");
                 }
