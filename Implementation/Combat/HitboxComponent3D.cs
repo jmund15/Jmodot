@@ -347,20 +347,43 @@ using AI.BB;
         {
             if (collider is HurtboxComponent3D self) { return self; }
 
-            var hurtboxes = collider.GetChildrenOfType<HurtboxComponent3D>(includeSubChildren: true);
-            if (strikeOrigin is not { } origin) { return hurtboxes.Count > 0 ? hurtboxes[0] : null; }
-
+            HurtboxComponent3D? first = null;
             HurtboxComponent3D? nearest = null;
             float nearestDistSq = float.MaxValue;
-            foreach (var candidate in hurtboxes)
+            var pending = new Queue<Node>();
+            pending.Enqueue(collider);
+            while (pending.Count > 0)
             {
-                float distSq = origin.DistanceSquaredTo(Physics.ShapeProximityCalculator.GetClosestSurfacePointOnBody(origin, candidate));
-                if (distSq >= nearestDistSq) { continue; }
-                nearest = candidate;
-                nearestDistSq = distSq;
+                var node = pending.Dequeue();
+                for (int i = 0; i < node.GetChildCount(); i++)
+                {
+                    var child = node.GetChild(i);
+                    pending.Enqueue(child);
+                    if (child is not HurtboxComponent3D candidate) { continue; }
+                    if (strikeOrigin is not { } origin) { return candidate; }
+
+                    // A lone hurtbox needs no ranking: it is measured only once a second one appears.
+                    if (first == null)
+                    {
+                        first = candidate;
+                        continue;
+                    }
+                    if (nearest == null)
+                    {
+                        nearest = first;
+                        nearestDistSq = DistanceSqToSurface(origin, first);
+                    }
+                    float distSq = DistanceSqToSurface(origin, candidate);
+                    if (distSq >= nearestDistSq) { continue; }
+                    nearest = candidate;
+                    nearestDistSq = distSq;
+                }
             }
-            return nearest;
+            return nearest ?? first;
         }
+
+        private static float DistanceSqToSurface(Vector3 origin, HurtboxComponent3D hurtbox)
+            => origin.DistanceSquaredTo(Physics.ShapeProximityCalculator.GetClosestSurfacePointOnBody(origin, hurtbox));
 
         /// <summary>
         /// The entity a contact should be delivered to and attributed against. A cast or swept
