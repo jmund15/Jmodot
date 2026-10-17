@@ -340,8 +340,9 @@ using AI.BB;
         /// searched breadth-first, so grouping them under a presentation node does not hide them.
         /// With several, the first found stands in, unless <paramref name="strikeOrigin"/> is given:
         /// then the one whose shape surface is nearest that point, as the detector's overlap picks
-        /// the hurtbox a strike reaches. Null when the collider holds none. Every contact looks the
-        /// hurtbox up once and passes it on (<see cref="TryHitHurtbox"/>).
+        /// the hurtbox a strike reaches. A hurtbox queued for deletion, or whose shapes are all
+        /// disabled, is never the one: no detector reaches it. Null when the collider holds none.
+        /// Every contact looks the hurtbox up once and passes it on (<see cref="TryHitHurtbox"/>).
         /// </summary>
         public static HurtboxComponent3D? FindHurtbox(Node3D collider, Vector3? strikeOrigin = null)
         {
@@ -359,7 +360,7 @@ using AI.BB;
                 {
                     var child = node.GetChild(i);
                     pending.Enqueue(child);
-                    if (child is not HurtboxComponent3D candidate) { continue; }
+                    if (child is not HurtboxComponent3D candidate || !CanBeStruck(candidate)) { continue; }
                     if (strikeOrigin is not { } origin) { return candidate; }
 
                     // A lone hurtbox needs no ranking: it is measured only once a second one appears.
@@ -381,6 +382,9 @@ using AI.BB;
             }
             return nearest ?? first;
         }
+
+        private static bool CanBeStruck(HurtboxComponent3D hurtbox)
+            => !hurtbox.IsQueuedForDeletion() && !Physics.ShapeProximityCalculator.HasOnlyDisabledShapes(hurtbox);
 
         private static float DistanceSqToSurface(Vector3 origin, HurtboxComponent3D hurtbox)
             => origin.DistanceSquaredTo(Physics.ShapeProximityCalculator.GetClosestSurfacePointOnBody(origin, hurtbox));
