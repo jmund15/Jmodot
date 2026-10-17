@@ -38,6 +38,34 @@ public static class ShapeProximityCalculator
     }
 
     /// <summary>
+    /// True when <paramref name="point"/> lies strictly inside the shape placed at
+    /// <paramref name="shapeWorldCenter"/> and oriented by <paramref name="shapeWorldBasis"/>.
+    /// Covers the shapes <see cref="GetClosestSurfacePoint"/> supports; any other shape is
+    /// never inside. A scaled basis scales the shape, as it does for the closest-point test.
+    /// </summary>
+    public static bool IsInside(Vector3 point, Vector3 shapeWorldCenter, Basis shapeWorldBasis, Shape3D shape)
+    {
+        var local = shapeWorldBasis.Inverse() * (point - shapeWorldCenter);
+        switch (shape)
+        {
+            case BoxShape3D box:
+                var half = box.Size / 2f;
+                return Mathf.Abs(local.X) < half.X && Mathf.Abs(local.Y) < half.Y && Mathf.Abs(local.Z) < half.Z;
+            case SphereShape3D sphere:
+                return local.LengthSquared() < sphere.Radius * sphere.Radius;
+            case CapsuleShape3D capsule:
+                float halfSegment = capsule.Height / 2f - capsule.Radius;
+                var onAxis = new Vector3(0f, Mathf.Clamp(local.Y, -halfSegment, halfSegment), 0f);
+                return local.DistanceSquaredTo(onAxis) < capsule.Radius * capsule.Radius;
+            case CylinderShape3D cylinder:
+                return Mathf.Abs(local.Y) < cylinder.Height / 2f
+                    && local.X * local.X + local.Z * local.Z < cylinder.Radius * cylinder.Radius;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
     /// Convenience method: returns the closest surface point across a body's enabled
     /// CollisionShape3D children (or, failing those, its children's enabled shapes, e.g. a
     /// hurtbox). Each shape is placed by its own transform under the body's. Falls back to
