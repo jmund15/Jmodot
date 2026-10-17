@@ -24,6 +24,13 @@ public abstract record ImpactReport : CombatResult
 
     /// <summary>The victim's categories (the spell's, for a surface impact), so a reader filters by kind of thing struck.</summary>
     public IReadOnlyList<Category> Categories { get; init; } = [];
+
+    /// <summary>
+    /// The damage part of <see cref="Magnitude"/>: for a hit, requested damage over the reference damage; for a
+    /// death, the paired hit's value or the profile's default death magnitude. Zero for an event that dealt no
+    /// damage, so a sink reads harm without the push.
+    /// </summary>
+    public float HarmMagnitude { get; init; }
 }
 
 /// <summary>
@@ -38,9 +45,6 @@ public record DeathReport : ImpactReport
 
     /// <summary>Unit vector of the killing blow when <see cref="Paired"/>; zero otherwise.</summary>
     public Vector3 Direction { get; init; }
-
-    /// <summary>The paired hit's <see cref="HitReport.HarmMagnitude"/>; the default death magnitude when unpaired.</summary>
-    public float HarmMagnitude { get; init; }
 
     /// <summary>Requested damage beyond the health that remained, when a paired hit knew it; zero otherwise.</summary>
     public float Overkill { get; init; }
@@ -96,12 +100,6 @@ public record HitReport : ImpactReport
 
     /// <summary>Damage over the victim's maximum health, in [0, 1].</summary>
     public float DamageFraction { get; init; }
-
-    /// <summary>
-    /// The damage part of <see cref="ImpactReport.Magnitude"/>: requested damage over the reference damage, in [0, 1].
-    /// Zero for a hit that dealt no damage, so a sink reads the harm axis without the push.
-    /// </summary>
-    public float HarmMagnitude { get; init; }
 
     /// <summary>Applied delta-v over the reference delta-v, in [0, 1].</summary>
     public float PushFraction { get; init; }
