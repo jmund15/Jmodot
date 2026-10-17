@@ -46,6 +46,14 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     [Export, RequiredExport] private Category _targetCategory = null!;
 
     /// <summary>
+    /// Optional BB key holding the <see cref="Perception3DInfo"/> of the one target to react to. When set, this
+    /// consideration reacts to that target alone, whatever its category, so a behavior that already tracks a
+    /// target (a fight, a pursuit) steers on the same one. Unset (default) = react to every perceived target of
+    /// <see cref="_targetCategory"/>.
+    /// </summary>
+    [Export] private StringName? _trackedTargetKey;
+
+    /// <summary>
     /// Optional BB key holding a Vector4 zone (center xyz + radius in W). While that zone is active
     /// (radius W &gt; 0) this consideration is fully suppressed (contributes zero scores), letting a
     /// project spatially gate a chase/avoid without the framework knowing the gate's meaning. Unset
@@ -142,7 +150,8 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 
         if (IsSuppressedByZone(blackboard)) { return ZeroScores(); }
 
-        if (context3D.Memory == null)
+        bool tracked = !string.IsNullOrEmpty(_trackedTargetKey);
+        if (!tracked && context3D.Memory == null)
         {
             if (!_missingMemoryLogged)
             {
@@ -154,7 +163,9 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
             return ZeroScores();
         }
 
-        var targets = context3D.Memory.GetSensedByCategory(_targetCategory);
+        IEnumerable<Perception3DInfo> targets = tracked
+            ? TrackedTarget(blackboard)
+            : context3D.Memory!.GetSensedByCategory(_targetCategory);
 
         float effectiveVelocity = EffectiveVelocityInfluence(blackboard);
         float effectiveApproach = EffectiveApproachSpeedWeight(blackboard);
@@ -190,6 +201,12 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     }
 
     #region Core Computation
+
+    private IEnumerable<Perception3DInfo> TrackedTarget(IBlackboard blackboard)
+        => blackboard.TryGet<Perception3DInfo>(_trackedTargetKey!, out var memory)
+           && memory is { IsActive: true } && GodotObject.IsInstanceValid(memory.Target)
+            ? new[] { memory }
+            : [];
 
     /// <summary>
     /// True when a suppression zone key is configured and its BB Vector4 has a positive radius (W).
@@ -333,6 +350,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 #if TOOLS
     internal void SetTargetCategory(Category category) => _targetCategory = category;
     internal void SetSuppressWhileZoneKey(StringName key) => _suppressWhileZoneKey = key;
+    internal void SetTrackedTargetKey(StringName key) => _trackedTargetKey = key;
     internal void SetMode(TargetResponseMode mode) => Mode = mode;
     internal void SetThreatResolution(float value) => _threatResolution = value;
     internal void SetThreatFocus(float value) => _threatFocus = value;
