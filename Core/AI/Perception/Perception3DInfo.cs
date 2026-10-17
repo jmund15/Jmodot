@@ -37,6 +37,9 @@ public class Perception3DInfo
     /// </summary>
     public float CurrentConfidence => GetConfidenceAt(GameClock.NowMsec);
 
+    /// <summary>True while a sensor still reports the target; false once every sensor lost it and the memory decays on its own clock.</summary>
+    public bool IsSensing => _sensingActive;
+
     /// <summary>Returns true if the memory is still considered active (confidence is above zero).</summary>
     public bool IsActive => this.CurrentConfidence > 0.001f;
 

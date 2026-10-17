@@ -214,6 +214,12 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             return;
         }
 
+        if (!contributions.Values.Any(c => c.SensingActive))
+        {
+            this.LetMemoryDecay(target);
+            return;
+        }
+
         var fusedConfidence = PerceptionFusion.FuseConfidence(contributions.Values, this._fusionMode);
         var best = PerceptionFusion.SelectBestContribution(contributions.Values);
         if (best == null) { return; }
@@ -242,6 +248,30 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             JmoLogger.Debug(this, $"[Perception] '{identity.IdentityName}' detected (confidence={fusedConfidence:F2})");
             this.MemoryAddedEventHandler.Invoke(this, newInfo);
         }
+    }
+
+    /// <summary>
+    ///     Every sensor lost the target: the memory goes to its remembered state once and decays on its own clock.
+    ///     Re-fusing the still-decaying contributions here would republish them as a fresh sighting, and with no
+    ///     later sensor event to re-fuse again, the memory would stay at that confidence for good.
+    /// </summary>
+    private void LetMemoryDecay(Node3D target)
+    {
+        if (!this._memoryByTarget.TryGetValue(target, out var info) || !info.IsSensing)
+        {
+            return;
+        }
+
+        this.RemoveFromCategoryCache(info);
+        info.Update(new Percept3D(
+            target: target,
+            position: info.LastKnownPosition,
+            velocity: Vector3.Zero,
+            identity: info.Identity!,
+            confidence: 0f,
+            decayStrategy: info.Identity?.ResolvePerceptionDecay() ?? this.FallbackDecayStrategy));
+        this.AddToCategoryCache(info);
+        this.MemoryUpdatedEventHandler.Invoke(this, info);
     }
 
     private void AddToCategoryCache(Perception3DInfo info)
