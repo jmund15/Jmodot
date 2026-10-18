@@ -247,7 +247,7 @@ public static class ShapeProximityCalculator
     private static float AngularHalfExtentRadial(
         Vector3 queryPoint, Vector3 center, float radius)
     {
-        float xzDist = new Vector2(center.X - queryPoint.X, center.Z - queryPoint.Z).Length();
+        float xzDist = JmoMath.HorizontalDistance(queryPoint, center);
         return Mathf.Atan(radius / Mathf.Max(xzDist, 0.001f));
     }
 

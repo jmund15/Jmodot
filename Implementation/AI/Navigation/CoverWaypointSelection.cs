@@ -224,20 +224,13 @@ public partial class CoverWaypointSelection : WaypointSelectionStrategy
     {
         if (!losBlocked) { return 0f; }
 
-        float distToAgent = FlatDistance(candidate, agentPos);
-        float distToThreat = FlatDistance(candidate, threatPos);
+        float distToAgent = JmoMath.HorizontalDistance(candidate, agentPos);
+        float distToThreat = JmoMath.HorizontalDistance(candidate, threatPos);
 
         float proximityScore = 1f - Mathf.Clamp(distToAgent / searchRadius, 0f, 1f);
         float safetyScore = Mathf.Clamp(distToThreat / searchRadius, 0f, 1f);
 
         return proximityScore * 0.6f + safetyScore * 0.4f;
-    }
-
-    internal static float FlatDistance(Vector3 a, Vector3 b)
-    {
-        float dx = a.X - b.X;
-        float dz = a.Z - b.Z;
-        return Mathf.Sqrt(dx * dx + dz * dz);
     }
 
     internal static Vector3 ComputeFarSideProbe(

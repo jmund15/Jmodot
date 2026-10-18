@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.Navigation;
 
 using Godot;
+using Shared;
 
 /// <summary>
 /// Decides whether a requested nav target is close enough to the navigation mesh to path to, as two
@@ -51,7 +52,7 @@ public static class NavReachability
         Vector3 candidate, Vector3 closestNavPoint, out float planarDelta, out float verticalDelta)
     {
         Vector3 delta = closestNavPoint - candidate;
-        planarDelta = new Vector2(delta.X, delta.Z).Length();
+        planarDelta = JmoMath.HorizontalDistance(candidate, closestNavPoint);
         verticalDelta = Mathf.Abs(delta.Y);
         return planarDelta <= PlanarToleranceMeters && verticalDelta <= VerticalToleranceMeters;
     }

@@ -459,7 +459,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
             ? bodyNode.GlobalPosition
             : this.GlobalPosition;
         var requiredDistance = this.MeasureRequiredSeparation(hostRoot, currentPosition);
-        var currentDistance = new Vector2(currentPosition.X - anchor.X, currentPosition.Z - anchor.Z).Length();
+        var currentDistance = JmoMath.HorizontalDistance(anchor, currentPosition);
         var deficit = Mathf.Max(0f, requiredDistance - currentDistance);
         this._collisionExceptionRequiredDistance = requiredDistance;
         this.BeginCollisionException(hostRoot);
@@ -532,9 +532,8 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
             return;
         }
 
-        var flatDistance = new Vector2(
-            this._body.GlobalPosition.X - this._collisionExceptionHost.GlobalPosition.X,
-            this._body.GlobalPosition.Z - this._collisionExceptionHost.GlobalPosition.Z).Length();
+        var flatDistance = JmoMath.HorizontalDistance(
+            this._body.GlobalPosition, this._collisionExceptionHost.GlobalPosition);
         var expired = GameClock.NowMsec - this._collisionExceptionStartedMsec >= CollisionExceptionBudgetMsec;
         if (flatDistance >= this._collisionExceptionRequiredDistance || expired)
         {
