@@ -57,7 +57,7 @@ public static class ConfigWarnings
 
     /// <summary>
     /// Renders the configuration faults of an authored movement-quirk slot list in the
-    /// <see cref="ResourceSlotWarnings{T}"/> format, labelled "Movement Quirks".
+    /// <see cref="ResourceSlotWarnings{T}(string, IList{T})"/> format, labelled "Movement Quirks".
     /// </summary>
     public static string[] QuirkSlotWarnings(GColl.Array<MovementQuirk3D>? quirks)
         => ResourceSlotWarnings("Movement Quirks", quirks);
