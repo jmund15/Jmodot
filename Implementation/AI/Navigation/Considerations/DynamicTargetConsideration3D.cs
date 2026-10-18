@@ -42,17 +42,15 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     [Export] public TargetResponseMode Mode { get; private set; } = TargetResponseMode.Chase;
 
     /// <summary>
-    /// Category filter for which perceived targets this consideration reacts to. Hidden while
-    /// <see cref="_trackedTargetKey"/> is set, which replaces it; set one or the other.
+    /// Category filter for perceived targets. A non-empty <see cref="_trackedTargetKey"/> wins
+    /// and hides this field. With neither assigned, tracks the primary-target memory.
     /// </summary>
     [Export] private Category? _targetCategory;
 
     /// <summary>
-    /// Optional BB key holding the <see cref="Perception3DInfo"/> of the one target to react to. When set, this
-    /// consideration reacts to that target alone, whatever its category, so a behavior that already tracks a
-    /// target (a fight, a pursuit) steers on the same one. Unset (default) = react to every perceived target of
-    /// <see cref="_targetCategory"/>. Set this or <see cref="_targetCategory"/>; with neither, the consideration
-    /// fails to initialize.
+    /// Optional BB key holding the <see cref="Perception3DInfo"/> of one target. A non-empty key
+    /// overrides <see cref="_targetCategory"/>. Empty uses the category if assigned, otherwise
+    /// <see cref="Jmodot.Implementation.AI.BB.BBDataSig.PrimaryTargetMemory"/>.
     /// </summary>
     [Export] private StringName? _trackedTargetKey;
 
@@ -131,7 +129,10 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
         }
     }
 
-    private bool IsTracking => !string.IsNullOrEmpty(_trackedTargetKey);
+    private bool HasExplicitTrackedKey => !string.IsNullOrEmpty(_trackedTargetKey);
+    private bool IsTracking => HasExplicitTrackedKey || _targetCategory == null;
+    private StringName ResolvedTrackedKey => HasExplicitTrackedKey
+        ? _trackedTargetKey! : Jmodot.Implementation.AI.BB.BBDataSig.PrimaryTargetMemory;
 
     public override void _ValidateProperty(Godot.Collections.Dictionary property)
     {
@@ -141,7 +142,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
         {
             property["usage"] = (long)(usage | PropertyUsageFlags.UpdateAllIfModified);
         }
-        else if (name == nameof(_targetCategory) && IsTracking)
+        else if (name == nameof(_targetCategory) && HasExplicitTrackedKey)
         {
             property["usage"] = (long)(usage & ~PropertyUsageFlags.Editor);
         }
@@ -149,26 +150,16 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
 
     public string[] GetResourceConfigurationWarnings()
     {
-        if (_targetCategory != null && IsTracking)
+        if (_targetCategory != null && HasExplicitTrackedKey)
         {
             return new[] { "Target Category and Tracked Target Key are both set. The key wins and the category is ignored; clear Target Category." };
-        }
-        if (_targetCategory == null && !IsTracking)
-        {
-            return new[] { "Neither Target Category nor Tracked Target Key is set. Set one, or this consideration fails to initialize." };
         }
         return System.Array.Empty<string>();
     }
 
-    /// <summary>Throws <see cref="ResourceConfigurationException"/> when neither a target category nor a tracked-target key is set.</summary>
     public override void Initialize(DirectionSet3D directions)
     {
         _trackedKeyChecked = false;
-        if (_targetCategory == null && !IsTracking)
-        {
-            throw new ResourceConfigurationException(
-                $"DynamicTargetConsideration3D '{ResourceName}' needs a target category or a tracked-target key.", this);
-        }
     }
 
     #region Effective Parameter Accessors
@@ -230,7 +221,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
                 AddTargetData(target, context3D.AgentPosition, effectiveVelocity, effectiveApproach, isChase, ref maxWeight);
             }
         }
-        else if (TryFindTrackedTarget(blackboard, out var trackedTarget))
+        else if (blackboard.TryGetLiveTarget(ResolvedTrackedKey, out var trackedTarget, out _))
         {
             AddTargetData(trackedTarget, context3D.AgentPosition, effectiveVelocity, effectiveApproach, isChase, ref maxWeight);
         }
@@ -246,25 +237,12 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     /// <summary>Logs once per initialization when the blackboard holds no memory under the tracked key; an inactive memory is not missing.</summary>
     private void WarnWhenNothingUnderTrackedKey(IBlackboard blackboard)
     {
-        if (blackboard.TryGet<Perception3DInfo>(_trackedTargetKey!, out var tracked) && tracked != null) { return; }
+        if (blackboard.TryGet<Perception3DInfo>(ResolvedTrackedKey, out var tracked) && tracked != null) { return; }
 
         JmoLogger.Warning(this,
-            $"DynamicTargetConsideration3D '{ResourceName}' reads tracked target key '{_trackedTargetKey}' but the blackboard " +
+            $"DynamicTargetConsideration3D '{ResourceName}' reads tracked target key '{ResolvedTrackedKey}' but the blackboard " +
             "holds no Perception3DInfo under it. Check the key against the one the target tracker publishes; " +
             "this consideration scores zero until a memory appears.");
-    }
-
-    private bool TryFindTrackedTarget(IBlackboard blackboard, out Perception3DInfo memory)
-    {
-        if (blackboard.TryGet<Perception3DInfo>(_trackedTargetKey!, out var tracked)
-            && tracked is { IsActive: true } && GodotObject.IsInstanceValid(tracked.Target))
-        {
-            memory = tracked;
-            return true;
-        }
-
-        memory = null!;
-        return false;
     }
 
     /// <summary>Pass 1 for one target: its response direction and raw weight, skipped when it sits on the agent or weighs nothing.</summary>

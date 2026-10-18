@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.Animation;
 using System;
 using System.Collections.Generic;
 using Core.AI.BB;
+using Core.AI.Perception;
 using Core.AI.BehaviorTree;
 using Core.AI;
 using Core.Components;
@@ -57,6 +58,7 @@ public partial class AnimationClaimResolver : Node, IComponent
     // reports no running child for one tick, and the A->null->A flap would restart the claimant's clip.
     private const int TaskClaimGraceFrames = 1;
 
+    private IBlackboard _bb = null!;
     private IAnimationOrchestrator? _anim;
     private ICharacterController3D? _controller;
 
@@ -131,6 +133,7 @@ public partial class AnimationClaimResolver : Node, IComponent
             }
         }
 
+        this._bb = bb;
         this.IsInitialized = true;
         this.Initialized.Invoke();
         return true;
@@ -164,7 +167,24 @@ public partial class AnimationClaimResolver : Node, IComponent
         // on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
         if (!claimantWon && this.FallbackProfile != null && this._controller != null)
         {
-            this._anim.SetDirection(LocomotionAnimResolver.DirectionFromVelocity(this._controller.Velocity));
+            StringName? key = null;
+            for (var state = stateLeaf; state != null && key == null; state = state.GetParent() as State)
+            {
+                key = state.ResolvedFaceTargetKey;
+            }
+            Vector3? targetPosition = key != null && this._bb.TryGetLiveTarget(key, out _, out var flatPosition)
+                ? flatPosition : null;
+            var bodyPosition = this._controller.GlobalPosition;
+            var targetFacing = targetPosition is { } target
+                && LocomotionAnimResolver.DirectionFromVelocity(target - bodyPosition) != Vector3.Zero;
+            var direction = LocomotionAnimResolver.PickFacing(bodyPosition, targetPosition, this._controller.Velocity);
+            // SetDirection can restart a stopped directional clip and seek it to its end. A stopped
+            // clip is about to be recovered by the fallback tier below, so target facing retries on a
+            // later tick once that clip plays; velocity fallback keeps its unconditional push.
+            if (!targetFacing || this._anim.IsPlaying())
+            {
+                this._anim.SetDirection(direction);
+            }
         }
 
         // The fallback tier advances even while a claimant owns the body, so the hand-back reads the
