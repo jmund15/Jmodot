@@ -31,6 +31,12 @@ public interface IAnimationOrchestrator : IAnimComponent
     void SetFrozen(bool frozen) { }
 
     /// <summary>
+    /// True while playback is frozen through <see cref="SetFrozen"/>. Arbitration reads it so a frozen
+    /// body keeps the pose it froze; unsupported orchestrators report false.
+    /// </summary>
+    bool IsFrozen => false;
+
+    /// <summary>
     /// The current animation direction as a world-space vector.
     /// </summary>
     Vector3 CurrentAnimationDirection { get; }

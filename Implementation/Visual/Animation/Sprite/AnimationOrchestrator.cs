@@ -546,6 +546,9 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     }
     public float GetCurrAnimationPosition() => _targetAnimator.GetCurrAnimationPosition();
     /// <inheritdoc />
+    public bool IsFrozen => _frozen;
+
+    /// <inheritdoc />
     public void SetFrozen(bool frozen)
     {
         _frozen = frozen;

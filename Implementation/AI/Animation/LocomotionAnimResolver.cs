@@ -30,14 +30,24 @@ public static class LocomotionAnimResolver
         return new Vector3(velocity.X, 0f, velocity.Z);
     }
 
-    /// <summary>Unnormalized flat target delta, or flat velocity when the target is absent or horizontally co-located.</summary>
-    public static Vector3 PickFacing(Vector3 bodyPosition, Vector3? targetPosition, Vector3 velocity)
+    /// <summary>
+    /// Unnormalized flat target delta, or flat velocity when the target is absent or horizontally
+    /// co-located. <paramref name="fromTarget"/> reports which source won, so a caller that must
+    /// treat the co-location case specially reads this decision instead of recomputing it.
+    /// </summary>
+    public static Vector3 PickFacing(
+        Vector3 bodyPosition, Vector3? targetPosition, Vector3 velocity, out bool fromTarget)
     {
         if (targetPosition is { } target)
         {
             var delta = DirectionFromVelocity(target - bodyPosition);
-            if (delta != Vector3.Zero) { return delta; }
+            if (delta != Vector3.Zero)
+            {
+                fromTarget = true;
+                return delta;
+            }
         }
+        fromTarget = false;
         return DirectionFromVelocity(velocity);
     }
 

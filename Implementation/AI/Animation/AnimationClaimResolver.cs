@@ -162,10 +162,11 @@ public partial class AnimationClaimResolver : Node, IComponent
 
         // The fallback tier owns facing on frames it owns the body: push the movement direction before
         // the clip resolves so a newly-resolved clip starts already-facing. Gated on the fallback tier
-        // winning (a claimant's clip keeps its own authority; a finished one-shot is never poked) and on
-        // a profile (the arbitration-only wizard gets no second direction driver). SetDirection no-ops
-        // on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
-        if (!claimantWon && this.FallbackProfile != null && this._controller != null)
+        // winning (a claimant's clip keeps its own authority; a finished one-shot is never poked), on
+        // a profile (the arbitration-only wizard gets no second direction driver), and on the body not
+        // being frozen (a hold zeroes velocity, and re-aiming would turn or restart the held pose).
+        // SetDirection no-ops on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
+        if (!claimantWon && !this._anim.IsFrozen && this.FallbackProfile != null && this._controller != null)
         {
             StringName? key = null;
             for (var state = stateLeaf; state != null && key == null; state = state.GetParent() as State)
@@ -175,9 +176,8 @@ public partial class AnimationClaimResolver : Node, IComponent
             Vector3? targetPosition = key != null && this._bb.TryGetLiveTarget(key, out _, out var flatPosition)
                 ? flatPosition : null;
             var bodyPosition = this._controller.GlobalPosition;
-            var targetFacing = targetPosition is { } target
-                && LocomotionAnimResolver.DirectionFromVelocity(target - bodyPosition) != Vector3.Zero;
-            var direction = LocomotionAnimResolver.PickFacing(bodyPosition, targetPosition, this._controller.Velocity);
+            var direction = LocomotionAnimResolver.PickFacing(
+                bodyPosition, targetPosition, this._controller.Velocity, out var targetFacing);
             // SetDirection can restart a stopped directional clip and seek it to its end. A stopped
             // clip is about to be recovered by the fallback tier below, so target facing retries on a
             // later tick once that clip plays; velocity fallback keeps its unconditional push.
@@ -216,6 +216,13 @@ public partial class AnimationClaimResolver : Node, IComponent
             {
                 this._anim.StartAnimIfChanged(resolved);
             }
+            return;
+        }
+
+        // A frozen body keeps the pose it froze. The fallback tier still ADVANCES above so the
+        // hand-back reads the entity's real motion, but its clip is not pushed until release.
+        if (this._anim.IsFrozen)
+        {
             return;
         }
 
