@@ -85,6 +85,17 @@ public partial class State : Node, IState
     public StringName? ResolvedFaceTargetKey => !FaceTarget ? null
         : !string.IsNullOrEmpty(FaceTargetKey) ? FaceTargetKey : BBDataSig.PrimaryTargetMemory;
 
+    /// <summary>The innermost checked state's facing key, walking this state and then its ancestors; null if none faces a target.</summary>
+    public StringName? FindFaceTargetKey()
+    {
+        for (var state = this; state != null; state = state.GetParent() as State)
+        {
+            var key = state.ResolvedFaceTargetKey;
+            if (key != null) { return key; }
+        }
+        return null;
+    }
+
     private MovementQuirkRegistration _quirkRegistration;
     private StatContextRegistration _statContextRegistration;
 

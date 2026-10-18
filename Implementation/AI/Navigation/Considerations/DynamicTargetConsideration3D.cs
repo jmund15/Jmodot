@@ -221,7 +221,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
                 AddTargetData(target, context3D.AgentPosition, effectiveVelocity, effectiveApproach, isChase, ref maxWeight);
             }
         }
-        else if (blackboard.TryGetLiveTarget(ResolvedTrackedKey, out var trackedTarget, out _))
+        else if (blackboard.TryGetLiveTarget(ResolvedTrackedKey, out var trackedTarget))
         {
             AddTargetData(trackedTarget, context3D.AgentPosition, effectiveVelocity, effectiveApproach, isChase, ref maxWeight);
         }

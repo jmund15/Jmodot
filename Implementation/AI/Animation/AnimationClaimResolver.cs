@@ -168,13 +168,9 @@ public partial class AnimationClaimResolver : Node, IComponent
         // SetDirection no-ops on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
         if (!claimantWon && !this._anim.IsFrozen && this.FallbackProfile != null && this._controller != null)
         {
-            StringName? key = null;
-            for (var state = stateLeaf; state != null && key == null; state = state.GetParent() as State)
-            {
-                key = state.ResolvedFaceTargetKey;
-            }
-            Vector3? targetPosition = key != null && this._bb.TryGetLiveTarget(key, out _, out var flatPosition)
-                ? flatPosition : null;
+            var key = stateLeaf?.FindFaceTargetKey();
+            Vector3? targetPosition = key != null && this._bb.TryGetLiveTarget(key, out var target)
+                ? target.LastKnownPosition : null;
             var bodyPosition = this._controller.GlobalPosition;
             var direction = LocomotionAnimResolver.PickFacing(
                 bodyPosition, targetPosition, this._controller.Velocity, out var targetFacing);
