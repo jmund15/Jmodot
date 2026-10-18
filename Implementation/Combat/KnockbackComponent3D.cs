@@ -130,8 +130,15 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	}
 	/// <summary>True while this receiver owns a pending push and movement suspension.</summary>
 	public bool IsHolding { get; private set; }
+	/// <summary>Evidence window retained for a held push, including its release latency; zero for immediate pushes.</summary>
+	public float SourceLookupSeconds { get; private set; }
+	private const float ReleaseMarginSeconds = 0.25f;
 	private IHealth? _health;
 	private IAnimationOrchestrator? _orchestrator;
+	private IBlackboard? _blackboard;
+	private bool _warnedSuppressionType;
+	private double _maximumHoldDeadline;
+	private Vector3 _pendingImpulse;
 	private double _holdDeadline;
 	private Vector3 _pendingDelta;
 	private Node? _pendingSource;
@@ -204,7 +211,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			JmoLogger.Warning(this, $"Knockback skipped: invalid force={incomingForce:F2}.");
 			return;
 		}
-		if (_movementProcessor.IsSuspended) { return; }
+		if (!IsHolding && _movementProcessor.IsSuspended) { return; }
 		var stability = Stability?.ResolveFloatValue(_statProvider) ?? 0f; // 0 = no resistance default
 		var mass = Mass?.ResolveFloatValue(_statProvider) ?? 1f;           // 1.0 preserves existing feel
 		if (mass <= 0f)
@@ -225,11 +232,27 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 		var deltaMagnitude = velocityDelta.Length();
 		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude, sustained);
+		if (IsHolding)
+		{
+			_pendingImpulse += resolved.Impulse;
+			_pendingDelta += velocityDelta;
+			if (!sustained)
+			{
+				_pendingSource = attributedSource;
+				float extension = Hold == null ? 0f : KnockbackHold.Seconds(_pendingImpulse.Length(), _pendingDelta.Length(), Hold);
+				_holdDeadline = Math.Min(_maximumHoldDeadline, Math.Max(_holdDeadline, now + extension));
+			}
+			return;
+		}
+		SourceLookupSeconds = 0f;
 		float seconds = Hold == null ? 0f : KnockbackHold.Seconds(resolved.Impulse.Length(), deltaMagnitude, Hold);
-		if (!sustained && !IsDead && float.IsFinite(seconds) && seconds > 0f && double.IsFinite(now)
+		if (!sustained && !IsDead && !IsSuppressed() && float.IsFinite(seconds) && seconds > 0f && double.IsFinite(now)
 			&& _movementProcessor.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero))
 		{
 			_holdOwner = Name;
+			_maximumHoldDeadline = now + Hold!.MaxSeconds;
+			SourceLookupSeconds = Hold.MaxSeconds + ReleaseMarginSeconds;
+			_pendingImpulse = resolved.Impulse;
 			_pendingDelta = velocityDelta;
 			_pendingSource = attributedSource;
 			_holdDeadline = now + seconds;
@@ -249,6 +272,19 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	private bool IsDead => IsAlive(_health) && _health!.IsDead;
 	private static Node? ValidSource(Node? source) => IsAlive(source) ? source : null;
 
+	private bool IsSuppressed()
+	{
+		var key = Hold?.SuppressWhileFlagKey;
+		if (key == null || key.IsEmpty || !IsAlive(_blackboard)) { return false; }
+		if (_blackboard!.TryGet<bool>(key, out var suppressed)) { return suppressed; }
+		if (!_warnedSuppressionType && _blackboard.ContainsLocal(key))
+		{
+			_warnedSuppressionType = true;
+			JmoLogger.Warning(this, $"SuppressWhileFlagKey '{key}' is not a bool; suppression reads false.");
+		}
+		return false;
+	}
+
 	private void SetSpriteFrozen(bool frozen)
 	{
 		if (IsAlive(_orchestrator)) { _orchestrator!.SetFrozen(frozen); }
@@ -258,7 +294,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	{
 		if (Engine.IsEditorHint() || !IsHolding) { return; }
 		double remaining = _holdDeadline - _unscaledSeconds();
-		if (!double.IsFinite(remaining) || !(remaining > 0)) { ReleaseHold(); }
+		if (!double.IsFinite(remaining) || !(remaining > 0) || IsSuppressed()) { ReleaseHold(); }
 	}
 
 	private void ReleaseHold(bool exiting = false)
@@ -338,6 +374,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public bool Initialize(IBlackboard bb)
 	{
 		if (Engine.IsEditorHint()) { return false; }
+		_blackboard = bb;
 		bb.TryGet(BBDataSig.HealthComponent, out _health);
 		bb.TryGet(BBDataSig.AnimationOrchestrator, out _orchestrator);
 		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!) || _movementProcessor == null)
@@ -400,6 +437,9 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	// receiver-side × producer-side PreserveVertical × stat-driven gates can be exercised
 	// without a full CombatantComponent + Blackboard fixture. Compiled out of release
 	// builds via #if TOOLS.
+	internal void SetHealthForTesting(IHealth? value) => _health = value;
+	internal void SetBlackboardForTesting(IBlackboard value) => _blackboard = value;
+	internal void SetHoldDeadlineForTest_BypassEvents(double unscaledDeadline) => _holdDeadline = unscaledDeadline;
 	internal void SetHoldForTesting(KnockbackHoldConfig? value) => Hold = value;
 	internal void SetOrchestratorForTesting(IAnimationOrchestrator? value) => _orchestrator = value;
 	internal void SetMovementProcessorForTesting(IMovementProcessor3D processor) =>
