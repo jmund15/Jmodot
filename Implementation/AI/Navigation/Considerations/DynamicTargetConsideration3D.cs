@@ -40,8 +40,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     /// <summary>
     /// What this consideration reacts to. Empty follows the primary target with no key to type;
     /// assign a TrackedTarget3D to follow another key, or a CategoryTarget3D to react to a group.
-    /// Confidence weights the response; there is no projection or approach weighting for a category
-    /// target's members unless set on this consideration below.
+    /// A category target's Resolution and Focus are set on its Policy.
     /// </summary>
     [ExportGroup("Behavior")]
     [Export] public MovementTarget3D? Target { get; private set; }
@@ -89,12 +88,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
 
     #endregion
 
-    /// <summary>Per-agent state: the resolved sample, the response scratch buffer and the diagnostic latches.</summary>
-    private sealed class DynamicRuntime : TargetRuntime
-    {
-    }
-
-    public override AIConsiderationRuntime? CreateRuntime(IBlackboard? blackboard) => new DynamicRuntime();
+    public override AIConsiderationRuntime? CreateRuntime(IBlackboard? blackboard) => new TargetRuntime();
 
     private static readonly Func<TargetMember, Vector3, float, Vector3> ChaseResponse =
         (_, toTarget, _) => toTarget.Normalized();
@@ -118,7 +112,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
         DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard,
         AIConsiderationRuntime? runtime)
     {
-        var state = NarrowRuntime<DynamicRuntime>(runtime);
+        var state = NarrowRuntime<TargetRuntime>(runtime);
 
         if (IsSuppressedByZone(blackboard)) { return ZeroScores(directions); }
 

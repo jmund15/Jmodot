@@ -63,13 +63,6 @@ public static class ConfigWarnings
         => ResourceSlotWarnings("Movement Quirks", quirks);
 
     /// <summary>
-    /// Renders the configuration faults of an authored Resource slot list: one line per fault,
-    /// each prefixed with <paramref name="slotLabel"/>, the slot index and the resource's name and
-    /// type, so the Inspector shows one bullet per fault instead of a joined blob. A null slot is
-    /// its own warning naming the index and no resource. Only resources implementing
-    /// <see cref="IResourceConfigurationWarnings"/> contribute faults. A legal empty list yields none.
-    /// </summary>
-    /// <summary>
     /// Renders the configuration faults of one single-slot Resource export through the same
     /// <c>'{label} '{name}' ({type}): {fault}'</c> format as the list form, without an index.
     /// <paramref name="required"/> states whether an empty slot is a fault: a required slot reads
@@ -116,6 +109,13 @@ public static class ConfigWarnings
         return warnings;
     }
 
+    /// <summary>
+    /// Renders the configuration faults of an authored Resource slot list: one line per fault,
+    /// each prefixed with <paramref name="slotLabel"/>, the slot index and the resource's name and
+    /// type, so the Inspector shows one bullet per fault instead of a joined blob. A null slot is
+    /// its own warning naming the index and no resource. Only resources implementing
+    /// <see cref="IResourceConfigurationWarnings"/> contribute faults. A legal empty list yields none.
+    /// </summary>
     public static string[] ResourceSlotWarnings<T>(string slotLabel, IList<T>? slots) where T : Resource
     {
         if (slots == null || slots.Count == 0) { return System.Array.Empty<string>(); }

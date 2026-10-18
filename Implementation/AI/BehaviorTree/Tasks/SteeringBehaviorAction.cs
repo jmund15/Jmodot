@@ -33,8 +33,17 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     public override string[] _GetConfigurationWarnings()
     {
-        return base._GetConfigurationWarnings()
-            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToArray();
+        var warnings = base._GetConfigurationWarnings()
+            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToList();
+        for (var i = 0; i < _considerations.Count; i++)
+        {
+            if (_considerations[i] is DynamicTargetConsideration3D dynamic)
+            {
+                warnings.AddRange(ConfigWarnings.ResourceSlotWarnings(
+                    $"Considerations[{i}] Target", dynamic.Target, dynamic.Target?.GetAgentWarnings(this)));
+            }
+        }
+        return warnings.ToArray();
     }
 
     private AISteeringProcessor3D? _cachedSteering;

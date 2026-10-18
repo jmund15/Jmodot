@@ -146,11 +146,24 @@ public sealed class TargetSample
         RecomputePoint();
     }
 
-    internal void ReplaceMembers(List<TargetMember> members)
+    /// <summary>Appends one member while a resolve is filling the sample; <see cref="Seal"/> finishes it.</summary>
+    internal void AddMember(TargetMember member) => _members.Add(member);
+
+    /// <summary>Finishes a fill: records the shape and policy numbers and derives state and point.</summary>
+    internal void Seal(TargetSampleGeometry geometry, float resolution = 0f, float focus = 0f)
+    {
+        Geometry = geometry;
+        Resolution = resolution;
+        Focus = focus;
+        State = _members.Count > 0 ? TargetSampleState.Resolved : TargetSampleState.Empty;
+        RecomputePoint();
+    }
+
+    /// <summary>Drops every member except <paramref name="member"/>, in place.</summary>
+    internal void KeepOnly(TargetMember member)
     {
         _members.Clear();
-        _members.AddRange(members);
-        RecomputePoint();
+        _members.Add(member);
     }
 
     internal void RecomputePoint()

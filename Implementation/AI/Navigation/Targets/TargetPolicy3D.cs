@@ -14,7 +14,10 @@ public abstract partial class TargetPolicy3D : Resource, IResourceConfigurationW
     /// <summary>The sample shape this policy produces.</summary>
     public abstract TargetSampleGeometry Geometry { get; }
 
-    /// <summary>Reduces or keeps <paramref name="sample"/>'s eligible members in place.</summary>
+    /// <summary>
+    /// Narrows <paramref name="sample"/>'s filled members in place and seals the sample with this
+    /// policy's <see cref="Geometry"/>. Allocates nothing: it runs every steering tick.
+    /// </summary>
     public abstract void Apply(TargetSample sample);
 
     public virtual string[] GetResourceConfigurationWarnings() => Array.Empty<string>();
