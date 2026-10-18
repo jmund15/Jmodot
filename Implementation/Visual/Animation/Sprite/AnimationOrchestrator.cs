@@ -63,6 +63,8 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     [Export] public AnimationNamingConvention? NamingConvention { get; set; }
 
     private IAnimComponent _targetAnimator = null!;
+    private float _requestedSpeed = 1f;
+    private bool _frozen;
 
     /// <summary>
     /// The plain stem the requesting state asked for, before variation — "hurt", never "hurt_1".
@@ -119,6 +121,9 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
             SetProcess(false);
             return;
         }
+
+        _requestedSpeed = _targetAnimator.GetSpeedScale();
+        ApplyEffectiveSpeed();
 
         // Forward events
         _targetAnimator.AnimStarted += OnTargetAnimStarted;
@@ -540,8 +545,23 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
         return GetAnimationLength(baseName);
     }
     public float GetCurrAnimationPosition() => _targetAnimator.GetCurrAnimationPosition();
-    public float GetSpeedScale() => _targetAnimator.GetSpeedScale();
-    public void SetSpeedScale(float speedScale) => _targetAnimator.SetSpeedScale(speedScale);
+    /// <inheritdoc />
+    public void SetFrozen(bool frozen)
+    {
+        _frozen = frozen;
+        ApplyEffectiveSpeed();
+    }
+    public float GetSpeedScale() => _requestedSpeed;
+    public void SetSpeedScale(float speedScale)
+    {
+        _requestedSpeed = speedScale;
+        ApplyEffectiveSpeed();
+    }
+    private void ApplyEffectiveSpeed()
+    {
+        if (_targetAnimator == null || !GodotObject.IsInstanceValid(_targetAnimator.GetUnderlyingNode())) { return; }
+        _targetAnimator.SetSpeedScale(_frozen ? 0f : _requestedSpeed);
+    }
     public string[] GetAnimationList() => _targetAnimator.GetAnimationList();
 
     public bool IsAnimationLooping(StringName baseName)
@@ -557,7 +577,12 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     // Substitutes the animator _Ready would have resolved, so a case can drive the orchestrator's
     // own resolution and stem logic against a double without a scene. Compiler-checked, unlike the
     // reflection this replaces: renaming the field breaks the build rather than the run.
-    internal void SetTargetAnimator(IAnimComponent animator) => _targetAnimator = animator;
+    internal void SetTargetAnimator(IAnimComponent animator)
+    {
+        _targetAnimator = animator;
+        _requestedSpeed = animator.GetSpeedScale();
+        ApplyEffectiveSpeed();
+    }
 #endif
     #endregion
 }

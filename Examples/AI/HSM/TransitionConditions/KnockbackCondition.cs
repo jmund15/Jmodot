@@ -3,6 +3,8 @@ namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Implementation.Combat;
+using Jmodot.Implementation.AI.BB;
 
 /// <summary>
 /// A flexible condition for selecting reaction states based on force-bearing combat events.
@@ -53,15 +55,26 @@ public partial class KnockbackCondition : CombatLogCondition
     [Export(PropertyHint.Range, "0.0,2.0,0.05,suffix:s")]
     public float WithinSeconds { get; set; }
 
+    /// <summary>Waits for this victim's held push to launch; uses the receiver's evidence window after release.</summary>
+    [Export] public bool DeferWhileHeld { get; set; }
+
     protected override bool CheckEvent(CombatLog log)
     {
         // Damaging hits route through DamageResult (Fireball, Slap), pushes through the receiver's
         // KnockbackAppliedResult (Wind Blast), logged post-resistance, so launch thresholds match
         // what the actor actually experienced.
-        return Matches<DamageResult>(log, r => r.Force) || Matches<KnockbackAppliedResult>(log, r => r.DeltaV);
+        float window = WithinSeconds;
+        if (DeferWhileHeld && CurrentBlackboard != null
+            && CurrentBlackboard.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out var receiver)
+            && receiver != null && GodotObject.IsInstanceValid(receiver))
+        {
+            if (receiver.IsHolding) { return false; }
+            if (receiver.SourceLookupSeconds > 0f) { window = receiver.SourceLookupSeconds; }
+        }
+        return Matches<DamageResult>(log, r => r.Force, window) || Matches<KnockbackAppliedResult>(log, r => r.DeltaV, window);
     }
 
-    private bool Matches<T>(CombatLog log, System.Func<T, float> amount) where T : CombatResult
+    private bool Matches<T>(CombatLog log, System.Func<T, float> amount, float window) where T : CombatResult
     {
         bool MatchesEntry(T r)
         {
@@ -76,9 +89,9 @@ public partial class KnockbackCondition : CombatLogCondition
             return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
         }
 
-        if (WithinSeconds > 0f)
+        if (window > 0f)
         {
-            return log.AnyWithinCombatTime<T>(WithinSeconds, MatchesEntry);
+            return log.AnyWithinCombatTime<T>(window, MatchesEntry);
         }
         return log.HasEvent<T>(MatchesEntry);
     }
