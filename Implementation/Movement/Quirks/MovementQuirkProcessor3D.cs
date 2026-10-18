@@ -28,6 +28,7 @@ public partial class MovementQuirkProcessor3D : Node
     private IMovementProcessor3D _movement = null!;
     private IRng? _rng;
     private bool _warnedNoSeed;
+    private int _driveSuspensions;
 
     /// <summary>
     /// Exported quirks followed by runtime-registered ones, in insertion order. Impulses sum, so
@@ -44,6 +45,7 @@ public partial class MovementQuirkProcessor3D : Node
         _runtimeQuirks.Clear();
         _refCounts.Clear();
         _runtimes.Clear();
+        _driveSuspensions = 0;
 
         var rng = ResolveRng();
         foreach (var quirk in _quirks)
@@ -98,19 +100,60 @@ public partial class MovementQuirkProcessor3D : Node
     private static string QuirkLabel(MovementQuirk3D quirk)
         => string.IsNullOrEmpty(quirk.ResourceName) ? quirk.GetType().Name : quirk.ResourceName;
 
-    public void ProcessQuirks(Vector3 desiredDirection, Vector3 agentVelocity, float delta)
+    /// <summary>
+    /// Runs this tick's quirks and returns the direction the movement strategy should consume.
+    /// Returns <paramref name="desiredDirection" /> unchanged when no processor is wired, while
+    /// drive is suspended, and when every drive gate permits; returns <see cref="Vector3.Zero" />
+    /// when any gate denies. The supplied direction is never altered — steering output stays
+    /// steering output.
+    /// <para>
+    /// Two indexed passes: every drive gate answers before any impulse tick, and gates are never
+    /// short-circuited, so a denying gate cannot stop a later gait's clock from advancing. While
+    /// drive is suspended the gate pass is skipped entirely, so every gait's clock holds, but the
+    /// impulse pass still runs.
+    /// </para>
+    /// </summary>
+    public Vector3 ProcessQuirks(Vector3 desiredDirection, Vector3 agentVelocity, float delta)
     {
-        if (_movement == null) { return; }
+        if (_movement == null) { return desiredDirection; }
 
-        var ctx = new MovementQuirkContext3D(_movement, desiredDirection, agentVelocity);
-        // Indexed rather than foreach: ActiveQuirks is typed as the interface, so foreach would box
-        // the List enumerator once per agent per physics frame on an otherwise allocation-free path.
+        bool permitsDrive = true;
+        if (_driveSuspensions == 0)
+        {
+            // Indexed rather than foreach: ActiveQuirks is typed as the interface, so foreach would
+            // box the List enumerator once per agent per physics frame on an allocation-free path.
+            for (int i = 0; i < ActiveQuirks.Count; i++)
+            {
+                var quirk = ActiveQuirks[i];
+                if (quirk == null || !_runtimes.TryGetValue(quirk, out var runtime)) { continue; }
+                if (!quirk.TickDrive(runtime, delta)) { permitsDrive = false; }
+            }
+        }
+
+        var gatedDirection = permitsDrive ? desiredDirection : Vector3.Zero;
+        var ctx = new MovementQuirkContext3D(_movement, gatedDirection, agentVelocity);
         for (int i = 0; i < ActiveQuirks.Count; i++)
         {
             var quirk = ActiveQuirks[i];
             if (quirk == null || !_runtimes.TryGetValue(quirk, out var runtime)) { continue; }
             quirk.Tick(runtime, in ctx, delta);
         }
+        return gatedDirection;
+    }
+
+    /// <summary>
+    /// Holds every drive gate for a scoped owner. Refcounted: nested or overlapping owners stack,
+    /// and drive resumes only after the last hold releases. While held, gait clocks do not advance.
+    /// </summary>
+    public void SuspendDrive() => _driveSuspensions++;
+
+    /// <summary>
+    /// Drops one drive hold. An unmatched call is inert, so a release path that also runs after a
+    /// failed acquisition cannot drive the count negative or release another owner's hold.
+    /// </summary>
+    public void ResumeDrive()
+    {
+        if (_driveSuspensions > 0) { _driveSuspensions--; }
     }
 
     /// <summary>
