@@ -2,7 +2,6 @@ namespace Jmodot.Implementation.AI.Navigation.Considerations;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Core.Movement;
 using Godot;
 using Jmodot.Implementation.AI.Navigation.Targets;
@@ -84,7 +83,7 @@ public static class TargetResponseScoring3D
             scratch.Add(new TargetResponse(response(member, toTarget, toTarget.Length()), weight));
         }
 
-        if (scratch.Count == 0) { return ZeroScores(directions); }
+        if (scratch.Count == 0) { return DirectionScoring.ZeroScores(directions); }
 
         float focus = sample.Focus;
         float resolution = sample.Resolution;
@@ -98,14 +97,14 @@ public static class TargetResponseScoring3D
             totalFocusedWeight += focusedWeight;
         }
 
-        if (totalFocusedWeight < Epsilon) { return ZeroScores(directions); }
+        if (totalFocusedWeight < Epsilon) { return DirectionScoring.ZeroScores(directions); }
 
         var combineFirst = DirectionScoring.ByAlignment(
             directions, combinedDirection / totalFocusedWeight, raw: settings.HasVerticalMovement);
 
         if (resolution < Epsilon) { return combineFirst; }
 
-        var perTargetScores = ZeroScores(directions);
+        var perTargetScores = DirectionScoring.ZeroScores(directions);
         foreach (var entry in scratch)
         {
             float normalizedWeight = FocusWeight(entry.Weight, maxWeight, focus) / totalFocusedWeight;
@@ -163,7 +162,4 @@ public static class TargetResponseScoring3D
     /// <summary>The member's position after the caller's projection influence is applied.</summary>
     private static Vector3 EffectivePosition(in TargetMember member, float projectionInfluence)
         => member.Position + (member.ProjectedPosition - member.Position) * projectionInfluence;
-
-    private static Dictionary<Vector3, float> ZeroScores(DirectionSet3D directions)
-        => directions.Directions.ToDictionary(dir => dir, _ => 0f);
 }

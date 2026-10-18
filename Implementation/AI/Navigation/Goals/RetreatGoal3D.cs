@@ -54,9 +54,7 @@ public partial class RetreatGoal3D : SteeredGoal3D
         TargetSample sample, SteeringDecisionContext3D ctx, AIConsiderationRuntime? runtime)
         => !IsSafeDistanceUsable
             ? ZeroScores(directions)
-            : Aggregate(directions, sample, ctx.AgentPosition,
-                (_, toMember, _) => Considerations.BandScoring.Away(toMember),
-                new List<Considerations.TargetResponse>());
+            : Aggregate(directions, sample, ctx.AgentPosition, AwayResponse, runtime);
 
     public override string[] GetResourceConfigurationWarnings()
     {

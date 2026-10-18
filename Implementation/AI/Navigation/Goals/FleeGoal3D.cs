@@ -27,7 +27,5 @@ public partial class FleeGoal3D : SteeredGoal3D
 
     protected override Dictionary<Vector3, float> ScoreSample(DirectionSet3D directions,
         TargetSample sample, SteeringDecisionContext3D ctx, AIConsiderationRuntime? runtime)
-        => Aggregate(directions, sample, ctx.AgentPosition,
-            (_, toMember, _) => Considerations.BandScoring.Away(toMember),
-            new List<Considerations.TargetResponse>());
+        => Aggregate(directions, sample, ctx.AgentPosition, AwayResponse, runtime);
 }
