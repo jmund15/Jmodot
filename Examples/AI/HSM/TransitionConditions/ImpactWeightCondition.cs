@@ -7,12 +7,19 @@ using Core.Combat.Reactions;
 using Core.Stats;
 using Core.Shared.Attributes;
 using Implementation.AI.BB;
+using Implementation.Combat;
 using Implementation.Shared;
 
 /// <summary>Routes direct hits by their decayed weight after the emitting state's entry.</summary>
 [GlobalClass, Tool]
 public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Shared.IResourceConfigurationWarnings
 {
+    /// <summary>
+    /// Waits for the victim's held push to release before weighing the hit. A hold defers the launch,
+    /// so without this the band tier that a launch-strength hit also matches would commit first.
+    /// </summary>
+    [Export, RequiredExport] public bool DeferWhileHeld { get; private set; }
+
     /// <summary>Inclusive lower weight bound.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition MinWeight { get; private set; } = null!;
 
@@ -40,6 +47,12 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
     public override bool Check(Node agent, IBlackboard bb, in CombatLogMark entry)
     {
         this.ValidateRequiredExports();
+        if (DeferWhileHeld
+            && KnockbackComponent3D.TryGetHeldPushWindow(bb, out _, out var holding)
+            && holding)
+        {
+            return false;
+        }
         if (!bb.TryGet<CombatLog>(BBDataSig.CombatLog, out var log) || log == null) { return false; }
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out var stats);
         float poise = stats?.GetStatValue(PoiseAttribute, 0f) ?? 0f;
