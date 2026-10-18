@@ -30,6 +30,17 @@ public static class LocomotionAnimResolver
         return new Vector3(velocity.X, 0f, velocity.Z);
     }
 
+    /// <summary>Unnormalized flat target delta, or flat velocity when the target is absent or horizontally co-located.</summary>
+    public static Vector3 PickFacing(Vector3 bodyPosition, Vector3? targetPosition, Vector3 velocity)
+    {
+        if (targetPosition is { } target)
+        {
+            var delta = DirectionFromVelocity(target - bodyPosition);
+            if (delta != Vector3.Zero) { return delta; }
+        }
+        return DirectionFromVelocity(velocity);
+    }
+
     /// <summary>
     /// Hysteresis band over squared flat speed. A single threshold chatters while an entity hovers
     /// at the boundary, and every flip costs a clip restart, so entering movement and leaving it

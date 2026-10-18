@@ -64,12 +64,26 @@ public partial class State : Node, IState
     [Export] protected StatContext? ActiveStatContext;
 
     /// <summary>
-    /// Movement quirks registered on the entity's quirk processor while this state is active.
-    /// Registration is refcounted, so a quirk shared with another state or BehaviorAction survives
-    /// until every holder releases it.
+    /// Movement quirks active over this state's subtree. Invalid entries appear as configuration
+    /// warnings. Registration is refcounted, so shared quirks survive until every holder releases them.
     /// </summary>
     [ExportGroup("Movement Quirks")]
     [Export] protected GColl.Array<MovementQuirk3D> MovementQuirks { get; private set; } = new();
+
+    /// <summary>
+    /// Face the live primary target while fallback animation owns the body. The innermost checked
+    /// state wins. An unchecked child cannot disable a checked ancestor; place motion-facing states
+    /// outside that subtree. Default off.
+    /// </summary>
+    [ExportGroup("Facing")]
+    [Export] public bool FaceTarget { get; private set; }
+
+    /// <summary>Optional target-memory key override. Empty means the primary target; ignored when Face Target is off.</summary>
+    [Export] public StringName? FaceTargetKey { get; private set; }
+
+    /// <summary>This state's facing intent; null defers to ancestors.</summary>
+    public StringName? ResolvedFaceTargetKey => !FaceTarget ? null
+        : !string.IsNullOrEmpty(FaceTargetKey) ? FaceTargetKey : BBDataSig.PrimaryTargetMemory;
 
     private MovementQuirkRegistration _quirkRegistration;
     private StatContextRegistration _statContextRegistration;
@@ -289,6 +303,14 @@ public partial class State : Node, IState
         _quirkRegistration.Resolve(BB, MovementQuirks, this);
     }
 
+    internal void SetFacingForTest(bool enabled, StringName? key = null)
+    {
+        FaceTarget = enabled;
+        FaceTargetKey = key;
+    }
+
+    internal void SetMovementQuirksForTest(GColl.Array<MovementQuirk3D> quirks) => MovementQuirks = quirks;
+
     internal void _TestAddTransition(StateTransition transition) => Transitions.Add(transition);
 #endif
     #endregion
@@ -296,6 +318,24 @@ public partial class State : Node, IState
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
+        warnings.AddRange(ConfigWarnings.QuirkSlotWarnings(MovementQuirks));
+
+        if (!FaceTarget && !string.IsNullOrEmpty(FaceTargetKey))
+        {
+            warnings.Add("Face Target Key is ignored while Face Target is off.");
+        }
+        if (FaceTarget)
+        {
+            if (!ConfigWarnings.TryFindEntitySibling<Animation.AnimationClaimResolver>(this, out var resolver)
+                || resolver == null)
+            {
+                warnings.Add("Face Target needs an AnimationClaimResolver on this entity with a fallback profile.");
+            }
+            else if (resolver.FallbackProfile == null)
+            {
+                warnings.Add("Face Target needs a fallback profile; this AnimationClaimResolver is arbitration-only.");
+            }
+        }
 
         for (int i = 0; i < Transitions.Count; i++)
         {
