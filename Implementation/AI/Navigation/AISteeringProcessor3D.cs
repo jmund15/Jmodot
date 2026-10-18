@@ -407,6 +407,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
 #if TOOLS
     internal void SetMovementDirections(DirectionSet3D directions) => MovementDirections = directions;
     internal void AddAuthoredConsiderationForTest(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathConsideration(NavigationPath3DConsideration? consideration) => _navPathConsideration = consideration;
     internal NavigationPath3DConsideration? GetActiveNavPathConsideration() => _navPathOverride ?? _navPathConsideration;
     internal void SetSynthesisStrategy(SteeringSynthesisStrategy3D? strategy) => _synthesisStrategy = strategy;

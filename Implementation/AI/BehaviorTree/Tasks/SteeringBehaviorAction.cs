@@ -143,6 +143,17 @@ public partial class SteeringBehaviorAction : BehaviorAction
     internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
+
+    /// <summary>Copies the whole authored slot of <paramref name="replaced"/>, adding the style terms and both overrides when it steers.</summary>
+    internal new void AdoptSlotFromForTest(BehaviorAction replaced)
+    {
+        base.AdoptSlotFromForTest(replaced);
+        if (replaced is not SteeringBehaviorAction steering) { return; }
+
+        foreach (var term in steering._considerations) { _considerations.Add(term); }
+        _navPathOverride = steering._navPathOverride;
+        _synthesisOverride = steering._synthesisOverride;
+    }
 #endif
     #endregion
 }

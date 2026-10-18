@@ -123,6 +123,15 @@ public abstract partial class BehaviorAction : BehaviorTask
     internal void SetSuspendGaitForTest(bool suspendGait) => this.SuspendGait = suspendGait;
     internal void AddMovementQuirkForTest(MovementQuirk3D quirk) => this.MovementQuirks.Add(quirk);
     internal void ClearMovementQuirksForTest() => this.MovementQuirks.Clear();
+
+    /// <summary>Copies the authored slot of <paramref name="replaced"/> (conditions, monitoring, gait opt-out, quirks) onto this task.</summary>
+    internal void AdoptSlotFromForTest(BehaviorAction replaced)
+    {
+        foreach (var condition in replaced.Conditions) { this.Conditions.Add(condition); }
+        this.MonitorConditions = replaced.MonitorConditions;
+        this.SuspendGait = replaced.SuspendGait;
+        foreach (var quirk in replaced.MovementQuirks) { this.MovementQuirks.Add(quirk); }
+    }
 #endif
     #endregion
 }
