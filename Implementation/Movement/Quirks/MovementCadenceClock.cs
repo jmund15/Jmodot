@@ -52,47 +52,21 @@ public struct MovementCadenceClock
             return true;
         }
 
-        bool moving = AdvanceCadence(
-            Paused, Timer, moveSeconds, pauseSeconds, delta, out bool paused, out float timer);
-        Paused = paused;
-        Timer = timer;
-        return moving;
-    }
-
-    /// <summary>
-    /// Advances one move/pause cadence tick and reports whether voluntary drive may run. The
-    /// parameter shape is the legacy arithmetic seam; <see cref="Advance"/> is the owning caller.
-    /// </summary>
-    internal static bool AdvanceCadence(bool wasPaused, float cadenceTimer, float moveSeconds,
-        float pauseSeconds, float delta, out bool newPaused, out float newTimer)
-    {
-        if (!IsUsablePeriod(moveSeconds) || !IsUsablePeriod(pauseSeconds))
-        {
-            newPaused = false;
-            newTimer = IsUsablePeriod(moveSeconds) ? moveSeconds : 0f;
-            return true;
-        }
-
-        if (!(delta > 0f) || !float.IsFinite(delta))
-        {
-            newPaused = wasPaused;
-            newTimer = cadenceTimer;
-            return !wasPaused;
-        }
+        if (!(delta > 0f) || !float.IsFinite(delta)) { return !Paused; }
 
         double move = moveSeconds;
         double pause = pauseSeconds;
         double cycle = move + pause;
-        double timer = System.Math.Clamp((double)cadenceTimer, 0.0, wasPaused ? pause : move);
+        double timer = System.Math.Clamp((double)Timer, 0.0, Paused ? pause : move);
         // Position within the cycle, then carry the overshoot across every crossed boundary,
         // including whole cycles. Exact move-end enters pause; exact cycle-end enters move.
-        double position = (wasPaused ? move + (pause - timer) : move - timer) + delta;
+        double position = (Paused ? move + (pause - timer) : move - timer) + delta;
         double wrapped = position % cycle;
         if (wrapped < 0.0) { wrapped += cycle; }
 
-        newPaused = wrapped >= move;
-        newTimer = (float)(newPaused ? cycle - wrapped : move - wrapped);
-        return !newPaused;
+        Paused = wrapped >= move;
+        Timer = (float)(Paused ? cycle - wrapped : move - wrapped);
+        return !Paused;
     }
 
     private static bool IsUsablePeriod(float seconds) => float.IsFinite(seconds) && seconds > 0f;

@@ -36,15 +36,16 @@ public partial class CadenceQuirk3D : MovementQuirk3D, IResourceConfigurationWar
     [Export(PropertyHint.Range, "0.05,10,0.05,suffix:s")]
     public float PauseSeconds { get; private set; } = 0.5f;
 
+    private bool _warnedNoSeed;
+
     /// <summary>
     /// Starts this agent's clock at the entity-seeded phase. Consumes no quirk-RNG draw: the phase
     /// is the per-kind unit derived from <c>BBDataSig.EntitySeed</c>.
     /// </summary>
     public override MovementQuirkRuntime CreateRuntime(IBlackboard? blackboard, IRng rng)
     {
-        bool warnedNoSeed = false;
         float unit = EntityRngResolver.ResolveUnit(
-            blackboard, SeedKinds.CadencePhase, this, ref warnedNoSeed);
+            blackboard, SeedKinds.CadencePhase, this, ref _warnedNoSeed);
 
         var runtime = new CadenceRuntime(rng);
         runtime.Clock.Start(MoveSeconds, PauseSeconds, unit);
