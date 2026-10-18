@@ -7,6 +7,7 @@ using Core.AI.Navigation.Considerations;
 using Core.Movement;
 using Godot;
 using Jmodot.Implementation.AI.Navigation.Considerations;
+using Jmodot.Implementation.Shared;
 
 /// <summary>
 /// A targeted goal that also contributes a steering direction while it runs. Its Weight is the
@@ -46,13 +47,13 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
         {
             return ZeroScores(directions);
         }
-        if (IsSuppressedByZone(bb)) { return ZeroScores(directions); }
-        return ScoreSample(directions, sample, ctx);
+        if (IsSuppressedByZone(bb, sample, out _)) { return ZeroScores(directions); }
+        return ScoreSample(directions, sample, ctx, runtime);
     }
 
     /// <summary>This goal's direction over the resolved sample; the goal's style, not its completion.</summary>
     protected abstract Dictionary<Vector3, float> ScoreSample(DirectionSet3D directions,
-        Targets.TargetSample sample, SteeringDecisionContext3D ctx);
+        Targets.TargetSample sample, SteeringDecisionContext3D ctx, AIConsiderationRuntime? runtime);
 
     /// <summary>The settings every goal scores with: confidence-weighted, no projection, flat.</summary>
     protected static TargetResponseSettings GoalSettings
@@ -66,15 +67,30 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
         => Considerations.TargetResponseScoring3D.Aggregate(
             directions, sample, agentPosition, GoalSettings, response, scratch);
 
-    protected static bool IsSuppressedByZone(IBlackboard bb, StringName? key)
-        => !string.IsNullOrEmpty(key)
-           && bb.TryGet<Vector4>(key!, out var zone)
-           && zone.W > 0f;
-
     protected static Dictionary<Vector3, float> ZeroScores(DirectionSet3D directions)
         => directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
-    private bool IsSuppressedByZone(IBlackboard bb) => IsSuppressedByZone(bb, SuppressWhileZoneKey);
+    /// <summary>
+    /// True when the authored zone key suppresses this goal's pull. A published value that is not a
+    /// Vector4 is a wiring fault: it suppresses too, and warns once per agent.
+    /// </summary>
+    private bool IsSuppressedByZone(IBlackboard bb, Targets.TargetSample sample, out bool wrongType)
+    {
+        wrongType = false;
+        if (string.IsNullOrEmpty(SuppressWhileZoneKey)) { return false; }
+        if (bb.TryGet<Vector4>(SuppressWhileZoneKey!, out var zone)) { return zone.W > 0f; }
+        if (!bb.ContainsLocal(SuppressWhileZoneKey!)) { return false; }
+
+        wrongType = true;
+        if (sample.TryBeginLog(Targets.TargetLogKind.ConfigError))
+        {
+            JmoLogger.Warning(this,
+                $"Goal '{ResourceName}' ({GetType().Name}) binds SuppressWhileZoneKey '{SuppressWhileZoneKey}', " +
+                "but the blackboard holds a value that is not a Vector4 (centre xyz + radius in W). " +
+                "The goal scores zero until the publisher writes a Vector4.");
+        }
+        return true;
+    }
 
     #region Test Helpers
 #if TOOLS
