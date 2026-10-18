@@ -33,9 +33,8 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     public override string[] _GetConfigurationWarnings()
     {
-        var considerationWarnings = _considerations.OfType<IResourceConfigurationWarnings>()
-            .SelectMany(c => c.GetResourceConfigurationWarnings().Select(w => $"Consideration '{((Resource)c).ResourceName}': {w}"));
-        return base._GetConfigurationWarnings().Concat(considerationWarnings).ToArray();
+        return base._GetConfigurationWarnings()
+            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToArray();
     }
 
     private AISteeringProcessor3D? _cachedSteering;

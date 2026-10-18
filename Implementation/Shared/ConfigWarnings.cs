@@ -56,32 +56,40 @@ public static class ConfigWarnings
     }
 
     /// <summary>
-    /// Renders the configuration faults of an authored movement-quirk slot list: one line per
-    /// fault, each prefixed with its slot index and the resource's name and type, so the Inspector
-    /// shows one bullet per fault instead of a joined blob. A null slot is its own warning naming
-    /// the index and no resource. A legal empty array yields none.
+    /// Renders the configuration faults of an authored movement-quirk slot list in the
+    /// <see cref="ResourceSlotWarnings{T}"/> format, labelled "Movement Quirks".
     /// </summary>
     public static string[] QuirkSlotWarnings(GColl.Array<MovementQuirk3D>? quirks)
+        => ResourceSlotWarnings("Movement Quirks", quirks);
+
+    /// <summary>
+    /// Renders the configuration faults of an authored Resource slot list: one line per fault,
+    /// each prefixed with <paramref name="slotLabel"/>, the slot index and the resource's name and
+    /// type, so the Inspector shows one bullet per fault instead of a joined blob. A null slot is
+    /// its own warning naming the index and no resource. Only resources implementing
+    /// <see cref="IResourceConfigurationWarnings"/> contribute faults. A legal empty list yields none.
+    /// </summary>
+    public static string[] ResourceSlotWarnings<T>(string slotLabel, IList<T>? slots) where T : Resource
     {
-        if (quirks == null || quirks.Count == 0) { return System.Array.Empty<string>(); }
+        if (slots == null || slots.Count == 0) { return System.Array.Empty<string>(); }
 
         var warnings = new List<string>();
-        for (var i = 0; i < quirks.Count; i++)
+        for (var i = 0; i < slots.Count; i++)
         {
-            var quirk = quirks[i];
-            if (quirk == null)
+            var slot = slots[i];
+            if (slot == null)
             {
-                warnings.Add($"Movement Quirks slot {i}: empty slot — no quirk will be registered.");
+                warnings.Add($"{slotLabel} slot {i}: empty slot — nothing is assigned here.");
                 continue;
             }
 
-            if (quirk is not IResourceConfigurationWarnings source) { continue; }
+            if (slot is not IResourceConfigurationWarnings source) { continue; }
 
-            var type = quirk.GetType().Name;
-            var name = string.IsNullOrEmpty(quirk.ResourceName) ? type : quirk.ResourceName;
+            var type = slot.GetType().Name;
+            var name = string.IsNullOrEmpty(slot.ResourceName) ? type : slot.ResourceName;
             foreach (var warning in source.GetResourceConfigurationWarnings())
             {
-                warnings.Add($"Movement Quirks slot {i} '{name}' ({type}): {warning}");
+                warnings.Add($"{slotLabel} slot {i} '{name}' ({type}): {warning}");
             }
         }
         return warnings.ToArray();
