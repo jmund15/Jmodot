@@ -69,6 +69,53 @@ public static class ConfigWarnings
     /// its own warning naming the index and no resource. Only resources implementing
     /// <see cref="IResourceConfigurationWarnings"/> contribute faults. A legal empty list yields none.
     /// </summary>
+    /// <summary>
+    /// Renders the configuration faults of one single-slot Resource export through the same
+    /// <c>'{label} '{name}' ({type}): {fault}'</c> format as the list form, without an index.
+    /// <paramref name="required"/> states whether an empty slot is a fault: a required slot reads
+    /// <c>'{label}: empty slot — nothing is assigned here.'</c>, an optional one is a supported mode
+    /// and stays silent.
+    /// </summary>
+    public static string[] ResourceSlotWarnings<T>(string slotLabel, T? slot, bool required)
+        where T : Resource
+    {
+        if (slot == null)
+        {
+            return required
+                ? new[] { $"{slotLabel}: empty slot — nothing is assigned here." }
+                : System.Array.Empty<string>();
+        }
+        if (slot is not IResourceConfigurationWarnings source) { return System.Array.Empty<string>(); }
+        return RenderSlotWarnings(slotLabel, slot, source.GetResourceConfigurationWarnings());
+    }
+
+    /// <summary>
+    /// Renders agent-dependency faults (see <see cref="RequireEntitySibling{T}"/>) under the slot
+    /// that holds <paramref name="slot"/>, so the Inspector keeps the whole slot path and no host
+    /// authors the condition's own wording. A null slot or no faults adds nothing.
+    /// </summary>
+    public static string[] ResourceSlotWarnings<T>(string slotLabel, T? slot, string[]? faults)
+        where T : Resource
+    {
+        if (slot == null || faults == null || faults.Length == 0) { return System.Array.Empty<string>(); }
+        return RenderSlotWarnings(slotLabel, slot, faults);
+    }
+
+    private static string[] RenderSlotWarnings<T>(string slotLabel, T slot, string[] faults)
+        where T : Resource
+    {
+        if (faults.Length == 0) { return System.Array.Empty<string>(); }
+
+        var type = slot.GetType().Name;
+        var name = string.IsNullOrEmpty(slot.ResourceName) ? type : slot.ResourceName;
+        var warnings = new string[faults.Length];
+        for (var i = 0; i < faults.Length; i++)
+        {
+            warnings[i] = $"{slotLabel} '{name}' ({type}): {faults[i]}";
+        }
+        return warnings;
+    }
+
     public static string[] ResourceSlotWarnings<T>(string slotLabel, IList<T>? slots) where T : Resource
     {
         if (slots == null || slots.Count == 0) { return System.Array.Empty<string>(); }
