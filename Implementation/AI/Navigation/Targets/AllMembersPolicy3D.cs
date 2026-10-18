@@ -27,7 +27,7 @@ public partial class AllMembersPolicy3D : TargetPolicy3D
     public override TargetSampleGeometry Geometry => TargetSampleGeometry.Set;
 
     public override void Apply(TargetSample sample)
-        => sample.Adopt(new List<TargetMember>(sample.Members), Geometry, Resolution, Focus);
+        => sample.Seal(Geometry, Resolution, Focus);
 
     public override string[] GetResourceConfigurationWarnings()
     {

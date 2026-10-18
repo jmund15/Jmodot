@@ -33,18 +33,45 @@ public partial class CategoryTarget3D : MovementTarget3D
     /// The sensed category this target reads. Required: with no category the target resolves
     /// Unavailable and says so in the Inspector.
     /// </summary>
-    [Export] public Category? Category { get; private set; }
+    [Export] public Category? Category
+    {
+        get => _category;
+        private set { _category = value; _faults = null; }
+    }
 
     /// <summary>
     /// How the eligible members become a sample: nearest one, or the whole set. Required.
     /// </summary>
-    [Export] public TargetPolicy3D? Policy { get; private set; }
+    [Export] public TargetPolicy3D? Policy
+    {
+        get => _policy;
+        private set
+        {
+            if (_policy != null) { _policy.Changed -= InvalidateFaults; }
+            _policy = value;
+            if (_policy != null) { _policy.Changed += InvalidateFaults; }
+            _faults = null;
+        }
+    }
 
     /// <summary>
     /// Remembered targets include memories decaying after loss; visible-now only what a sensor
     /// still reports. Unset is a fault, never an implicit default.
     /// </summary>
-    [Export] public TargetEligibility Eligibility { get; private set; } = TargetEligibility.Unset;
+    [Export] public TargetEligibility Eligibility
+    {
+        get => _eligibility;
+        private set { _eligibility = value; _faults = null; }
+    }
+
+    private Category? _category;
+    private TargetPolicy3D? _policy;
+    private TargetEligibility _eligibility = TargetEligibility.Unset;
+
+    /// <summary>Authored faults, computed once and dropped whenever an export or the policy changes.</summary>
+    private string[]? _faults;
+
+    private void InvalidateFaults() => _faults = null;
 
     public override TargetSampleGeometry Geometry => Policy?.Geometry ?? TargetSampleGeometry.Member;
 
@@ -53,7 +80,7 @@ public partial class CategoryTarget3D : MovementTarget3D
     {
         sample.Clear();
 
-        var faults = GetResourceConfigurationWarnings();
+        var faults = _faults ??= GetResourceConfigurationWarnings();
         if (faults.Length > 0)
         {
             sample.State = TargetSampleState.Unavailable;
@@ -75,22 +102,20 @@ public partial class CategoryTarget3D : MovementTarget3D
             return;
         }
 
-        var members = new List<TargetMember>();
         foreach (var info in memory.GetSensedByCategory(Category!))
         {
             if (!info.IsLiveTarget()) { continue; }
             if (Eligibility == TargetEligibility.VisibleNow && !info.IsSensing) { continue; }
-            members.Add(TargetMember.FromMemory(info, agentPosition));
+            sample.AddMember(TargetMember.FromMemory(info, agentPosition));
         }
 
-        if (members.Count == 0)
+        if (!sample.HasMembers)
         {
             sample.State = TargetSampleState.Empty;
             return;
         }
 
-        sample.Adopt(members, Policy!.Geometry);
-        Policy.Apply(sample);
+        Policy!.Apply(sample);
     }
 
     public override string[] GetResourceConfigurationWarnings()

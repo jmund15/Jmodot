@@ -16,7 +16,7 @@ public partial class NearestMemberPolicy3D : TargetPolicy3D
 
     public override void Apply(TargetSample sample)
     {
-        var members = new List<TargetMember>(sample.Members);
+        var members = sample.Members;
         if (members.Count == 0) { return; }
 
         var best = members[0];
@@ -36,6 +36,7 @@ public partial class NearestMemberPolicy3D : TargetPolicy3D
             }
         }
 
-        sample.ReplaceMembers(new List<TargetMember> { best });
+        sample.KeepOnly(best);
+        sample.Seal(Geometry);
     }
 }
