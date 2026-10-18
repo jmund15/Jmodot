@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
+using Tasks;
+
 /// <summary>
 /// A priority-fallback composite ("Priority Selector with conditional abort"). Identical to
 /// <see cref="Selector"/> for terminal-status propagation (succeeds when any child succeeds,
@@ -32,6 +34,9 @@ namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 public partial class ReactiveSelector : PrioritySelectorBase
 {
     protected override void OnTickStart() => TryReactivePreempt();
+
+    // A higher-priority sibling preempts the running child, so a child that never finishes starves nobody.
+    public override string? DescribeStarvationBy(BehaviorTask? child) => null;
 
     /// <summary>
     /// Scans children with index &lt; _runningChildIdx (higher priority than the current).

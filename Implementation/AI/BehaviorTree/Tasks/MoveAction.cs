@@ -10,7 +10,6 @@ using Core.AI.Perception;
 using Core.AI;
 using Core.Shared;
 using Jmodot.AI.Navigation;
-using Jmodot.Examples.AI.BehaviorTree.Conditions;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.AI.Navigation.Goals;
 using Jmodot.Implementation.AI.Navigation.Targets;
@@ -94,9 +93,8 @@ public partial class MoveAction : SteeringBehaviorAction
         {
             foreach (var consideration in Considerations)
             {
-                if (consideration is IAmbientSteeringConsideration) { continue; }
-                var name = consideration == null ? "an empty style slot" : ResourceLabel(consideration);
-                warnings.Add($"Style term '{name}' will not score while this goal claims NavigationOnly. " +
+                if (consideration == null || consideration is IAmbientSteeringConsideration) { continue; }
+                warnings.Add($"Style term '{ResourceLabel(consideration)}' will not score while this goal claims NavigationOnly. " +
                              "Keep only ambient terms on a navigation-only step.");
             }
         }
@@ -217,9 +215,9 @@ public partial class MoveAction : SteeringBehaviorAction
         => new(((Node3D)Agent).GlobalPosition, BB, _memory, delta);
 
     /// <summary>
-    /// A never-ending goal starves later work when it sits in a Sequence branch with a later
-    /// sibling, a plain Selector with any sibling, or anywhere under an EngageCycle. A time limit
-    /// on the step or an ancestor (or any SucceedOnAbort condition) ends it, so it does not warn.
+    /// A never-ending goal starves other work when an ancestor composite holds it to completion;
+    /// each composite says so through <see cref="CompositeTask.DescribeStarvationBy"/>. A time
+    /// condition on the step or an ancestor (or any SucceedOnAbort condition) ends it, so it does not warn.
     /// </summary>
     private string? NeverEndingWarning()
     {
@@ -228,21 +226,12 @@ public partial class MoveAction : SteeringBehaviorAction
         Node branch = this;
         for (var node = (Node?)this; node != null; node = node.GetParent())
         {
-            if (node is BehaviorTask task && task.Conditions.Any(IsEndingLimit)) { return null; }
+            if (node is BehaviorTask task && task.Conditions.Any(EndsTheStep)) { return null; }
 
-            if (node is EngageCycle)
+            if (node is CompositeTask composite
+                && composite.DescribeStarvationBy(branch as BehaviorTask) is { } starvation)
             {
-                return NeverEndingMessage("an EngageCycle, which would cycle on it forever");
-            }
-
-            if (node is Sequence && HasLaterSibling(node, branch))
-            {
-                return NeverEndingMessage("a Sequence branch with a later sibling, which this step would starve");
-            }
-
-            if (node is Selector && HasAnySibling(node, branch))
-            {
-                return NeverEndingMessage("a Selector branch with siblings, which this step would starve");
+                return NeverEndingMessage(starvation);
             }
 
             branch = node;
@@ -254,18 +243,8 @@ public partial class MoveAction : SteeringBehaviorAction
         => $"Goal '{GoalName()}' never ends itself and sits in {where}. Add a time limit to this step " +
            "or an ancestor, or use a goal that ends.";
 
-    private static bool IsEndingLimit(BTCondition condition)
-        => condition is TimeLimit || condition is RandomTimeLimit || condition.SucceedOnAbort;
-
-    private static bool HasLaterSibling(Node composite, Node branch)
-    {
-        var siblings = composite.GetChildren().OfType<BehaviorTask>().ToList();
-        var index = siblings.IndexOf(branch as BehaviorTask);
-        return index >= 0 && index < siblings.Count - 1;
-    }
-
-    private static bool HasAnySibling(Node composite, Node branch)
-        => composite.GetChildren().OfType<BehaviorTask>().Count() > 1;
+    private static bool EndsTheStep(BTCondition condition)
+        => condition.EndsTaskByTime || condition.SucceedOnAbort;
 
     #region Test Helpers
 #if TOOLS

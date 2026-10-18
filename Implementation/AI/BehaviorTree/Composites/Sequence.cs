@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
+using Tasks;
+
 using Core.AI;
 
 /// <summary>
@@ -10,6 +12,15 @@ using Core.AI;
 public partial class Sequence : CompositeTask
 {
     private int _runningChildIdx = -1;
+
+    public override string? DescribeStarvationBy(BehaviorTask? child)
+    {
+        var siblings = AuthoredChildren();
+        var index = child == null ? -1 : siblings.IndexOf(child);
+        return index >= 0 && index < siblings.Count - 1
+            ? "a Sequence branch with a later sibling, which this step would starve"
+            : null;
+    }
 
     protected override void OnEnter()
     {

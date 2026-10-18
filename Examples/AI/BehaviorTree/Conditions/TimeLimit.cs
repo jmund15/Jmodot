@@ -14,6 +14,8 @@ public partial class TimeLimit : BTCondition
     [Export(PropertyHint.Range, "0.0, 60.0, 0.1, or_greater")]
     public float Limit { get; private set; } = 1.0f;
 
+    public override bool EndsTaskByTime => true;
+
     private double _startTime;
     private bool _isActive;
 

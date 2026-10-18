@@ -29,6 +29,8 @@ public partial class RandomTimeLimit : BTCondition
     [Export(PropertyHint.Range, "0.0, 60.0, 0.1, or_greater")]
     private float _maxDuration = 5.0f;
 
+    public override bool EndsTaskByTime => true;
+
     private double _startTime;
     private float _currentLimit;
     private bool _isActive;

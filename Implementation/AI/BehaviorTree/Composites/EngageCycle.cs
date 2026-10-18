@@ -175,6 +175,9 @@ public partial class EngageCycle : CompositeTask
         }
     }
 
+    public override string? DescribeStarvationBy(BehaviorTask? child)
+        => "an EngageCycle, which would cycle on it forever";
+
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = ConfigurationErrors().ToList();

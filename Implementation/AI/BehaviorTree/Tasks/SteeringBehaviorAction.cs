@@ -41,17 +41,12 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     public override string[] _GetConfigurationWarnings()
     {
-        var warnings = base._GetConfigurationWarnings()
-            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToList();
-        for (var i = 0; i < _considerations.Count; i++)
-        {
-            if (_considerations[i] is DynamicTargetConsideration3D dynamic)
-            {
-                warnings.AddRange(ConfigWarnings.ResourceSlotWarnings(
-                    $"Considerations[{i}] Target", dynamic.Target, dynamic.Target?.GetAgentWarnings(this)));
-            }
-        }
-        return warnings.ToArray();
+        // The editor has no Init'ed agent, so the action itself stands in for the entity walk.
+        var agentForWarnings = (Node?)Agent ?? this;
+        return base._GetConfigurationWarnings()
+            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations))
+            .Concat(ConfigWarnings.AgentSlotWarnings("Considerations", _considerations, agentForWarnings))
+            .ToArray();
     }
 
     private AISteeringProcessor3D? _cachedSteering;

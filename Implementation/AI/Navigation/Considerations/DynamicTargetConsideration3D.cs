@@ -33,7 +33,7 @@ public enum TargetResponseMode
 /// lives in <see cref="TargetResponseScoring3D"/>, so goals score through the same owners.
 /// </summary>
 [GlobalClass, Tool]
-public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IResourceConfigurationWarnings
+public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IResourceConfigurationWarnings, IAgentConfigurationWarnings
 {
     #region Exports
 
@@ -98,6 +98,9 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
 
     public string[] GetResourceConfigurationWarnings()
         => ConfigWarnings.ResourceSlotWarnings("Target", Target, required: false);
+
+    /// <summary>The entity faults of the target this term reacts to, such as a category with no perception manager.</summary>
+    public string[] GetAgentWarnings(Node agent) => Target?.GetAgentWarnings(agent) ?? Array.Empty<string>();
 
     #region Effective Parameter Accessors
 

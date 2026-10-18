@@ -14,7 +14,7 @@ using Core.Shared;
 /// <see cref="TargetRuntime"/>, never on this Resource.
 /// </summary>
 [GlobalClass, Tool]
-public abstract partial class MovementTarget3D : Resource, IResourceConfigurationWarnings
+public abstract partial class MovementTarget3D : Resource, IResourceConfigurationWarnings, IAgentConfigurationWarnings
 {
     /// <summary>
     /// Fills <paramref name="sample"/> with the eligible members this target currently sees.

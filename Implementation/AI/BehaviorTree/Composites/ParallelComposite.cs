@@ -35,6 +35,9 @@ public partial class ParallelComposite : CompositeTask
     /// </summary>
     private BehaviorTask.TaskStatusChangedEventHandler?[] _childHandlers = [];
 
+    // Every child runs at once, so a child that never finishes starves nobody.
+    public override string? DescribeStarvationBy(BehaviorTask? child) => null;
+
     protected override void OnEnter()
     {
         base.OnEnter();
