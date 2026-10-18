@@ -15,10 +15,11 @@ using Implementation.Shared;
 public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Shared.IResourceConfigurationWarnings
 {
     /// <summary>
-    /// Waits for the victim's held push to release before weighing the hit. A hold defers the launch,
-    /// so without this the band tier that a launch-strength hit also matches would commit first.
+    /// Defers this transition while the victim's push is still held, so a launch-strength hit cannot match
+    /// a lower tier first. It only defers: the weighing window stays Within Seconds. Turn off only for a
+    /// victim with no hold.
     /// </summary>
-    [Export, RequiredExport] public bool DeferWhileHeld { get; private set; }
+    [Export] public bool DeferWhileHeld { get; set; } = true;
 
     /// <summary>Inclusive lower weight bound.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition MinWeight { get; private set; } = null!;

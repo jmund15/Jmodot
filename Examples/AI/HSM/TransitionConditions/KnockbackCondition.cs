@@ -55,8 +55,12 @@ public partial class KnockbackCondition : CombatLogCondition
     [Export(PropertyHint.Range, "0.0,2.0,0.05,suffix:s")]
     public float WithinSeconds { get; set; }
 
-    /// <summary>Waits for this victim's held push to launch; uses the receiver's evidence window after release.</summary>
-    [Export] public bool DeferWhileHeld { get; set; }
+    /// <summary>
+    /// Defers this transition while the victim's push is still held, so a launch-strength hit cannot match
+    /// a lower tier first. After release, the receiver's held-push evidence window replaces Within Seconds,
+    /// including a Within Seconds of 0. Turn off only for a victim with no hold.
+    /// </summary>
+    [Export] public bool DeferWhileHeld { get; set; } = true;
 
     protected override bool CheckEvent(CombatLog log)
     {

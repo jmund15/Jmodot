@@ -140,12 +140,41 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	private IAnimationOrchestrator? _orchestrator;
 	private IBlackboard? _blackboard;
 	private bool _warnedSuppressionType;
-	private double _maximumHoldDeadline;
-	private Vector3 _pendingImpulse;
-	private double _holdDeadline;
-	private Vector3 _pendingDelta;
-	private Node? _pendingSource;
-	private StringName _holdOwner = "";
+	private HoldState _held = new();
+
+	private struct HoldState
+	{
+		public Vector3 Impulse;
+		public Vector3 Delta;
+		public Node? Source;
+		public double Deadline;
+		public double MaxDeadline;
+		public StringName Owner;
+
+		public void Start(Vector3 impulse, Vector3 delta, Node? source, double deadline, double maxDeadline, StringName owner)
+		{
+			Impulse = impulse;
+			Delta = delta;
+			Source = source;
+			Deadline = deadline;
+			MaxDeadline = maxDeadline;
+			Owner = owner;
+		}
+
+		public void Add(Vector3 impulse, Vector3 delta)
+		{
+			Impulse += impulse;
+			Delta += delta;
+		}
+
+		public void Extend(Node? source, double deadline)
+		{
+			Source = source;
+			Deadline = Math.Min(MaxDeadline, Math.Max(Deadline, deadline));
+		}
+
+		public void Clear() => Start(Vector3.Zero, Vector3.Zero, null, 0, 0, "");
+	}
 
 	private Callable HoldForward() => new(this, MethodName.OnHoldChanged);
 
@@ -167,6 +196,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override void _Ready()
 	{
 		base._Ready();
+		SetPhysicsProcess(false);
 		if (Engine.IsEditorHint()) { return; }
 		// Component disables itself until Initialize() succeeds.
 		ProcessMode = ProcessModeEnum.Disabled;
@@ -241,13 +271,11 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude, sustained);
 		if (IsHolding)
 		{
-			_pendingImpulse += resolved.Impulse;
-			_pendingDelta += velocityDelta;
+			_held.Add(resolved.Impulse, velocityDelta);
 			if (!sustained)
 			{
-				_pendingSource = attributedSource;
-				float extension = Hold == null ? 0f : KnockbackHold.Seconds(_pendingImpulse.Length(), _pendingDelta.Length(), Hold);
-				_holdDeadline = Math.Min(_maximumHoldDeadline, Math.Max(_holdDeadline, now + extension));
+				float extension = Hold == null ? 0f : KnockbackHold.Seconds(_held.Impulse.Length(), _held.Delta.Length(), Hold);
+				_held.Extend(attributedSource, now + extension);
 			}
 			return;
 		}
@@ -256,14 +284,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		if (!sustained && !IsDead && !IsSuppressed() && float.IsFinite(seconds) && seconds > 0f && double.IsFinite(now)
 			&& _movementProcessor.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero))
 		{
-			_holdOwner = Name;
-			_maximumHoldDeadline = now + Hold!.MaxSeconds;
-			SourceLookupSeconds = Hold.MaxSeconds + ReleaseMarginSeconds;
-			_pendingImpulse = resolved.Impulse;
-			_pendingDelta = velocityDelta;
-			_pendingSource = attributedSource;
-			_holdDeadline = now + seconds;
+			SourceLookupSeconds = Hold!.MaxSeconds + ReleaseMarginSeconds;
+			_held.Start(resolved.Impulse, velocityDelta, attributedSource, now + seconds, now + Hold.MaxSeconds, Name);
 			IsHolding = true;
+			SetPhysicsProcess(true);
 			SetSpriteFrozen(true);
 			return;
 		}
@@ -326,19 +350,19 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override void _PhysicsProcess(double delta)
 	{
 		if (Engine.IsEditorHint() || !IsHolding) { return; }
-		double remaining = _holdDeadline - _unscaledSeconds();
+		double remaining = _held.Deadline - _unscaledSeconds();
 		if (!double.IsFinite(remaining) || !(remaining > 0) || IsSuppressed()) { ReleaseHold(); }
 	}
 
 	private void ReleaseHold(bool exiting = false)
 	{
 		if (!IsHolding) { return; }
-		var pending = _pendingDelta;
-		var source = _pendingSource;
-		var owner = _holdOwner;
+		var pending = _held.Delta;
+		var source = _held.Source;
+		var owner = _held.Owner;
 		IsHolding = false;
-		_pendingDelta = Vector3.Zero;
-		_pendingSource = null;
+		_held.Clear();
+		SetPhysicsProcess(false);
 		if (IsAlive(_movementProcessor)) { _movementProcessor.ReleaseSuspension(owner); }
 		SetSpriteFrozen(false);
 		if (exiting)
@@ -471,7 +495,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	// builds via #if TOOLS.
 	internal void SetHealthForTesting(IHealth? value) => _health = value;
 	internal void SetBlackboardForTesting(IBlackboard value) => _blackboard = value;
-	internal void SetHoldDeadlineForTest_BypassEvents(double unscaledDeadline) => _holdDeadline = unscaledDeadline;
+	internal void SetHoldDeadlineForTest_BypassEvents(double unscaledDeadline) => _held.Deadline = unscaledDeadline;
 	internal void SetHoldForTesting(KnockbackHoldConfig? value) => Hold = value;
 	internal void SetOrchestratorForTesting(IAnimationOrchestrator? value) => _orchestrator = value;
 	internal void SetMovementProcessorForTesting(IMovementProcessor3D processor) =>
