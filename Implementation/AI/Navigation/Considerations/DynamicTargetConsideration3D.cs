@@ -99,8 +99,12 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     public string[] GetResourceConfigurationWarnings()
         => ConfigWarnings.ResourceSlotWarnings("Target", Target, required: false);
 
-    /// <summary>The entity faults of the target this term reacts to, such as a category with no perception manager.</summary>
-    public string[] GetAgentWarnings(Node agent) => Target?.GetAgentWarnings(agent) ?? Array.Empty<string>();
+    /// <summary>
+    /// The entity faults of the target this term reacts to, such as a category with no perception
+    /// manager, worded under the Target slot like this term's own resource warnings.
+    /// </summary>
+    public string[] GetAgentWarnings(Node agent)
+        => ConfigWarnings.ResourceSlotWarnings("Target", Target, Target?.GetAgentWarnings(agent));
 
     #region Effective Parameter Accessors
 
