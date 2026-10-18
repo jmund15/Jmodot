@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.AI;
 using Core.AI.BB;
+using Jmodot.Implementation.AI.Navigation.Goals;
 using Shared;
 using Shared.GodotExceptions;
 using Tasks;
@@ -191,7 +192,53 @@ public partial class EngageCycle : CompositeTask
             warnings.Add("EngageCycle fails when Position fails; place it in a Selector/ReactiveSelector with a later sibling.");
         }
 
+        warnings.AddRange(CrossSlotWarnings());
+
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
+    }
+
+    /// <summary>
+    /// The number mismatches between slots that make the cycle's authored story impossible, each
+    /// naming both slots. Reads the authored Conditions, not the runtime clones, and compares only
+    /// member bands; a slot holding something other than a MoveAction is skipped.
+    /// </summary>
+    private IEnumerable<string> CrossSlotWarnings()
+    {
+        var engage = Conditions.OfType<IDistanceBandGate>().FirstOrDefault()?.GateBand;
+        var position = (Position as MoveAction)?.Goal?.DistanceBand;
+        if (EngageCycleDistances.PositionVsEngage(position, engage) is { } positionWarning)
+        {
+            yield return positionWarning;
+        }
+
+        var commit = (Commit as MoveAction)?.Goal?.DistanceBand;
+        var attack = Attack?.Conditions.OfType<IDistanceBandGate>().FirstOrDefault()?.GateBand;
+        if (EngageCycleDistances.CommitVsAttack(commit, attack) is { } commitWarning)
+        {
+            yield return commitWarning;
+        }
+
+        if (EngageCycleDistances.BackOutVsRing(BackOutBand(), position) is { } backOutWarning)
+        {
+            yield return backOutWarning;
+        }
+    }
+
+    private GoalDistanceBand? BackOutBand()
+    {
+        if (Recover is MoveAction direct && direct.Goal?.DistanceBand is { } directBand) { return directBand; }
+        return FirstNestedMoveActionBand(Recover);
+    }
+
+    private static GoalDistanceBand? FirstNestedMoveActionBand(BehaviorTask? task)
+    {
+        if (task is not Sequence sequence) { return null; }
+        foreach (var child in sequence.GetChildren().OfType<BehaviorTask>())
+        {
+            if (child is MoveAction move && move.Goal?.DistanceBand is { } band) { return band; }
+            if (FirstNestedMoveActionBand(child) is { } nested) { return nested; }
+        }
+        return null;
     }
 
     protected override void OnEnter()
