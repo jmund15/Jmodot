@@ -136,6 +136,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
     #region Test Helpers
 #if TOOLS
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
 #endif
