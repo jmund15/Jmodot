@@ -177,6 +177,10 @@ public partial class MovementQuirkProcessor3D : Node
     #region Test Helpers
 #if TOOLS
     internal void SetQuirks(GColl.Array<MovementQuirk3D> quirks) => _quirks = quirks;
+
+    /// <summary>The runtime the processor holds for <paramref name="quirk"/>, or null.</summary>
+    internal MovementQuirkRuntime? FindRuntime(MovementQuirk3D quirk)
+        => _runtimes.TryGetValue(quirk, out var runtime) ? runtime : null;
 #endif
     #endregion
 }

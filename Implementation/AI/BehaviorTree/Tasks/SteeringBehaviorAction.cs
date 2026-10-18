@@ -6,6 +6,7 @@ using Core.AI.Navigation;
 using Core.AI.Navigation.Considerations;
 using Core.Shared;
 using Jmodot.AI.Navigation;
+using Movement.Quirks;
 using Navigation.Considerations;
 using Shared;
 using GColl = Godot.Collections;
