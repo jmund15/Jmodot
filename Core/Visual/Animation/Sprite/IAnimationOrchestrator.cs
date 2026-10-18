@@ -27,6 +27,9 @@ public interface IAnimationOrchestrator : IAnimComponent
     /// </summary>
     StringName BaseAnimName { get; }
 
+    /// <summary>Freezes effective playback without losing speed requests. Unsupported orchestrators do nothing.</summary>
+    void SetFrozen(bool frozen) { }
+
     /// <summary>
     /// The current animation direction as a world-space vector.
     /// </summary>

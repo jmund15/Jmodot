@@ -9,6 +9,8 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.EffectDefinitions;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Stats;
+using Jmodot.Core.Health;
+using Jmodot.Core.Visual.Animation.Sprite;
 using Jmodot.Implementation.Actors;
 using Jmodot.Implementation.AI.BB;
 using Jmodot.Implementation.Shared;
@@ -17,8 +19,8 @@ namespace Jmodot.Implementation.Combat;
 
 /// <summary>
 /// Handles knockback application for CharacterBody3D entities. Subscribes to
-/// <see cref="CombatantComponent.CombatResultEvent"/> and applies impulses immediately via
-/// <see cref="IMovementProcessor3D"/> when a result implements <see cref="IForceCarrier"/>.
+/// <see cref="CombatantComponent.CombatResultEvent"/> and delivers resolved pushes through
+/// <see cref="IMovementProcessor3D"/>, optionally freezing the victim before launch.
 ///
 /// REQUIRED BLACKBOARD DEPENDENCIES:
 /// - BBDataSig.MovementProcessor (IMovementProcessor3D) — applies the impulse.
@@ -33,7 +35,7 @@ namespace Jmodot.Implementation.Combat;
 ///   velocity-delta magnitude. Soft dep — null is acceptable; consumers without HSM
 ///   routing simply skip the audit-log write.
 /// </summary>
-[GlobalClass]
+[GlobalClass, Tool]
 public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider, IKnockbackReceiver3D
 {
 	#region IBlackboardProvider Implementation
@@ -113,6 +115,33 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// <summary>Cap on the lift speed (m/s), whatever the push or the mass.</summary>
 	[Export(PropertyHint.Range, "0,10,0.1,suffix:m/s")] public float PopMaxSpeed { get; private set; } = 1.5f;
 
+	private KnockbackHoldConfig? _hold;
+	/// <summary>Optional victim-only pause before launch. Empty applies pushes immediately without freezing.</summary>
+	[Export] public KnockbackHoldConfig? Hold
+	{
+		get => _hold;
+		private set
+		{
+			if (_hold != null && GodotObject.IsInstanceValid(_hold)) { _hold.Changed -= RefreshHoldWarnings; }
+			_hold = value;
+			if (_hold != null) { _hold.Changed += RefreshHoldWarnings; }
+			RefreshHoldWarnings();
+		}
+	}
+	/// <summary>True while this receiver owns a pending push and movement suspension.</summary>
+	public bool IsHolding { get; private set; }
+	private IHealth? _health;
+	private IAnimationOrchestrator? _orchestrator;
+	private double _holdDeadline;
+	private Vector3 _pendingDelta;
+	private Node? _pendingSource;
+	private StringName _holdOwner = "";
+
+	private void RefreshHoldWarnings()
+	{
+		if (Engine.IsEditorHint() && IsInsideTree()) { UpdateConfigurationWarnings(); }
+	}
+
 	// Unaffected by hitstop's time scale; double.NegativeInfinity stamp makes the first push ever full.
 	private double _lastAppliedAt = double.NegativeInfinity;
 	private Func<double> _unscaledSeconds = static () => Time.GetTicksMsec() / 1000.0;
@@ -124,6 +153,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override void _Ready()
 	{
 		base._Ready();
+		if (Engine.IsEditorHint()) { return; }
 		// Component disables itself until Initialize() succeeds.
 		ProcessMode = ProcessModeEnum.Disabled;
 	}
@@ -174,10 +204,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			JmoLogger.Warning(this, $"Knockback skipped: invalid force={incomingForce:F2}.");
 			return;
 		}
-		// A suspended movement processor DISCARDS every queued impulse — applying one, or logging
-		// the KnockbackAppliedResult HSM launch conditions read, would report a launch that never happened.
-		// Suspension's only production claimant is an attached rider; a shed releases suspension
-		// BEFORE applying the fling, so genuine flings are untouched by this guard.
 		if (_movementProcessor.IsSuspended) { return; }
 		var stability = Stability?.ResolveFloatValue(_statProvider) ?? 0f; // 0 = no resistance default
 		var mass = Mass?.ResolveFloatValue(_statProvider) ?? 1f;           // 1.0 preserves existing feel
@@ -197,29 +223,100 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		// CharacterBody regime: input is N·s; manual mass-division to convert to velocity-delta (m/s).
 		var velocityDelta = resolved.Impulse / mass;
 
-		// MovementProcessor3D.ApplyImpulse expects m/s velocity-delta, not N·s impulse.
-		_movementProcessor.ApplyImpulse(velocityDelta);
-
 		var deltaMagnitude = velocityDelta.Length();
-		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, attributedSource);
 		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude, sustained);
+		float seconds = Hold == null ? 0f : KnockbackHold.Seconds(resolved.Impulse.Length(), deltaMagnitude, Hold);
+		if (!sustained && !IsDead && float.IsFinite(seconds) && seconds > 0f && double.IsFinite(now)
+			&& _movementProcessor.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero))
+		{
+			_holdOwner = Name;
+			_pendingDelta = velocityDelta;
+			_pendingSource = attributedSource;
+			_holdDeadline = now + seconds;
+			IsHolding = true;
+			SetSpriteFrozen(true);
+			return;
+		}
+
+		_movementProcessor.ApplyImpulse(velocityDelta);
+		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, ValidSource(attributedSource));
 
 		JmoLogger.Debug(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
+	}
+
+	private static bool IsAlive(object? dependency) => dependency != null
+		&& (dependency is not GodotObject godot || GodotObject.IsInstanceValid(godot));
+	private bool IsDead => IsAlive(_health) && _health!.IsDead;
+	private static Node? ValidSource(Node? source) => IsAlive(source) ? source : null;
+
+	private void SetSpriteFrozen(bool frozen)
+	{
+		if (IsAlive(_orchestrator)) { _orchestrator!.SetFrozen(frozen); }
+	}
+
+	public override void _PhysicsProcess(double delta)
+	{
+		if (Engine.IsEditorHint() || !IsHolding) { return; }
+		double remaining = _holdDeadline - _unscaledSeconds();
+		if (!double.IsFinite(remaining) || !(remaining > 0)) { ReleaseHold(); }
+	}
+
+	private void ReleaseHold(bool exiting = false)
+	{
+		if (!IsHolding) { return; }
+		var pending = _pendingDelta;
+		var source = _pendingSource;
+		var owner = _holdOwner;
+		IsHolding = false;
+		_pendingDelta = Vector3.Zero;
+		_pendingSource = null;
+		if (IsAlive(_movementProcessor)) { _movementProcessor.ReleaseSuspension(owner); }
+		SetSpriteFrozen(false);
+		if (exiting)
+		{
+			Callable.From(() =>
+			{
+				if (GodotObject.IsInstanceValid(this) && IsInsideTree()) { LaunchPending(pending, source); }
+			}).CallDeferred();
+			return;
+		}
+		LaunchPending(pending, source);
+	}
+
+	private void LaunchPending(Vector3 pending, Node? source)
+	{
+		if (!IsAlive(_movementProcessor)) { return; }
+		_movementProcessor.ApplyImpulse(pending);
+		EmitSignal(SignalName.KnockbackApplied, pending.Normalized(), pending.Length(), ValidSource(source));
+	}
+
+	private void OnDied(HealthChangeEventArgs args) => ReleaseHold();
+
+	private void SubscribeHealth()
+	{
+		if (!IsAlive(_health)) { return; }
+		_health!.OnDied -= OnDied;
+		_health.OnDied += OnDied;
 	}
 
 	public override void _EnterTree()
 	{
 		base._EnterTree();
+		if (Engine.IsEditorHint()) { return; }
 		// A reparent unsubscribes in _ExitTree and Phase 2 does not run again, so a built component re-arms here.
 		if (IsInitialized)
 		{
 			_combatant.CombatResultEvent -= OnCombatResult;
 			_combatant.CombatResultEvent += OnCombatResult;
+			SubscribeHealth();
 		}
 	}
 
 	public override void _ExitTree()
 	{
+		if (Engine.IsEditorHint()) { return; }
+		ReleaseHold(exiting: true);
+		if (IsAlive(_health)) { _health!.OnDied -= OnDied; }
 		// Disposal-race guard: CombatantComponent is a Godot Node and may be freed
 		// before this _ExitTree fires during scene teardown (sibling free-order is
 		// not guaranteed). Unsubscribing from a disposed event source throws
@@ -240,6 +337,9 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	public bool Initialize(IBlackboard bb)
 	{
+		if (Engine.IsEditorHint()) { return false; }
+		bb.TryGet(BBDataSig.HealthComponent, out _health);
+		bb.TryGet(BBDataSig.AnimationOrchestrator, out _orchestrator);
 		if (!bb.TryGet(BBDataSig.MovementProcessor, out _movementProcessor!) || _movementProcessor == null)
 		{
 			JmoLogger.Error(this, "Required dependency BBDataSig.MovementProcessor not found");
@@ -266,8 +366,11 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	public void OnPostInitialize()
 	{
+		if (Engine.IsEditorHint()) { return; }
 		ProcessMode = ProcessModeEnum.Inherit;
+		_combatant.CombatResultEvent -= OnCombatResult;
 		_combatant.CombatResultEvent += OnCombatResult;
+		SubscribeHealth();
 	}
 
 	public Node GetUnderlyingNode() => this;
@@ -279,6 +382,8 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override string[] _GetConfigurationWarnings()
 	{
 		var warnings = new List<string>();
+		if (Hold == null) { warnings.Add("Hold is empty: pushes apply immediately without freezing."); }
+		else { warnings.AddRange(Hold.GetResourceConfigurationWarnings()); }
 		// Dependencies are retrieved from Blackboard at runtime; no scene-time validation needed.
 		if (RepeatFactor is <= 0f or > 1f) { warnings.Add("RepeatFactor must be in (0, 1]."); }
 		if (PopMaxSpeed < 0f) { warnings.Add("PopMaxSpeed must be >= 0."); }
@@ -295,6 +400,8 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	// receiver-side × producer-side PreserveVertical × stat-driven gates can be exercised
 	// without a full CombatantComponent + Blackboard fixture. Compiled out of release
 	// builds via #if TOOLS.
+	internal void SetHoldForTesting(KnockbackHoldConfig? value) => Hold = value;
+	internal void SetOrchestratorForTesting(IAnimationOrchestrator? value) => _orchestrator = value;
 	internal void SetMovementProcessorForTesting(IMovementProcessor3D processor) =>
 		_movementProcessor = processor;
 	internal void SetStability(BaseFloatValueDefinition? value) => Stability = value;
