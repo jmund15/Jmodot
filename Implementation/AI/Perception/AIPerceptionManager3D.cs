@@ -151,7 +151,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             contrib.BaseConfidence = percept.Confidence;
             contrib.Position = percept.LastKnownPosition;
             contrib.Velocity = percept.LastKnownVelocity;
-            contrib.DecayStrategy = percept.DecayStrategy;
+            contrib.DecayStrategy = percept.DecayStrategy ?? this.FallbackDecayStrategy;
             contrib.SensingActive = true;
             contrib.LastUpdateTime = percept.Timestamp;
         }
