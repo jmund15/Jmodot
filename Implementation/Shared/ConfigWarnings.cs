@@ -1,6 +1,10 @@
 namespace Jmodot.Implementation.Shared;
 
+using System.Collections.Generic;
 using Core.AI.BB;
+using Core.Movement.Quirks;
+using Core.Shared;
+using GColl = Godot.Collections;
 
 /// <summary>
 /// Editor-time dependency checks shared by every component that hard-fails on a missing
@@ -49,5 +53,37 @@ public static class ConfigWarnings
 
         found = null;
         return false;
+    }
+
+    /// <summary>
+    /// Renders the configuration faults of an authored movement-quirk slot list: one line per
+    /// fault, each prefixed with its slot index and the resource's name and type, so the Inspector
+    /// shows one bullet per fault instead of a joined blob. A null slot is its own warning naming
+    /// the index and no resource. A legal empty array yields none.
+    /// </summary>
+    public static string[] QuirkSlotWarnings(GColl.Array<MovementQuirk3D>? quirks)
+    {
+        if (quirks == null || quirks.Count == 0) { return System.Array.Empty<string>(); }
+
+        var warnings = new List<string>();
+        for (var i = 0; i < quirks.Count; i++)
+        {
+            var quirk = quirks[i];
+            if (quirk == null)
+            {
+                warnings.Add($"Movement Quirks slot {i}: empty slot — no quirk will be registered.");
+                continue;
+            }
+
+            if (quirk is not IResourceConfigurationWarnings source) { continue; }
+
+            var type = quirk.GetType().Name;
+            var name = string.IsNullOrEmpty(quirk.ResourceName) ? type : quirk.ResourceName;
+            foreach (var warning in source.GetResourceConfigurationWarnings())
+            {
+                warnings.Add($"Movement Quirks slot {i} '{name}' ({type}): {warning}");
+            }
+        }
+        return warnings.ToArray();
     }
 }

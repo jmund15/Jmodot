@@ -30,6 +30,12 @@ public abstract partial class BehaviorAction : BehaviorTask
     [ExportGroup("Movement Quirks")]
     [Export] protected GColl.Array<MovementQuirk3D> MovementQuirks { get; private set; } = new();
 
+    /// <summary>
+    /// The state's rhythm does not apply while this step runs. All drive gates pause their clocks;
+    /// impulse quirks still run. Use for an escape or pursuit that must not stall.
+    /// </summary>
+    [Export] public bool SuspendGait { get; private set; }
+
     private MovementQuirkRegistration _quirkRegistration;
 
     /// <summary>
@@ -53,7 +59,7 @@ public abstract partial class BehaviorAction : BehaviorTask
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _quirkRegistration.Resolve(bb, MovementQuirks, this);
+        _quirkRegistration.Resolve(bb, MovementQuirks, this, SuspendGait);
         _statContextRegistration.Resolve(bb, ActiveStatContext);
         bb.TryGet<IMovementProcessor3D>(BBDataSig.MovementProcessor, out var movement);
         if (this.MovementStrategyOverride != null && movement == null)
@@ -93,6 +99,20 @@ public abstract partial class BehaviorAction : BehaviorTask
             warnings.Add(conflict);
         }
 
+        if (this.SuspendGait)
+        {
+            var ownGait = this.MovementQuirks.OfType<CadenceQuirk3D>().FirstOrDefault();
+            if (ownGait != null)
+            {
+                var name = string.IsNullOrEmpty(ownGait.ResourceName) ? "unnamed Cadence gait" : ownGait.ResourceName;
+                warnings.Add(
+                    $"SuspendGait and this step's Cadence gait '{name}' conflict. SuspendGait wins; " +
+                    "remove the gait from this action or turn SuspendGait off.");
+            }
+        }
+
+        warnings.AddRange(ConfigWarnings.QuirkSlotWarnings(this.MovementQuirks));
+
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
     }
 
@@ -100,6 +120,9 @@ public abstract partial class BehaviorAction : BehaviorTask
 #if TOOLS
     internal void SetMovementStrategyOverride(BaseMovementStrategy3D? strategy) => this.MovementStrategyOverride = strategy;
     internal void SetActiveStatContext(StatContext? context) => this.ActiveStatContext = context;
+    internal void SetSuspendGaitForTest(bool suspendGait) => this.SuspendGait = suspendGait;
+    internal void AddMovementQuirkForTest(MovementQuirk3D quirk) => this.MovementQuirks.Add(quirk);
+    internal void ClearMovementQuirksForTest() => this.MovementQuirks.Clear();
 #endif
     #endregion
 }
