@@ -132,6 +132,19 @@ public static class JmoMath
     }
 
     /// <summary>
+    /// Scalar distance between two world positions measured on the XZ plane: <c>toPosition - fromPosition</c>
+    /// with Y dropped, then its length. Vertical separation never contributes, so two positions that differ
+    /// only on Y are horizontally co-located and return zero. This is the one owner of that operation; do not
+    /// re-derive it inline.
+    /// </summary>
+    public static float HorizontalDistance(Vector3 fromPosition, Vector3 toPosition)
+    {
+        var delta = toPosition - fromPosition;
+        delta.Y = 0f;
+        return delta.Length();
+    }
+
+    /// <summary>
     /// Closest distance from point <paramref name="p"/> to the line segment [<paramref name="a"/>, <paramref name="b"/>].
     /// Projects <paramref name="p"/> onto the segment and clamps the parameter to [0,1] so points
     /// beyond the endpoints measure to the nearest endpoint. Degenerate segments (a == b) collapse
