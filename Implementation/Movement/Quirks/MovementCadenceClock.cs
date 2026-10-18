@@ -4,8 +4,7 @@ namespace Jmodot.Implementation.Movement.Quirks;
 /// One entity's move/pause cycle state: whether it is paused, the time left in the current half,
 /// and a start phase so entities sharing one cadence resource do not move in lockstep.
 /// <para>
-/// This type owns the cadence arithmetic. A runtime that drives a gait holds one clock; the legacy
-/// steering actions hold one per action until they are retired.
+/// This type owns the cadence arithmetic. A runtime that drives a gait holds one clock.
 /// </para>
 /// </summary>
 public struct MovementCadenceClock
