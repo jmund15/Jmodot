@@ -41,19 +41,7 @@ public partial class NavigationPath3DConsideration : BaseAIConsideration3D
             return scores;
         }
 
-        // Score each available direction based on how closely it aligns with the path.
-        foreach (var dir in directions.Directions)
-        {
-            // The dot product gives us a measure of alignment (-1 to 1).
-            float alignment = dir.Dot(context3D.NextPathPointDirection);
-
-            // We only care about directions that move us generally towards the goal.
-            if (alignment > 0)
-            {
-                scores[dir] = alignment;
-            }
-        }
-
-        return scores;
+        return DirectionScoring.ByAlignment(
+            directions, context3D.NextPathPointDirection, into: scores, raw: true);
     }
 }

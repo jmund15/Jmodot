@@ -72,25 +72,7 @@ public partial class WanderConsideration3D : BaseAIConsideration3D
 
         Vector3 wanderDirection = CalculateAngularDirection(noiseValue);
 
-        // Score each direction by alignment with wander direction
-        foreach (var dir in directions.Directions)
-        {
-            Vector3 flatDir = new Vector3(dir.X, 0, dir.Z);
-            if (flatDir.LengthSquared() < 0.001f)
-            {
-                continue;
-            }
-
-            flatDir = flatDir.Normalized();
-            float alignment = flatDir.Dot(wanderDirection);
-
-            if (alignment > 0)
-            {
-                scores[dir] = alignment;
-            }
-        }
-
-        return scores;
+        return DirectionScoring.ByAlignment(directions, wanderDirection, into: scores);
     }
 
     /// <summary>
