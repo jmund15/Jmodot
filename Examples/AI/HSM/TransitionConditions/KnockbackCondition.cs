@@ -64,12 +64,11 @@ public partial class KnockbackCondition : CombatLogCondition
         // KnockbackAppliedResult (Wind Blast), logged post-resistance, so launch thresholds match
         // what the actor actually experienced.
         float window = WithinSeconds;
-        if (DeferWhileHeld && CurrentBlackboard != null
-            && CurrentBlackboard.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out var receiver)
-            && receiver != null && GodotObject.IsInstanceValid(receiver))
+        if (DeferWhileHeld
+            && KnockbackComponent3D.TryGetHeldPushWindow(CurrentBlackboard, out var heldWindow, out var holding))
         {
-            if (receiver.IsHolding) { return false; }
-            if (receiver.SourceLookupSeconds > 0f) { window = receiver.SourceLookupSeconds; }
+            if (holding) { return false; }
+            window = heldWindow;
         }
         return Matches<DamageResult>(log, r => r.Force, window) || Matches<KnockbackAppliedResult>(log, r => r.DeltaV, window);
     }

@@ -34,6 +34,12 @@ namespace Jmodot.Implementation.Combat;
 ///   (<see cref="Jmodot.Examples.AI.HSM.TransitionConditions.KnockbackCondition"/>) can gate launch/stagger/ragdoll states off post-resistance
 ///   velocity-delta magnitude. Soft dep — null is acceptable; consumers without HSM
 ///   routing simply skip the audit-log write.
+/// - BBDataSig.HealthComponent (IHealth) — a dead entity starts no hold; death during a hold
+///   releases it and applies the pending push.
+/// - BBDataSig.AnimationOrchestrator (IAnimationOrchestrator) — frozen for the hold's duration;
+///   absent, only the drive freezes.
+/// - <see cref="Hold"/>'s SuppressWhileFlagKey (bool) — read each physics tick while holding;
+///   true prevents or ends a hold.
 /// </summary>
 [GlobalClass, Tool]
 public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvider, IKnockbackReceiver3D
@@ -122,10 +128,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		get => _hold;
 		private set
 		{
-			if (_hold != null && GodotObject.IsInstanceValid(_hold)) { _hold.Changed -= RefreshHoldWarnings; }
-			_hold = value;
-			if (_hold != null) { _hold.Changed += RefreshHoldWarnings; }
-			RefreshHoldWarnings();
+			if (ResourceExts.SetForwardedSlot(ref _hold, value, HoldForward())) { RefreshHoldWarnings(); }
 		}
 	}
 	/// <summary>True while this receiver owns a pending push and movement suspension.</summary>
@@ -143,6 +146,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	private Vector3 _pendingDelta;
 	private Node? _pendingSource;
 	private StringName _holdOwner = "";
+
+	private Callable HoldForward() => new(this, MethodName.OnHoldChanged);
+
+	private void OnHoldChanged() => RefreshHoldWarnings();
 
 	private void RefreshHoldWarnings()
 	{
@@ -265,6 +272,32 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, ValidSource(attributedSource));
 
 		JmoLogger.Debug(this, $"[Impact] Knockback applied: dir={resolved.AppliedDirection}, |Δv|={deltaMagnitude:F2}");
+	}
+
+	/// <summary>
+	/// Resolves the entity's knockback receiver from <paramref name="bb"/> and reports whether it is
+	/// inside a held push's evidence window — still holding, or released with the window retained.
+	/// The one lookup every hold-aware consumer shares.
+	/// </summary>
+	/// <param name="seconds">The receiver's evidence window in seconds; 0 when there is none.</param>
+	/// <param name="holding">True while the receiver owns a pending push.</param>
+	/// <returns>False when no valid receiver carries a positive window; the outputs are then zero/false.</returns>
+	public static bool TryGetHeldPushWindow(IBlackboard? bb, out float seconds, out bool holding)
+	{
+		seconds = 0f;
+		holding = false;
+		if (bb == null
+			|| !bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out var receiver)
+			|| receiver == null
+			|| !GodotObject.IsInstanceValid(receiver)
+			|| !(receiver.SourceLookupSeconds > 0f))
+		{
+			return false;
+		}
+
+		seconds = receiver.SourceLookupSeconds;
+		holding = receiver.IsHolding;
+		return true;
 	}
 
 	private static bool IsAlive(object? dependency) => dependency != null
@@ -419,8 +452,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override string[] _GetConfigurationWarnings()
 	{
 		var warnings = new List<string>();
-		if (Hold == null) { warnings.Add("Hold is empty: pushes apply immediately without freezing."); }
-		else { warnings.AddRange(Hold.GetResourceConfigurationWarnings()); }
+		if (Hold != null) { warnings.AddRange(Hold.GetResourceConfigurationWarnings()); }
 		// Dependencies are retrieved from Blackboard at runtime; no scene-time validation needed.
 		if (RepeatFactor is <= 0f or > 1f) { warnings.Add("RepeatFactor must be in (0, 1]."); }
 		if (PopMaxSpeed < 0f) { warnings.Add("PopMaxSpeed must be >= 0."); }
