@@ -43,7 +43,7 @@ public abstract partial class BaseAIConsideration3D : Resource
     /// headroom or modifier amplification.
     /// </summary>
     [Export(PropertyHint.Range, "0.0, 5.0, 0.05")]
-    public float Weight { get; private set; } = 1.0f;
+    public float Weight { get; protected set; } = 1.0f;
 
     /// <summary>
     /// Soft danger only subtracts interest; Hard danger at or above the mask threshold excludes
