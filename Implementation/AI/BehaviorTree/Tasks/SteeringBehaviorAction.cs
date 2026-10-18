@@ -6,7 +6,6 @@ using Core.AI.Navigation;
 using Core.AI.Navigation.Considerations;
 using Core.Shared;
 using Jmodot.AI.Navigation;
-using Movement.Quirks;
 using Navigation.Considerations;
 using Shared;
 using GColl = Godot.Collections;
@@ -27,10 +26,6 @@ public partial class SteeringBehaviorAction : BehaviorAction
     [ExportGroup("Navigation Path Override")]
     [Export] private NavigationPath3DConsideration? _navPathOverride;
 
-    /// <summary>Optional move/pause cadence. Null means continuous steering.</summary>
-    [ExportGroup("Movement Cadence")]
-    [Export] public MovementCadenceResource? Cadence { get; private set; }
-
     /// <summary>Optional per-action synthesis strategy claimed on enter (owned-slot, owner = task Name)
     /// and released on exit. A conflicting concurrent claim is rejected+warned by the processor.</summary>
     [ExportGroup("Synthesis Override")]
@@ -44,9 +39,6 @@ public partial class SteeringBehaviorAction : BehaviorAction
     }
 
     private AISteeringProcessor3D? _cachedSteering;
-    private MovementCadenceClock _cadence;
-    private bool _warnedNoSeed;
-    private bool _cadenceClaimed;
 
     /// <summary>
     /// Enter() skips OnEnter() when the task's condition check fails, but Exit() runs OnExit()
@@ -58,13 +50,6 @@ public partial class SteeringBehaviorAction : BehaviorAction
     protected override void OnEnter()
     {
         base.OnEnter();
-
-        _cadence = default;
-        if (Cadence != null)
-        {
-            _cadence.Start(Cadence.MoveSeconds, Cadence.PauseSeconds,
-                EntityRngResolver.ResolveUnit(BB, SeedKinds.CadencePhase, this, ref _warnedNoSeed));
-        }
 
         if (!TryGetSteering(out var steering))
         {
@@ -92,50 +77,13 @@ public partial class SteeringBehaviorAction : BehaviorAction
     }
 
     protected sealed override void OnProcessPhysics(float delta)
-    {
-        var steeringAllowed = TickCadence(delta);
-        UpdateCadenceControl(steeringAllowed);
-        OnProcessSteeringPhysics(delta);
-    }
+        => OnProcessSteeringPhysics(delta);
 
-    /// <summary>Runs action-specific steering and lifecycle work after cadence state updates.</summary>
+    /// <summary>Runs action-specific steering and lifecycle work.</summary>
     protected virtual void OnProcessSteeringPhysics(float delta) { }
-
-    /// <summary>True when the cadence permits a destination or consideration update this tick.</summary>
-    protected bool CadenceAllowsSteering => !_cadence.Paused;
-
-    private bool TickCadence(float delta)
-    {
-        if (Cadence == null) { return true; }
-        return _cadence.Advance(Cadence.MoveSeconds, Cadence.PauseSeconds, delta);
-    }
-
-    private void UpdateCadenceControl(bool steeringAllowed)
-    {
-        if (steeringAllowed)
-        {
-            if (_cadenceClaimed && _cachedSteering != null)
-            {
-                _cachedSteering.ReleaseControl(this.Name);
-                _cadenceClaimed = false;
-            }
-            return;
-        }
-
-        if (_cadenceClaimed || !TryGetSteering(out var steering)) { return; }
-        if (!steering.TryClaimControl(this.Name, SteeringControlMode.DirectionOverride, Godot.Vector3.Zero)) { return; }
-        _cadenceClaimed = true;
-    }
 
     protected override void OnExit()
     {
-        if (_cadenceClaimed && _cachedSteering != null)
-        {
-            _cachedSteering.ReleaseControl(this.Name);
-            _cadenceClaimed = false;
-        }
-        _cadence = default;
-
         base.OnExit();
 
         if (!_considerationsRegistered) { return; }
@@ -180,7 +128,6 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     #region Test Helpers
 #if TOOLS
-    internal void SetCadenceForTest(MovementCadenceResource? cadence) => Cadence = cadence;
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;

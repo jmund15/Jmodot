@@ -83,7 +83,6 @@ public partial class NavWanderAction : SteeringBehaviorAction
 
     protected override void OnProcessSteeringPhysics(float delta)
     {
-        if (!CadenceAllowsSteering) { return; }
         if (!_navActive || _navAgent == null) { return; }
 
         if (_pendingFirstTarget)
