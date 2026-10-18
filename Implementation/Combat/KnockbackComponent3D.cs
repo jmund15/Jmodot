@@ -231,9 +231,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		var velocityDelta = resolved.Impulse / mass;
 
 		var deltaMagnitude = velocityDelta.Length();
-		// Per-push measurement input for tuning the shared hold. Retired once measured values ship.
-		JmoLogger.Debug(this, $"[MB5] push victim={GetParent()?.Name ?? Name} source={ValidSource(attributedSource)?.Name ?? "none"} "
-			+ $"impulse={resolved.Impulse.Length():F4} speedChange={deltaMagnitude:F4} sustained={sustained}");
 		KnockbackPolicy.LogApplied(_combatLog, this, attributedSource, resolved.AppliedDirection, deltaMagnitude, sustained);
 		if (IsHolding)
 		{
