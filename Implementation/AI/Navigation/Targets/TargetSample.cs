@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.Navigation.Targets;
 using System.Collections.Generic;
 using Core.AI.Navigation.Considerations;
 using Core.AI.Perception;
+using Jmodot.Implementation.AI.Navigation.Considerations;
 using Godot;
 using Jmodot.Implementation.Shared;
 
@@ -180,6 +181,9 @@ public class TargetRuntime : AIConsiderationRuntime
     public TargetRuntime() => Sample = new TargetSample(this);
 
     public TargetSample Sample { get; }
+
+    /// <summary>Reusable per-member response scratch for the shared response engine.</summary>
+    public List<TargetResponse> ResponseBuffer { get; } = new();
 
     internal bool EmptyKeyLogged;
     internal bool MissingKeyLogged;
