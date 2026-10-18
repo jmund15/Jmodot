@@ -251,6 +251,7 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         var warnings = new List<string>();
         if (_considerations.Count == 0) { warnings.Add("No considerations are assigned. The AI will have no environmental awareness."); }
         warnings.AddRange(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations));
+        warnings.AddRange(ConfigWarnings.AgentSlotWarnings("Considerations", _considerations, this));
         if (MovementDirections == null || !MovementDirections.Directions.Any()) { warnings.Add("No movement directions are defined. The AI will not know how to score potential moves."); }
         if (_navPathConsideration == null && GetParent()?.FindChild("AINavigator3D") != null)
         {
@@ -405,6 +406,8 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     #region Test Helpers
 #if TOOLS
     internal void SetMovementDirections(DirectionSet3D directions) => MovementDirections = directions;
+    internal void AddAuthoredConsiderationForTest(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathConsideration(NavigationPath3DConsideration? consideration) => _navPathConsideration = consideration;
     internal NavigationPath3DConsideration? GetActiveNavPathConsideration() => _navPathOverride ?? _navPathConsideration;
     internal void SetSynthesisStrategy(SteeringSynthesisStrategy3D? strategy) => _synthesisStrategy = strategy;

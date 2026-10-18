@@ -54,7 +54,7 @@ public static class OrbitScoring
     /// <summary>
     /// Advances the flip countdown by <paramref name="elapsed"/>, flipping the sign once per whole
     /// interval crossed and keeping the remainder. A non-positive or non-finite interval never
-    /// flips; an invalid delta does not advance.
+    /// flips; an invalid delta does not advance. Any finite elapsed returns at once.
     /// </summary>
     public static (float Sign, float TimeToFlip) Flip(float sign, float timeToFlip, float interval,
         float elapsed)
@@ -63,12 +63,25 @@ public static class OrbitScoring
         if (!float.IsFinite(elapsed) || !(elapsed > 0f)) { return (sign, timeToFlip); }
 
         var remaining = timeToFlip - elapsed;
-        while (remaining <= 0f)
-        {
-            sign = -sign;
-            remaining += interval;
-        }
-        return (sign, remaining);
+        if (remaining > 0f) { return (sign, remaining); }
+
+        // Closed form of "flip and add an interval until positive": a stalled frame can hand in any
+        // finite elapsed, and a catch-up loop stops advancing once the remainder is large enough.
+        double overshoot = -(double)remaining;
+        double inPeriod = overshoot % (2d * interval);
+        bool oddIntervalsPast = inPeriod >= interval;
+        if (!oddIntervalsPast) { sign = -sign; }
+        return (sign, (float)(interval - (oddIntervalsPast ? inPeriod - interval : inPeriod)));
+    }
+
+    /// <summary>
+    /// The radial error band around the ring in which a still target is held instead of chased: an
+    /// agent starts holding under <c>Enter</c> and lets go past <c>Leave</c>.
+    /// </summary>
+    public static (float Enter, float Leave) HoldBands(float holdBand)
+    {
+        float enter = float.IsFinite(holdBand) ? Mathf.Max(0f, holdBand) : 0f;
+        return (enter, HoldLeaveMultiple * enter);
     }
 
     /// <summary>
@@ -78,8 +91,7 @@ public static class OrbitScoring
     public static bool UpdateHold(float sign, Vector3 targetVelocity, float radialError,
         bool wasHolding, float holdBand, float standSpeed)
     {
-        float enter = float.IsFinite(holdBand) ? Mathf.Max(0f, holdBand) : 0f;
-        float leave = HoldLeaveMultiple * enter;
+        var (enter, leave) = HoldBands(holdBand);
         float targetSpeed = new Vector2(targetVelocity.X, targetVelocity.Z).Length();
         bool targetStands = float.IsFinite(targetSpeed)
             && targetSpeed <= Threshold(standSpeed) * (wasHolding ? HoldStandLeaveMultiple : 1f);

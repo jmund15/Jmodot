@@ -49,7 +49,7 @@ public readonly struct MovementGoalContext
 /// </para>
 /// </summary>
 [GlobalClass, Tool]
-public abstract partial class MovementGoal3D : Resource, IResourceConfigurationWarnings
+public abstract partial class MovementGoal3D : Resource, IResourceConfigurationWarnings, IAgentConfigurationWarnings
 {
     /// <summary>How this step drives movement while it runs; non-Full modes claim the steering
     /// processor for their duration and release it on exit.</summary>

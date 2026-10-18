@@ -94,6 +94,32 @@ public static class ConfigWarnings
         return RenderSlotWarnings(slotLabel, slot, faults);
     }
 
+    /// <summary>
+    /// Renders the entity-dependent faults of an authored Resource slot list in the list form of
+    /// <see cref="ResourceSlotWarnings{T}(string, IList{T})"/>, one line per fault. Only slots
+    /// implementing <see cref="IAgentConfigurationWarnings"/> contribute, so a host asks the capability
+    /// and never a concrete type. A null slot is already reported by the list form.
+    /// </summary>
+    public static string[] AgentSlotWarnings<T>(string slotLabel, IList<T>? slots, Node agent) where T : Resource
+    {
+        if (slots == null || slots.Count == 0) { return System.Array.Empty<string>(); }
+
+        var warnings = new List<string>();
+        for (var i = 0; i < slots.Count; i++)
+        {
+            if (slots[i] is not IAgentConfigurationWarnings source) { continue; }
+
+            var slot = slots[i];
+            var type = slot.GetType().Name;
+            var name = string.IsNullOrEmpty(slot.ResourceName) ? type : slot.ResourceName;
+            foreach (var warning in source.GetAgentWarnings(agent))
+            {
+                warnings.Add($"{slotLabel} slot {i} '{name}' ({type}): {warning}");
+            }
+        }
+        return warnings.ToArray();
+    }
+
     private static string[] RenderSlotWarnings<T>(string slotLabel, T slot, string[] faults)
         where T : Resource
     {

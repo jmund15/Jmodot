@@ -27,12 +27,21 @@ public abstract partial class TargetedMovementGoal3D : MovementGoal3D
     public override AIConsiderationRuntime? CreateRuntime(IBlackboard? bb) => new TargetRuntime();
 
     /// <summary>
+    /// The TargetRuntime this goal's CreateRuntime returned. Anything else means the host skipped
+    /// CreateRuntime, a wiring error that throws rather than hand back a replacement.
+    /// </summary>
+    protected TargetRuntime RuntimeOf(AIConsiderationRuntime? runtime)
+        => runtime as TargetRuntime ?? throw new ArgumentException(
+            $"{GetType().Name} needs the TargetRuntime its CreateRuntime returns; got " +
+            $"{runtime?.GetType().Name ?? "null"}.", nameof(runtime));
+
+    /// <summary>
     /// Resolves the target into the runtime's sample and returns it. A set target on a goal that
     /// steers at one member fails closed here, before the goal reads Point, and says so once.
     /// </summary>
     protected TargetSample ResolveTarget(in MovementGoalContext ctx, AIConsiderationRuntime? runtime)
     {
-        var sample = (runtime as TargetRuntime)?.Sample ?? new TargetSample();
+        var sample = RuntimeOf(runtime).Sample;
         MovementTarget3D.ResolveOrPrimary(Target, ctx.AgentPosition, ctx.BB, ctx.Memory, sample);
         if (AcceptsSetTarget || sample.Geometry != TargetSampleGeometry.Set) { return sample; }
 

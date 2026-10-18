@@ -148,8 +148,7 @@ public partial class OrbitGoal3D : SteeredGoal3D
     {
         get
         {
-            if (!float.IsFinite(Radius) || !(Radius > 0f)) { return null; }
-            if (!float.IsFinite(RadiusSpread) || RadiusSpread < 0f || RadiusSpread >= Radius) { return null; }
+            if (!HasValidRadius || !HasValidSpread) { return null; }
             return new GoalDistanceBand(Radius - RadiusSpread, Radius + RadiusSpread,
                 Target?.Geometry ?? TargetSampleGeometry.Member);
         }
@@ -158,19 +157,19 @@ public partial class OrbitGoal3D : SteeredGoal3D
     public override string[] GetResourceConfigurationWarnings()
     {
         var warnings = new List<string>(base.GetResourceConfigurationWarnings());
-        if (!float.IsFinite(Radius) || !(Radius > 0f))
+        if (!HasValidRadius)
         {
             warnings.Add($"Radius must be a finite distance greater than 0 (it is {Radius}).");
         }
-        if (!float.IsFinite(RadiusSpread) || RadiusSpread < 0f || RadiusSpread >= Radius)
+        if (!HasValidSpread)
         {
             warnings.Add($"RadiusSpread must be at least 0 and less than Radius (it is {RadiusSpread}).");
         }
-        if (!float.IsFinite(RadialSoftness) || !(RadialSoftness > 0f))
+        if (!HasValidSoftness)
         {
             warnings.Add($"RadialSoftness must be greater than 0 (it is {RadialSoftness}).");
         }
-        if (!float.IsFinite(FlipIntervalSeconds) || FlipIntervalSeconds < 0f)
+        if (!HasValidFlipInterval)
         {
             warnings.Add("FlipIntervalSeconds must be a finite number of seconds; 0 means never " +
                          $"reverse (it is {FlipIntervalSeconds}).");
@@ -187,7 +186,7 @@ public partial class OrbitGoal3D : SteeredGoal3D
         {
             warnings.Add($"HoldBand must be a finite distance of 0 or more (it is {HoldBand}).");
         }
-        if (!System.Enum.IsDefined(typeof(OrbitSignSource), SignSource))
+        if (!HasValidSignSource)
         {
             warnings.Add("SignSource is not a known orbit mode. Choose SeededFlip or MatchTargetLateral.");
         }
@@ -196,12 +195,22 @@ public partial class OrbitGoal3D : SteeredGoal3D
 
     private static bool IsNonNegative(float value) => float.IsFinite(value) && value >= 0f;
 
-    /// <summary>True when every numeric export is within the range the orbit arithmetic expects.</summary>
+    private bool HasValidRadius => float.IsFinite(Radius) && Radius > 0f;
+
+    private bool HasValidSpread => float.IsFinite(RadiusSpread) && RadiusSpread >= 0f && RadiusSpread < Radius;
+
+    private bool HasValidSoftness => float.IsFinite(RadialSoftness) && RadialSoftness > 0f;
+
+    private bool HasValidFlipInterval => IsNonNegative(FlipIntervalSeconds);
+
+    private bool HasValidSignSource => System.Enum.IsDefined(typeof(OrbitSignSource), SignSource);
+
+    /// <summary>
+    /// The one validity rule: Advance, Score, the band and the Inspector warnings all read the
+    /// predicates above, so the goal fails exactly where it warns.
+    /// </summary>
     private bool HasUsableConfiguration
-        => float.IsFinite(Radius) && Radius > 0f
-           && float.IsFinite(RadiusSpread) && RadiusSpread >= 0f && RadiusSpread < Radius
-           && float.IsFinite(RadialSoftness) && RadialSoftness > 0f
-           && float.IsFinite(FlipIntervalSeconds) && FlipIntervalSeconds >= 0f
+        => HasValidRadius && HasValidSpread && HasValidSoftness && HasValidFlipInterval && HasValidSignSource
            && IsNonNegative(MirrorDeadzone) && IsNonNegative(HoldStandSpeed) && IsNonNegative(HoldBand);
 
     private static TargetMember NearestMember(TargetSample sample)

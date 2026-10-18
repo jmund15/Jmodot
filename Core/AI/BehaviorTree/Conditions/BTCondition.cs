@@ -30,6 +30,13 @@ public abstract partial class BTCondition : Resource
     [Export]
     public bool UrgentAbort { get; private set; }
 
+    /// <summary>
+    /// True when this condition ends its task by itself once a duration has passed. A host that
+    /// warns about a step which never ends asks this, so a new time-bounding condition costs no
+    /// edit there.
+    /// </summary>
+    public virtual bool EndsTaskByTime => false;
+
     protected BehaviorTask OwnerTask { get; private set; } = null!;
     protected Node Agent { get; private set; } = null!;
     protected IBlackboard BB { get; private set; } = null!;

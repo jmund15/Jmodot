@@ -33,7 +33,7 @@ public enum TargetResponseMode
 /// lives in <see cref="TargetResponseScoring3D"/>, so goals score through the same owners.
 /// </summary>
 [GlobalClass, Tool]
-public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IResourceConfigurationWarnings
+public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IResourceConfigurationWarnings, IAgentConfigurationWarnings
 {
     #region Exports
 
@@ -99,6 +99,13 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     public string[] GetResourceConfigurationWarnings()
         => ConfigWarnings.ResourceSlotWarnings("Target", Target, required: false);
 
+    /// <summary>
+    /// The entity faults of the target this term reacts to, such as a category with no perception
+    /// manager, worded under the Target slot like this term's own resource warnings.
+    /// </summary>
+    public string[] GetAgentWarnings(Node agent)
+        => ConfigWarnings.ResourceSlotWarnings("Target", Target, Target?.GetAgentWarnings(agent));
+
     #region Effective Parameter Accessors
 
     // Current: return exported value directly.
@@ -114,12 +121,15 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     {
         var state = NarrowRuntime<TargetRuntime>(runtime);
 
-        if (IsSuppressedByZone(blackboard)) { return ZeroScores(directions); }
+        if (ZoneSuppression.IsSuppressed(blackboard, _suppressWhileZoneKey, this, state))
+        {
+            return DirectionScoring.ZeroScores(directions);
+        }
 
         var sample = state?.Sample ?? new TargetSample();
         MovementTarget3D.ResolveOrPrimary(
             Target, context3D.AgentPosition, blackboard, context3D.Memory, sample);
-        if (sample.State != TargetSampleState.Resolved) { return ZeroScores(directions); }
+        if (sample.State != TargetSampleState.Resolved) { return DirectionScoring.ZeroScores(directions); }
 
         var settings = new TargetResponseSettings(
             confidenceWeighted: _confidenceWeighted,
@@ -133,17 +143,6 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     }
 
     #region Core Computation
-
-    /// <summary>
-    /// True when a suppression zone key is configured and its BB Vector4 has a positive radius (W).
-    /// </summary>
-    private bool IsSuppressedByZone(IBlackboard blackboard)
-        => !string.IsNullOrEmpty(_suppressWhileZoneKey)
-           && blackboard.TryGet<Vector4>(_suppressWhileZoneKey!, out var zone)
-           && zone.W > 0f;
-
-    private static Dictionary<Vector3, float> ZeroScores(DirectionSet3D directions)
-        => directions.Directions.ToDictionary(dir => dir, _ => 0f);
 
     #endregion
 

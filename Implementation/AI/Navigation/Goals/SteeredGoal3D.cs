@@ -1,7 +1,6 @@
 namespace Jmodot.Implementation.AI.Navigation.Goals;
 
 using System.Collections.Generic;
-using System.Linq;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
 using Core.Movement;
@@ -17,9 +16,12 @@ using Jmodot.Implementation.Shared;
 [GlobalClass, Tool]
 public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
 {
+    private const float MaxWeight = 5f;
+
     /// <summary>
     /// How loudly this goal's direction competes with style terms, 0–5. Zero is legal: the goal
-    /// stays registered and steers nothing, which the host warns about.
+    /// stays registered and steers nothing, which the host warns about. A negative, non-finite or
+    /// larger value is a fault: the goal warns, the action refuses to start and the goal scores zero.
     /// </summary>
     [Export(PropertyHint.Range, "0.0, 5.0, 0.05")]
     public float Weight { get; private set; } = 1f;
@@ -35,6 +37,8 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
 
     public sealed override float SteeringWeight => Weight;
 
+    private bool HasValidWeight => float.IsFinite(Weight) && Weight >= 0f && Weight <= MaxWeight;
+
     /// <summary>
     /// Scores from the sample the last Advance resolved. Reads no clock and never re-resolves, so
     /// repeated calls in one tick are pure.
@@ -42,12 +46,16 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
     public sealed override Dictionary<Vector3, float> Score(DirectionSet3D directions,
         SteeringDecisionContext3D ctx, IBlackboard bb, AIConsiderationRuntime? runtime)
     {
-        var sample = (runtime as Targets.TargetRuntime)?.Sample;
-        if (sample == null || sample.State != Targets.TargetSampleState.Resolved)
+        var targetRuntime = RuntimeOf(runtime);
+        var sample = targetRuntime.Sample;
+        if (!HasValidWeight || sample.State != Targets.TargetSampleState.Resolved)
         {
             return ZeroScores(directions);
         }
-        if (IsSuppressedByZone(bb, sample, out _)) { return ZeroScores(directions); }
+        if (Considerations.ZoneSuppression.IsSuppressed(bb, SuppressWhileZoneKey, this, targetRuntime))
+        {
+            return ZeroScores(directions);
+        }
         return ScoreSample(directions, sample, ctx, runtime);
     }
 
@@ -59,37 +67,33 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
     protected static TargetResponseSettings GoalSettings
         => new(confidenceWeighted: true, projectionInfluence: 0f, approachSpeedWeight: 0f, hasVerticalMovement: false);
 
-    /// <summary>Aggregates a per-member response over the sample with the goal defaults.</summary>
-    protected static Dictionary<Vector3, float> Aggregate(DirectionSet3D directions,
+    /// <summary>
+    /// Aggregates a per-member response over the sample with the goal defaults, through the
+    /// runtime's reusable buffer. Pass a callback cached once (a static field, or a field the goal
+    /// fills on first use): a lambda written at the call site allocates every tick.
+    /// </summary>
+    protected Dictionary<Vector3, float> Aggregate(DirectionSet3D directions,
         Targets.TargetSample sample, Vector3 agentPosition,
         System.Func<Targets.TargetMember, Vector3, float, Vector3> response,
-        List<Considerations.TargetResponse> scratch)
+        AIConsiderationRuntime? runtime)
         => Considerations.TargetResponseScoring3D.Aggregate(
-            directions, sample, agentPosition, GoalSettings, response, scratch);
+            directions, sample, agentPosition, GoalSettings, response, RuntimeOf(runtime).ResponseBuffer);
+
+    /// <summary>The response of a goal that only opens distance: directly away from the member.</summary>
+    protected static readonly System.Func<Targets.TargetMember, Vector3, float, Vector3> AwayResponse
+        = (_, toMember, _) => Considerations.BandScoring.Away(toMember);
 
     protected static Dictionary<Vector3, float> ZeroScores(DirectionSet3D directions)
-        => directions.Directions.ToDictionary(dir => dir, _ => 0f);
+        => Considerations.DirectionScoring.ZeroScores(directions);
 
-    /// <summary>
-    /// True when the authored zone key suppresses this goal's pull. A published value that is not a
-    /// Vector4 is a wiring fault: it suppresses too, and warns once per agent.
-    /// </summary>
-    private bool IsSuppressedByZone(IBlackboard bb, Targets.TargetSample sample, out bool wrongType)
+    public override string[] GetResourceConfigurationWarnings()
     {
-        wrongType = false;
-        if (string.IsNullOrEmpty(SuppressWhileZoneKey)) { return false; }
-        if (bb.TryGet<Vector4>(SuppressWhileZoneKey!, out var zone)) { return zone.W > 0f; }
-        if (!bb.ContainsLocal(SuppressWhileZoneKey!)) { return false; }
-
-        wrongType = true;
-        if (sample.TryBeginLog(Targets.TargetLogKind.ConfigError))
+        var warnings = new List<string>(base.GetResourceConfigurationWarnings());
+        if (!HasValidWeight)
         {
-            JmoLogger.Warning(this,
-                $"Goal '{ResourceName}' ({GetType().Name}) binds SuppressWhileZoneKey '{SuppressWhileZoneKey}', " +
-                "but the blackboard holds a value that is not a Vector4 (centre xyz + radius in W). " +
-                "The goal scores zero until the publisher writes a Vector4.");
+            warnings.Add($"Weight must be a finite number from 0 to {MaxWeight} (it is {Weight}).");
         }
-        return true;
+        return warnings.ToArray();
     }
 
     #region Test Helpers

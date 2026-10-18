@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
+using Tasks;
+
 using Godot;
 using Core.AI;
 using Core.AI.BB;
@@ -14,6 +16,9 @@ using Shared;
 public partial class RandomSelector : CompositeTask
 {
     private int[] _shuffledIndices = [];
+
+    public override string? DescribeStarvationBy(BehaviorTask? child)
+        => AuthoredChildren().Count > 1 ? "a RandomSelector branch with siblings, which this step would starve" : null;
     private int _currentIdx = -1;
 
     // Per-agent shuffle stream, derived from BBDataSig.EntitySeed. Re-derived on every Init

@@ -201,6 +201,7 @@ public class TargetRuntime : AIConsiderationRuntime
     internal bool EmptyKeyLogged;
     internal bool MissingKeyLogged;
     internal bool ConfigErrorLogged;
+    internal bool ZoneKeyWrongTypeLogged;
 
     /// <summary>True on the first call for a latch, false afterwards.</summary>
     internal bool MarkLogged(TargetLogKind kind)
@@ -210,6 +211,7 @@ public class TargetRuntime : AIConsiderationRuntime
         {
             case TargetLogKind.EmptyKey: logged = EmptyKeyLogged; EmptyKeyLogged = true; break;
             case TargetLogKind.MissingKey: logged = MissingKeyLogged; MissingKeyLogged = true; break;
+            case TargetLogKind.ZoneKeyWrongType: logged = ZoneKeyWrongTypeLogged; ZoneKeyWrongTypeLogged = true; break;
             default: logged = ConfigErrorLogged; ConfigErrorLogged = true; break;
         }
         return !logged;
@@ -221,4 +223,5 @@ internal enum TargetLogKind
     EmptyKey,
     MissingKey,
     ConfigError,
+    ZoneKeyWrongType,
 }

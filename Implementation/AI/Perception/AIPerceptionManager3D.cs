@@ -403,14 +403,9 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
         return this._memoryByTarget.Values.Where(info => info.IsActive);
     }
 
-    public IEnumerable<Perception3DInfo> GetSensedByCategory(Category category)
-    {
-        if (!this._memoryByCategory.TryGetValue(category, out var memorySet))
-        {
-            return [];
-        }
-        return memorySet.Where(info => info.IsActive);
-    }
+    /// <summary>The active memories in <paramref name="category"/>; a foreach over it allocates nothing.</summary>
+    public CategoryMemories GetSensedByCategory(Category category)
+        => new(this._memoryByCategory.TryGetValue(category, out var memorySet) ? memorySet : null);
 
     /// <summary>
     ///     Finds the most prominent (highest confidence) active memory belonging to a specific category. This is a highly

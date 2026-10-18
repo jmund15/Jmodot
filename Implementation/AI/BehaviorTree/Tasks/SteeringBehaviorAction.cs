@@ -41,17 +41,12 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     public override string[] _GetConfigurationWarnings()
     {
-        var warnings = base._GetConfigurationWarnings()
-            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToList();
-        for (var i = 0; i < _considerations.Count; i++)
-        {
-            if (_considerations[i] is DynamicTargetConsideration3D dynamic)
-            {
-                warnings.AddRange(ConfigWarnings.ResourceSlotWarnings(
-                    $"Considerations[{i}] Target", dynamic.Target, dynamic.Target?.GetAgentWarnings(this)));
-            }
-        }
-        return warnings.ToArray();
+        // The editor has no Init'ed agent, so the action itself stands in for the entity walk.
+        var agentForWarnings = (Node?)Agent ?? this;
+        return base._GetConfigurationWarnings()
+            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations))
+            .Concat(ConfigWarnings.AgentSlotWarnings("Considerations", _considerations, agentForWarnings))
+            .ToArray();
     }
 
     private AISteeringProcessor3D? _cachedSteering;
@@ -148,6 +143,17 @@ public partial class SteeringBehaviorAction : BehaviorAction
     internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
+
+    /// <summary>Copies the whole authored slot of <paramref name="replaced"/>, adding the style terms and both overrides when it steers.</summary>
+    internal new void AdoptSlotFromForTest(BehaviorAction replaced)
+    {
+        base.AdoptSlotFromForTest(replaced);
+        if (replaced is not SteeringBehaviorAction steering) { return; }
+
+        foreach (var term in steering._considerations) { _considerations.Add(term); }
+        _navPathOverride = steering._navPathOverride;
+        _synthesisOverride = steering._synthesisOverride;
+    }
 #endif
     #endregion
 }
