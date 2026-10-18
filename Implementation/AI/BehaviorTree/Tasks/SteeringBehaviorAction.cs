@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
+using System.Collections.Generic;
 using System.Linq;
 using Core.AI;
 using Core.AI.Navigation;
@@ -21,7 +22,14 @@ using GColl = Godot.Collections;
 [GlobalClass, Tool]
 public partial class SteeringBehaviorAction : BehaviorAction
 {
+    /// <summary>
+    /// Style and environment terms that bend how this step moves. They never decide where the step
+    /// goes or when it ends: a MoveAction's goal owns that. An empty list is legal.
+    /// </summary>
     [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
+
+    /// <summary>The authored style terms, read-only. Their runtime registrations belong to the processor.</summary>
+    protected IReadOnlyList<BaseAIConsideration3D> Considerations => _considerations;
 
     [ExportGroup("Navigation Path Override")]
     [Export] private NavigationPath3DConsideration? _navPathOverride;
@@ -33,8 +41,17 @@ public partial class SteeringBehaviorAction : BehaviorAction
 
     public override string[] _GetConfigurationWarnings()
     {
-        return base._GetConfigurationWarnings()
-            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToArray();
+        var warnings = base._GetConfigurationWarnings()
+            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations)).ToList();
+        for (var i = 0; i < _considerations.Count; i++)
+        {
+            if (_considerations[i] is DynamicTargetConsideration3D dynamic)
+            {
+                warnings.AddRange(ConfigWarnings.ResourceSlotWarnings(
+                    $"Considerations[{i}] Target", dynamic.Target, dynamic.Target?.GetAgentWarnings(this)));
+            }
+        }
+        return warnings.ToArray();
     }
 
     private AISteeringProcessor3D? _cachedSteering;
@@ -106,7 +123,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
         }
     }
 
-    private bool TryGetSteering(out AISteeringProcessor3D steering)
+    protected bool TryGetSteering(out AISteeringProcessor3D steering)
     {
         if (_cachedSteering != null)
         {
@@ -114,7 +131,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
             return true;
         }
 
-        if (Agent.TryGetFirstChildOfType(out AISteeringProcessor3D? found))
+        if (Agent.TryGetFirstChildOfType(out AISteeringProcessor3D? found, includeSubChildren: true))
         {
             _cachedSteering = found;
             steering = found;
@@ -128,6 +145,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
     #region Test Helpers
 #if TOOLS
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
 #endif

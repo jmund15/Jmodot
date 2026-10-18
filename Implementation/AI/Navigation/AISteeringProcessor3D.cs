@@ -338,6 +338,14 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     }
 
     /// <summary>
+    /// True when <paramref name="consideration"/> is registered right now, authored or runtime.
+    /// Reads the current lists, not the runtime cache: an unregistered consideration keeps its
+    /// runtime, so the cache cannot answer who currently owns a term.
+    /// </summary>
+    public bool IsConsiderationRegistered(BaseAIConsideration3D consideration)
+        => _considerations.Contains(consideration) || _runtimeConsiderations.Contains(consideration);
+
+    /// <summary>
     /// Unregisters a previously registered runtime consideration.
     /// Used by BT actions to remove their steering behaviors when their task ends.
     /// </summary>
