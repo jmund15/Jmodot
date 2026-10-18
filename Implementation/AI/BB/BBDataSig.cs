@@ -26,7 +26,11 @@ public static partial class BBDataSig
     /// </summary>
     public static readonly StringName Interactor = new("Interactor");
 
+    /// <summary>The interactor's target, distinct from the AI's remembered primary target.</summary>
     public static readonly StringName CurrentTarget = new("CurrentTarget");
+
+    /// <summary>The AI primary-target memory, a <see cref="Jmodot.Core.AI.Perception.Perception3DInfo"/>; not the interactor's <see cref="CurrentTarget"/>.</summary>
+    public static readonly StringName PrimaryTargetMemory = new("PrimaryTargetMemory");
     public static readonly StringName CharacterController = new("CharacterController");
     public static readonly StringName MovementProcessor = new("MovementProcessor");
     public static readonly StringName MoveComp = new("MoveComp");
