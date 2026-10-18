@@ -33,45 +33,25 @@ public partial class CategoryTarget3D : MovementTarget3D
     /// The sensed category this target reads. Required: with no category the target resolves
     /// Unavailable and says so in the Inspector.
     /// </summary>
-    [Export] public Category? Category
-    {
-        get => _category;
-        private set { _category = value; _faults = null; }
-    }
+    [Export] public Category? Category { get; private set; }
 
     /// <summary>
     /// How the eligible members become a sample: nearest one, or the whole set. Required.
     /// </summary>
-    [Export] public TargetPolicy3D? Policy
-    {
-        get => _policy;
-        private set
-        {
-            if (_policy != null) { _policy.Changed -= InvalidateFaults; }
-            _policy = value;
-            if (_policy != null) { _policy.Changed += InvalidateFaults; }
-            _faults = null;
-        }
-    }
+    [Export] public TargetPolicy3D? Policy { get; private set; }
 
     /// <summary>
     /// Remembered targets include memories decaying after loss; visible-now only what a sensor
     /// still reports. Unset is a fault, never an implicit default.
     /// </summary>
-    [Export] public TargetEligibility Eligibility
-    {
-        get => _eligibility;
-        private set { _eligibility = value; _faults = null; }
-    }
+    [Export] public TargetEligibility Eligibility { get; private set; } = TargetEligibility.Unset;
 
-    private Category? _category;
-    private TargetPolicy3D? _policy;
-    private TargetEligibility _eligibility = TargetEligibility.Unset;
-
-    /// <summary>Authored faults, computed once and dropped whenever an export or the policy changes.</summary>
-    private string[]? _faults;
-
-    private void InvalidateFaults() => _faults = null;
+    /// <summary>
+    /// The one validity rule, read every resolve: a required slot is empty or unset, or the policy
+    /// reports itself unusable. Allocation-free; the warnings below word the same faults for the Inspector.
+    /// </summary>
+    private bool IsUsable
+        => Category != null && Eligibility != TargetEligibility.Unset && Policy != null && Policy.IsUsable;
 
     public override TargetSampleGeometry Geometry => Policy?.Geometry ?? TargetSampleGeometry.Member;
 
@@ -80,13 +60,14 @@ public partial class CategoryTarget3D : MovementTarget3D
     {
         sample.Clear();
 
-        var faults = _faults ??= GetResourceConfigurationWarnings();
-        if (faults.Length > 0)
+        if (!IsUsable)
         {
             sample.State = TargetSampleState.Unavailable;
             if (sample.TryBeginLog(TargetLogKind.ConfigError))
             {
-                JmoLogger.Error(this, $"CategoryTarget3D '{ResourceName}' cannot resolve: {faults[0]}");
+                var faults = GetResourceConfigurationWarnings();
+                JmoLogger.Error(this, $"CategoryTarget3D '{ResourceName}' cannot resolve: " +
+                                      (faults.Length > 0 ? faults[0] : "its policy is unusable."));
             }
             return;
         }

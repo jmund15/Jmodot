@@ -29,6 +29,8 @@ public partial class AllMembersPolicy3D : TargetPolicy3D
     public override void Apply(TargetSample sample)
         => sample.Seal(Geometry, Resolution, Focus);
 
+    public override bool IsUsable => IsUnitRange(Resolution) && IsUnitRange(Focus);
+
     public override string[] GetResourceConfigurationWarnings()
     {
         var warnings = new List<string>();
