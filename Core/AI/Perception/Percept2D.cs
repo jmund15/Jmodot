@@ -29,7 +29,7 @@ public readonly struct Percept2D
     /// <summary>The strength of the sensation, from 0.0 (barely perceived) to 1.0 (clearly perceived).</summary>
     public readonly float Confidence;
 
-    /// <summary>The strategy defining how this memory should fade over time. Null means the memory does not fade.</summary>
+    /// <summary>The strategy defining how this memory should fade over time. Null means the memory does not fade (the same meaning as on <see cref="Percept3D"/>).</summary>
     public readonly MemoryDecayStrategy? DecayStrategy;
 
     /// <summary>The game time (<see cref="GameClock.NowMsec"/>) when this percept was generated.</summary>

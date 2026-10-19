@@ -46,13 +46,13 @@ public class Perception3DInfo
     /// <summary>
     ///     Calculates confidence at a specific point in time.
     ///     While actively sensed, returns the raw sensor confidence regardless of time.
-    ///     After exit, applies the decay strategy using elapsed time since exit.
+    ///     After exit, applies the decay strategy using elapsed time since exit; a null strategy never fades.
     /// </summary>
     public float GetConfidenceAt(ulong currentTimeMs)
     {
         if (_sensingActive) { return _baseConfidence; }
         var elapsed = (currentTimeMs - _exitTime) / 1000f;
-        return _decayStrategy?.CalculateConfidence(_baseConfidence, elapsed) ?? 0f;
+        return _decayStrategy?.CalculateConfidence(_baseConfidence, elapsed) ?? _baseConfidence;
     }
 
     /// <summary>
