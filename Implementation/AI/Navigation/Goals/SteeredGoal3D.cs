@@ -1,6 +1,7 @@
 namespace Jmodot.Implementation.AI.Navigation.Goals;
 
 using System.Collections.Generic;
+using Core.AI;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
 using Core.Movement;
@@ -78,6 +79,25 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
         AIConsiderationRuntime? runtime)
         => Considerations.TargetResponseScoring3D.Aggregate(
             directions, sample, agentPosition, GoalSettings, response, RuntimeOf(runtime).ResponseBuffer);
+
+    /// <summary>
+    /// The band a banded goal scores toward: toward the member outside it, a pivot inside it. Null
+    /// for a goal that scores no band. Read only through <see cref="AggregateBand"/>, after the goal
+    /// checked the band is usable.
+    /// </summary>
+    protected virtual RangeBandResource? ResponseBand => null;
+
+    private System.Func<Targets.TargetMember, Vector3, float, Vector3>? _bandResponse;
+
+    /// <summary>Aggregates the <see cref="ResponseBand"/> response through one callback cached per goal.</summary>
+    protected Dictionary<Vector3, float> AggregateBand(DirectionSet3D directions,
+        Targets.TargetSample sample, Vector3 agentPosition, AIConsiderationRuntime? runtime)
+        => Aggregate(directions, sample, agentPosition, _bandResponse ??= BandResponse, runtime);
+
+    private Vector3 BandResponse(Targets.TargetMember member, Vector3 toMember, float distance)
+        => ResponseBand is { } band
+            ? Considerations.BandScoring.Response(toMember, distance, band.MinRange, band.MaxRange)
+            : Vector3.Zero;
 
     /// <summary>The response of a goal that only opens distance: directly away from the member.</summary>
     protected static readonly System.Func<Targets.TargetMember, Vector3, float, Vector3> AwayResponse

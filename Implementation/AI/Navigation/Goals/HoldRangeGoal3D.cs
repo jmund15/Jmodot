@@ -42,13 +42,10 @@ public partial class HoldRangeGoal3D : SteeredGoal3D
         TargetSample sample, SteeringDecisionContext3D ctx, AIConsiderationRuntime? runtime)
     {
         if (!IsUsable(Band)) { return ZeroScores(directions); }
-        return Aggregate(directions, sample, ctx.AgentPosition, _bandResponse ??= BandResponse, runtime);
+        return AggregateBand(directions, sample, ctx.AgentPosition, runtime);
     }
 
-    private System.Func<TargetMember, Vector3, float, Vector3>? _bandResponse;
-
-    private Vector3 BandResponse(TargetMember member, Vector3 toMember, float distance)
-        => Considerations.BandScoring.Response(toMember, distance, Band!.MinRange, Band.MaxRange);
+    protected override RangeBandResource? ResponseBand => Band;
 
     public override string[] GetResourceConfigurationWarnings()
     {
