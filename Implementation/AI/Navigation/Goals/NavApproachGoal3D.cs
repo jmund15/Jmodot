@@ -48,6 +48,7 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
     public override GoalStatus Advance(in MovementGoalContext ctx, AIConsiderationRuntime? runtime)
     {
         var sample = ResolveTarget(ctx, runtime);
+        if (ArriveBand != null && !RangeBandResource.IsValid(ArriveBand)) { return GoalStatus.Failed; }
         if (sample.State != TargetSampleState.Resolved) { return GoalStatus.Failed; }
 
         if (runtime is not NavApproachRuntime { Navigator: { } nav } rt)

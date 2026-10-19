@@ -46,6 +46,13 @@ public partial class WaypointGoal3D : MovementGoal3D
 
     public override bool EndsItself => SucceedOnReach;
 
+    private bool HasValidReachDistance => ReachDistance > 0f && float.IsFinite(ReachDistance);
+    private bool HasValidPickRetryDelay => PickRetryDelay >= 0f && float.IsFinite(PickRetryDelay);
+    private bool HasValidRepickInterval => RepickInterval >= 0f && float.IsFinite(RepickInterval);
+
+    /// <summary>The one validity rule: Advance and the Inspector warnings both read these predicates.</summary>
+    private bool HasUsableTiming => HasValidReachDistance && HasValidPickRetryDelay && HasValidRepickInterval;
+
     public override AIConsiderationRuntime? CreateRuntime(IBlackboard? bb)
     {
         var runtime = new WaypointRuntime();
@@ -82,6 +89,16 @@ public partial class WaypointGoal3D : MovementGoal3D
     {
         if (runtime is not WaypointRuntime rt || rt.Navigator is not { } nav || Strategy == null)
         {
+            return GoalStatus.Running;
+        }
+        if (!HasUsableTiming)
+        {
+            if (!rt.WarnedUnusableTiming)
+            {
+                rt.WarnedUnusableTiming = true;
+                JmoLogger.Error(this, $"WaypointGoal3D '{ResourceName}' has an unusable numeric export; " +
+                                      "the step runs its style terms and picks nothing.");
+            }
             return GoalStatus.Running;
         }
 
@@ -130,15 +147,15 @@ public partial class WaypointGoal3D : MovementGoal3D
     {
         var warnings = new List<string>(base.GetResourceConfigurationWarnings());
         warnings.AddRange(ConfigWarnings.ResourceSlotWarnings("Strategy", Strategy, required: true));
-        if (!(ReachDistance > 0f) || float.IsInfinity(ReachDistance))
+        if (!HasValidReachDistance)
         {
             warnings.Add($"Reach Distance ({ReachDistance}) must be a positive, finite number of metres.");
         }
-        if (!(PickRetryDelay >= 0f) || float.IsInfinity(PickRetryDelay))
+        if (!HasValidPickRetryDelay)
         {
             warnings.Add($"Pick Retry Delay ({PickRetryDelay}) must be zero or a positive, finite number of seconds.");
         }
-        if (!(RepickInterval >= 0f) || float.IsInfinity(RepickInterval))
+        if (!HasValidRepickInterval)
         {
             warnings.Add($"Repick Interval ({RepickInterval}) must be zero or a positive, finite number of seconds.");
         }
@@ -169,6 +186,7 @@ public partial class WaypointGoal3D : MovementGoal3D
         public float RetryTimer;
         public float SinceLastPick;
         public bool WarnedNoSeed;
+        public bool WarnedUnusableTiming;
 
         #region Test Helpers
 #if TOOLS
