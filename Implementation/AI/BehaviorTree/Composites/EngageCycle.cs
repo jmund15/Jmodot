@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.AI;
 using Core.AI.BB;
+using Core.AI.BehaviorTree.Conditions;
 using Jmodot.Implementation.AI.Navigation.Goals;
 using Shared;
 using Shared.GodotExceptions;
@@ -91,14 +92,40 @@ public partial class EngageCycle : CompositeTask
     /// </summary>
     private bool PositionHeld()
     {
-        foreach (var condition in RuntimeConditions)
-        {
-            if (condition is not IDistanceBandGate { GateBand: { } band } gate) { continue; }
-            return gate.MeasureDistance() is { } distance
-                   && EngageCycleDistances.HoldsEngagement(distance, band, GateClearance);
-        }
-        return true;
+        if (PickEngageGate(RuntimeConditions) is not { GateBand: { } band } gate) { return true; }
+        return gate.MeasureDistance() is { } distance
+               && EngageCycleDistances.HoldsEngagement(distance, band, GateClearance);
     }
+
+    /// <summary>
+    /// The one rule that picks the cycle's engage gate, for the runtime hold and the warnings alike:
+    /// the first distance condition, in authored order, that has a band.
+    /// </summary>
+    private static IDistanceBandGate? PickEngageGate(IReadOnlyList<BTCondition> conditions)
+    {
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            if (conditions[i] is IDistanceBandGate { GateBand: not null } gate) { return gate; }
+        }
+        return null;
+    }
+
+    private IEnumerable<string> EngageGateWarnings()
+    {
+        var gates = Conditions.OfType<IDistanceBandGate>().ToList();
+        if (gates.Count < 2) { return Enumerable.Empty<string>(); }
+
+        var picked = PickEngageGate(Conditions) ?? gates[0];
+        var other = gates.First(g => g != picked);
+        return new[]
+        {
+            $"Conditions holds two distance gates, '{DescribeGate(picked)}' and '{DescribeGate(other)}'. " +
+            $"The cycle holds Position on '{DescribeGate(picked)}', the first with a band; remove the other.",
+        };
+    }
+
+    private static string DescribeGate(IDistanceBandGate gate)
+        => gate is Resource { ResourceName: { Length: > 0 } name } ? name : gate.GetType().Name;
 
     public override void _ValidateProperty(Godot.Collections.Dictionary property)
     {
@@ -221,6 +248,7 @@ public partial class EngageCycle : CompositeTask
             warnings.Add("EngageCycle fails when Position fails; place it in a Selector/ReactiveSelector with a later sibling.");
         }
 
+        warnings.AddRange(EngageGateWarnings());
         warnings.AddRange(CrossSlotWarnings());
 
         return warnings.Concat(base._GetConfigurationWarnings()).ToArray();
@@ -233,7 +261,7 @@ public partial class EngageCycle : CompositeTask
     /// </summary>
     private IEnumerable<string> CrossSlotWarnings()
     {
-        var engage = Conditions.OfType<IDistanceBandGate>().FirstOrDefault()?.GateBand;
+        var engage = PickEngageGate(Conditions)?.GateBand;
         var position = (Position as MoveAction)?.Goal?.DistanceBand;
         if (EngageCycleDistances.PositionVsEngage(position, engage, GateClearance) is { } positionWarning)
         {
