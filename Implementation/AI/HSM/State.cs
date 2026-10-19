@@ -83,7 +83,7 @@ public partial class State : Node, IState
 
     /// <summary>This state's facing intent; null defers to ancestors.</summary>
     public StringName? ResolvedFaceTargetKey => !FaceTarget ? null
-        : !string.IsNullOrEmpty(FaceTargetKey) ? FaceTargetKey : BBDataSig.PrimaryTargetMemory;
+        : FaceTargetKey != null && !FaceTargetKey.IsEmpty ? FaceTargetKey : BBDataSig.PrimaryTargetMemory;
 
     /// <summary>The innermost checked state's facing key, walking this state and then its ancestors; null if none faces a target.</summary>
     public StringName? FindFaceTargetKey()
@@ -331,7 +331,7 @@ public partial class State : Node, IState
         var warnings = new List<string>();
         warnings.AddRange(ConfigWarnings.QuirkSlotWarnings(MovementQuirks));
 
-        if (!FaceTarget && !string.IsNullOrEmpty(FaceTargetKey))
+        if (!FaceTarget && FaceTargetKey != null && !FaceTargetKey.IsEmpty)
         {
             warnings.Add("Face Target Key is ignored while Face Target is off.");
         }

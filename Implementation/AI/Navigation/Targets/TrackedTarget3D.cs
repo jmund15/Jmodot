@@ -27,7 +27,7 @@ public partial class TrackedTarget3D : MovementTarget3D
     {
         sample.Clear();
 
-        if (string.IsNullOrEmpty(Key))
+        if (Key == null || Key.IsEmpty)
         {
             sample.State = TargetSampleState.Unavailable;
             if (sample.TryBeginLog(TargetLogKind.EmptyKey))
@@ -59,7 +59,7 @@ public partial class TrackedTarget3D : MovementTarget3D
     }
 
     public override string[] GetResourceConfigurationWarnings()
-        => string.IsNullOrEmpty(Key)
+        => Key == null || Key.IsEmpty
             ? new[]
             {
                 "Key is empty. Assign the blackboard key to follow, or remove this target override to " +
