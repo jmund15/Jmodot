@@ -12,7 +12,7 @@ using Implementation.Shared;
 public class Perception2DInfo
 {
     private float _baseConfidence;
-    private MemoryDecayStrategy _decayStrategy = null!;
+    private MemoryDecayStrategy? _decayStrategy;
 
     public Perception2DInfo(Percept2D initialPercept2D)
     {
