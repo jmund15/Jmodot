@@ -74,13 +74,7 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
 
     public override void OnExit(in MovementGoalContext ctx, AIConsiderationRuntime? runtime)
     {
-        if (runtime is not NavApproachRuntime { Navigator: { } nav }) { return; }
-
-        try { nav.ClearPath(); }
-        catch (System.NullReferenceException)
-        {
-            // A navigator whose _Ready never ran has no owner agent to clear; safe outside a tree.
-        }
+        if (runtime is NavApproachRuntime { Navigator: { } nav }) { nav.ClearPath(); }
     }
 
     public override string[] GetResourceConfigurationWarnings()

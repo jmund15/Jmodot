@@ -1,6 +1,5 @@
 namespace Jmodot.Implementation.AI.Navigation.Goals;
 
-using System;
 using System.Collections.Generic;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
@@ -123,14 +122,7 @@ public partial class WaypointGoal3D : MovementGoal3D
     {
         if (runtime is not WaypointRuntime rt) { return; }
 
-        if (rt.Navigator != null)
-        {
-            try { rt.Navigator.ClearPath(); }
-            catch (NullReferenceException)
-            {
-                // A navigator whose _Ready never ran has no owner agent to clear; safe outside a tree.
-            }
-        }
+        rt.Navigator?.ClearPath();
         rt.PendingFirstTarget = false;
     }
 
