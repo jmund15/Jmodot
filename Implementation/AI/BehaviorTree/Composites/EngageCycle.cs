@@ -112,10 +112,19 @@ public partial class EngageCycle : CompositeTask
 
     private IEnumerable<string> EngageGateWarnings()
     {
-        var gates = Conditions.OfType<IDistanceBandGate>().ToList();
+        var gates = Conditions.OfType<IDistanceBandGate>().Distinct().ToList();
         if (gates.Count < 2) { return Enumerable.Empty<string>(); }
 
-        var picked = PickEngageGate(Conditions) ?? gates[0];
+        var picked = PickEngageGate(Conditions);
+        if (picked == null)
+        {
+            return new[]
+            {
+                $"Conditions holds two distance gates, '{DescribeGate(gates[0])}' and '{DescribeGate(gates[1])}', and neither has a band. " +
+                "The cycle has no engage band, so no hold on Position; give one a band and remove the other.",
+            };
+        }
+
         var other = gates.First(g => g != picked);
         return new[]
         {
