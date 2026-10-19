@@ -21,11 +21,10 @@ public abstract partial class TargetPolicy3D : Resource, IResourceConfigurationW
     public abstract void Apply(TargetSample sample);
 
     /// <summary>
-    /// True when this policy's configuration is sound. A category target asks every tick, so a
-    /// policy with exports overrides this with the same predicates its warnings read and allocates
-    /// nothing; the default derives it from the warnings, which is right for a policy with none.
+    /// True when this policy's configuration is sound. A category target asks every tick, so every
+    /// policy answers from the same predicates its warnings read and allocates nothing.
     /// </summary>
-    public virtual bool IsUsable => GetResourceConfigurationWarnings().Length == 0;
+    public abstract bool IsUsable { get; }
 
     public virtual string[] GetResourceConfigurationWarnings() => Array.Empty<string>();
 }

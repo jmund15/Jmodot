@@ -14,6 +14,8 @@ public partial class NearestMemberPolicy3D : TargetPolicy3D
 
     public override TargetSampleGeometry Geometry => TargetSampleGeometry.Member;
 
+    public override bool IsUsable => true;
+
     public override void Apply(TargetSample sample)
     {
         var members = sample.Members;
