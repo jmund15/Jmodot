@@ -321,9 +321,6 @@ public partial class State : Node, IState
         FaceTargetKey = key;
     }
 
-    internal void SetFacingForTest(bool enabled, StringName? key = null)
-        => SetFacingForTest(enabled ? FaceTargetMode.Face : FaceTargetMode.Inherit, key);
-
     internal void SetMovementQuirksForTest(GColl.Array<MovementQuirk3D> quirks) => MovementQuirks = quirks;
 
     internal void _TestAddTransition(StateTransition transition) => Transitions.Add(transition);
