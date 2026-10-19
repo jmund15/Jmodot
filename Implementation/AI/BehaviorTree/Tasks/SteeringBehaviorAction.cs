@@ -145,7 +145,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
 
     /// <summary>Copies the whole authored slot of <paramref name="replaced"/>, adding the style terms and both overrides when it steers.</summary>
-    internal new void AdoptSlotFromForTest(BehaviorAction replaced)
+    internal override void AdoptSlotFromForTest(BehaviorAction replaced)
     {
         base.AdoptSlotFromForTest(replaced);
         if (replaced is not SteeringBehaviorAction steering) { return; }
