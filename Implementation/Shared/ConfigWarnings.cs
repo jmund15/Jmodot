@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Core.AI.BB;
 using Core.Movement.Quirks;
 using Core.Shared;
+using GodotExceptions;
 using GColl = Godot.Collections;
 
 /// <summary>
@@ -92,6 +93,44 @@ public static class ConfigWarnings
     {
         if (slot == null || faults == null || faults.Length == 0) { return System.Array.Empty<string>(); }
         return RenderSlotWarnings(slotLabel, slot, faults);
+    }
+
+    /// <summary>
+    /// Renders the entity-dependent faults of one single-slot Resource export in the single-slot
+    /// format. Only a slot implementing <see cref="IAgentConfigurationWarnings"/> contributes; a null
+    /// slot adds nothing.
+    /// </summary>
+    public static string[] AgentSlotWarnings<T>(string slotLabel, T? slot, Node agent) where T : Resource
+        => slot is IAgentConfigurationWarnings source
+            ? ResourceSlotWarnings(slotLabel, slot, source.GetAgentWarnings(agent))
+            : System.Array.Empty<string>();
+
+    /// <summary>
+    /// Every fault of one single-slot Resource export: the empty-slot fault when
+    /// <paramref name="required"/>, then the slot's own configuration faults, then its faults against
+    /// <paramref name="agent"/>. The one Inspector check for a host that holds a target or goal slot.
+    /// </summary>
+    public static string[] SlotWarnings<T>(string slotLabel, T? slot, Node agent, bool required) where T : Resource
+    {
+        var own = ResourceSlotWarnings(slotLabel, slot, required);
+        var agentFaults = AgentSlotWarnings(slotLabel, slot, agent);
+        if (agentFaults.Length == 0) { return own; }
+
+        var warnings = new string[own.Length + agentFaults.Length];
+        own.CopyTo(warnings, 0);
+        agentFaults.CopyTo(warnings, own.Length);
+        return warnings;
+    }
+
+    /// <summary>
+    /// The init-time form of <see cref="SlotWarnings{T}"/> for a required slot: throws the first
+    /// rendered fault, so the throw and the Inspector never disagree.
+    /// </summary>
+    /// <exception cref="NodeConfigurationException">The slot is empty, or faults on its own or against <paramref name="agent"/>.</exception>
+    public static void RequireSlot<T>(string slotLabel, T? slot, Node agent, Node host) where T : Resource
+    {
+        var faults = SlotWarnings(slotLabel, slot, agent, required: true);
+        if (faults.Length > 0) { throw new NodeConfigurationException(faults[0], host); }
     }
 
     /// <summary>

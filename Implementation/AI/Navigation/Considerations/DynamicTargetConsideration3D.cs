@@ -104,7 +104,7 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     /// manager, worded under the Target slot like this term's own resource warnings.
     /// </summary>
     public string[] GetAgentWarnings(Node agent)
-        => ConfigWarnings.ResourceSlotWarnings("Target", Target, Target?.GetAgentWarnings(agent));
+        => ConfigWarnings.AgentSlotWarnings("Target", Target, agent);
 
     #region Effective Parameter Accessors
 

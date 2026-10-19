@@ -49,39 +49,15 @@ public partial class MoveAction : SteeringBehaviorAction
                 $"{nameof(MoveAction)} '{Name}' needs a Node3D agent to read a movement position from.", this);
         }
 
-        if (Goal == null)
-        {
-            throw new NodeConfigurationException("Goal: empty slot — nothing is assigned here.", this);
-        }
-
-        var faults = Goal.GetResourceConfigurationWarnings();
-        if (faults.Length > 0)
-        {
-            throw new NodeConfigurationException(FirstGoalFault(faults), this);
-        }
-
-        var agentFaults = Goal.GetAgentWarnings(agent);
-        if (agentFaults.Length > 0)
-        {
-            throw new NodeConfigurationException(FirstGoalFault(agentFaults), this);
-        }
-    }
-
-    private string FirstGoalFault(string[] faults)
-    {
-        var rendered = ConfigWarnings.ResourceSlotWarnings("Goal", Goal, faults);
-        return rendered.Length > 0 ? rendered[0] : "Goal: unusable configuration.";
+        ConfigWarnings.RequireSlot("Goal", Goal, agent, this);
     }
 
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>(base._GetConfigurationWarnings());
-        warnings.AddRange(ConfigWarnings.ResourceSlotWarnings("Goal", Goal, required: true));
-        if (Goal == null) { return warnings.ToArray(); }
-
         // The editor has no Init'ed agent, so the action itself stands in for the entity walk.
-        var agentForWarnings = (Node?)Agent ?? this;
-        warnings.AddRange(ConfigWarnings.ResourceSlotWarnings("Goal", Goal, Goal.GetAgentWarnings(agentForWarnings)));
+        warnings.AddRange(ConfigWarnings.SlotWarnings("Goal", Goal, (Node?)Agent ?? this, required: true));
+        if (Goal == null) { return warnings.ToArray(); }
 
         if (Goal.Steers && Goal.SteeringWeight == 0f)
         {
