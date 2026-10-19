@@ -86,10 +86,9 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
     public override string[] GetResourceConfigurationWarnings()
     {
         var warnings = new List<string>(base.GetResourceConfigurationWarnings());
-        if (ArriveBand != null && !RangeBandResource.IsValid(ArriveBand))
+        if (ArriveBand != null && RangeBandResource.UnusableWarning(ArriveBand, "Arrive Band") is { } unusable)
         {
-            warnings.Add($"Arrive Band is unusable: MinRange ({ArriveBand.MinRange}) must be non-negative and " +
-                         $"strictly less than MaxRange ({ArriveBand.MaxRange}).");
+            warnings.Add(unusable);
         }
         return warnings.ToArray();
     }

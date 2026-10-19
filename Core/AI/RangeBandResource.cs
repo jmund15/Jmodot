@@ -55,12 +55,19 @@ public partial class RangeBandResource : Resource
     /// <exception cref="ResourceConfigurationException"><paramref name="band"/> is inverted, zero-width or starts below zero.</exception>
     public static void RequireUsable(RangeBandResource band, string slot)
     {
-        if (IsValid(band)) { return; }
-
-        throw new ResourceConfigurationException(
-            $"{slot} is unusable: MinRange ({band.MinRange}) must be non-negative and strictly "
-            + $"less than MaxRange ({band.MaxRange}).", band);
+        if (UnusableWarning(band, slot) is { } warning) { throw new ResourceConfigurationException(warning, band); }
     }
+
+    /// <summary>
+    /// The one wording of an unusable band (see <see cref="IsValid"/>) under <paramref name="slot"/>, or null
+    /// when the band is usable. The caller handles an unassigned slot first, since an empty slot means
+    /// different things to different hosts.
+    /// </summary>
+    public static string? UnusableWarning(RangeBandResource band, string slot)
+        => IsValid(band)
+            ? null
+            : $"{slot} is unusable: MinRange ({band.MinRange}) must be non-negative and strictly "
+              + $"less than MaxRange ({band.MaxRange}).";
 
     /// <summary>
     /// The arrive test of an action that succeeds on entering a band: whether <paramref name="distance"/> lies inside

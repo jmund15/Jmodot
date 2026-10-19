@@ -58,10 +58,9 @@ public partial class ApproachGoal3D : SteeredGoal3D
         {
             warnings.Add("Band is empty. Assign the inclusive distance band this goal ends inside.");
         }
-        else if (!RangeBandResource.IsValid(Band))
+        else if (RangeBandResource.UnusableWarning(Band, "Band") is { } unusable)
         {
-            warnings.Add($"Band is unusable: MinRange ({Band.MinRange}) must be non-negative and " +
-                         $"strictly less than MaxRange ({Band.MaxRange}).");
+            warnings.Add(unusable);
         }
         return warnings.ToArray();
     }
