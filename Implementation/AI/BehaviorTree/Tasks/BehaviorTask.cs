@@ -56,6 +56,9 @@ using Shared;
         /// </summary>
         private readonly List<BTCondition> _activeConditions = new();
 
+        /// <summary>The initialized runtime condition instances, for a task that reads a condition between ticks.</summary>
+        protected IReadOnlyList<BTCondition> RuntimeConditions => _activeConditions;
+
         [Signal]
         public delegate void TaskStatusChangedEventHandler(TaskStatus newStatus);
 

@@ -32,7 +32,9 @@ public readonly record struct EngageSlots(
 /// <see cref="MaxTransitionsPerTick"/>), so place it before a pursuing sibling in a
 /// <see cref="Selector"/>/<see cref="ReactiveSelector"/>. Its own <see cref="BehaviorTask.Conditions"/> gate
 /// entry only: <see cref="BehaviorTask.MonitorConditions"/> is off, so a mid-phase condition never aborts a
-/// swing. Phases own their monitored guards.
+/// swing. Phases own their monitored guards. The one exception is distance: while Position runs, the cycle
+/// fails Position once its distance condition's band, grown by <see cref="GateClearance"/>, no longer holds
+/// the target, so Position itself carries no copy of the engage gate.
 /// </para>
 /// </summary>
 [GlobalClass, Tool]
@@ -60,9 +62,10 @@ public partial class EngageCycle : CompositeTask
     [Export] public BehaviorTask? Miss { get; set; }
 
     /// <summary>
-    /// Metres the engage band must reach past the Position step's far edge. A creature moving outward
-    /// at the ring coasts on before it turns, about speed² ÷ (2 × friction); a gate inside that coast
-    /// drops it out of the cycle. Raise it for a creature handed onto its ring at speed.
+    /// Metres past the engage band an engaged creature may drift before the cycle lets it go. The cycle's
+    /// distance condition is the entry gate; once in, Position holds until the target is farther than that
+    /// band grown by this. Set it to the creature's coast, about speed² ÷ (2 × friction) at the fastest
+    /// speed it leaves a phase with, so momentum alone never ejects it.
     /// </summary>
     [Export(PropertyHint.Range, "0.0,5.0,0.1,suffix:m")] public float GateClearance { get; private set; } = 0.8f;
 
@@ -79,6 +82,22 @@ public partial class EngageCycle : CompositeTask
     public EngageCycle()
     {
         MonitorConditions = false;
+    }
+
+    /// <summary>
+    /// The cycle drops an engaged creature only from Position, and only once the target is past the hold:
+    /// the engage band grown by <see cref="GateClearance"/>. Other phases own their monitored guards. A
+    /// cycle with no distance condition never drops on distance.
+    /// </summary>
+    private bool PositionHeld()
+    {
+        foreach (var condition in RuntimeConditions)
+        {
+            if (condition is not IDistanceBandGate { GateBand: { } band } gate) { continue; }
+            return gate.MeasureDistance() is { } distance
+                   && EngageCycleDistances.HoldsEngagement(distance, band, GateClearance);
+        }
+        return true;
     }
 
     public override void _ValidateProperty(Godot.Collections.Dictionary property)
@@ -221,6 +240,14 @@ public partial class EngageCycle : CompositeTask
             yield return positionWarning;
         }
 
+        foreach (var positionGate in Position?.Conditions.OfType<IDistanceBandGate>() ?? Enumerable.Empty<IDistanceBandGate>())
+        {
+            if (EngageCycleDistances.PositionGateVsHold(positionGate.GateBand, engage, GateClearance) is { } gateWarning)
+            {
+                yield return gateWarning;
+            }
+        }
+
         var commit = (Commit as MoveAction)?.Goal?.DistanceBand;
         var attack = Attack?.Conditions.OfType<IDistanceBandGate>().FirstOrDefault()?.GateBand;
         if (EngageCycleDistances.CommitVsAttack(commit, attack) is { } commitWarning)
@@ -279,6 +306,14 @@ public partial class EngageCycle : CompositeTask
     protected override void OnProcessFrame(float delta)
     {
         _transitionsThisTick = 0;
+        if (_phase == EngagePhase.Position && _running is { } position && !PositionHeld())
+        {
+            position.TaskStatusChanged -= OnChildStatusChanged;
+            position.Exit();
+            _running = null;
+            Advance(PhaseOutcome.Failed);
+            return;
+        }
         _running?.ProcessFrame(delta);
     }
 
@@ -288,6 +323,12 @@ public partial class EngageCycle : CompositeTask
         {
             _phase = phase;
             _secondsInPhase = 0f;
+            if (phase == EngagePhase.Position && !PositionHeld())
+            {
+                Advance(PhaseOutcome.Refused);
+                return;
+            }
+
             var child = SlotFor(phase);
             _running = child;
             child.TaskStatusChanged += OnChildStatusChanged;
