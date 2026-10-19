@@ -52,7 +52,7 @@ public abstract partial class SteeredGoal3D : TargetedMovementGoal3D
         {
             return ZeroScores(directions);
         }
-        if (Considerations.ZoneSuppression.IsSuppressed(bb, SuppressWhileZoneKey, this, targetRuntime))
+        if (Considerations.ZoneSuppression.IsSuppressed(bb, SuppressWhileZoneKey, this, ref targetRuntime.ZoneKeyWrongTypeLogged))
         {
             return ZeroScores(directions);
         }

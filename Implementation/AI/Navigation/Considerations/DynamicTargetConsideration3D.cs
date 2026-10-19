@@ -121,7 +121,9 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IReso
     {
         var state = NarrowRuntime<TargetRuntime>(runtime);
 
-        if (ZoneSuppression.IsSuppressed(blackboard, _suppressWhileZoneKey, this, state))
+        bool unlatched = false;
+        if (ZoneSuppression.IsSuppressed(blackboard, _suppressWhileZoneKey, this,
+                ref state != null ? ref state.ZoneKeyWrongTypeLogged : ref unlatched))
         {
             return DirectionScoring.ZeroScores(directions);
         }
