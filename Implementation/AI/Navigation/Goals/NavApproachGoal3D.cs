@@ -24,13 +24,13 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
     /// Distance from the target at which pursuit succeeds. Empty: follow the last known position
     /// until the memory fades. Walks a navmesh route; use ApproachGoal3D for a straight line.
     /// </summary>
-    [Export] public RangeBandResource? ArriveBand { get; private set; }
+    [Export] public RangeBandResource? Band { get; private set; }
 
     public override SteeringControlMode ControlMode => SteeringControlMode.NavigationOnly;
 
     public override GoalDistanceBand? DistanceBand
-        => RangeBandResource.IsValid(ArriveBand)
-            ? new GoalDistanceBand(ArriveBand!.MinRange, ArriveBand.MaxRange,
+        => RangeBandResource.IsValid(Band)
+            ? new GoalDistanceBand(Band!.MinRange, Band.MaxRange,
                 Target?.Geometry ?? TargetSampleGeometry.Member)
             : null;
 
@@ -48,7 +48,7 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
     public override GoalStatus Advance(in MovementGoalContext ctx, AIConsiderationRuntime? runtime)
     {
         var sample = ResolveTarget(ctx, runtime);
-        if (ArriveBand != null && !RangeBandResource.IsValid(ArriveBand)) { return GoalStatus.Failed; }
+        if (Band != null && !RangeBandResource.IsValid(Band)) { return GoalStatus.Failed; }
         if (sample.State != TargetSampleState.Resolved) { return GoalStatus.Failed; }
 
         if (runtime is not NavApproachRuntime { Navigator: { } nav } rt)
@@ -61,7 +61,7 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
             return GoalStatus.Failed;
         }
 
-        if (RangeBandResource.HasArrived(sample.NearestDistance, ArriveBand)) { return GoalStatus.Succeeded; }
+        if (RangeBandResource.HasArrived(sample.NearestDistance, Band)) { return GoalStatus.Succeeded; }
 
         if (rt.PendingFirstRequest)
         {
@@ -81,7 +81,7 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
     public override string[] GetResourceConfigurationWarnings()
     {
         var warnings = new List<string>(base.GetResourceConfigurationWarnings());
-        if (ArriveBand != null && RangeBandResource.UnusableWarning(ArriveBand, "Arrive Band") is { } unusable)
+        if (Band != null && RangeBandResource.UnusableWarning(Band, "Band") is { } unusable)
         {
             warnings.Add(unusable);
         }
@@ -107,7 +107,7 @@ public partial class NavApproachGoal3D : TargetedMovementGoal3D
 
     #region Test Helpers
 #if TOOLS
-    internal void SetArriveBandForTest(RangeBandResource? band) => ArriveBand = band;
+    internal void SetBandForTest(RangeBandResource? band) => Band = band;
 #endif
     #endregion
 }

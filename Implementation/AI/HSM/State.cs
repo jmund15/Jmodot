@@ -71,25 +71,26 @@ public partial class State : Node, IState
     [Export] protected GColl.Array<MovementQuirk3D> MovementQuirks { get; private set; } = new();
 
     /// <summary>
-    /// Face the live primary target while fallback animation owns the body. The innermost checked
-    /// state wins. An unchecked child cannot disable a checked ancestor; place motion-facing states
-    /// outside that subtree. Default off.
+    /// Face the live target while fallback animation owns the body. Inherit defers to the nearest
+    /// ancestor that sets Face or Don't Face (no facing if none does); Face turns facing on here;
+    /// Don't Face turns it off here, even under an ancestor that faces. Default Inherit.
     /// </summary>
     [ExportGroup("Facing")]
-    [Export] public bool FaceTarget { get; private set; }
+    [Export] public FaceTargetMode FaceTarget { get; private set; }
 
-    /// <summary>Optional target-memory key override. Empty means the primary target; ignored when Face Target is off.</summary>
+    /// <summary>Optional target-memory key override. Empty means the primary target; ignored unless Face Target is Face.</summary>
     [Export] public StringName? FaceTargetKey { get; private set; }
 
-    /// <summary>This state's facing intent; null defers to ancestors.</summary>
-    public StringName? ResolvedFaceTargetKey => !FaceTarget ? null
+    /// <summary>This state's own facing key; null unless Face Target is Face.</summary>
+    public StringName? ResolvedFaceTargetKey => FaceTarget != FaceTargetMode.Face ? null
         : FaceTargetKey != null && !FaceTargetKey.IsEmpty ? FaceTargetKey : BBDataSig.PrimaryTargetMemory;
 
-    /// <summary>The innermost checked state's facing key, walking this state and then its ancestors; null if none faces a target.</summary>
+    /// <summary>The facing key of the innermost state that sets Face or Don't Face, walking this state and then its ancestors; null for Don't Face or when none sets it.</summary>
     public StringName? FindFaceTargetKey()
     {
         for (var state = this; state != null; state = state.GetParent() as State)
         {
+            if (state.FaceTarget == FaceTargetMode.DontFace) { return null; }
             var key = state.ResolvedFaceTargetKey;
             if (key != null) { return key; }
         }
@@ -314,11 +315,14 @@ public partial class State : Node, IState
         _quirkRegistration.Resolve(BB, MovementQuirks, this);
     }
 
-    internal void SetFacingForTest(bool enabled, StringName? key = null)
+    internal void SetFacingForTest(FaceTargetMode mode, StringName? key = null)
     {
-        FaceTarget = enabled;
+        FaceTarget = mode;
         FaceTargetKey = key;
     }
+
+    internal void SetFacingForTest(bool enabled, StringName? key = null)
+        => SetFacingForTest(enabled ? FaceTargetMode.Face : FaceTargetMode.Inherit, key);
 
     internal void SetMovementQuirksForTest(GColl.Array<MovementQuirk3D> quirks) => MovementQuirks = quirks;
 
@@ -331,11 +335,11 @@ public partial class State : Node, IState
         var warnings = new List<string>();
         warnings.AddRange(ConfigWarnings.QuirkSlotWarnings(MovementQuirks));
 
-        if (!FaceTarget && FaceTargetKey != null && !FaceTargetKey.IsEmpty)
+        if (FaceTarget != FaceTargetMode.Face && FaceTargetKey != null && !FaceTargetKey.IsEmpty)
         {
-            warnings.Add("Face Target Key is ignored while Face Target is off.");
+            warnings.Add("Face Target Key is ignored unless Face Target is Face.");
         }
-        if (FaceTarget)
+        if (FaceTarget == FaceTargetMode.Face)
         {
             if (!ConfigWarnings.TryFindEntitySibling<Animation.AnimationClaimResolver>(this, out var resolver)
                 || resolver == null)
