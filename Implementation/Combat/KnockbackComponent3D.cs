@@ -133,9 +133,16 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	}
 	/// <summary>True while this receiver owns a pending push and movement suspension.</summary>
 	public bool IsHolding { get; private set; }
-	/// <summary>Evidence window retained for a held push, including its release latency; zero for immediate pushes.</summary>
-	public float SourceLookupSeconds { get; private set; }
-	private const float ReleaseMarginSeconds = 0.25f;
+	/// <summary>
+	/// Evidence window of a held push, including its release latency, while the push is held and for
+	/// <see cref="ReleaseMarginSeconds"/> after it releases; zero otherwise.
+	/// </summary>
+	public float SourceLookupSeconds
+		=> IsHolding || _unscaledSeconds() <= _windowClosesAt ? _sourceLookupSeconds : 0f;
+	private float _sourceLookupSeconds;
+	private double _windowClosesAt = double.NegativeInfinity;
+	/// <summary>Seconds a released hold keeps its evidence window open, so the state machine reacting to the release still finds the push.</summary>
+	public const float ReleaseMarginSeconds = 0.25f;
 	private IHealth? _health;
 	private IAnimationOrchestrator? _orchestrator;
 	private IBlackboard? _blackboard;
@@ -279,12 +286,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			}
 			return;
 		}
-		SourceLookupSeconds = 0f;
+		_sourceLookupSeconds = 0f;
 		float seconds = Hold == null ? 0f : KnockbackHold.Seconds(resolved.Impulse.Length(), deltaMagnitude, Hold);
 		if (!sustained && !IsDead && !IsSuppressed() && float.IsFinite(seconds) && seconds > 0f && double.IsFinite(now)
 			&& _movementProcessor.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero))
 		{
-			SourceLookupSeconds = Hold!.MaxSeconds + ReleaseMarginSeconds;
+			_sourceLookupSeconds = Hold!.MaxSeconds + ReleaseMarginSeconds;
 			_held.Start(resolved.Impulse, velocityDelta, attributedSource, now + seconds, now + Hold.MaxSeconds, Name);
 			IsHolding = true;
 			SetPhysicsProcess(true);
@@ -361,6 +368,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		var source = _held.Source;
 		var owner = _held.Owner;
 		IsHolding = false;
+		_windowClosesAt = _unscaledSeconds() + ReleaseMarginSeconds;
 		_held.Clear();
 		SetPhysicsProcess(false);
 		if (IsAlive(_movementProcessor)) { _movementProcessor.ReleaseSuspension(owner); }
