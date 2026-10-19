@@ -16,8 +16,8 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
 {
     /// <summary>
     /// Defers this transition while the victim's push is still held, so a launch-strength hit cannot match
-    /// a lower tier first. It only defers: the weighing window stays Within Seconds. Turn off only for a
-    /// victim with no hold.
+    /// a lower tier first. It only defers: the weighing window stays Within Seconds. Off lets the
+    /// transition fire during the hold, for an edge that must react at the hit itself.
     /// </summary>
     [Export] public bool DeferWhileHeld { get; set; } = true;
 
