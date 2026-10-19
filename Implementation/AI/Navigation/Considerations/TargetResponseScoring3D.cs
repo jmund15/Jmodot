@@ -108,24 +108,18 @@ public static class TargetResponseScoring3D
         foreach (var entry in scratch)
         {
             float normalizedWeight = FocusWeight(entry.Weight, maxWeight, focus) / totalFocusedWeight;
-            var memberScores = DirectionScoring.ByAlignment(
-                directions, entry.Direction, raw: settings.HasVerticalMovement);
-            foreach (var dir in directions.Directions)
-            {
-                perTargetScores[dir] += memberScores[dir] * normalizedWeight;
-            }
+            DirectionScoring.AddAlignment(directions, entry.Direction, normalizedWeight, perTargetScores,
+                raw: settings.HasVerticalMovement);
         }
 
         if (resolution > 1f - Epsilon) { return perTargetScores; }
 
-        var blended = new Dictionary<Vector3, float>();
         foreach (var dir in directions.Directions)
         {
-            float combineFirstScore = combineFirst.GetValueOrDefault(dir, 0f);
-            float perTargetScore = perTargetScores.GetValueOrDefault(dir, 0f);
-            blended[dir] = Mathf.Lerp(combineFirstScore, perTargetScore, resolution);
+            combineFirst[dir] = Mathf.Lerp(combineFirst.GetValueOrDefault(dir, 0f),
+                perTargetScores.GetValueOrDefault(dir, 0f), resolution);
         }
-        return blended;
+        return combineFirst;
     }
 
     /// <summary>

@@ -52,4 +52,30 @@ public static class DirectionScoring
 
         return scores;
     }
+
+    /// <summary>
+    /// Adds each direction's positive alignment with <paramref name="response"/>, times
+    /// <paramref name="weight"/>, onto <paramref name="scores"/>, under the same flatten rules as
+    /// <see cref="ByAlignment"/>. For a caller summing many responses into one map it owns, so no map
+    /// is built per response. Indexes the ordered ring, so no enumerator is boxed per response.
+    /// </summary>
+    public static void AddAlignment(DirectionSet3D directions, Vector3 response, float weight,
+        Dictionary<Vector3, float> scores, bool raw = false)
+    {
+        var ordered = directions.OrderedDirections;
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var dir = ordered[i];
+            var flatDir = dir;
+            if (!raw)
+            {
+                flatDir.Y = 0f;
+                if (flatDir.LengthSquared() < Epsilon) { continue; }
+                flatDir = flatDir.Normalized();
+            }
+
+            float alignment = flatDir.Dot(response);
+            if (alignment > 0f) { scores[dir] += alignment * weight; }
+        }
+    }
 }
