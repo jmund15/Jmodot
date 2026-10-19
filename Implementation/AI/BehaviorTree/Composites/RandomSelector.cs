@@ -16,15 +16,15 @@ using Shared;
 public partial class RandomSelector : CompositeTask
 {
     private int[] _shuffledIndices = [];
-
-    public override string? DescribeStarvationBy(BehaviorTask? child)
-        => AuthoredChildren().Count > 1 ? "a RandomSelector branch with siblings, which this step would starve" : null;
     private int _currentIdx = -1;
 
     // Per-agent shuffle stream, derived from BBDataSig.EntitySeed. Re-derived on every Init
     // (the pooling-refresh contract: a re-acquired agent re-stamps its seed, then re-Inits).
     private JmoRng _rng = null!;
     private bool _warnedNoSeed;
+
+    public override string? DescribeStarvationBy(BehaviorTask? child)
+        => AuthoredChildren().Count > 1 ? "a RandomSelector branch with siblings, which this step would starve" : null;
 
     public override void Init(Node agent, IBlackboard bb)
     {
