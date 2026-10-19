@@ -10,23 +10,30 @@ using Goals = Jmodot.Implementation.AI.Navigation.Goals;
 /// </summary>
 public static class EngageCycleDistances
 {
-    /// <summary>Slack on the position-versus-engage edge, so float sums of authored metres do not warn.</summary>
+    /// <summary>Slack on the position-versus-engage gap, so float sums of authored metres compare as authored.</summary>
     public const float PositionTolerance = 0.01f;
 
     /// <summary>
-    /// Warns when the position ring reaches the engage band's far edge: the creature would hold at
-    /// or past the distance it needs to attack from.
+    /// Warns when the engage band's far edge clears the position ring's far edge by less than
+    /// <paramref name="clearance"/>: a creature handed onto its ring at speed coasts past the gate
+    /// and leaves the cycle. A clearance that is negative or not finite warns on its own.
     /// </summary>
-    public static string? PositionVsEngage(Goals.GoalDistanceBand? position, RangeBandResource? engage)
+    public static string? PositionVsEngage(Goals.GoalDistanceBand? position, RangeBandResource? engage, float clearance)
     {
+        if (!float.IsFinite(clearance) || clearance < 0f)
+        {
+            return $"Gate Clearance ({clearance}) must be zero or a positive, finite number of metres.";
+        }
         if (!IsMemberBand(position) || engage == null) { return null; }
         var ring = position!.Value;
         if (!float.IsFinite(ring.Max) || !float.IsFinite(engage.MaxRange)) { return null; }
-        if (ring.Max < engage.MaxRange - PositionTolerance) { return null; }
+        float gap = engage.MaxRange - ring.Max;
+        if (gap > PositionTolerance && gap >= clearance - PositionTolerance) { return null; }
 
-        return $"Position ring reaches {ring.Max:0.##} m, but the engage band ends at " +
-               $"{engage.MaxRange:0.##} m. The creature holds at or past the edge it must attack from; " +
-               "lower the Position ring or raise the engage band.";
+        return $"Position ring reaches {ring.Max:0.##} m, {engage.MaxRange - ring.Max:0.##} m inside the engage " +
+               $"band's {engage.MaxRange:0.##} m edge, but Gate Clearance asks for {clearance:0.##} m. A creature " +
+               "handed onto the ring at speed coasts past the gate and leaves the cycle; raise the engage band, " +
+               "lower the Position ring, or set Gate Clearance from the creature's speed.";
     }
 
     /// <summary>Warns when the commit band is not contained in the attack band.</summary>

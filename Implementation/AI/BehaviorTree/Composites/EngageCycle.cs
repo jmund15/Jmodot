@@ -59,6 +59,13 @@ public partial class EngageCycle : CompositeTask
     /// <summary>Runs after an attack that failed after starting (a miss). Optional.</summary>
     [Export] public BehaviorTask? Miss { get; set; }
 
+    /// <summary>
+    /// Metres the engage band must reach past the Position step's far edge. A creature moving outward
+    /// at the ring coasts on before it turns, about speed² ÷ (2 × friction); a gate inside that coast
+    /// drops it out of the cycle. Raise it for a creature handed onto its ring at speed.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0,5.0,0.1,suffix:m")] public float GateClearance { get; private set; } = 0.8f;
+
     /// <summary>Raised on every transition: from, to (null when the cycle fails), outcome, seconds spent in <c>from</c>.</summary>
     public event Action<EngagePhase, EngagePhase?, PhaseOutcome, float> PhaseChanged = delegate { };
 
@@ -209,7 +216,7 @@ public partial class EngageCycle : CompositeTask
     {
         var engage = Conditions.OfType<IDistanceBandGate>().FirstOrDefault()?.GateBand;
         var position = (Position as MoveAction)?.Goal?.DistanceBand;
-        if (EngageCycleDistances.PositionVsEngage(position, engage) is { } positionWarning)
+        if (EngageCycleDistances.PositionVsEngage(position, engage, GateClearance) is { } positionWarning)
         {
             yield return positionWarning;
         }
