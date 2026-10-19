@@ -12,7 +12,7 @@ using Implementation.Shared;
 public class Perception3DInfo
 {
     private float _baseConfidence;
-    private MemoryDecayStrategy _decayStrategy = null!;
+    private MemoryDecayStrategy? _decayStrategy;
     private bool _sensingActive = true;
     private ulong _exitTime;
 
