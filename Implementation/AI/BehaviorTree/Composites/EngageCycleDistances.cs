@@ -26,9 +26,9 @@ public static class EngageCycleDistances
     }
 
     /// <summary>
-    /// Warns when a creature resting on the position ring's far edge, coasting its whole
-    /// <paramref name="clearance"/>, would leave the hold <see cref="HoldsEngagement"/> grants. The hold grows
-    /// the gate by the same clearance, so this asks that the ring sit inside the engage band. A clearance
+    /// Warns when the position ring's far edge reaches the engage band's far edge: a creature resting on
+    /// its ring would sit outside its own entry gate. The hold grows the gate by the clearance, which
+    /// cancels against a creature coasting that clearance, so the clearance only has to be usable; one
     /// that is negative or not finite warns on its own.
     /// </summary>
     public static string? PositionVsEngage(Goals.GoalDistanceBand? position, RangeBandResource? engage, float clearance)
@@ -40,7 +40,7 @@ public static class EngageCycleDistances
         if (!IsMemberBand(position) || engage == null) { return null; }
         var ring = position!.Value;
         if (!float.IsFinite(ring.Max) || !float.IsFinite(engage.MaxRange)) { return null; }
-        if (HoldsEngagement(ring.Max + clearance + PositionTolerance, engage, clearance)) { return null; }
+        if (ring.Max + PositionTolerance <= engage.MaxRange) { return null; }
 
         return $"Position ring reaches {ring.Max:0.##} m, at or past the engage band's {engage.MaxRange:0.##} m " +
                "edge. A creature resting on its ring would sit outside its own entry gate; lower the Position " +
