@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Combat;
 
 using Godot;
 using Jmodot.Core.Shared;
+using Jmodot.Core.Shared.Attributes;
 
 /// <summary>Maps a resolved push's impulse and speed change to a victim-only pause.</summary>
 [GlobalClass, Tool]
@@ -20,10 +21,10 @@ public partial class KnockbackHoldConfig : Resource, IResourceConfigurationWarni
     /// <summary>Blended strength below this causes no pause. Must be finite, at least 0 and less than 1.</summary>
     [Export(PropertyHint.Range, "0,0.99,0.01")] public float DeadZone { get => _deadZone; set { _deadZone = value; EmitChanged(); } }
     private float _deadZone;
-    /// <summary>Required curve from strength above the dead zone to a fraction of the maximum pause. New configs start with a straight line.</summary>
+    /// <summary>Required curve from strength above the dead zone to a fraction of the maximum pause.</summary>
     [ExportGroup("Pause")]
-    [Export] public Curve? Shape { get => _shape; set { _shape = value; EmitChanged(); } }
-    private Curve? _shape = LinearCurve();
+    [Export, RequiredExport] public Curve Shape { get => _shape; set { _shape = value; EmitChanged(); } }
+    private Curve _shape = null!;
     /// <summary>Maximum real seconds from the first push, including extensions. Must be finite and positive.</summary>
     [Export(PropertyHint.Range, "0.01,2,0.01,or_greater,suffix:s")] public float MaxSeconds { get => _maxSeconds; set { _maxSeconds = value; EmitChanged(); } }
     private float _maxSeconds = 0.2f;
@@ -48,16 +49,6 @@ public partial class KnockbackHoldConfig : Resource, IResourceConfigurationWarni
         && float.IsFinite(DeadZone) && DeadZone is >= 0f and < 1f
         && Shape != null
         && float.IsFinite(MaxSeconds) && MaxSeconds > 0f;
-
-    private static Curve LinearCurve()
-    {
-        var curve = new Curve();
-        curve.AddPoint(Vector2.Zero);
-        curve.AddPoint(Vector2.One);
-        curve.SetPointRightMode(0, Curve.TangentMode.Linear);
-        curve.SetPointLeftMode(1, Curve.TangentMode.Linear);
-        return curve;
-    }
 
     private System.Collections.Generic.List<string> Validate()
     {
