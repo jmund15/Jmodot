@@ -484,7 +484,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override string[] _GetConfigurationWarnings()
 	{
 		var warnings = new List<string>();
-		if (Hold != null) { warnings.AddRange(Hold.GetResourceConfigurationWarnings()); }
+		warnings.AddRange(ConfigWarnings.ResourceSlotWarnings("Hold", Hold, required: false));
 		// Dependencies are retrieved from Blackboard at runtime; no scene-time validation needed.
 		if (RepeatFactor is <= 0f or > 1f) { warnings.Add("RepeatFactor must be in (0, 1]."); }
 		if (PopMaxSpeed < 0f) { warnings.Add("PopMaxSpeed must be >= 0."); }
