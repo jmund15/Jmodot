@@ -81,21 +81,19 @@ public partial class PlayAnimAction : BehaviorAction, IAnimatedState
             return;
         }
 
+        // Completing inside Enter is safe: BehaviorTree queues a terminal raised during delivery and
+        // drains it after the outer call returns.
         if (this.Clip.IsEmpty)
         {
-            // Held Running, not completed: BehaviorTree's status handler re-enters a root task
-            // synchronously on ANY terminal status set inside Enter, so completing here recurses
-            // without bound. Until that restart defers a tick, the stall is warned, never fixed.
-            JmoLogger.Warning(this,
-                $"[AI] PlayAnimAction '{this.Name}' has an empty Clip: it claims nothing and will hold "
-                + "Running until its parent aborts it.");
+            this.Status = TaskStatus.Success;
+            return;
         }
 
         this._animator.AnimFinished += this.OnAnimFinished;
         this._subscribed = true;
         // The claim never re-resolves for a re-entered action (its Clip is unchanged), so the
         // resolver-side gate can't fire to re-drive a finished clip — drive it here before Running.
-        if (!this.Clip.IsEmpty) { this._animator.StartAnimIfChanged(this.Clip); }
+        this._animator.StartAnimIfChanged(this.Clip);
         this.Status = TaskStatus.Running;
     }
 
@@ -116,8 +114,8 @@ public partial class PlayAnimAction : BehaviorAction, IAnimatedState
         if (this.Clip.IsEmpty)
         {
             warnings.Add(
-                "Clip is empty, so this action claims nothing and waits on an AnimFinished that never "
-                + "arrives — it holds Running until its parent aborts it. Author a clip, or delete the action.");
+                "Clip is empty, so this action claims nothing and completes at once as a no-op. "
+                + "Author a clip, or delete the action.");
         }
 
         if (!ConfigWarnings.TryFindEntitySibling<AnimationClaimResolver>(this, out _))
