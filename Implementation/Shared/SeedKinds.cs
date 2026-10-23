@@ -37,6 +37,7 @@ public static class SeedKinds
     [SeedStreamKey("dither")] public const string Dither = "dither";
     [SeedStreamKey("cadence_phase")] public const string CadencePhase = "cadence_phase";
     [SeedStreamKey("lag")] public const string Lag = "lag";
+    [SeedStreamKey("probability_to_run")] public const string ProbabilityToRun = "probability_to_run";
     [SeedStreamKey("orbit_goal")] public const string OrbitGoal = "orbit_goal";
 
     // A body split off an existing one derives from its parent's entity seed plus its ordinal, so
