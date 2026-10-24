@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using Godot;
 using Jmodot.Core.Shared.Attributes;
+using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 public static class ResourceExts
@@ -40,27 +41,9 @@ public static class ResourceExts
             return;
         }
 
-        var type = resource.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-        foreach (var prop in type.GetProperties(flags))
+        foreach (var member in RequiredExportMembers.For(resource.GetType()))
         {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            ValidateRequiredExportMember(prop.GetValue(resource), prop.Name, resource, visited);
-        }
-
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            ValidateRequiredExportMember(field.GetValue(resource), field.Name, resource, visited);
+            ValidateRequiredExportMember(member.GetValue(resource), member.Name, resource, visited);
         }
     }
 
@@ -117,27 +100,10 @@ public static class ResourceExts
     /// </summary>
     public static IReadOnlyList<string> FindMissingRequiredExports(this Resource resource)
     {
-        var type = resource.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        var missing = new List<string>();
-
-        foreach (var prop in type.GetProperties(flags))
-        {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() != null && prop.GetValue(resource) == null)
-            {
-                missing.Add(prop.Name);
-            }
-        }
-
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() != null && field.GetValue(resource) == null)
-            {
-                missing.Add(field.Name);
-            }
-        }
-
-        return missing;
+        return RequiredExportMembers.For(resource.GetType())
+            .Where(member => member.GetValue(resource) == null)
+            .Select(member => member.Name)
+            .ToList();
     }
 
     /// <summary>

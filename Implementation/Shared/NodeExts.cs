@@ -79,40 +79,13 @@ public static class NodeExts
     /// </example>
     public static void ValidateRequiredExports(this Node node)
     {
-        var type = node.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-        // Check properties
-        foreach (var prop in type.GetProperties(flags))
+        foreach (var member in RequiredExportMembers.For(node.GetType()))
         {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = prop.GetValue(node);
-            if (value == null)
+            if (member.GetValue(node) == null)
             {
                 var ownerName = node.Owner?.Name ?? "[no owner]";
                 throw new NodeConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
-            }
-        }
-
-        // Check fields
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = field.GetValue(node);
-            if (value == null)
-            {
-                var ownerName = node.Owner?.Name ?? "[no owner]";
-                throw new NodeConfigurationException(
-                    $"Required export '{field.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
+                    $"Required export '{member.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
             }
         }
     }
