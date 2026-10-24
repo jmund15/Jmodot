@@ -45,4 +45,10 @@ public partial class AccelerationProfile3D : Resource
         var rate = _rate.ResolveFloatValue(stats);
         return currentHorizontal.MoveToward(targetHorizontal, rate * delta);
     }
+
+    #region Test Helpers
+#if TOOLS
+    internal void _TestSetRate(BaseFloatValueDefinition rate) => _rate = rate;
+#endif
+    #endregion
 }
