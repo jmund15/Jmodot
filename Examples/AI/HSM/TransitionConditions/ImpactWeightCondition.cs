@@ -10,13 +10,16 @@ using Implementation.AI.BB;
 using Implementation.Combat;
 using Implementation.Shared;
 
-/// <summary>Routes direct hits by their decayed weight after the emitting state's entry.</summary>
+/// <summary>
+/// Routes direct hits after the emitting state's entry by their peak weight: the sum at each hit's arrival, with
+/// earlier hits decayed by their gap to it. A hit keeps its band until it leaves the window, however late the check runs.
+/// </summary>
 [GlobalClass, Tool]
 public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Shared.IResourceConfigurationWarnings
 {
     /// <summary>
-    /// Defers this transition while the victim's push is still held, so a launch-strength hit cannot match
-    /// a lower tier first. It only defers: the weighing window stays Within Seconds. Off lets the
+    /// Defers this transition while the victim's push is still held, or released but not yet applied by its
+    /// movement, so a launch-strength hit cannot match a lower tier first. It only defers: the weighing window stays Within Seconds. Off lets the
     /// transition fire during the hold, for an edge that must react at the hit itself.
     /// </summary>
     [Export] public bool DeferWhileHeld { get; set; } = true;
@@ -30,7 +33,10 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
     /// <summary>Stat added to both bounds; an absent stat value reads as zero.</summary>
     [Export, RequiredExport] public Jmodot.Core.Stats.Attribute PoiseAttribute { get; private set; } = null!;
 
-    /// <summary>Combat-time window for linear decay.</summary>
+    /// <summary>
+    /// Combat-time window: hits closer together than this add up, each decayed linearly by its gap, and a hit
+    /// stops counting once it is this old. Keep it longer than the victim's longest push hold, or a held hit expires unrouted.
+    /// </summary>
     [Export(PropertyHint.Range, "0.05,2,0.05,suffix:s")] public float WithinSeconds { get; private set; } = 0.5f;
 
     /// <summary>
@@ -62,9 +68,9 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
         if (!float.IsFinite(min) || !float.IsFinite(poise)
             || (max.HasValue && (!float.IsFinite(max.Value) || max.Value <= min))) { return false; }
         var mark = CountOnlyAfterStateEntry ? entry : CombatLogMark.Origin;
-        float qualifying = log.SumDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : 1f, SettleSeconds);
+        float qualifying = log.PeakDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : 1f, SettleSeconds);
         if (!(qualifying > 0f)) { return false; }
-        float weight = log.SumDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : r.Weight, SettleSeconds);
+        float weight = log.PeakDecayedSince<HitReport>(mark, WithinSeconds, static r => r.Sustained ? 0f : r.Weight, SettleSeconds);
         return float.IsFinite(weight) && weight >= min && (!max.HasValue || weight < max.Value);
     }
 

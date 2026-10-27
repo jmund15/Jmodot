@@ -31,31 +31,40 @@ public class CombatLog
         _resultsByCombatTime.TryGetValue(CombatTimeElapsed, out var list) ? list.Count : 0);
 
     /// <summary>
-    /// Linearly decayed sum strictly after the mark and strictly inside the window. Results younger than
-    /// <paramref name="minAgeSeconds"/> are skipped, so a caller can wait out the physics tick that applies a hit's consequences;
-    /// the wait does not decay a result, whose age counts from the end of it.
+    /// The largest sum taken at the arrival of a result strictly after the mark, where each earlier result counts
+    /// linearly decayed by its gap to that arrival and drops out at <paramref name="withinSeconds"/>. An arrival counts once it
+    /// is <paramref name="minAgeSeconds"/> old, so a caller can wait out the physics tick that applies a hit's consequences,
+    /// and stops counting once it is that wait plus the window old. How late the caller reads never lowers the value.
     /// </summary>
-    public float SumDecayedSince<T>(in CombatLogMark since, float withinSeconds, System.Func<T, float> valueOf, float minAgeSeconds = 0f) where T : CombatResult
+    public float PeakDecayedSince<T>(in CombatLogMark since, float withinSeconds, System.Func<T, float> valueOf, float minAgeSeconds = 0f) where T : CombatResult
     {
         if (!(withinSeconds > 0f) || !float.IsFinite(withinSeconds)) { return 0f; }
-        double sum = 0d;
+        double peak = 0d;
         for (int k = _resultsByCombatTime.Count - 1; k >= 0; k--)
         {
-            float time = _resultsByCombatTime.Keys[k];
-            float age = CombatTimeElapsed - time;
-            if (age - minAgeSeconds >= withinSeconds || time < since.CombatTime) { break; }
+            float arrival = _resultsByCombatTime.Keys[k];
+            float age = CombatTimeElapsed - arrival;
+            if (age - minAgeSeconds >= withinSeconds || arrival < since.CombatTime) { break; }
             if (age < minAgeSeconds) { continue; }
-            var list = _resultsByCombatTime.Values[k];
-            int start = time == since.CombatTime ? since.CountAtTime : 0;
-            for (int i = start; i < list.Count; i++)
+            double sum = 0d;
+            for (int j = k; j >= 0; j--)
             {
-                if (list[i] is T match)
+                float time = _resultsByCombatTime.Keys[j];
+                float gap = arrival - time;
+                if (gap >= withinSeconds || time < since.CombatTime) { break; }
+                var list = _resultsByCombatTime.Values[j];
+                int start = time == since.CombatTime ? since.CountAtTime : 0;
+                for (int i = start; i < list.Count; i++)
                 {
-                    sum += valueOf(match) * (1d - (age - minAgeSeconds) / withinSeconds);
+                    if (list[i] is T match)
+                    {
+                        sum += valueOf(match) * (1d - gap / withinSeconds);
+                    }
                 }
             }
+            if (sum > peak) { peak = sum; }
         }
-        return (float)sum;
+        return (float)peak;
     }
 
     public void UpdateCombatTime(float combatDelta)

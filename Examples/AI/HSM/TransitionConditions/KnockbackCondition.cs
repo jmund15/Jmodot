@@ -56,8 +56,8 @@ public partial class KnockbackCondition : CombatLogCondition
     public float WithinSeconds { get; set; }
 
     /// <summary>
-    /// On: defers this transition while the victim's push is still held, so a launch-strength hit cannot
-    /// match a lower tier first, and after release reads the receiver's held-push evidence window in place
+    /// On: defers this transition while the victim's push is pending (held, or released but not yet applied
+    /// by its movement), so a launch-strength hit cannot match a lower tier first, and after release reads the receiver's held-push evidence window in place
     /// of Within Seconds, a Within Seconds of 0 included. Off: Within Seconds alone decides, and the
     /// transition can fire during the hold.
     /// </summary>
