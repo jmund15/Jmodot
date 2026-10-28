@@ -62,7 +62,6 @@ public abstract partial class PrioritySelectorBase : CompositeTask
 
     protected override void OnProcessFrame(float delta)
     {
-        OnTickStart();
         if (_runningChildIdx >= 0 && _runningChildIdx < ChildTasks.Count)
         {
             ChildTasks[_runningChildIdx].ProcessFrame(delta);
