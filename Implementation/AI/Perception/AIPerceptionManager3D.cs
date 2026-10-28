@@ -88,6 +88,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             if (child is Timer timer)
             {
                 var capturedTimer = timer;
+                timer.ProcessCallback = Timer.TimerProcessCallback.Physics;
                 timer.Timeout += () =>
                 {
                     if (IsInstanceValid(capturedTimer))
