@@ -41,7 +41,7 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
 
     /// <summary>
     /// A hit counts once it is this old in combat time, which advances once per physics tick. Transitions are
-    /// checked every process frame but a hit's knockback lands in the next physics tick, so an edge ordered after
+    /// checked each physics tick, but a hit's knockback lands in the tick after the hit, so an edge ordered after
     /// the launch edge sets a value above zero to let the launch edge see the velocity first. Zero routes at once.
     /// </summary>
     [Export(PropertyHint.Range, "0,0.1,0.005,suffix:s")] public float SettleSeconds { get; private set; }
