@@ -197,6 +197,24 @@ public abstract partial class StatusRunner : Node
         QueueFree();
     }
     
+    /// <summary>
+    /// Gets the child <see cref="Timer"/> named <paramref name="name"/>, or creates and adds one, then
+    /// configures it to count physics ticks rather than frames. Call from <c>_Ready</c>.
+    /// </summary>
+    protected Timer AcquireTimer(string name, bool oneShot)
+    {
+        var timer = GetNodeOrNull<Timer>(name);
+        if (timer == null)
+        {
+            timer = new Timer { Name = name };
+            AddChild(timer);
+        }
+        timer.OneShot = oneShot;
+        timer.Autostart = false;
+        timer.ProcessCallback = Timer.TimerProcessCallback.Physics;
+        return timer;
+    }
+
     private VisualEffectController? FindVisualController(ICombatant target)
     {
         if (target?.OwnerNode == null) { return null; }

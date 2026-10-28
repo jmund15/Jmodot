@@ -14,14 +14,7 @@ public partial class ConditionStatusRunner : StatusRunner
 
     public override void _Ready()
     {
-        _checkTimer = GetNodeOrNull<Timer>("CheckTimer");
-        if (_checkTimer == null)
-        {
-            _checkTimer = new Timer { Name = "CheckTimer" };
-            AddChild(_checkTimer);
-        }
-        _checkTimer.OneShot = true;
-        _checkTimer.Autostart = false;
+        _checkTimer = AcquireTimer("CheckTimer", oneShot: true);
     }
     public override void Start(ICombatant target, HitContext context)
     {
@@ -35,11 +28,11 @@ public partial class ConditionStatusRunner : StatusRunner
         }
         else
         {
-            SetProcess(true);
+            SetPhysicsProcess(true);
         }
     }
 
-    public override void _Process(double delta)
+    public override void _PhysicsProcess(double delta)
     {
         if (CheckInterval <= 0)
         {
