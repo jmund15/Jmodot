@@ -3,7 +3,7 @@ namespace Jmodot.Core.Math;
 using System;
 
 /// <summary>
-/// A fixed-interval cadence that keeps its leftover time. Each <see cref="Advance"/> adds elapsed
+/// A fixed-interval cadence that keeps its leftover time. Each <see cref="Advance(double)"/> adds elapsed
 /// time and returns how many intervals came due, so an interval shorter than one step, or a step
 /// that overshoots, still fires every due interval instead of dropping the remainder.
 /// </summary>
@@ -14,7 +14,7 @@ using System;
 /// </remarks>
 public struct IntervalClock
 {
-    /// <summary>Default cap on fires returned by one <see cref="Advance"/>.</summary>
+    /// <summary>Default cap on fires returned by one <see cref="Advance(double)"/>.</summary>
     public const int DefaultMaxFires = 8;
 
     /// <summary>The smallest interval; a zero, negative or non-finite interval clamps to it.</summary>
