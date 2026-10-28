@@ -138,9 +138,10 @@ public partial class AIEmotionalStateComponent : Node, IComponent, IBlackboardPr
     }
 
     /// <summary>
-    /// Called each frame. Ticks all active emotions and periodically sweeps inactive ones.
+    /// Called each physics tick, so decay runs on the clock the AI decisions that read emotions run on.
+    /// Ticks all active emotions and periodically sweeps inactive ones.
     /// </summary>
-    public override void _Process(double delta)
+    public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;
         TickEmotions(dt);

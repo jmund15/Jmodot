@@ -75,6 +75,15 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     // waits them out rather than laying the body flat over ground it simply could not see.
     private const int SpawnGroundProbeFrames = 8;
 
+    /// <summary>
+    /// Physics priority of the follow pass: above the default 0 every host moves at, so the head has
+    /// already moved this tick when its position is sampled. Below
+    /// <see cref="Jmodot.Implementation.Interaction.Attachment.AttachmentRiderComponent3D.PhysicsPriority"/>,
+    /// so a rider on a unit reads the unit's written pose. A chain whose head is itself a rider is NOT
+    /// covered: it would sample before the rider's follow.
+    /// </summary>
+    public const int PhysicsPriority = 10;
+
     // How far above a promotion front unit the buried-discrimination probe starts: high enough to
     // clear a floor slab the unit slipped under, low enough not to read an upper storey as "above".
     private const float BuriedProbeHeight = 3f;
@@ -120,6 +129,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             ?? throw new NodeConfigurationException(
                 $"{nameof(SegmentedBodyComponent3D)} must be a direct child of the head scene's Node3D root.", this);
 
+        this.ProcessPhysicsPriority = PhysicsPriority;
         this._history = new PositionHistory(this.MaxSegments, this.SegmentSpacing);
         this._sampleDistances = new float[this.MaxSegments];
         this._sampleResults = new (Vector3, Vector3)[this.MaxSegments];
@@ -165,7 +175,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         Callable.From(this.FreeSegmentsIfRemoved).CallDeferred();
     }
 
-    public override void _Process(double delta)
+    /// <summary>
+    /// Samples the head's history and writes every unit's pose on the physics tick: units are physics
+    /// bodies, so their positions must land with the tick that moves the head. Runs at
+    /// <see cref="PhysicsPriority"/>, after the head's own movement at the default priority.
+    /// </summary>
+    public override void _PhysicsProcess(double delta)
     {
         if (Engine.IsEditorHint()) { return; }
         if (this._head == null || this._history == null) { return; }
