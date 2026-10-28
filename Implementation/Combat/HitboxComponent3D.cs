@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Math;
 using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
 using Jmodot.Implementation.Combat.CapacityProviders;
@@ -153,7 +154,8 @@ using AI.BB;
         private HashSet<HurtboxComponent3D> _hitHurtboxes = new();
         private bool _endPending;
         private bool _ownsHitLedger = true;
-        private double _tickTimer = 0.0;
+        // NOT readonly: IntervalClock is a mutable struct.
+        private IntervalClock _tickClock = new(0.1f);
 
         // Cap-rule state. _acceptedHits is the count consulted by CapacityProviders and
         // is incremented synchronously after each accepted hit. _cachedStatProvider is
@@ -257,23 +259,32 @@ using AI.BB;
             if (!IsActive) { return; }
             if (!IsContinuous) { return; }
 
-            _tickTimer += delta;
-
-            if (_tickTimer >= ContinuousTickInterval)
+            if (!(ContinuousTickInterval > 0))
             {
-                _tickTimer = 0.0;
-
-                // Reset tracking to allow re-hitting targets inside the volume. A SHARED registry is
-                // cleared here too, by design: continuous mode's whole contract is re-hitting on a
-                // tick cadence, and a ledger that outlived the tick would cap the volume at one hit
-                // per target for its entire life.
-                _hitHurtboxes.Clear();
-                // Reset cap counter so capacity rules apply per-tick (e.g., "max 3 per tick").
-                _acceptedHits = 0;
-
-                // Manually scan for targets currently inside.
-                ProcessOverlappingAreas();
+                ProcessContinuousTick();
+                return;
             }
+
+            _tickClock.Interval = ContinuousTickInterval;
+            // A pending end ends the walk: the pass in flight lands, and no later fire starts this frame.
+            for (int n = _tickClock.Advance(delta); n > 0 && IsActive && !_endPending; n--)
+            {
+                ProcessContinuousTick();
+            }
+        }
+
+        private void ProcessContinuousTick()
+        {
+            // Reset tracking to allow re-hitting targets inside the volume. A SHARED registry is
+            // cleared here too, by design: continuous mode's whole contract is re-hitting on a
+            // tick cadence, and a ledger that outlived the tick would cap the volume at one hit
+            // per target for its entire life.
+            _hitHurtboxes.Clear();
+            // Reset cap counter so capacity rules apply per-tick (e.g., "max 3 per tick").
+            _acceptedHits = 0;
+
+            // Manually scan for targets currently inside.
+            ProcessOverlappingAreas();
         }
         #endregion
 
@@ -447,7 +458,7 @@ using AI.BB;
             CurrentPayload = payload;
             _endPending = false;
             if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
-            _tickTimer = 0.0;
+            _tickClock.Reset();
             _acceptedHits = 0;
             _cachedStatProvider = payload.Stats;
 

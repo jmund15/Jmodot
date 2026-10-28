@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Math;
 using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
 using GCol = Godot.Collections;
@@ -111,7 +112,8 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     private HashSet<HurtboxComponent2D> _hitHurtboxes = new();
     private bool _endPending;
     private bool _ownsHitLedger = true;
-    private double _tickTimer = 0.0;
+    // NOT readonly: IntervalClock is a mutable struct.
+    private IntervalClock _tickClock = new(0.1f);
 
     /// <summary>
     /// Number of physics frames to retry the pending overlap check.
@@ -186,17 +188,27 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         if (!IsActive) { return; }
         if (!IsContinuous) { return; }
 
-        _tickTimer += delta;
-
-        if (_tickTimer >= ContinuousTickInterval)
+        if (!(ContinuousTickInterval > 0))
         {
-            _tickTimer = 0.0;
-            // A SHARED registry is cleared here too, by design: continuous mode's whole contract is
-            // re-hitting on a tick cadence, and a ledger that outlived the tick would cap the volume
-            // at one hit per target for its entire life.
-            _hitHurtboxes.Clear();
-            ProcessOverlappingAreas();
+            ProcessContinuousTick();
+            return;
         }
+
+        _tickClock.Interval = ContinuousTickInterval;
+        // A pending end ends the walk: the pass in flight lands, and no later fire starts this frame.
+        for (int n = _tickClock.Advance(delta); n > 0 && IsActive && !_endPending; n--)
+        {
+            ProcessContinuousTick();
+        }
+    }
+
+    private void ProcessContinuousTick()
+    {
+        // A SHARED registry is cleared here too, by design: continuous mode's whole contract is
+        // re-hitting on a tick cadence, and a ledger that outlived the tick would cap the volume
+        // at one hit per target for its entire life.
+        _hitHurtboxes.Clear();
+        ProcessOverlappingAreas();
     }
     #endregion
 
@@ -348,7 +360,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         CurrentPayload = payload;
         _endPending = false;
         if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
-        _tickTimer = 0.0;
+        _tickClock.Reset();
 
         OnAttackStarted?.Invoke();
 

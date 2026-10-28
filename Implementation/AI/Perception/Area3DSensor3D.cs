@@ -9,6 +9,7 @@ using Core.Combat.EffectDefinitions;
 using Core.Components;
 using Core.Identification;
 using Core.Stats;
+using Jmodot.Core.Math;
 using Shared;
 using Strategies;
 
@@ -95,7 +96,11 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     private readonly HashSet<Node3D> _trackedBodies = new();
     private readonly HashSet<Node3D> _visibleBodies = new();
     private readonly HashSet<Node3D> _polledBodies = new();
-    private float _pollTimer;
+    // NOT readonly: IntervalClock is a mutable struct.
+    private IntervalClock _pollClock = new(0.25f);
+#if TOOLS
+    private int _pollCount;
+#endif
     private CollisionShape3D? _cachedCollisionShape;
     private IStatProvider? _statProvider;
     private bool _resyncPending;
@@ -303,11 +308,15 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         // Static body polling via IntersectShape (replaces body_entered for static bodies)
         if (_staticBodyPolling)
         {
-            _pollTimer += (float)delta;
-            if (_pollTimer >= _pollInterval)
+            // A non-positive interval polls every tick, as it always has. Otherwise one poll covers
+            // every fire due this tick: a poll samples current state, so extra fires add nothing.
+            _pollClock.Interval = _pollInterval;
+            if (!(_pollInterval > 0) || _pollClock.Advance(delta) > 0)
             {
-                _pollTimer = 0f;
                 PollStaticBodies();
+#if TOOLS
+                _pollCount++;
+#endif
             }
         }
 
@@ -457,6 +466,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     internal int VisibleBodyCount => _visibleBodies.Count;
     internal int TrackedBodyCount => _trackedBodies.Count;
     internal int PolledBodyCount => _polledBodies.Count;
+    internal int PollCount => _pollCount;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
     internal void SimulatePhysicsTick(double delta) => _PhysicsProcess(delta);
