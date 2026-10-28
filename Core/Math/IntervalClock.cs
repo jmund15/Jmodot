@@ -56,14 +56,28 @@ public struct IntervalClock
         Accumulated += delta;
         float interval = Interval;
         int maxFires = _maxFires > 0 ? _maxFires : DefaultMaxFires;
-        int due = (int)Math.Floor((Accumulated + BoundaryTolerance) / interval);
-        if (due > maxFires)
+        double quotient = Math.Floor((Accumulated + BoundaryTolerance) / interval);
+        if (quotient > maxFires)
         {
             Accumulated = 0;
             return maxFires;
         }
+        int due = (int)quotient;
         Accumulated = Math.Max(0, Accumulated - due * (double)interval);
         return due;
+    }
+
+    /// <summary>
+    /// Advances at <paramref name="interval"/>. A non-positive or non-finite <paramref name="interval"/>
+    /// returns 1 (one fire per call) and leaves <see cref="Accumulated"/> unchanged; otherwise it sets
+    /// <see cref="Interval"/> and returns <see cref="Advance(double)"/>.
+    /// </summary>
+    public int Advance(double delta, float interval)
+    {
+        if (!(interval > 0) || !float.IsFinite(interval)) { return 1; }
+
+        Interval = interval;
+        return Advance(delta);
     }
 
     /// <summary>Sets the accumulated time, e.g. to <see cref="Interval"/> so the next advance fires at once.</summary>
