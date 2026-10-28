@@ -113,7 +113,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     private bool _endPending;
     private bool _ownsHitLedger = true;
     // NOT readonly: IntervalClock is a mutable struct.
-    private IntervalClock _tickClock = new(0.1f);
+    private IntervalClock _tickClock = new();
 
     /// <summary>
     /// Number of physics frames to retry the pending overlap check.
@@ -188,15 +188,8 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         if (!IsActive) { return; }
         if (!IsContinuous) { return; }
 
-        if (!(ContinuousTickInterval > 0))
-        {
-            ProcessContinuousTick();
-            return;
-        }
-
-        _tickClock.Interval = ContinuousTickInterval;
         // A pending end ends the walk: the pass in flight lands, and no later fire starts this frame.
-        for (int n = _tickClock.Advance(delta); n > 0 && IsActive && !_endPending; n--)
+        for (int n = _tickClock.Advance(delta, ContinuousTickInterval); n > 0 && IsActive && !_endPending; n--)
         {
             ProcessContinuousTick();
         }

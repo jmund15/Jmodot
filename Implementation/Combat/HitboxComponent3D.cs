@@ -155,7 +155,7 @@ using AI.BB;
         private bool _endPending;
         private bool _ownsHitLedger = true;
         // NOT readonly: IntervalClock is a mutable struct.
-        private IntervalClock _tickClock = new(0.1f);
+        private IntervalClock _tickClock = new();
 
         // Cap-rule state. _acceptedHits is the count consulted by CapacityProviders and
         // is incremented synchronously after each accepted hit. _cachedStatProvider is
@@ -259,15 +259,8 @@ using AI.BB;
             if (!IsActive) { return; }
             if (!IsContinuous) { return; }
 
-            if (!(ContinuousTickInterval > 0))
-            {
-                ProcessContinuousTick();
-                return;
-            }
-
-            _tickClock.Interval = ContinuousTickInterval;
             // A pending end ends the walk: the pass in flight lands, and no later fire starts this frame.
-            for (int n = _tickClock.Advance(delta); n > 0 && IsActive && !_endPending; n--)
+            for (int n = _tickClock.Advance(delta, ContinuousTickInterval); n > 0 && IsActive && !_endPending; n--)
             {
                 ProcessContinuousTick();
             }

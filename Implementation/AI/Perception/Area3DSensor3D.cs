@@ -97,7 +97,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     private readonly HashSet<Node3D> _visibleBodies = new();
     private readonly HashSet<Node3D> _polledBodies = new();
     // NOT readonly: IntervalClock is a mutable struct.
-    private IntervalClock _pollClock = new(0.25f);
+    private IntervalClock _pollClock = new();
 #if TOOLS
     private int _pollCount;
 #endif
@@ -308,10 +308,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         // Static body polling via IntersectShape (replaces body_entered for static bodies)
         if (_staticBodyPolling)
         {
-            // A non-positive interval polls every tick, as it always has. Otherwise one poll covers
-            // every fire due this tick: a poll samples current state, so extra fires add nothing.
-            _pollClock.Interval = _pollInterval;
-            if (!(_pollInterval > 0) || _pollClock.Advance(delta) > 0)
+            // A non-positive interval polls every tick. One poll covers every fire due this tick:
+            // a poll samples current state, so extra fires add nothing.
+            if (_pollClock.Advance(delta, _pollInterval) > 0)
             {
                 PollStaticBodies();
 #if TOOLS
