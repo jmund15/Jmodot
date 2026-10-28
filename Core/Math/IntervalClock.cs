@@ -9,7 +9,8 @@ using System;
 /// </summary>
 /// <remarks>
 /// A mutable struct: hold it in a non-readonly field and never copy it out, or the copy advances
-/// instead of the field.
+/// instead of the field. A <c>default</c> clock runs at <see cref="MinimumInterval"/> with the
+/// <see cref="DefaultMaxFires"/> cap.
 /// </remarks>
 public struct IntervalClock
 {
@@ -36,7 +37,7 @@ public struct IntervalClock
     /// <summary>The interval in seconds. Setting it keeps <see cref="Accumulated"/>.</summary>
     public float Interval
     {
-        readonly get => _interval;
+        readonly get => _interval > 0 ? _interval : MinimumInterval;
         set => _interval = Clamp(value);
     }
 
@@ -53,13 +54,15 @@ public struct IntervalClock
         if (!(delta >= 0) || double.IsInfinity(delta)) { return 0; }
 
         Accumulated += delta;
-        int due = (int)Math.Floor((Accumulated + BoundaryTolerance) / _interval);
-        if (due > _maxFires)
+        float interval = Interval;
+        int maxFires = _maxFires > 0 ? _maxFires : DefaultMaxFires;
+        int due = (int)Math.Floor((Accumulated + BoundaryTolerance) / interval);
+        if (due > maxFires)
         {
             Accumulated = 0;
-            return _maxFires;
+            return maxFires;
         }
-        Accumulated = Math.Max(0, Accumulated - due * (double)_interval);
+        Accumulated = Math.Max(0, Accumulated - due * (double)interval);
         return due;
     }
 
