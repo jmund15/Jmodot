@@ -25,11 +25,19 @@ using Jmodot.Implementation.Shared;
 /// </remarks>
 public sealed class SnapshotCoordinator
 {
-    private readonly List<IParticipant> _participants = new();
+    private readonly List<Participant> _participants = new();
 
     /// <summary>The most recent <see cref="Capture"/> result, or null before the first capture and after <see cref="ClearLatest"/>.</summary>
     public SnapshotData? Latest { get; private set; }
 
+    /// <summary>
+    /// Adds a participant: <paramref name="capture"/> produces its slice at each <see cref="Capture"/>, and
+    /// <paramref name="restore"/> applies a slice of type <typeparamref name="TSlice"/> during
+    /// <paramref name="phase"/>, returning false when it did not apply it. <paramref name="key"/> names the slice in
+    /// the saved data and must be unique and non-empty. Registration order is capture order and restore order within a
+    /// phase. Throws <see cref="ArgumentNullException"/> for a null delegate and <see cref="ArgumentException"/> for an
+    /// empty or duplicate key.
+    /// </summary>
     public void Register<TSlice>(
         StringName key,
         Func<TSlice> capture,
@@ -48,7 +56,12 @@ public sealed class SnapshotCoordinator
             throw new ArgumentException($"A snapshot participant is already registered under '{key}'.", nameof(key));
         }
 
-        this._participants.Add(new Participant<TSlice>(key, phase, capture, restore));
+        this._participants.Add(new Participant(
+            key,
+            phase,
+            () => capture(),
+            slice => slice is TSlice,
+            slice => restore((TSlice)slice)));
     }
 
     /// <summary>Removes the participant registered under <paramref name="key"/>; false when none is registered.</summary>
@@ -87,6 +100,7 @@ public sealed class SnapshotCoordinator
         return data;
     }
 
+    /// <summary>Drops <see cref="Latest"/>, for example after a successful flush to disk.</summary>
     public void ClearLatest() => this.Latest = null;
 
     /// <summary>
@@ -162,11 +176,17 @@ public sealed class SnapshotCoordinator
         return count;
     }
 
-    private bool TryApply(IParticipant participant, SnapshotSlice slice)
+    private bool TryApply(Participant participant, SnapshotSlice slice)
     {
         try
         {
-            return participant.Apply(slice);
+            if (participant.Apply(slice))
+            {
+                return true;
+            }
+
+            JmoLogger.Warning(this, $"[Snapshot] restore delegate for '{participant.Key}' did not apply its slice.");
+            return false;
         }
         catch (Exception ex)
         {
@@ -188,40 +208,10 @@ public sealed class SnapshotCoordinator
         return -1;
     }
 
-    private interface IParticipant
-    {
-        StringName Key { get; }
-
-        SnapshotPhase Phase { get; }
-
-        SnapshotSlice? Capture();
-
-        bool Accepts(SnapshotSlice slice);
-
-        bool Apply(SnapshotSlice slice);
-    }
-
-    private sealed class Participant<TSlice> : IParticipant where TSlice : SnapshotSlice
-    {
-        private readonly Func<TSlice> _capture;
-        private readonly Func<TSlice, bool> _restore;
-
-        public Participant(StringName key, SnapshotPhase phase, Func<TSlice> capture, Func<TSlice, bool> restore)
-        {
-            this.Key = key;
-            this.Phase = phase;
-            this._capture = capture;
-            this._restore = restore;
-        }
-
-        public StringName Key { get; }
-
-        public SnapshotPhase Phase { get; }
-
-        public SnapshotSlice? Capture() => this._capture();
-
-        public bool Accepts(SnapshotSlice slice) => slice is TSlice;
-
-        public bool Apply(SnapshotSlice slice) => this._restore((TSlice)slice);
-    }
+    private sealed record Participant(
+        StringName Key,
+        SnapshotPhase Phase,
+        Func<SnapshotSlice?> Capture,
+        Func<SnapshotSlice, bool> Accepts,
+        Func<SnapshotSlice, bool> Apply);
 }

@@ -64,6 +64,12 @@ public static class AtomicResourceFile
         return Error.Ok;
     }
 
+    /// <summary>
+    /// Loads the resource at <paramref name="userPath"/>, or null when absent. <see cref="WriteAtomic{T}"/> does not
+    /// refresh the loader cache, so a caller that reads after writing the same path in one process must pass
+    /// <see cref="ResourceLoader.CacheMode.Replace"/>; the default <see cref="ResourceLoader.CacheMode.Reuse"/> can return
+    /// the stale instance.
+    /// </summary>
     public static T? ReadIfExists<T>(
         string userPath,
         ResourceLoader.CacheMode cache = ResourceLoader.CacheMode.Reuse) where T : Resource

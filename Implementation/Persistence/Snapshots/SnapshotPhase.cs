@@ -6,6 +6,9 @@ namespace Jmodot.Implementation.Persistence.Snapshots;
 /// </summary>
 public enum SnapshotPhase
 {
+    /// <summary>Restored by the game's first <see cref="SnapshotCoordinator.Restore"/> call, before it builds its world.</summary>
     PreWorld,
+
+    /// <summary>Restored by the game's second <see cref="SnapshotCoordinator.Restore"/> call, after it builds its world.</summary>
     PostWorld,
 }
