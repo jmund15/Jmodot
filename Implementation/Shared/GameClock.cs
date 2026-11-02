@@ -80,6 +80,11 @@ public partial class GameClock : Node
         ArgumentNullException.ThrowIfNull(parent);
         ArgumentNullException.ThrowIfNull(name);
         var timer = parent.GetNodeOrNull<Timer>(name);
+        if (timer != null && timer.IsQueuedForDeletion())
+        {
+            parent.RemoveChild(timer);
+            timer = null;
+        }
         if (timer == null)
         {
             timer = new Timer { Name = name };
