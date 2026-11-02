@@ -203,15 +203,8 @@ public abstract partial class StatusRunner : Node
     /// </summary>
     protected Timer AcquireTimer(string name, bool oneShot)
     {
-        var timer = GetNodeOrNull<Timer>(name);
-        if (timer == null)
-        {
-            timer = new Timer { Name = name };
-            AddChild(timer);
-        }
-        timer.OneShot = oneShot;
+        var timer = GameClock.AddPhysicsTimer(this, name, oneShot);
         timer.Autostart = false;
-        timer.ProcessCallback = Timer.TimerProcessCallback.Physics;
         return timer;
     }
 
