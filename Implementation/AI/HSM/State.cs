@@ -36,8 +36,8 @@ public partial class State : Node, IState
     }
 
     /// <summary>
-    /// A list of potential transitions from this state. In each process frame,
-    /// the state will check these transitions in order and execute the first one whose conditions are met.
+    /// A list of potential transitions from this state. On each physics tick,
+    /// the state checks these transitions in order and executes the first one whose conditions are met.
     /// </summary>
     [Export]
     protected GColl.Array<StateTransition> Transitions { get; private set; } = new();
@@ -189,24 +189,23 @@ public partial class State : Node, IState
     }
 
     /// <summary>
-    /// Template Method: Per-frame processing. Do not override. Override OnProcessFrame for custom logic.
+    /// Template Method: Per-frame processing. Do not override. Override OnProcessFrame for presentation logic; transitions are checked on the physics tick.
     /// </summary>
     public void ProcessFrame(float delta)
     {
         OnProcessFrame(delta);
-        // Process frame shouldn't be called if the state is not active, so may remove later
-        if (IsActive)
-        {
-            CheckTransitions();
-        }
     }
 
     /// <summary>
-    /// Template Method: Per-physics-frame processing. Do not override. Override OnProcessPhysics for custom logic.
+    /// Template Method: Per-physics-frame processing. Do not override. Override OnProcessPhysics for custom logic; transitions are checked after this hook on the physics tick.
     /// </summary>
     public void ProcessPhysics(float delta)
     {
         OnProcessPhysics(delta);
+        if (IsActive)
+        {
+            CheckTransitions();
+        }
     }
 
     // DEPRECATED

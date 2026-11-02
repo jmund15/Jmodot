@@ -222,31 +222,28 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     public override void _Ready()
     {
         this.ValidateRequiredExports();
+        PhysicsOrder.ApplyIfDefault(this, PhysicsOrder.AfterFollowers);
         ProcessMode = ProcessModeEnum.Disabled;
     }
 
     /// <summary>
     /// The host cannot always tell the rider it is gone: <c>QueueFree</c> raises no domain event,
     /// and a host freed outside the tree never runs <c>_ExitTree</c>. So the rider verifies every
-    /// frame that the host still holds a record for it. Runs from the RESERVATION onward, not just
-    /// while riding — a host that dies mid-approach must release the reservation too.
+    /// tick that the host still holds a record for it, from the RESERVATION onward, not just while
+    /// riding — a host that dies mid-approach must release the reservation too. A rider released by
+    /// that poll does not ride this tick. The ride is the body-follow <c>Teleport</c> to the host's
+    /// anchor, run at <see cref="PhysicsOrder.AfterFollowers"/> so it follows the host's movement by code.
     /// </summary>
     public override void _PhysicsProcess(double delta)
     {
         this.PollCollisionException();
         if (this.Host == null) { return; }
-        if (this.HostStillHoldsRecord()) { return; }
+        if (!this.HostStillHoldsRecord())
+        {
+            this.ReleaseAttachment(DetachCause.HostRemoved);
+            return;
+        }
 
-        this.ReleaseAttachment(DetachCause.HostRemoved);
-    }
-
-    /// <summary>
-    /// The ride itself. Idle-frame rather than physics-frame on purpose: <c>_Process</c> always runs
-    /// after the physics frame that moved the host, so the rider reads a settled anchor without any
-    /// cross-entity execution-order contract for a designer to get wrong.
-    /// </summary>
-    public override void _Process(double delta)
-    {
         if (!this.IsAttached) { return; }
         if (!this.TryGetRideWorldPosition(out var anchor)) { return; }
 

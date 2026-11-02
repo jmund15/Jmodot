@@ -120,6 +120,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             ?? throw new NodeConfigurationException(
                 $"{nameof(SegmentedBodyComponent3D)} must be a direct child of the head scene's Node3D root.", this);
 
+        PhysicsOrder.ApplyIfDefault(this, PhysicsOrder.AfterMovement);
         this._history = new PositionHistory(this.MaxSegments, this.SegmentSpacing);
         this._sampleDistances = new float[this.MaxSegments];
         this._sampleResults = new (Vector3, Vector3)[this.MaxSegments];
@@ -165,7 +166,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         Callable.From(this.FreeSegmentsIfRemoved).CallDeferred();
     }
 
-    public override void _Process(double delta)
+    /// <summary>
+    /// Samples the head's history and writes every unit's pose on the physics tick: units are physics
+    /// bodies, so their positions must land with the tick that moves the head. Runs at
+    /// <see cref="PhysicsOrder.AfterMovement"/>, after the head's own movement at the default priority.
+    /// </summary>
+    public override void _PhysicsProcess(double delta)
     {
         if (Engine.IsEditorHint()) { return; }
         if (this._head == null || this._history == null) { return; }

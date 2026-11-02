@@ -148,8 +148,20 @@ using Shared;
         /// <summary>
         /// Template Method: Per-frame processing.
         /// Do not override this. Override OnProcessFrame() for custom logic.
+        /// Condition monitoring and aborts run in <see cref="ProcessPhysics"/>, not here.
         /// </summary>
         public void ProcessFrame(float delta)
+        {
+            if (Status != TaskStatus.Running) { return; }
+            OnProcessFrame(delta);
+        }
+
+        /// <summary>
+        /// Template Method: Per-physics-frame processing. Monitors conditions and aborts here,
+        /// so every abort decision lands on the physics tick.
+        /// Do not override this. Override OnProcessPhysics() for custom logic.
+        /// </summary>
+        public void ProcessPhysics(float delta)
         {
             if (Status != TaskStatus.Running) { return; }
 
@@ -160,7 +172,7 @@ using Shared;
                 if (!isUrgent && !CanAbort())
                 {
                     // Abort deferred — task continues processing to wind down
-                    OnProcessFrame(delta);
+                    OnProcessPhysics(delta);
                     return;
                 }
 
@@ -173,16 +185,6 @@ using Shared;
                 Status = failingCondition.SucceedOnAbort ? TaskStatus.Success : TaskStatus.Failure;
                 return;
             }
-            OnProcessFrame(delta);
-        }
-
-        /// <summary>
-        /// Template Method: Per-physics-frame processing.
-        /// Do not override this. Override OnProcessPhysics() for custom logic.
-        /// </summary>
-        public void ProcessPhysics(float delta)
-        {
-            if (Status != TaskStatus.Running) { return; }
             OnProcessPhysics(delta);
         }
 
@@ -210,9 +212,9 @@ using Shared;
         /// Called when a monitoring condition fails. Override to defer abort
         /// (e.g., wait for animation/tween to finish). Default: true (immediate abort).
         /// <para>
-        /// While deferred, OnProcessFrame() continues each frame so the task can wind down.
+        /// While deferred, OnProcessPhysics() continues each physics tick so the task can wind down.
         /// The parent composite sees Running and waits. When CanAbort() returns true on a
-        /// later frame, the abort fires normally.
+        /// later physics tick, the abort fires normally.
         /// </para>
         /// <para>
         /// Contract: MUST eventually return true, or the tree stalls.

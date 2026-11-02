@@ -2,6 +2,7 @@ using System;
 using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Status;
+using Jmodot.Core.Math;
 using Jmodot.Core.Visual.Effects;
 using Jmodot.Implementation.Shared;
 
@@ -26,7 +27,7 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     /// </summary>
     public VisualEffect? TickVisualEffect { get; set; }
 
-    private Timer _tickTimer;
+    private IntervalClock _tickClock;
     private Timer _durationTimer;
 
     // Captured once at Start: the entry hit's Source is a pooled spell body, so re-reading it on
@@ -48,24 +49,8 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     }
     public override void _Ready()
     {
-        _tickTimer = GetNodeOrNull<Timer>("TickTimer");
-        if (_tickTimer == null)
-        {
-            _tickTimer = new Timer { Name = "TickTimer" };
-            AddChild(_tickTimer);
-        }
-
-        _durationTimer = GetNodeOrNull<Timer>("DurationTimer");
-        if (_durationTimer == null)
-        {
-            _durationTimer = new Timer { Name = "DurationTimer" };
-            AddChild(_durationTimer);
-        }
-
-        _tickTimer.OneShot = false;
-        _tickTimer.Autostart = false;
-        _durationTimer.OneShot = true;
-        _durationTimer.Autostart = false;
+        _durationTimer = AcquireTimer("DurationTimer", oneShot: true);
+        SetPhysicsProcess(false);
     }
 
     public override void Start(ICombatant target, HitContext context)
@@ -87,18 +72,26 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
             _durationTimer.Start();
         }
 
-        // Setup Tick Timer
+        // Setup Tick Clock
         if (Interval > 0)
         {
-            _tickTimer.WaitTime = Interval;
-            _tickTimer.Timeout += OnTick;
-            _tickTimer.Start();
+            _tickClock = new IntervalClock(Interval);
+            SetPhysicsProcess(true);
         }
 
         // Fire the per-tick *visual* once at application time so the moment of
         // status onset is legible to the player. Damage application stays on the
         // Interval timer to preserve DPS — only the visual portion runs eagerly.
         PlayTickVisuals();
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        // A Stop inside OnTick (target died, cleansed) turns processing off; the remaining due fires drop.
+        for (int due = _tickClock.Advance(delta); due > 0 && IsPhysicsProcessing(); due--)
+        {
+            OnTick();
+        }
     }
 
     private void PlayTickVisuals()
@@ -139,11 +132,7 @@ public partial class TickStatusRunner : StatusRunner, IDurationModifiable, IDura
     {
         // Timers are nullable until _Ready fires. Defensive guards against pre-Ready Stop
         // (factory rejection cleanup, externally-driven dispel before AddChild completes).
-        if (_tickTimer != null)
-        {
-            _tickTimer.Timeout -= OnTick;
-            _tickTimer.Stop();
-        }
+        SetPhysicsProcess(false);
         if (_durationTimer != null)
         {
             _durationTimer.Timeout -= OnDurationExpired;

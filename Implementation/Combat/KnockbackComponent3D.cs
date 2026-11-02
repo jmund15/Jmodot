@@ -134,6 +134,12 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// <summary>True while this receiver owns a pending push and movement suspension.</summary>
 	public bool IsHolding { get; private set; }
 	/// <summary>
+	/// True while a push is held, and after its release until this receiver's next physics tick: movement
+	/// queues the released impulse and applies it on its own tick, so velocity shows it only then.
+	/// </summary>
+	public bool IsPushPending => IsHolding || _releaseLanding;
+	private bool _releaseLanding;
+	/// <summary>
 	/// Evidence window of a held push, including its release latency, while the push is held and for
 	/// <see cref="ReleaseMarginSeconds"/> after it releases; zero otherwise.
 	/// </summary>
@@ -311,7 +317,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// The one lookup every hold-aware consumer shares.
 	/// </summary>
 	/// <param name="seconds">The receiver's evidence window in seconds; 0 when there is none.</param>
-	/// <param name="holding">True while the receiver owns a pending push.</param>
+	/// <param name="holding">The receiver's <see cref="IsPushPending"/>: held, or released and not yet applied by movement.</param>
 	/// <returns>False when no valid receiver carries a positive window; the outputs are then zero/false.</returns>
 	public static bool TryGetHeldPushWindow(IBlackboard? bb, out float seconds, out bool holding)
 	{
@@ -327,7 +333,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		}
 
 		seconds = receiver.SourceLookupSeconds;
-		holding = receiver.IsHolding;
+		holding = receiver.IsPushPending;
 		return true;
 	}
 
@@ -356,7 +362,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	public override void _PhysicsProcess(double delta)
 	{
-		if (Engine.IsEditorHint() || !IsHolding) { return; }
+		if (Engine.IsEditorHint()) { return; }
+		if (_releaseLanding)
+		{
+			_releaseLanding = false;
+			SetPhysicsProcess(IsHolding);
+		}
+		if (!IsHolding) { return; }
 		double remaining = _held.Deadline - _unscaledSeconds();
 		if (!double.IsFinite(remaining) || !(remaining > 0) || IsSuppressed()) { ReleaseHold(); }
 	}
@@ -370,7 +382,8 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		IsHolding = false;
 		_windowClosesAt = _unscaledSeconds() + ReleaseMarginSeconds;
 		_held.Clear();
-		SetPhysicsProcess(false);
+		_releaseLanding = !exiting;
+		SetPhysicsProcess(_releaseLanding);
 		if (IsAlive(_movementProcessor)) { _movementProcessor.ReleaseSuspension(owner); }
 		SetSpriteFrozen(false);
 		if (exiting)

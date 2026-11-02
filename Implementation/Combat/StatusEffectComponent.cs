@@ -71,7 +71,7 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
 
     /// <summary>
     /// Count of active runners carrying a non-null SpreadConfig. Used to gate
-    /// per-frame _Process spread driving so non-spreading entities pay zero per-frame
+    /// per-physics-tick spread driving so non-spreading entities pay zero per-tick
     /// cost (most NPCs / non-burning entities). Toggled on AddStatus / HandleStatusFinished.
     /// </summary>
     private int _spreadableRunnerCount;
@@ -85,7 +85,7 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
         _blackboard = bb;
         IsInitialized = true;
         // Default-off: re-enabled by AddStatus when a runner with SpreadConfig joins.
-        SetProcess(false);
+        SetPhysicsProcess(false);
         Initialized();
         return true;
     }
@@ -99,7 +99,7 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
     /// single evaluation fires (overshoot preserved). Skipped while uninitialized so unit
     /// tests that construct the component bare aren't accidentally driven.
     /// </summary>
-    public override void _Process(double delta)
+    public override void _PhysicsProcess(double delta)
     {
         if (!IsInitialized) { return; }
         TickSpread(delta);
@@ -178,7 +178,7 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
         if (runner.SpreadConfig != null)
         {
             _spreadableRunnerCount++;
-            SetProcess(true);
+            SetPhysicsProcess(true);
         }
 
         runner.Start(combatant, context);
@@ -450,7 +450,7 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
         if (runner.SpreadConfig != null && _spreadableRunnerCount > 0)
         {
             _spreadableRunnerCount--;
-            if (_spreadableRunnerCount == 0) { SetProcess(false); }
+            if (_spreadableRunnerCount == 0) { SetPhysicsProcess(false); }
         }
 
         UnregisterTags(runner.Tags);
@@ -531,7 +531,7 @@ public partial class StatusEffectComponent : Node, IComponent, IBlackboardProvid
     {
         if (!IsInitialized) { return; }
         if (delta <= 0) { return; }
-        // Per-frame perf is gated upstream by SetProcess(false) when no runner has a
+        // Per-tick perf is gated upstream by SetPhysicsProcess(false) when no runner has a
         // SpreadConfig (toggled by AddStatus / HandleStatusFinished). This public API
         // remains directly invokable from tests that bypass AddStatus and inject runners
         // through other paths — the foreach below filters per-runner via cfg==null.

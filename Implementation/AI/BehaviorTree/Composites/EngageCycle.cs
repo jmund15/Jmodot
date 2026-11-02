@@ -337,12 +337,6 @@ public partial class EngageCycle : CompositeTask
     {
         _transitionsThisTick = 0;
         _secondsInPhase += delta;
-        _running?.ProcessPhysics(delta);
-    }
-
-    protected override void OnProcessFrame(float delta)
-    {
-        _transitionsThisTick = 0;
         if (_phase == EngagePhase.Position && _running is { } position && !PositionHeld())
         {
             position.TaskStatusChanged -= OnChildStatusChanged;
@@ -351,6 +345,11 @@ public partial class EngageCycle : CompositeTask
             Advance(PhaseOutcome.Failed);
             return;
         }
+        _running?.ProcessPhysics(delta);
+    }
+
+    protected override void OnProcessFrame(float delta)
+    {
         _running?.ProcessFrame(delta);
     }
 

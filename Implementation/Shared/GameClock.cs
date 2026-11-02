@@ -68,6 +68,34 @@ public partial class GameClock : Node
         return timer;
     }
 
+    /// <summary>
+    /// Returns the <see cref="Timer"/> child of <paramref name="parent"/> named <paramref name="name"/>, creating and adding
+    /// it when absent, and sets it to count physics ticks, so its duration follows game time at any frame rate. Every
+    /// node <see cref="Timer"/> gameplay uses goes through here; do not set <c>ProcessCallback</c> by hand. It is not
+    /// started. <paramref name="waitTime"/> is applied when given, otherwise a scene-authored value is kept.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="parent"/> or <paramref name="name"/> is null.</exception>
+    public static Timer AddPhysicsTimer(Node parent, string name, bool oneShot, double? waitTime = null)
+    {
+        ArgumentNullException.ThrowIfNull(parent);
+        ArgumentNullException.ThrowIfNull(name);
+        var timer = parent.GetNodeOrNull<Timer>(name);
+        if (timer != null && timer.IsQueuedForDeletion())
+        {
+            parent.RemoveChild(timer);
+            timer = null;
+        }
+        if (timer == null)
+        {
+            timer = new Timer { Name = name };
+            parent.AddChild(timer);
+        }
+        timer.OneShot = oneShot;
+        timer.ProcessCallback = Timer.TimerProcessCallback.Physics;
+        if (waitTime is double seconds) { timer.WaitTime = seconds; }
+        return timer;
+    }
+
     // Runs before this tick's timer pass: an expired timer gets zero time left so the pass fires it, and a running one gets
     // exactly one tick more than its remainder so the pass leaves it at that remainder.
     private static void AdvanceTimers(double delta)

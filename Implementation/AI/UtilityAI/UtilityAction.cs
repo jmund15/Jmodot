@@ -61,11 +61,6 @@ public partial class UtilityAction : BehaviorAction, IUtilityTask
         Interruptible = true;
     }
 
-    protected override void OnProcessFrame(float delta)
-    {
-        base.OnProcessFrame(delta);
-    }
-
     protected override void OnProcessPhysics(float delta)
     {
         base.OnProcessPhysics(delta);
