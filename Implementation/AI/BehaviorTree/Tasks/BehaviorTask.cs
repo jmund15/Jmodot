@@ -40,7 +40,7 @@ using Shared;
         [Export] public GColl.Array<BTCondition> Conditions { get; private set; } = new();
 
         /// <summary>
-        /// If true, this task will re-evaluate its conditions every frame while running.
+        /// If true, this task will re-evaluate its conditions every physics tick while running.
         /// If a condition fails, the task will abort.
         /// Set to false for performance-critical tasks that only need a guard check on entry.
         /// </summary>

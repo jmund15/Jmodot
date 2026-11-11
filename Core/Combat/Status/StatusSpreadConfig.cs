@@ -34,7 +34,7 @@ public partial class StatusSpreadConfig : Resource
 
     /// <summary>
     /// Seconds between consecutive spread evaluations for a single runner. The component's
-    /// per-frame driver advances each runner's accumulator and triggers an evaluation when
+    /// per-physics-tick driver advances each runner's accumulator and triggers an evaluation when
     /// the accumulator crosses this threshold (overshoot is preserved so cadence doesn't drift
     /// on slow frames). Per-config, not global — a fast-spreading panic and a slow burn can
     /// coexist on the same entity with different cadences.
