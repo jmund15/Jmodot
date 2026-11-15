@@ -198,9 +198,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		if (Engine.IsEditorHint() && IsInsideTree()) { UpdateConfigurationWarnings(); }
 	}
 
-	// Unaffected by hitstop's time scale; double.NegativeInfinity stamp makes the first push ever full.
+	// Counted in physics ticks: hitstop's time scale leaves the tick count alone, and a hold spans the same ticks at any
+	// engine speed, so a fixed-step test engine and the shipped game agree. double.NegativeInfinity makes the first push full.
 	private double _lastAppliedAt = double.NegativeInfinity;
-	private Func<double> _unscaledSeconds = static () => Time.GetTicksMsec() / 1000.0;
+	private Func<double> _unscaledSeconds = static () => Engine.GetPhysicsFrames() / (double)Engine.PhysicsTicksPerSecond;
 
 	#endregion
 
