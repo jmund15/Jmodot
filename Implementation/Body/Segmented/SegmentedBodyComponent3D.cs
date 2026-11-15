@@ -167,6 +167,16 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     }
 
     /// <summary>
+    /// A head freed outright (<c>Free()</c>, not <c>QueueFree()</c>) deletes this component in the same
+    /// call, and the engine drops a deferred call whose target is gone, so the check <see cref="_ExitTree"/>
+    /// schedules never runs and the units would outlive the head. A component being deleted has no body left to drive.
+    /// </summary>
+    public override void _Notification(int what)
+    {
+        if (what == NotificationPredelete) { this.FreeSegments(); }
+    }
+
+    /// <summary>
     /// Samples the head's history and writes every unit's pose on the physics tick: units are physics
     /// bodies, so their positions must land with the tick that moves the head. Runs at
     /// <see cref="PhysicsOrder.AfterMovement"/>, after the head's own movement at the default priority.
