@@ -40,10 +40,14 @@ public static class VisualNodeAggregator
     /// <summary>
     /// Appends every sprite node under <paramref name="root"/> (inclusive) to
     /// <paramref name="results"/>. Matches <see cref="SpriteBase3D"/>
-    /// (Sprite3D, AnimatedSprite3D) and <see cref="Sprite2D"/>.
+    /// (Sprite3D, AnimatedSprite3D) and <see cref="Sprite2D"/>. Stops at an
+    /// <see cref="IVisualEffectExempt"/> node: its subtree owns its own colour and material, so nothing that
+    /// walks an actor's sprites (effects, material binders, tints) collects it.
     /// </summary>
     public static void CollectSprites(Node root, List<Node> results)
     {
+        if (root is IVisualEffectExempt) { return; }
+
         if (root is SpriteBase3D or Sprite2D)
         {
             results.Add(root);

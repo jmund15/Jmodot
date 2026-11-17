@@ -339,11 +339,7 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         {
             var rootSprites = new List<Node>();
             VisualNodeAggregator.CollectSprites(Root, rootSprites);
-            foreach (var n in rootSprites)
-            {
-                if (IsExempt(n)) { continue; }
-                nodes.TryAdd(n, null);
-            }
+            foreach (var n in rootSprites) { nodes.TryAdd(n, null); }
         }
         return nodes;
     }
