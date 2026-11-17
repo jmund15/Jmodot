@@ -43,10 +43,6 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
     public event Action LayoutChanged = delegate { };
 
     /// <summary>
-    /// Applies the style's icon height, depth test and render priority, and its label scene for text, then rebuilds
-    /// the row's items.
-    /// </summary>
-    /// <summary>
     /// Multiplies <paramref name="alpha"/> into every built icon's own tint alpha and writes it to the built text. It is
     /// kept, so items the row rebuilds draw with it.
     /// </summary>
@@ -56,6 +52,10 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
         ApplyPresentationAlpha();
     }
 
+    /// <summary>
+    /// Applies the style's icon height, depth test and render priority, and its label scene for text, then rebuilds
+    /// the row's items.
+    /// </summary>
     public void ApplyStyle(WorldUiStyle style)
     {
         _style = style;
@@ -171,7 +171,8 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
             if (!_labelFallbackLogged)
             {
                 _labelFallbackLogged = true;
-                JmoLogger.Error(this, $"[WorldUi] {Name}: Label Scene is not a WorldUiLabel scene, so the text is not drawn.");
+                string cause = instance == null ? "Label Scene is null" : "Label Scene root is not a WorldUiLabel";
+                JmoLogger.Error(this, $"[WorldUi] {Name}: {cause}, so the text is not drawn.");
             }
 
             return;
@@ -191,7 +192,6 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
 
     private void BuildIcons(float height)
     {
-        bool onTop = Style.DepthMode == WorldUiDepthMode.AlwaysOnTop;
         var widths = new float[_icons.Count];
         var pixelSizes = new float[_icons.Count];
         for (int i = 0; i < _icons.Count; i++)
@@ -211,8 +211,8 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
                 PixelSize = pixelSizes[i],
                 Position = new Vector3(centres[i], 0f, 0f),
                 Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-                NoDepthTest = onTop,
-                RenderPriority = onTop ? WorldUiStyle.OnTopRenderPriority : 0,
+                NoDepthTest = Style.NoDepthTest,
+                RenderPriority = Style.RenderPriority,
                 TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
             });
         }

@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Visual.Effects;
 
+using System.Linq;
 using Godot;
 using Jmodot.Core.Visual.Effects;
 using Jmodot.Implementation.Shared;
@@ -18,13 +19,14 @@ public static class VisualFader3D
 {
     /// <summary>
     /// Appends a modulate-alpha tweener for every SpriteBase3D under root, except a sprite nested under a faded sprite,
-    /// which the engine fades with its parent. Returns the number of tweeners added.
+    /// which the engine fades with its parent, and a sprite under an IVisualEffectExempt subtree, which owns its alpha.
+    /// Returns the number of tweeners added.
     /// </summary>
     public static int AddSpriteFadeTweeners(Tween tween, Node root, float duration, SpriteFadeParams? spriteParams = null)
     {
         var p = spriteParams ?? SpriteFadeParams.Default;
         int added = 0;
-        var sprites = root.GetChildrenOfType<SpriteBase3D>();
+        var sprites = VisualNodeAggregator.CollectSprites(root).OfType<SpriteBase3D>().Where(sprite => sprite != root).ToList();
         var faded = new System.Collections.Generic.HashSet<Node>(sprites);
         foreach (var sprite in sprites)
         {
@@ -45,7 +47,7 @@ public static class VisualFader3D
     {
         var p = meshParams ?? MeshFadeParams.Default;
         int added = 0;
-        foreach (var mesh in root.GetChildrenOfType<MeshInstance3D>())
+        foreach (var mesh in root.GetChildrenOfType<MeshInstance3D>().Where(mesh => mesh.FindFirstAncestorOfType<IVisualEffectExempt>() == null))
         {
             tween.TweenProperty(mesh, "transparency", p.TargetTransparency, duration)
                 .SetEase(p.Ease)

@@ -99,10 +99,6 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     /// <summary>The face this label draws with: its own, or the engine fallback face when none is set.</summary>
     private Font DrawnFont => Font ?? ThemeDB.FallbackFont;
 
-    /// <summary>
-    /// Applies the style's em height, depth test and render priority, billboarding, then raises
-    /// <see cref="LayoutChanged"/>.
-    /// </summary>
     /// <summary>Writes <paramref name="alpha"/> to the text and its outline, leaving their colours.</summary>
     public void SetPresentationAlpha(float alpha)
     {
@@ -110,6 +106,10 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
         OutlineModulate = new Color(OutlineModulate, alpha);
     }
 
+    /// <summary>
+    /// Applies the style's em height, depth test and render priority, billboarding, then raises
+    /// <see cref="LayoutChanged"/>.
+    /// </summary>
     public void ApplyStyle(WorldUiStyle style)
     {
         _style = style;
@@ -250,9 +250,8 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     private void ApplyStyleState()
     {
         WorldUiStyle style = Style;
-        bool onTop = style.DepthMode == WorldUiDepthMode.AlwaysOnTop;
-        NoDepthTest = onTop;
-        RenderPriority = onTop ? WorldUiStyle.OnTopRenderPriority : 0;
+        NoDepthTest = style.NoDepthTest;
+        RenderPriority = style.RenderPriority;
         Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
         ApplyDerivedPixelSize();
     }

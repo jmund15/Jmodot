@@ -27,7 +27,7 @@ public partial class WorldUiStyle : Resource
     public static WorldUiStyle Fallback => _fallback ??= new WorldUiStyle();
 
     /// <summary>Em height, in metres, of text drawn with this style.</summary>
-    [Export(PropertyHint.Range, "0,2,0.01,suffix:m")]
+    [Export(PropertyHint.Range, "0.01,2,0.01,suffix:m")]
     public float TextWorldHeight
     {
         get => WorldUiScale.IsUsable(_textWorldHeight) ? _textWorldHeight : WorldUiScale.FallbackTextWorldHeightMetres;
@@ -35,7 +35,7 @@ public partial class WorldUiStyle : Resource
     }
 
     /// <summary>Height, in metres, of icons drawn with this style. Independent of <see cref="TextWorldHeight"/>.</summary>
-    [Export(PropertyHint.Range, "0,2,0.01,suffix:m")]
+    [Export(PropertyHint.Range, "0.01,2,0.01,suffix:m")]
     public float IconWorldHeight
     {
         get => WorldUiScale.IsUsable(_iconWorldHeight) ? _iconWorldHeight : WorldUiScale.FallbackIconWorldHeightMetres;
@@ -43,7 +43,7 @@ public partial class WorldUiStyle : Resource
     }
 
     /// <summary>Screen gap, in metres, between the art and the nearest element, and between stacked elements.</summary>
-    [Export(PropertyHint.Range, "0,1,0.01,suffix:m")]
+    [Export(PropertyHint.Range, "0.01,1,0.01,suffix:m")]
     public float AnchorPadding
     {
         get => WorldUiScale.IsUsable(_anchorPadding) ? _anchorPadding : WorldUiScale.FallbackAnchorPaddingMetres;
@@ -53,6 +53,12 @@ public partial class WorldUiStyle : Resource
     /// <summary>Whether elements sort with the world or draw on top of it.</summary>
     [Export]
     public WorldUiDepthMode DepthMode { get; set; } = WorldUiDepthMode.SortedWithWorld;
+
+    /// <summary>The depth test an element draws with: off when <see cref="DepthMode"/> is always on top.</summary>
+    public bool NoDepthTest => DepthMode == WorldUiDepthMode.AlwaysOnTop;
+
+    /// <summary>The render priority an element draws with: <see cref="OnTopRenderPriority"/> when always on top, else 0.</summary>
+    public int RenderPriority => NoDepthTest ? OnTopRenderPriority : 0;
 
     /// <summary>How the prompt shows and hides. Null snaps.</summary>
     [Export]
