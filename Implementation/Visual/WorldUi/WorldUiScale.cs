@@ -49,7 +49,7 @@ public static class WorldUiScale
     /// height falls back to <paramref name="fallbackHeightMetres"/>.
     /// </summary>
     public static float PixelSizeForFont(
-        float targetWorldHeightMetres, int fontSize, float fallbackHeightMetres = WorldUiStyle.InterimTextWorldHeight)
+        float targetWorldHeightMetres, int fontSize, float fallbackHeightMetres = FallbackTextWorldHeightMetres)
         => Derive(targetWorldHeightMetres, fallbackHeightMetres, fontSize, FallbackFontSize);
 
     /// <summary>
@@ -57,7 +57,7 @@ public static class WorldUiScale
     /// height falls back to <paramref name="fallbackHeightMetres"/>.
     /// </summary>
     public static float PixelSizeForTexture(
-        float targetWorldHeightMetres, int textureHeightPx, float fallbackHeightMetres = WorldUiStyle.InterimIconWorldHeight)
+        float targetWorldHeightMetres, int textureHeightPx, float fallbackHeightMetres = FallbackIconWorldHeightMetres)
         => Derive(targetWorldHeightMetres, fallbackHeightMetres, textureHeightPx, FallbackTextureHeightPx);
 
     /// <summary>

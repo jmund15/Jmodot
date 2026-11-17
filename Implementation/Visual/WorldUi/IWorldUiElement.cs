@@ -12,9 +12,8 @@ using System;
 /// <list type="bullet">
 /// <item>It is a <c>Node3D</c> that is a direct child of the prompt listing it, because the prompt
 /// writes its <c>Position</c>.</item>
-/// <item>Every node it draws billboards, draws with <c>no_depth_test</c>, and draws at render
-/// priority <see cref="WorldUiLabel.WorldUiRenderPriority"/>. The element sets all three on every
-/// node it owns; no scene or caller sets them, so each invariant has one home.</item>
+/// <item>Every node it draws billboards, and takes its depth test and render priority from the style it
+/// was given through <see cref="ApplyStyle"/>. The element sets all three on every node it owns.</item>
 /// <item>Its drawn box is ONE line of items, centred on the node origin. The prompt writes the origin
 /// as the box's centre and clears one <see cref="RenderedHeight"/> around it, so anything that moves
 /// the box off the origin or adds a line overlaps the art or the next element.</item>
@@ -32,4 +31,7 @@ public interface IWorldUiElement
 
     /// <summary>Raised when the drawn size or content can have changed.</summary>
     event Action LayoutChanged;
+
+    /// <summary>Applies the heights, depth mode and render priority of <paramref name="style"/>, then raises <see cref="LayoutChanged"/>.</summary>
+    void ApplyStyle(WorldUiStyle style);
 }

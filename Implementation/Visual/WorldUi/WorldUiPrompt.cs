@@ -11,7 +11,7 @@ using GCol = Godot.Collections;
 /// <summary>
 /// Places world-space UI around its host's MEASURED art: the <see cref="Above"/> elements stack
 /// upward from the art's top, the <see cref="Below"/> elements downward from its bottom, each
-/// separated by <see cref="AnchorPadding"/> in screen space. The host is the parent; the elements are
+/// separated by the style's <see cref="WorldUiStyle.AnchorPadding"/> in screen space. The host is the parent; the elements are
 /// this node's direct children. Positions are automatic, so no element transform is authored.
 /// </summary>
 /// <remarks>
@@ -49,8 +49,6 @@ using GCol = Godot.Collections;
 [GlobalClass, Tool]
 public partial class WorldUiPrompt : Node3D
 {
-    private float _anchorPadding = WorldUiStyle.InterimAnchorPadding;
-    private WorldUiStyle? _defaultStyle;
     private GCol.Array<Node3D> _above = new();
     private GCol.Array<Node3D> _below = new();
     private readonly List<IWorldUiElement> _subscribed = new();
@@ -60,42 +58,30 @@ public partial class WorldUiPrompt : Node3D
     private bool _measurePending = true;
     private bool _layoutPending = true;
     private float _appliedScreenUp = float.NaN;
-    private bool _paddingFallbackLogged;
+    private bool _styleFaultsLogged;
     private bool _unmeasuredLogged;
     private bool _placementLogged;
 
+    private WorldUiStyle? _style;
+
     /// <summary>
-    /// Screen-space gap, in metres, between the art and the nearest element, and between stacked
-    /// elements. The default is the house gap, <see cref="WorldUiStyle.InterimAnchorPadding"/>; author a
-    /// value only to depart from it.
-    ///
-    /// <para>
-    /// <c>0</c> is rejected, not "no padding": it means authored as 0, or null-stripped by a Godot editor
-    /// resave (a value-type export equal to its C# default is written as null and reloads as 0). Both raise
-    /// a configuration warning and one runtime warning, and the prompt uses the house gap; the smallest
-    /// authorable gap is therefore 0.01 m.
-    /// </para>
+    /// The look this prompt draws with. Null is a configuration warning, and the prompt draws with
+    /// <see cref="WorldUiStyle.Fallback"/>. Setting it applies the style to every element child.
     /// </summary>
-    [Export(PropertyHint.Range, "0,1,0.01,suffix:m")]
-    public float AnchorPadding
+    [Export]
+    public WorldUiStyle? Style
     {
-        get => _anchorPadding;
+        get => _style;
         set
         {
-            _anchorPadding = value;
+            _style = value;
+            ApplyStyleToElements();
             _layoutPending = true;
             UpdateConfigurationWarnings();
         }
     }
 
-    /// <summary>
-    /// The look this prompt draws with. Null means a default style, created on first use. Its
-    /// <c>AnchorPadding</c> is the gap used when <see cref="AnchorPadding"/> is unusable.
-    /// </summary>
-    [Export]
-    public WorldUiStyle? Style { get; set; }
-
-    private WorldUiStyle ResolvedStyle => Style ?? (_defaultStyle ??= new WorldUiStyle());
+    private WorldUiStyle ResolvedStyle => _style ?? WorldUiStyle.Fallback;
 
     /// <summary>Elements stacked above the art, nearest first. Each must be a direct child and a world-UI element (label or row).</summary>
     [Export]
@@ -152,9 +138,13 @@ public partial class WorldUiPrompt : Node3D
 
     public override void _Ready()
     {
+        // The Style setter runs while the scene loads, before the element children exist, so the
+        // editor preview and the game both take the style here.
+        ApplyStyleToElements();
         if (Engine.IsEditorHint()) { return; }
 
         FollowVisibility();
+        LogStyleFaultsOnce();
         List<string> errors = Faults(includeWarningOnlyFaults: false);
         if (errors.Count > 0)
         {
@@ -229,11 +219,20 @@ public partial class WorldUiPrompt : Node3D
             return;
         }
 
+        List<IWorldUiElement> joined = placeable.Where(element => !_subscribed.Contains(element)).ToList();
         Unsubscribe();
         foreach (IWorldUiElement element in placeable)
         {
             element.LayoutChanged += OnElementLayoutChanged;
             _subscribed.Add(element);
+        }
+
+        if (IsNodeReady())
+        {
+            foreach (IWorldUiElement element in joined)
+            {
+                element.ApplyStyle(ResolvedStyle);
+            }
         }
 
         _layoutPending = true;
@@ -250,6 +249,40 @@ public partial class WorldUiPrompt : Node3D
     }
 
     private void OnElementLayoutChanged() => _layoutPending = true;
+
+    private void ApplyStyleToElements()
+    {
+        WorldUiStyle style = ResolvedStyle;
+        foreach (IWorldUiElement element in GetChildren().OfType<IWorldUiElement>())
+        {
+            element.ApplyStyle(style);
+        }
+    }
+
+    private void LogStyleFaultsOnce()
+    {
+        if (_styleFaultsLogged || Engine.IsEditorHint()) { return; }
+
+        List<string> faults = StyleFaults().ToList();
+        if (faults.Count == 0) { return; }
+
+        _styleFaultsLogged = true;
+        JmoLogger.Warning(this, $"[WorldUi] {Name}: {string.Join(" ", faults)}");
+    }
+
+    private IEnumerable<string> StyleFaults()
+    {
+        if (_style == null)
+        {
+            yield return "No Style is set, so the prompt draws with the framework fallback style.";
+            yield break;
+        }
+
+        foreach (string fault in _style.Faults())
+        {
+            yield return fault;
+        }
+    }
 
     private void FollowHostSize()
     {
@@ -318,11 +351,15 @@ public partial class WorldUiPrompt : Node3D
         float centreY = measured ? _bounds.Center.Y : 0f;
         float halfHeight = measured ? _bounds.Size.Y * 0.5f : 0f;
         float centreX = measured ? _bounds.Center.X : 0f;
-        float padding = EffectivePadding();
+        float padding = ResolvedStyle.AnchorPadding;
 
         Transform = new Transform3D(Basis.Identity, new Vector3(0f, 0f, _bounds.Center.Z));
         Place(PlaceableAbove(), centreX, centreY, halfHeight, padding, screenUp, 1);
         Place(PlaceableBelow(), centreX, centreY, halfHeight, padding, screenUp, -1);
+        if (ResolvedStyle.DepthMode == WorldUiDepthMode.SortedWithWorld)
+        {
+            LiftAboveHostGround(PlaceableAbove().Concat(PlaceableBelow()), padding);
+        }
 
         if (!_placementLogged)
         {
@@ -346,21 +383,33 @@ public partial class WorldUiPrompt : Node3D
         }
     }
 
-    private float EffectivePadding()
+    /// <summary>
+    /// Keeps a depth-tested element out of the ground it would otherwise sink into. The stacks grow along
+    /// world Y at the art's depth, so under a pitched camera a below-art element lands under the host's
+    /// ground and the ground would hide it. An element whose drawn bottom edge falls under the host origin
+    /// plus <paramref name="padding"/> moves along the camera's view axis toward the camera until it clears;
+    /// an orthographic camera draws it at the same screen position. A perspective camera is left unlifted,
+    /// since moving toward it would change the element's drawn size.
+    /// </summary>
+    private void LiftAboveHostGround(IEnumerable<(Node3D Node, IWorldUiElement Element)> elements, float padding)
     {
-        if (WorldUiScale.IsUsable(_anchorPadding)) { return _anchorPadding; }
+        Camera3D? camera = GetViewport()?.GetCamera3D();
+        if (camera == null || camera.Projection != Camera3D.ProjectionType.Orthogonal) { return; }
 
-        if (!_paddingFallbackLogged)
+        Basis toLocal = GlobalBasis.Inverse();
+        Vector3 back = (toLocal * camera.GlobalBasis.Z).Normalized();
+        Vector3 up = (toLocal * camera.GlobalBasis.Y).Normalized();
+        if (!(back.Y > 0.01f)) { return; }
+
+        foreach ((Node3D node, IWorldUiElement element) in elements)
         {
-            _paddingFallbackLogged = true;
-            JmoLogger.Warning(this, $"[WorldUi] {Name}: {AnchorPaddingFault()}");
+            float requiredCentreY = padding + (Mathf.Max(up.Y, 0f) * element.RenderedHeight * 0.5f);
+            float shortfall = requiredCentreY - node.Position.Y;
+            if (!(shortfall > 0f)) { continue; }
+
+            node.Position += back * (shortfall / back.Y);
         }
-
-        return ResolvedStyle.AnchorPadding;
     }
-
-    private string AnchorPaddingFault()
-        => WorldUiScale.UnusableLengthExplanation("Anchor Padding", _anchorPadding, ResolvedStyle.AnchorPadding);
 
     /// <summary>
     /// The dock warning for a world-UI element child that neither stack lists. A subtype that derives its
@@ -418,9 +467,9 @@ public partial class WorldUiPrompt : Node3D
             }
         }
 
-        if (includeWarningOnlyFaults && !WorldUiScale.IsUsable(_anchorPadding))
+        if (includeWarningOnlyFaults)
         {
-            faults.Add(AnchorPaddingFault());
+            faults.AddRange(StyleFaults());
         }
 
         return faults;

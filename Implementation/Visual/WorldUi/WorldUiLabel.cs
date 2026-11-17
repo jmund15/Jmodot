@@ -6,23 +6,20 @@ using Godot;
 using Jmodot.Implementation.Shared;
 
 /// <summary>
-/// A world-UI text element (<see cref="IWorldUiElement"/>): a <see cref="Label3D"/> whose world height
-/// is authored in METRES. <c>pixel_size</c> is derived from that height and the inherited
-/// <c>font_size</c>, and is removed from the authoring surface entirely so the two units can never be
-/// conflated again.
-///
+/// A world-UI text element (<see cref="IWorldUiElement"/>): a <see cref="Label3D"/> whose em height comes from
+/// the <see cref="WorldUiStyle"/> it is given. <c>pixel_size</c> is derived from that height and the inherited
+/// <c>font_size</c>, so no scene authors it.
+/// </summary>
+/// <remarks>
 /// <para>
-/// It always billboards, draws with <c>no_depth_test</c> and at <see cref="WorldUiRenderPriority"/>:
-/// all three are enforced in <see cref="_Ready"/> and hidden from the Inspector, so no scene authors them.
+/// Billboarding, depth test and render priority come from the applied style (<see cref="ApplyStyle"/>). An
+/// unstyled label uses <see cref="WorldUiStyle.Fallback"/>.
 /// </para>
 /// <para>
-/// <c>pixel_size</c> is re-derived when <see cref="TargetWorldHeight"/> is set, when <c>font_size</c> changes,
-/// when a scene instance finishes loading, at <see cref="_Ready"/> and on editor pre-save. A change to
-/// <c>text</c>, <c>font_size</c> or <c>font</c> made through this type's members takes effect at once; one made
-/// any other way (a <c>Label3D</c> reference, an AnimationPlayer track, the Inspector) is picked up on this
-/// label's next processed frame, because <c>_Set</c> is not called for built-in properties. Either way it
-/// raises <see cref="LayoutChanged"/> once. <see cref="RenderedHeight"/> reads the current font state, so it
-/// stays true to what is drawn.
+/// <c>pixel_size</c> is re-derived when the style is applied, when <c>font_size</c> changes, when a scene instance
+/// finishes loading, at <see cref="_Ready"/> and on editor pre-save. A change to <c>text</c>, <c>font_size</c> or
+/// <c>font</c> made through this type's members takes effect at once; one made any other way is picked up on
+/// this label's next processed frame. Either way it raises <see cref="LayoutChanged"/> once.
 /// </para>
 /// <para>
 /// The drawn box must stay one line centred on the origin (<see cref="IWorldUiElement"/>). A non-centre
@@ -34,34 +31,23 @@ using Jmodot.Implementation.Shared;
 /// the dock lists the missing characters, and at runtime one <c>Warning</c> is logged per distinct face
 /// and missing set for the whole process, however many labels print it.
 /// </para>
-/// </summary>
+/// </remarks>
 [GlobalClass, Tool]
 public partial class WorldUiLabel : Label3D, IWorldUiElement
 {
     /// <summary>
-    /// Raised once per change of <see cref="TargetWorldHeight"/>, <c>text</c>, <c>font_size</c> or <c>font</c>: at
-    /// once through this type's members, and on the next processed frame for a write that bypasses them.
+    /// Raised once per change of the applied style, <c>text</c>, <c>font_size</c> or <c>font</c>: at once through this
+    /// type's members, and on the next processed frame for a write that bypasses them.
     /// </summary>
     public event System.Action LayoutChanged = delegate { };
-
-    /// <summary>
-    /// Draw order against world art. World-space UI answers a question the player asked, so being
-    /// occluded by the very object it annotates is never the right result.
-    ///
-    /// <para>
-    /// <c>no_depth_test</c> alone does NOT achieve this: it drops the depth comparison, but
-    /// transparent surfaces still sort against each other, so a sprite can still land on top.
-    /// Priority is what settles it. Both are enforced in <see cref="_Ready"/> and hidden from the
-    /// Inspector, so neither has an authored copy for a resave to strip.
-    /// </para>
-    /// </summary>
-    public const int WorldUiRenderPriority = 8;
 
     /// <summary>Face and missing set already warned about; process-wide because a row rebuilds its label on every text change.</summary>
     private static readonly HashSet<(ulong FontId, string Missing)> WarnedGlyphSets = new();
 
-    private float _targetWorldHeight = WorldUiStyle.InterimTextWorldHeight;
+    private WorldUiStyle? _style;
     private (string Text, int FontSize, Font? Font) _observed = (string.Empty, 0, null);
+
+    private WorldUiStyle Style => _style ?? WorldUiStyle.Fallback;
 
     /// <summary>
     /// The distinct characters of <paramref name="text"/> that <paramref name="font"/> cannot draw, in order
@@ -69,30 +55,6 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     /// </summary>
     public static IReadOnlyList<char> MissingGlyphs(Font font, string text)
         => text.Where(c => !char.IsWhiteSpace(c) && !font.HasChar(c)).Distinct().ToList();
-
-    /// <summary>
-    /// Rendered height of one em, in metres. The default is the house text height,
-    /// <see cref="WorldUiStyle.InterimTextWorldHeight"/>; author a value only to depart from it.
-    ///
-    /// <para>
-    /// <c>0</c> is rejected: it means authored as 0, or null-stripped by a Godot editor resave (a
-    /// value-type export equal to its C# default is written as null and reloads as 0). Both raise a
-    /// configuration warning and one runtime warning, and the label draws at the house height. The range
-    /// minimum stays <c>0</c> because an Inspector spinner clamps to its minimum, which would hide a strip.
-    /// </para>
-    /// </summary>
-    [Export(PropertyHint.Range, "0,2,0.01,suffix:m")]
-    public float TargetWorldHeight
-    {
-        get => _targetWorldHeight;
-        set
-        {
-            _targetWorldHeight = value;
-            ApplyDerivedPixelSize();
-            UpdateConfigurationWarnings();
-            LayoutChanged();
-        }
-    }
 
     /// <summary>The displayed text. A new value set through this type raises <see cref="LayoutChanged"/> at once.</summary>
     public new string Text
@@ -128,29 +90,31 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     }
 
     /// <summary>
-    /// The height one line of this label actually DRAWS, in metres — what a caller must clear to sit
-    /// clear of it. It is the face's line height (ascent plus descent, <c>Font.get_height</c>) times
-    /// <c>pixel_size</c>, so it follows any font, including the engine fallback face when
-    /// <c>Font</c> is null. It is not <see cref="TargetWorldHeight"/>, which is the em target.
+    /// The height one line of this label actually DRAWS, in metres — what a caller must clear to sit clear of it.
+    /// It is the face's line height (<c>Font.get_height</c>) times <c>pixel_size</c>, so it follows any font,
+    /// including the engine fallback face when <c>Font</c> is null. It is taller than the em.
     /// </summary>
     public float RenderedHeight => DrawnFont.GetHeight(FontSize) * PixelSize;
 
     /// <summary>The face this label draws with: its own, or the engine fallback face when none is set.</summary>
     private Font DrawnFont => Font ?? ThemeDB.FallbackFont;
 
+    /// <summary>
+    /// Applies the style's em height, depth test and render priority, billboarding, then raises
+    /// <see cref="LayoutChanged"/>.
+    /// </summary>
+    public void ApplyStyle(WorldUiStyle style)
+    {
+        _style = style;
+        ApplyStyleState();
+        LayoutChanged();
+    }
+
     public override void _Ready()
     {
-        if (!Engine.IsEditorHint() && !WorldUiScale.IsUsable(TargetWorldHeight))
-        {
-            JmoLogger.Warning(this, $"[WorldUi] {Name}: {TargetWorldHeightFault()}");
-        }
-
         WarnOnceForMissingGlyphs();
-        ApplyDerivedPixelSize();
+        ApplyStyleState();
         _observed = (base.Text, base.FontSize, base.Font);
-        NoDepthTest = true;
-        RenderPriority = WorldUiRenderPriority;
-        Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
     }
 
     /// <summary>
@@ -159,9 +123,9 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     public override void _Process(double delta) => ObserveDrawnState();
 
     /// <summary>
-    /// Re-derives on editor save, and once a scene instance is loaded: a scene that authors no height
-    /// sets nothing that re-derives, so an instance measured before <see cref="_Ready"/> would otherwise
-    /// carry <c>Label3D</c>'s default <c>pixel_size</c>.
+    /// Re-derives on editor save, and once a scene instance is loaded: a scene that authors no style sets nothing that
+    /// re-derives, so an instance measured before <see cref="_Ready"/> would otherwise carry <c>Label3D</c>'s default
+    /// <c>pixel_size</c>.
     /// </summary>
     public override void _Notification(int what)
     {
@@ -172,16 +136,10 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     }
 
     /// <summary>
-    /// Removes the derived <c>pixel_size</c> and the enforced <c>no_depth_test</c>,
-    /// <c>render_priority</c> and <c>billboard</c> from the authoring surface completely.
-    ///
-    /// <para>
-    /// Usage is cleared to <c>None</c>, not set to <c>ReadOnly | NoEditor</c>. In Godot 4.7
-    /// <c>PROPERTY_USAGE_NO_EDITOR</c> and <c>PROPERTY_USAGE_STORAGE</c> are the SAME value (2), so
-    /// "hiding" a property that way keeps it serialising into every consuming <c>.tscn</c> — still
-    /// exposed to the editor-resave null-strip, but with no Inspector row to notice the loss in.
-    /// Clearing storage is safe because <see cref="_Ready"/> sets every one of them on every load.
-    /// </para>
+    /// Removes the derived <c>pixel_size</c> and the style-driven <c>no_depth_test</c>, <c>render_priority</c> and
+    /// <c>billboard</c> from the authoring surface completely. Usage is cleared to <c>None</c>, not set to
+    /// <c>ReadOnly | NoEditor</c>, because in Godot 4.7 <c>PROPERTY_USAGE_NO_EDITOR</c> and
+    /// <c>PROPERTY_USAGE_STORAGE</c> are the same value and a hidden property would keep serialising.
     /// </summary>
     public override void _ValidateProperty(Godot.Collections.Dictionary property)
     {
@@ -196,11 +154,6 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();
-
-        if (!WorldUiScale.IsUsable(TargetWorldHeight))
-        {
-            warnings.Add(TargetWorldHeightFault());
-        }
 
         if (FontSize <= 0)
         {
@@ -258,9 +211,6 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
         LayoutChanged();
     }
 
-    private string TargetWorldHeightFault()
-        => WorldUiScale.UnusableLengthExplanation("Target World Height", TargetWorldHeight, WorldUiStyle.InterimTextWorldHeight);
-
     /// <summary>Authored properties that move the drawn box off the origin or add a line, each of which breaks prompt placement.</summary>
     private IEnumerable<string> PlacementFaults()
     {
@@ -290,8 +240,18 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
         }
     }
 
+    private void ApplyStyleState()
+    {
+        WorldUiStyle style = Style;
+        bool onTop = style.DepthMode == WorldUiDepthMode.AlwaysOnTop;
+        NoDepthTest = onTop;
+        RenderPriority = onTop ? WorldUiStyle.OnTopRenderPriority : 0;
+        Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
+        ApplyDerivedPixelSize();
+    }
+
     private void ApplyDerivedPixelSize()
-        => PixelSize = WorldUiScale.PixelSizeForFont(TargetWorldHeight, FontSize);
+        => PixelSize = WorldUiScale.PixelSizeForFont(Style.TextWorldHeight, FontSize);
 
     #region Test Helpers
 #if TOOLS
