@@ -108,7 +108,7 @@ public partial class WorldUiPrompt : Node3D
         _measurePending = false;
         Node3D? host = ResolveHost();
         _bounds = host != null && host.IsInsideTree()
-            ? EntityVisualBounds3D.Measure(host, exclude: this)
+            ? EntityVisualBounds3D.Measure(host, exclude: this, extent: ArtExtent.DrawnPixels)
             : VisualBounds3D.Unmeasured;
         _layoutPending = true;
     }
@@ -348,7 +348,7 @@ public partial class WorldUiPrompt : Node3D
             JmoLogger.Warning(this, $"[WorldUi] {Name}: the host has no measurable art, so the prompt brackets the host origin.");
         }
 
-        float centreY = measured ? _bounds.Center.Y : 0f;
+        float centreY = measured ? _bounds.Center.Y + (_bounds.TrimShift.Y * ((1f / screenUp) - 1f)) : 0f;
         float halfHeight = measured ? _bounds.Size.Y * 0.5f : 0f;
         float centreX = measured ? _bounds.Center.X : 0f;
         float padding = ResolvedStyle.AnchorPadding;

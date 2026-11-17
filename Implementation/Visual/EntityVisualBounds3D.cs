@@ -19,7 +19,13 @@ using Jmodot.Implementation.Visual.Sprite;
 /// moment non-planar art is measured, and <see cref="Largest"/> picks it up with no change here.
 /// </param>
 /// <param name="Center">Centre of that union, in entity-local space.</param>
-public readonly record struct VisualBounds3D(Vector3 Size, Vector3 Center)
+/// <param name="TrimShift">
+/// How far <see cref="ArtExtent.DrawnPixels"/> moved <paramref name="Center"/> from the frame union's centre, in the
+/// same art-reading metres as <paramref name="Size"/>, already included in <paramref name="Center"/>. Zero under
+/// <see cref="ArtExtent.Frame"/>. A caller that places things along an axis foreshortened on screen converts this
+/// part like it converts <paramref name="Size"/>, because the shift is a length the art reads as, not a world offset.
+/// </param>
+public readonly record struct VisualBounds3D(Vector3 Size, Vector3 Center, Vector2 TrimShift = default)
 {
     /// <summary>Sentinel for an entity whose live art could not be measured.</summary>
     public static readonly VisualBounds3D Unmeasured = new(Vector3.Zero, Vector3.Zero);
@@ -46,6 +52,16 @@ public readonly record struct VisualBounds3D(Vector3 Size, Vector3 Center)
     public float CenterOffsetY => Center.Y;
 }
 
+/// <summary>Which part of each sprite's art <see cref="EntityVisualBounds3D.Measure"/> reports.</summary>
+public enum ArtExtent
+{
+    /// <summary>The whole frame rectangle, transparent padding included.</summary>
+    Frame,
+
+    /// <summary>Only the drawn (non-transparent) pixels of the current frame.</summary>
+    DrawnPixels,
+}
+
 /// <summary>
 /// Measures the silhouette of a 3D entity's live sprite art, so attached visuals (status
 /// encasements, auras, shields) can size and centre themselves on the body they decorate.
@@ -57,7 +73,22 @@ public static class EntityVisualBounds3D
     /// and everything beneath it so a caller can leave its own art out of the measurement.
     /// Returns <see cref="VisualBounds3D.Unmeasured"/> when nothing live can be measured.
     /// </summary>
-    public static VisualBounds3D Measure(Node3D entity, Node? exclude = null)
+    /// <param name="entity">The entity whose art is measured.</param>
+    /// <param name="exclude">A node whose subtree is left out of the measurement.</param>
+    /// <param name="extent">
+    /// <see cref="ArtExtent.Frame"/> measures each sprite's whole frame; <see cref="ArtExtent.DrawnPixels"/>
+    /// measures only the drawn pixels inside it, so transparent padding does not count.
+    /// </param>
+    public static VisualBounds3D Measure(Node3D entity, Node? exclude = null, ArtExtent extent = ArtExtent.Frame)
+    {
+        VisualBounds3D bounds = MeasureExtent(entity, exclude, extent);
+        if (extent == ArtExtent.Frame || !bounds.IsMeasured) { return bounds; }
+
+        VisualBounds3D frame = MeasureExtent(entity, exclude, ArtExtent.Frame);
+        return bounds with { TrimShift = new Vector2(bounds.Center.X - frame.Center.X, bounds.Center.Y - frame.Center.Y) };
+    }
+
+    private static VisualBounds3D MeasureExtent(Node3D entity, Node? exclude, ArtExtent extent)
     {
         if (entity == null || !GodotObject.IsInstanceValid(entity)) { return VisualBounds3D.Unmeasured; }
 
@@ -68,10 +99,10 @@ public static class EntityVisualBounds3D
         if (entity.TryGetFirstChildOfType<VisualComposer>(out var composer, includeSubChildren: true)
             && composer != null)
         {
-            return Union(entity, ComposedSprites(composer, exclude));
+            return Union(entity, ComposedSprites(composer, exclude), extent);
         }
 
-        return MeasureTreeWalk(entity, exclude);
+        return MeasureTreeWalk(entity, exclude, extent);
     }
 
     /// <summary>
@@ -85,7 +116,7 @@ public static class EntityVisualBounds3D
     /// configuration, which is orientation-independent, and only the SCALE of the transform chain
     /// is applied to it.
     /// </remarks>
-    private static VisualBounds3D Union(Node3D entity, IEnumerable<SpriteBase3D> sprites)
+    private static VisualBounds3D Union(Node3D entity, IEnumerable<SpriteBase3D> sprites, ArtExtent artExtent)
     {
         Transform3D toEntity = entity.GlobalTransform.AffineInverse();
         var low = new Vector2(float.MaxValue, float.MaxValue);
@@ -96,7 +127,7 @@ public static class EntityVisualBounds3D
         {
             if (!GodotObject.IsInstanceValid(sprite)) { continue; }
 
-            Vector2 art = ArtSize(sprite);
+            (Vector2 art, Vector2 artCentre) = ArtBox(sprite, artExtent);
             if (art.Y <= 0f && art.X <= 0f) { continue; }
 
             Transform3D relative = toEntity * sprite.GlobalTransform;
@@ -106,7 +137,7 @@ public static class EntityVisualBounds3D
             Vector3 scale = relative.Basis.Scale;
             var extent = new Vector2(art.X * scale.X, art.Y * scale.Y);
             Vector2 centre = new Vector2(relative.Origin.X, relative.Origin.Y)
-                + (ArtCentreOffset(sprite, art) * new Vector2(scale.X, scale.Y));
+                + (artCentre * new Vector2(scale.X, scale.Y));
 
             low = low.Min(centre - (extent * 0.5f));
             high = high.Max(centre + (extent * 0.5f));
@@ -121,6 +152,42 @@ public static class EntityVisualBounds3D
         // Depth stays zero: every sprite measured here is planar, and inventing a value would make
         // Largest claim an extent nothing rendered.
         return new VisualBounds3D(new Vector3(size.X, size.Y, 0f), new Vector3(middle.X, middle.Y, 0f));
+    }
+
+    /// <summary>
+    /// Size of the sprite's measured art and the offset from its node origin to that art's centre, both
+    /// at a scale of 1. Under <see cref="ArtExtent.DrawnPixels"/> both describe the drawn pixels of the
+    /// current frame; a sprite whose drawn pixels cannot be located inside its frame reports the frame.
+    /// </summary>
+    /// <remarks>
+    /// Image y grows downward and 3D y grows upward, so a larger transparent bottom margin moves the
+    /// centre up. A flip mirrors the margin it trims.
+    /// </remarks>
+    private static (Vector2 Size, Vector2 Centre) ArtBox(SpriteBase3D sprite, ArtExtent extent)
+    {
+        Vector2 frameArt = ArtSize(sprite);
+        Vector2 frameCentre = ArtCentreOffset(sprite, frameArt);
+        if (extent == ArtExtent.Frame) { return (frameArt, frameCentre); }
+
+        var (sampled, uv, framePixels) = SpriteFrameRect.Of(sprite);
+        if (sampled == null || framePixels.X <= 0f || framePixels.Y <= 0f) { return (frameArt, frameCentre); }
+
+        Vector2 sampledSize = sampled.GetSize();
+        var source = new Rect2I(
+            new Vector2I(Mathf.RoundToInt(uv.X * sampledSize.X), Mathf.RoundToInt(uv.Y * sampledSize.Y)),
+            new Vector2I(Mathf.RoundToInt((uv.Z - uv.X) * sampledSize.X), Mathf.RoundToInt((uv.W - uv.Y) * sampledSize.Y)));
+        // A margined atlas frame draws more pixels than it samples; the drawn pixels then have no
+        // unambiguous place in the frame.
+        if (source.Size.X != Mathf.RoundToInt(framePixels.X) || source.Size.Y != Mathf.RoundToInt(framePixels.Y)) { return (frameArt, frameCentre); }
+
+        Rect2 drawn = DrawnPixelRect.Of(sampled, source);
+        Vector2 local = drawn.Position - new Vector2(source.Position.X, source.Position.Y);
+        Vector2 fromFrameCentre = (local + (drawn.Size * 0.5f)) - (framePixels * 0.5f);
+        var shift = new Vector2(fromFrameCentre.X, -fromFrameCentre.Y);
+        if (sprite.FlipH) { shift.X = -shift.X; }
+        if (sprite.FlipV) { shift.Y = -shift.Y; }
+
+        return (drawn.Size * sprite.PixelSize, frameCentre + (shift * sprite.PixelSize));
     }
 
     /// <summary>
@@ -185,7 +252,7 @@ public static class EntityVisualBounds3D
     /// Silhouette of a single-sprite entity (NPC, prop). Falling back to hidden sprites is safe
     /// here: without a composer there is no art-regime ambiguity to get wrong.
     /// </summary>
-    private static VisualBounds3D MeasureTreeWalk(Node3D entity, Node? exclude)
+    private static VisualBounds3D MeasureTreeWalk(Node3D entity, Node? exclude, ArtExtent extent)
     {
         var all = new List<SpriteBase3D>();
         var visible = new List<SpriteBase3D>();
@@ -199,9 +266,9 @@ public static class EntityVisualBounds3D
             if (sprite.IsVisibleInTree()) { visible.Add(sprite); }
         }
 
-        VisualBounds3D shown = Union(entity, visible);
+        VisualBounds3D shown = Union(entity, visible, extent);
 
-        return shown.IsMeasured ? shown : Union(entity, all);
+        return shown.IsMeasured ? shown : Union(entity, all, extent);
     }
 
     /// <summary>
