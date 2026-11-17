@@ -1,8 +1,10 @@
 namespace Jmodot.Implementation.Visual.WorldUi;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Jmodot.Core.Visual.Effects;
 using Jmodot.Implementation.Components;
 using Jmodot.Implementation.Shared;
 using Jmodot.Implementation.Visual;
@@ -47,7 +49,7 @@ using GCol = Godot.Collections;
 /// </para>
 /// </remarks>
 [GlobalClass, Tool]
-public partial class WorldUiPrompt : Node3D
+public partial class WorldUiPrompt : Node3D, IVisualEffectExempt
 {
     private GCol.Array<Node3D> _above = new();
     private GCol.Array<Node3D> _below = new();
@@ -78,6 +80,141 @@ public partial class WorldUiPrompt : Node3D
             ApplyStyleToElements();
             _layoutPending = true;
             UpdateConfigurationWarnings();
+        }
+    }
+
+    private readonly Dictionary<StringName, bool> _gates = new();
+    private bool _shown = true;
+    private bool _motionSettled;
+    private Tween? _tween;
+    private float _presentationAlpha = 1f;
+    private Vector3 _presentationOffset = Vector3.Zero;
+    private float _presentationScale = 1f;
+
+    /// <summary>True while every gate set through <see cref="SetGate"/> is open; true with no gates.</summary>
+    public bool IsShown => _shown;
+
+    /// <summary>Raised with the new <see cref="IsShown"/> when a <see cref="SetGate"/> changes it, after the show or hide has begun.</summary>
+    public event Action<bool> ShownChanged = delegate { };
+
+    /// <summary>Alpha of every element, 0 to 1. Driven by a transition; a caller reads it and never needs to write it.</summary>
+    public float PresentationAlpha
+    {
+        get => _presentationAlpha;
+        set
+        {
+            _presentationAlpha = value;
+            _layoutPending = true;
+            ApplyPresentationAlpha();
+        }
+    }
+
+    /// <summary>Offset of every element from its laid-out position, in metres. Driven by a transition.</summary>
+    public Vector3 PresentationOffset
+    {
+        get => _presentationOffset;
+        set
+        {
+            _presentationOffset = value;
+            _layoutPending = true;
+        }
+    }
+
+    /// <summary>Uniform scale of every element. Driven by a transition.</summary>
+    public float PresentationScale
+    {
+        get => _presentationScale;
+        set
+        {
+            _presentationScale = value;
+            _layoutPending = true;
+        }
+    }
+
+    /// <summary>
+    /// Opens or closes the named gate. The prompt is shown while every gate that has been set is open, so any
+    /// number of triggers share it, each owning its own name.
+    /// </summary>
+    /// <remarks>
+    /// A call that leaves <see cref="IsShown"/> unchanged raises nothing and starts no motion. A change runs the
+    /// style's <see cref="WorldUiStyle.Transition"/> from the current presentation channels, reversing one that is
+    /// still running. It applies at once, with no motion, when there is no transition or it has no usable
+    /// duration, and for a change made before the prompt has processed a visible frame, so a gate that starts
+    /// closed never flashes the prompt. The motion plays as soon as the prompt has been hidden by such a change.
+    /// </remarks>
+    public void SetGate(StringName gate, bool open)
+    {
+        _gates[gate] = open;
+        bool shown = _gates.Values.All(isOpen => isOpen);
+        if (shown == _shown) { return; }
+
+        _shown = shown;
+        PlayShownChange(shown);
+        ShownChanged(shown);
+    }
+
+    private void PlayShownChange(bool shown)
+    {
+        _tween?.Kill();
+        _tween = null;
+
+        WorldUiTransition? transition = _style?.Transition;
+        if (transition == null || !IsInsideTree())
+        {
+            ApplyRestState();
+            Visible = shown;
+            _motionSettled |= !shown;
+            return;
+        }
+
+        bool animate = _motionSettled && transition.EffectiveDuration > 0f;
+        _tween = CreateTween().SetParallel(true);
+        if (shown)
+        {
+            Visible = true;
+            transition.AddShowTweeners(_tween, this);
+        }
+        else
+        {
+            transition.AddHideTweeners(_tween, this);
+        }
+
+        _tween.Chain().TweenCallback(Callable.From(shown ? OnShowFinished : OnHideFinished));
+        if (animate)
+        {
+#if TOOLS
+            AnimatedTweensStartedForTest++;
+#endif
+            return;
+        }
+
+        _tween.CustomStep(SnapStepSeconds);
+        _motionSettled |= !shown;
+    }
+
+    /// <summary>A step longer than any transition: finishes every tweener and the closing callback at once.</summary>
+    private const double SnapStepSeconds = 1e6;
+
+    private void OnShowFinished() => _tween = null;
+
+    private void OnHideFinished()
+    {
+        _tween = null;
+        Visible = false;
+    }
+
+    private void ApplyRestState()
+    {
+        PresentationAlpha = 1f;
+        PresentationOffset = Vector3.Zero;
+        PresentationScale = 1f;
+    }
+
+    private void ApplyPresentationAlpha()
+    {
+        foreach (IWorldUiElement element in _subscribed)
+        {
+            element.SetPresentationAlpha(_presentationAlpha);
         }
     }
 
@@ -169,6 +306,7 @@ public partial class WorldUiPrompt : Node3D
     {
         if (Engine.IsEditorHint()) { return; }
 
+        _motionSettled = true;
         if (_measurePending) { Remeasure(); }
 
         float screenUp = CurrentScreenUp();
@@ -282,6 +420,14 @@ public partial class WorldUiPrompt : Node3D
         {
             yield return fault;
         }
+
+        if (_style.Transition != null)
+        {
+            foreach (string fault in _style.Transition.Faults())
+            {
+                yield return fault;
+            }
+        }
     }
 
     private void FollowHostSize()
@@ -359,6 +505,13 @@ public partial class WorldUiPrompt : Node3D
         if (ResolvedStyle.DepthMode == WorldUiDepthMode.SortedWithWorld)
         {
             LiftAboveHostGround(PlaceableAbove().Concat(PlaceableBelow()), padding);
+        }
+
+        foreach ((Node3D node, IWorldUiElement element) in PlaceableAbove().Concat(PlaceableBelow()))
+        {
+            node.Position += _presentationOffset;
+            node.Scale = Vector3.One * _presentationScale;
+            element.SetPresentationAlpha(_presentationAlpha);
         }
 
         if (!_placementLogged)
@@ -478,6 +631,9 @@ public partial class WorldUiPrompt : Node3D
     #region Test Helpers
 #if TOOLS
     internal int LayoutCountForTest { get; private set; }
+
+    /// <summary>Counts the show and hide tweens that actually animate, so a test can tell a snap from a tween.</summary>
+    internal int AnimatedTweensStartedForTest { get; private set; }
 #endif
     #endregion
 }

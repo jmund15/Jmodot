@@ -34,4 +34,6 @@ public interface IWorldUiElement
 
     /// <summary>Applies the heights, depth mode and render priority of <paramref name="style"/>, then raises <see cref="LayoutChanged"/>.</summary>
     void ApplyStyle(WorldUiStyle style);
+
+    void SetPresentationAlpha(float alpha);
 }

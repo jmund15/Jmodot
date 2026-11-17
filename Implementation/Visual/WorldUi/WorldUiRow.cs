@@ -29,6 +29,7 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
     private WorldUiLabel? _builtText;
     private bool _labelFallbackLogged;
     private bool _labelSceneRejected;
+    private float _presentationAlpha = 1f;
 
     private WorldUiStyle Style => _style ?? WorldUiStyle.Fallback;
 
@@ -45,6 +46,16 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
     /// Applies the style's icon height, depth test and render priority, and its label scene for text, then rebuilds
     /// the row's items.
     /// </summary>
+    /// <summary>
+    /// Multiplies <paramref name="alpha"/> into every built icon's own tint alpha and writes it to the built text. It is
+    /// kept, so items the row rebuilds draw with it.
+    /// </summary>
+    public void SetPresentationAlpha(float alpha)
+    {
+        _presentationAlpha = alpha;
+        ApplyPresentationAlpha();
+    }
+
     public void ApplyStyle(WorldUiStyle style)
     {
         _style = style;
@@ -134,8 +145,20 @@ public partial class WorldUiRow : Node3D, IWorldUiElement
             BuildIcons(Style.IconWorldHeight);
         }
 
+        ApplyPresentationAlpha();
         UpdateConfigurationWarnings();
         LayoutChanged();
+    }
+
+    private void ApplyPresentationAlpha()
+    {
+        _builtText?.SetPresentationAlpha(_presentationAlpha);
+        int icon = 0;
+        foreach (Sprite3D sprite in _built.OfType<Sprite3D>())
+        {
+            Color tint = _icons[icon++].Tint;
+            sprite.Modulate = new Color(tint, tint.A * _presentationAlpha);
+        }
     }
 
     private void BuildText(string text)

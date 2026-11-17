@@ -103,6 +103,13 @@ public partial class WorldUiLabel : Label3D, IWorldUiElement
     /// Applies the style's em height, depth test and render priority, billboarding, then raises
     /// <see cref="LayoutChanged"/>.
     /// </summary>
+    /// <summary>Writes <paramref name="alpha"/> to the text and its outline, leaving their colours.</summary>
+    public void SetPresentationAlpha(float alpha)
+    {
+        Modulate = new Color(Modulate, alpha);
+        OutlineModulate = new Color(OutlineModulate, alpha);
+    }
+
     public void ApplyStyle(WorldUiStyle style)
     {
         _style = style;

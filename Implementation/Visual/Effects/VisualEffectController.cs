@@ -273,7 +273,7 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         // Incremental update: the event already carries the affected handle, so we
         // don't need the full RefreshVisualNodes scan (which previously ran once per
         // handle of every multi-binding rig — O(n²) per equip).
-        if (!GodotObject.IsInstanceValid(h.Node)) { return; }
+        if (!GodotObject.IsInstanceValid(h.Node) || IsExempt(h.Node)) { return; }
         _handles[h.Node] = h;
         if (h.Node is GeometryInstance3D or CanvasItem && !_channelNodes.ContainsKey(h.Node))
         {
@@ -322,6 +322,9 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         }
     }
 
+    /// <summary>A node under an <see cref="IVisualEffectExempt"/> owner is never tracked: that owner writes its colour.</summary>
+    private static bool IsExempt(Node node) => node.FindFirstAncestorOfType<IVisualEffectExempt>() != null;
+
     private Dictionary<Node, VisualNodeHandle?> CollectCurrentNodes()
     {
         var nodes = new Dictionary<Node, VisualNodeHandle?>();
@@ -336,7 +339,11 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         {
             var rootSprites = new List<Node>();
             VisualNodeAggregator.CollectSprites(Root, rootSprites);
-            foreach (var n in rootSprites) { nodes.TryAdd(n, null); }
+            foreach (var n in rootSprites)
+            {
+                if (IsExempt(n)) { continue; }
+                nodes.TryAdd(n, null);
+            }
         }
         return nodes;
     }
