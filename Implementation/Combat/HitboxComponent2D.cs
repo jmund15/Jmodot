@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Math;
 using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
 using GCol = Godot.Collections;
@@ -109,8 +110,10 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     // _ownsHitLedger is false while that set is on loan: the set's lifetime is the injector's,
     // so start/end of an attack must not empty someone else's record.
     private HashSet<HurtboxComponent2D> _hitHurtboxes = new();
+    private bool _endPending;
     private bool _ownsHitLedger = true;
-    private double _tickTimer = 0.0;
+    // NOT readonly: IntervalClock is a mutable struct.
+    private IntervalClock _tickClock = new();
 
     /// <summary>
     /// Number of physics frames to retry the pending overlap check.
@@ -170,6 +173,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_endPending)
+        {
+            EndAttack();
+            return;
+        }
+
         if (_pendingOverlapRetries > 0 && Monitoring)
         {
             _pendingOverlapRetries--;
@@ -179,17 +188,20 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         if (!IsActive) { return; }
         if (!IsContinuous) { return; }
 
-        _tickTimer += delta;
-
-        if (_tickTimer >= ContinuousTickInterval)
+        // A pending end ends the walk: the pass in flight lands, and no later fire starts this frame.
+        for (int n = _tickClock.Advance(delta, ContinuousTickInterval); n > 0 && IsActive && !_endPending; n--)
         {
-            _tickTimer = 0.0;
-            // A SHARED registry is cleared here too, by design: continuous mode's whole contract is
-            // re-hitting on a tick cadence, and a ledger that outlived the tick would cap the volume
-            // at one hit per target for its entire life.
-            _hitHurtboxes.Clear();
-            ProcessOverlappingAreas();
+            ProcessContinuousTick();
         }
+    }
+
+    private void ProcessContinuousTick()
+    {
+        // A SHARED registry is cleared here too, by design: continuous mode's whole contract is
+        // re-hitting on a tick cadence, and a ledger that outlived the tick would cap the volume
+        // at one hit per target for its entire life.
+        _hitHurtboxes.Clear();
+        ProcessOverlappingAreas();
     }
     #endregion
 
@@ -234,14 +246,76 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     /// collision exceptions, capacity, interceptor, and the <c>_hitHurtboxes</c> debounce), so a
     /// target already hit during this attack is a no-op regardless of which channel saw it first.
     /// </summary>
-    /// <param name="collider">The contacted node; its <see cref="HurtboxComponent2D"/> descendant is
-    /// resolved by type, breadth-first, so grouping the hurtbox under a presentation node does not
-    /// silence this channel. A collider carrying no hurtbox is a no-op.</param>
-    public void TryHitNode(Node2D collider)
+    /// <param name="collider">The contacted node. A <see cref="HurtboxComponent2D"/> is taken as
+    /// itself; otherwise its hurtbox descendant is resolved by <see cref="FindHurtbox"/>, so grouping
+    /// the hurtbox under a presentation node does not silence this channel. A collider carrying no
+    /// reachable hurtbox is a no-op.</param>
+    /// <param name="continuous">True when the caller delivers one contact of a held source (mirrors 3D).</param>
+    public void TryHitNode(Node2D collider, bool continuous = false)
     {
-        if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
+        if (FindHurtbox(collider) is { } hurtbox) { TryHitHurtbox(hurtbox, continuous); }
+    }
+
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.FindHurtbox"/>. The hurtbox a contact on
+    /// <paramref name="collider"/> reaches. A collider that is itself a <see cref="HurtboxComponent2D"/>
+    /// is taken as itself; otherwise its hurtbox descendants are searched breadth-first, so grouping
+    /// them under a presentation node does not hide them, and the first found stands in. A hurtbox
+    /// queued for deletion, or whose shapes are all disabled, is never the one: no detector reaches
+    /// it. Null when the collider holds none. Unlike the 3D twin it takes no strike origin to rank
+    /// several hurtboxes by: no 2D consumer has one.
+    /// </summary>
+    public static HurtboxComponent2D? FindHurtbox(Node2D collider)
+    {
+        if (collider is HurtboxComponent2D self) { return self; }
+
+        var pending = new Queue<Node>();
+        pending.Enqueue(collider);
+        while (pending.Count > 0)
         {
-            TryHitHurtbox(hurtbox);
+            var node = pending.Dequeue();
+            for (int i = 0; i < node.GetChildCount(); i++)
+            {
+                var child = node.GetChild(i);
+                pending.Enqueue(child);
+                if (child is HurtboxComponent2D candidate && CanBeStruck(candidate)) { return candidate; }
+            }
+        }
+        return null;
+    }
+
+    private static bool CanBeStruck(HurtboxComponent2D hurtbox)
+        => !hurtbox.IsQueuedForDeletion() && !HasOnlyDisabledShapes(hurtbox);
+
+    // Shape nodes directly under the hurtbox, else one level down, as the 3D shape walk reads them.
+    private static bool HasOnlyDisabledShapes(Node2D hurtbox)
+    {
+        bool anyShape = false;
+        for (int i = 0; i < hurtbox.GetChildCount(); i++)
+        {
+            var child = hurtbox.GetChild(i);
+            if (IsShapeNode(child, ref anyShape)) { return false; }
+            if (child is not Node2D) { continue; }
+            for (int j = 0; j < child.GetChildCount(); j++)
+            {
+                if (IsShapeNode(child.GetChild(j), ref anyShape)) { return false; }
+            }
+        }
+        return anyShape;
+    }
+
+    private static bool IsShapeNode(Node node, ref bool anyShape)
+    {
+        switch (node)
+        {
+            case CollisionShape2D shape:
+                anyShape = true;
+                return !shape.Disabled && shape.Shape != null;
+            case CollisionPolygon2D polygon:
+                anyShape = true;
+                return !polygon.Disabled;
+            default:
+                return false;
         }
     }
 
@@ -265,10 +339,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     /// </summary>
     public void ClearHitEntry(Node2D collider)
     {
-        if (collider.TryGetFirstChildOfType<HurtboxComponent2D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
-        {
-            _hitHurtboxes.Remove(hurtbox);
-        }
+        if (FindHurtbox(collider) is { } hurtbox) { _hitHurtboxes.Remove(hurtbox); }
     }
 
     public void StartAttack(IAttackPayload payload)
@@ -280,8 +351,9 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         }
 
         CurrentPayload = payload;
+        _endPending = false;
         if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
-        _tickTimer = 0.0;
+        _tickClock.Reset();
 
         OnAttackStarted?.Invoke();
 
@@ -294,6 +366,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
 
     public void EndAttack()
     {
+        _endPending = false;
         if (!IsInitialized || !IsActive) { return; }
 
         // Captured before the clear — subscribers of OnAttackFinished cannot read the count,
@@ -310,6 +383,19 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     }
 
     /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.EndAttackAtFrameEnd"/>. Ends the attack at the next
+    /// physics step, for an owner that died. A hit already in flight still lands, but the hitbox
+    /// starts no further continuous tick or overlap retry. A new attack started before that step
+    /// is left alone.
+    /// </summary>
+    public void EndAttackAtFrameEnd()
+    {
+        if (!IsActive || _endPending) { return; }
+
+        _endPending = true;
+    }
+
+    /// <summary>
     /// Resets hitbox state for pool reuse. Called via IPoolResetable.
     /// CRITICAL: Clears accumulated event handlers — without this, Nth reuse
     /// fires N handlers per hit.
@@ -317,6 +403,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
     public void OnPoolReset()
     {
         _pendingOverlapRetries = 0;
+        _endPending = false;
 
         OnHitRegistered = delegate { };
         OnAttackStarted = delegate { };
@@ -539,7 +626,12 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
         }
     }
 
-    private void TryHitHurtbox(HurtboxComponent2D hurtbox)
+    /// <summary>
+    /// 2D twin of <see cref="HitboxComponent3D.TryHitHurtbox"/>. Delivers a hit to
+    /// <paramref name="hurtbox"/> through the same guards as <see cref="TryHitNode"/>, for a caller that
+    /// already holds the hurtbox it resolved.
+    /// </summary>
+    public void TryHitHurtbox(HurtboxComponent2D hurtbox, bool continuous = false)
     {
         if (!IsActive || CurrentPayload == null)
         {
@@ -590,7 +682,7 @@ public partial class HitboxComponent2D : Area2D, IComponent, IBlackboardProvider
             }
         }
 
-        bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
+        bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit, continuous: IsContinuous || continuous);
 
         if (wasAccepted)
         {

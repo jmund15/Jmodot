@@ -65,17 +65,22 @@ public partial class StateTransition : Resource
     /// <param name="bb">The blackboard containing state data.</param>
     /// <returns>True if conditions are met according to the operator logic.</returns>
     public bool AreConditionsMet(Node agent, IBlackboard bb)
+        => AreConditionsMet(agent, bb, Jmodot.Core.Combat.CombatLogMark.Origin);
+
+    /// <summary>Evaluates valid conditions once each, passing the emitting state's entry mark.</summary>
+    public bool AreConditionsMet(Node agent, IBlackboard bb, in Jmodot.Core.Combat.CombatLogMark entry)
     {
-        var validConditions = Conditions.Where(c => c.IsValid());
-
-        if (!validConditions.Any())
+        bool any = false;
+        for (int i = 0; i < Conditions.Count; i++)
         {
-            return true;
+            var condition = Conditions[i];
+            if (!condition.IsValid()) { continue; }
+            any = true;
+            bool passed = condition.Check(agent, bb, entry);
+            if (Operator == ConditionOperator.And && !passed) { return false; }
+            if (Operator == ConditionOperator.Or && passed) { return true; }
         }
-
-        return Operator == ConditionOperator.And
-            ? validConditions.All(c => c.Check(agent, bb))
-            : validConditions.Any(c => c.Check(agent, bb));
+        return !any || Operator == ConditionOperator.And;
     }
 
     /// <summary>

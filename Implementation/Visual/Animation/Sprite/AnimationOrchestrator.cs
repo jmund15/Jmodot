@@ -63,6 +63,8 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     [Export] public AnimationNamingConvention? NamingConvention { get; set; }
 
     private IAnimComponent _targetAnimator = null!;
+    private float _requestedSpeed = 1f;
+    private bool _frozen;
 
     /// <summary>
     /// The plain stem the requesting state asked for, before variation — "hurt", never "hurt_1".
@@ -119,6 +121,9 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
             SetProcess(false);
             return;
         }
+
+        _requestedSpeed = _targetAnimator.GetSpeedScale();
+        ApplyEffectiveSpeed();
 
         // Forward events
         _targetAnimator.AnimStarted += OnTargetAnimStarted;
@@ -448,13 +453,33 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     /// degradation the play path uses (exact directional → nearest directional → bare base name),
     /// not just the exact directional name. A stricter gate here would report "no animation" for a
     /// bare-named clip the play path would happily start, wrongly skipping it (e.g. a spell body's
-    /// "spawn" clip authored without directional variants).
+    /// "spawn" clip authored without directional variants). A base the entity varies through
+    /// <see cref="VariantSources"/> counts when any one of its varied names resolves, since the play
+    /// path would compose that name.
     /// </summary>
     public bool HasAnimationBase(StringName baseName)
     {
+        if (ResolvesClip(baseName)) { return true; }
+
+        var convention = ActiveNamingConvention();
+        foreach (var source in VariantSources)
+        {
+            if (source == null) { continue; }
+
+            foreach (var label in source.PossibleVariants(baseName))
+            {
+                if (ResolvesClip(convention.GetFullAnimationName(baseName, new[] { label }))) { return true; }
+            }
+        }
+
+        return false;
+    }
+
+    private bool ResolvesClip(StringName stem)
+    {
         return DirectionalClipResolver.Resolve(
             HasAnimation,
-            baseName,
+            stem,
             ActiveDirectionLabel(),
             ActiveDirection(),
             DirectionLabels,
@@ -520,8 +545,26 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
         return GetAnimationLength(baseName);
     }
     public float GetCurrAnimationPosition() => _targetAnimator.GetCurrAnimationPosition();
-    public float GetSpeedScale() => _targetAnimator.GetSpeedScale();
-    public void SetSpeedScale(float speedScale) => _targetAnimator.SetSpeedScale(speedScale);
+    /// <inheritdoc />
+    public bool IsFrozen => _frozen;
+
+    /// <inheritdoc />
+    public void SetFrozen(bool frozen)
+    {
+        _frozen = frozen;
+        ApplyEffectiveSpeed();
+    }
+    public float GetSpeedScale() => _requestedSpeed;
+    public void SetSpeedScale(float speedScale)
+    {
+        _requestedSpeed = speedScale;
+        ApplyEffectiveSpeed();
+    }
+    private void ApplyEffectiveSpeed()
+    {
+        if (_targetAnimator == null || !GodotObject.IsInstanceValid(_targetAnimator.GetUnderlyingNode())) { return; }
+        _targetAnimator.SetSpeedScale(_frozen ? 0f : _requestedSpeed);
+    }
     public string[] GetAnimationList() => _targetAnimator.GetAnimationList();
 
     public bool IsAnimationLooping(StringName baseName)
@@ -537,7 +580,12 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
     // Substitutes the animator _Ready would have resolved, so a case can drive the orchestrator's
     // own resolution and stem logic against a double without a scene. Compiler-checked, unlike the
     // reflection this replaces: renaming the field breaks the build rather than the run.
-    internal void SetTargetAnimator(IAnimComponent animator) => _targetAnimator = animator;
+    internal void SetTargetAnimator(IAnimComponent animator)
+    {
+        _targetAnimator = animator;
+        _requestedSpeed = animator.GetSpeedScale();
+        ApplyEffectiveSpeed();
+    }
 #endif
     #endregion
 }

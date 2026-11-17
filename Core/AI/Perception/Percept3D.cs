@@ -29,14 +29,14 @@ public readonly struct Percept3D
     /// <summary>The strength of the sensation, from 0.0 (barely perceived) to 1.0 (clearly perceived).</summary>
     public readonly float Confidence;
 
-    /// <summary>The strategy defining how this memory should fade over time.</summary>
-    public readonly MemoryDecayStrategy DecayStrategy = null!;
+    /// <summary>The strategy defining how this memory should fade over time. Null means the percept names no decay of its own. <see cref="Jmodot.Implementation.AI.Perception.AIPerceptionManager3D"/> then applies its fallback decay; a <see cref="Perception3DInfo"/> built directly from a null strategy holds its last confidence and never fades.</summary>
+    public readonly MemoryDecayStrategy? DecayStrategy;
 
     /// <summary>The game time (<see cref="GameClock.NowMsec"/>) when this percept was generated.</summary>
     public readonly ulong Timestamp;
 
     public Percept3D(Node3D? target, Vector3 position, Vector3 velocity, Identity identity, float confidence,
-        MemoryDecayStrategy decayStrategy)
+        MemoryDecayStrategy? decayStrategy)
     {
         this.Target = target;
         this.LastKnownPosition = position;

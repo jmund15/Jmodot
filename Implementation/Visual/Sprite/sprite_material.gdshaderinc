@@ -6,6 +6,12 @@
 #ifndef SPRITE_TEXTURE_FILTER
 #define SPRITE_TEXTURE_FILTER filter_linear_mipmap
 #endif
+#ifndef SPRITE_LIGHT_WRAP
+#define SPRITE_LIGHT_WRAP 1.0
+#endif
+#ifndef SPRITE_LIGHT_ROUNDNESS
+#define SPRITE_LIGHT_ROUNDNESS 0.8
+#endif
 
 uniform sampler2D sprite_texture : source_color, SPRITE_TEXTURE_FILTER;
 uniform vec4 sprite_frame_rect = vec4(0.0, 0.0, 1.0, 1.0);
@@ -80,7 +86,32 @@ instance uniform vec4 effect_emission : source_color = vec4(0.0);
 #define SPRITE_EMIT(value) EMISSION += (value);
 #endif
 
+// A flat sprite stands in for a body with volume. Lit through its camera-facing quad, a light level with it and to
+// one side meets the quad edge-on and leaves it black beside a floor that light brightens. It is lit instead as a
+// rounded surface facing halfway between world up and the camera, with wrapped falloff, so it takes light wherever
+// the floor beside it does and on the side the light comes from. The bulge follows the screen, not the UV, so a
+// flipped frame stays lit on the correct side. A normal map perturbs the basis through NORMAL_MAP; its body sets
+// SPRITE_LIGHT_ROUNDNESS to 0, since the map carries the shape.
+#ifdef SPRITE_UNSHADED
+#define SPRITE_LIGHT_BASIS
+#else
+#define SPRITE_LIGHT_BASIS \
+    NORMAL = normalize(normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz) + vec3(0.0, 0.0, 1.0)); \
+    TANGENT = normalize(vec3(1.0, 0.0, 0.0) - NORMAL * NORMAL.x); \
+    BINORMAL = cross(NORMAL, TANGENT); \
+    vec2 sprite_bulge = (UV - (sprite_frame_rect.xy + sprite_frame_rect.zw) * 0.5) \
+        / max((sprite_frame_rect.zw - sprite_frame_rect.xy) * 0.5, vec2(1e-4)); \
+    sprite_bulge.x *= dFdx(UV.x) < 0.0 ? -1.0 : 1.0; \
+    NORMAL = normalize(NORMAL + (TANGENT * sprite_bulge.x - BINORMAL * sprite_bulge.y) * SPRITE_LIGHT_ROUNDNESS);
+
+void light() {
+    float facing = max((dot(NORMAL, LIGHT) + SPRITE_LIGHT_WRAP) / (1.0 + SPRITE_LIGHT_WRAP), 0.0);
+    DIFFUSE_LIGHT += facing * ATTENUATION * LIGHT_COLOR / PI;
+}
+#endif
+
 #define SPRITE_FRAGMENT \
+    SPRITE_LIGHT_BASIS \
     vec4 sprite_texel = texture(sprite_texture, UV); \
     ALBEDO = sprite_texel.rgb * COLOR.rgb; \
     SPRITE_ALPHA_BODY \

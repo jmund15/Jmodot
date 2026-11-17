@@ -1,7 +1,6 @@
 namespace Jmodot.Core.Modifiers;
 
 using Jmodot.Core.Modifiers.StageRules;
-using Jmodot.Core.Shared.Attributes;
 
 /// <summary>
 ///     Resource for modifying an int value. This is the primary tool
@@ -18,14 +17,14 @@ public partial class IntAttributeModifier : AttributeModifier, IIntModifier
     /// </summary>
     [Export] public int Value { get; private set; }
 
-    /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …).</summary>
-    [Export, RequiredExport] public IntModifierStageRule StageRule { get; private set; } = CanonicalStageRules.IntAdditive;
+    /// <summary>The fold rule for this modifier (additive, summed-percent, multiply, override, …). Left unset, the modifier is dropped from the fold with a warning.</summary>
+    [Export] public IntModifierStageRule? StageRule { get; private set; } = CanonicalStageRules.IntAdditive;
 
     public IntAttributeModifier()
     {
         // Default constructor for editor use.
     }
-    public IntAttributeModifier(int value, IntModifierStageRule stageRule, int priority)
+    public IntAttributeModifier(int value, IntModifierStageRule? stageRule, int priority)
     {
         Value = value;
         StageRule = stageRule;

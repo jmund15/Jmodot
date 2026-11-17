@@ -14,8 +14,9 @@ using Godot;
 public partial class RotationFacingConfig : Resource
 {
     /// <summary>
-    /// Degrees the source art's nose sits away from screen-right when unrotated. Added to the computed
-    /// facing angle, so art drawn nose-up authors 90 here.
+    /// Degrees added to the computed facing angle so the art's nose lands on the travel direction: the
+    /// negative of the nose's counter-clockwise angle from screen-right, so art drawn nose-up authors -90
+    /// here and nose-left art 180.
     /// </summary>
     [Export(PropertyHint.Range, "-180,180,1,degrees")] public float ArtBaseAngleOffsetDegrees { get; private set; } = 0f;
 

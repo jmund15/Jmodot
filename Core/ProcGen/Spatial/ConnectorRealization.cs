@@ -21,18 +21,23 @@ public readonly record struct ConnectorRealization
     /// <summary>Axis-aligned connector boxes in normalized floor cells.</summary>
     public IReadOnlyList<CellPlacement> Boxes { get; init; }
 
-    /// <summary>Creates a connector realization from its endpoint identity and boxes.</summary>
+    /// <summary>Junction-to-junction length of the connector path in cells: the quantity the authored connector cap bounds.</summary>
+    public int LengthCells { get; init; }
+
+    /// <summary>Creates a connector realization from its endpoint identity, boxes and path length.</summary>
     public ConnectorRealization(
         StringName fromNodeId,
         StringName toNodeId,
         StringName fromPort,
         StringName toPort,
-        IReadOnlyList<CellPlacement> boxes)
+        IReadOnlyList<CellPlacement> boxes,
+        int lengthCells)
     {
         this.FromNodeId = fromNodeId;
         this.ToNodeId = toNodeId;
         this.FromPort = fromPort;
         this.ToPort = toPort;
         this.Boxes = boxes;
+        this.LengthCells = lengthCells;
     }
 }

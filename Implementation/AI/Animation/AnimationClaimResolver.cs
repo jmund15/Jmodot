@@ -3,6 +3,7 @@ namespace Jmodot.Implementation.AI.Animation;
 using System;
 using System.Collections.Generic;
 using Core.AI.BB;
+using Core.AI.Perception;
 using Core.AI.BehaviorTree;
 using Core.AI;
 using Core.Components;
@@ -57,6 +58,7 @@ public partial class AnimationClaimResolver : Node, IComponent
     // reports no running child for one tick, and the A->null->A flap would restart the claimant's clip.
     private const int TaskClaimGraceFrames = 1;
 
+    private IBlackboard _bb = null!;
     private IAnimationOrchestrator? _anim;
     private ICharacterController3D? _controller;
 
@@ -131,6 +133,7 @@ public partial class AnimationClaimResolver : Node, IComponent
             }
         }
 
+        this._bb = bb;
         this.IsInitialized = true;
         this.Initialized.Invoke();
         return true;
@@ -147,7 +150,7 @@ public partial class AnimationClaimResolver : Node, IComponent
             return;
         }
 
-        var stateLeaf = this.ResolveActiveStateLeaf();
+        var stateLeaf = this.HsmRoot?.ActiveLeaf;
 
         // The task tier is sampled, not committed: debounce it. The state tier is not — HSM
         // transitions are committed, so a grace there would delay every real handoff by a frame.
@@ -159,12 +162,25 @@ public partial class AnimationClaimResolver : Node, IComponent
 
         // The fallback tier owns facing on frames it owns the body: push the movement direction before
         // the clip resolves so a newly-resolved clip starts already-facing. Gated on the fallback tier
-        // winning (a claimant's clip keeps its own authority; a finished one-shot is never poked) and on
-        // a profile (the arbitration-only wizard gets no second direction driver). SetDirection no-ops
-        // on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
-        if (!claimantWon && this.FallbackProfile != null && this._controller != null)
+        // winning (a claimant's clip keeps its own authority; a finished one-shot is never poked), on
+        // a profile (the arbitration-only wizard gets no second direction driver), and on the body not
+        // being frozen (a hold zeroes velocity, and re-aiming would turn or restart the held pose).
+        // SetDirection no-ops on a DirectionSet-less orchestrator, so the one-directional fleet is unaffected.
+        if (!claimantWon && !this._anim.IsFrozen && this.FallbackProfile != null && this._controller != null)
         {
-            this._anim.SetDirection(LocomotionAnimResolver.DirectionFromVelocity(this._controller.Velocity));
+            var key = stateLeaf?.FindFaceTargetKey();
+            Vector3? targetPosition = key != null && this._bb.TryGetLiveTarget(key, out var target)
+                ? target.LastKnownPosition : null;
+            var bodyPosition = this._controller.GlobalPosition;
+            var direction = LocomotionAnimResolver.PickFacing(
+                bodyPosition, targetPosition, this._controller.Velocity, out var targetFacing);
+            // SetDirection can restart a stopped directional clip and seek it to its end. A stopped
+            // clip is about to be recovered by the fallback tier below, so target facing retries on a
+            // later tick once that clip plays; velocity fallback keeps its unconditional push.
+            if (!targetFacing || this._anim.IsPlaying())
+            {
+                this._anim.SetDirection(direction);
+            }
         }
 
         // The fallback tier advances even while a claimant owns the body, so the hand-back reads the
@@ -196,6 +212,13 @@ public partial class AnimationClaimResolver : Node, IComponent
             {
                 this._anim.StartAnimIfChanged(resolved);
             }
+            return;
+        }
+
+        // A frozen body keeps the pose it froze. The fallback tier still ADVANCES above so the
+        // hand-back reads the entity's real motion, but its clip is not pushed until release.
+        if (this._anim.IsFrozen)
+        {
             return;
         }
 
@@ -279,28 +302,6 @@ public partial class AnimationClaimResolver : Node, IComponent
 
         orchestrator = null;
         return false;
-    }
-
-    /// <summary>
-    ///     Descends PrimarySubState to the active leaf. Stops on a null link (the root has not
-    ///     entered yet — this resolver's physics tick can precede it) and rejects an inactive leaf:
-    ///     CompoundState.OnExit deliberately leaves PrimarySubState pointing at the last substate to
-    ///     support history states, so after the HSM exits, a stale leaf would read as a live
-    ///     claimant and silence this resolver permanently.
-    /// </summary>
-    private State? ResolveActiveStateLeaf()
-    {
-        State? current = this.HsmRoot;
-        while (current is CompoundState compound)
-        {
-            var next = compound.PrimarySubState;
-            if (next == null || !next.IsActive)
-            {
-                break;
-            }
-            current = next;
-        }
-        return current != null && current.IsActive ? current : null;
     }
 
     /// <summary>

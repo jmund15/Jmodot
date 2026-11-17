@@ -88,6 +88,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             if (child is Timer timer)
             {
                 var capturedTimer = timer;
+                GameClock.AddPhysicsTimer(this, timer.Name, timer.OneShot);
                 timer.Timeout += () =>
                 {
                     if (IsInstanceValid(capturedTimer))
@@ -151,7 +152,7 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             contrib.BaseConfidence = percept.Confidence;
             contrib.Position = percept.LastKnownPosition;
             contrib.Velocity = percept.LastKnownVelocity;
-            contrib.DecayStrategy = percept.DecayStrategy;
+            contrib.DecayStrategy = percept.DecayStrategy ?? this.FallbackDecayStrategy;
             contrib.SensingActive = true;
             contrib.LastUpdateTime = percept.Timestamp;
         }
@@ -194,23 +195,13 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
         if (contributions.Count == 0)
         {
             this._sensorContributions.Remove(target);
+            this.LetMemoryDecay(target);
+            return;
+        }
 
-            if (this._memoryByTarget.TryGetValue(target, out var info))
-            {
-                this.RemoveFromCategoryCache(info);
-                var exitPercept = new Percept3D(
-                    target: target,
-                    position: info.LastKnownPosition,
-                    velocity: Vector3.Zero,
-                    identity: identity,
-                    confidence: 0f,
-                    decayStrategy: info.Identity?.ResolvePerceptionDecay() ?? this.FallbackDecayStrategy
-                );
-                info.Update(exitPercept);
-                this.AddToCategoryCache(info);
-                this.MemoryUpdatedEventHandler.Invoke(this, info);
-            }
-
+        if (!contributions.Values.Any(c => c.SensingActive))
+        {
+            this.LetMemoryDecay(target);
             return;
         }
 
@@ -242,6 +233,30 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
             JmoLogger.Debug(this, $"[Perception] '{identity.IdentityName}' detected (confidence={fusedConfidence:F2})");
             this.MemoryAddedEventHandler.Invoke(this, newInfo);
         }
+    }
+
+    /// <summary>
+    ///     Every sensor lost the target: the memory goes to its remembered state once and decays on its own clock.
+    ///     Re-fusing the still-decaying contributions here would republish them as a fresh sighting, and with no
+    ///     later sensor event to re-fuse again, the memory would stay at that confidence for good.
+    /// </summary>
+    private void LetMemoryDecay(Node3D target)
+    {
+        if (!this._memoryByTarget.TryGetValue(target, out var info) || !info.IsSensing)
+        {
+            return;
+        }
+
+        this.RemoveFromCategoryCache(info);
+        info.Update(new Percept3D(
+            target: target,
+            position: info.LastKnownPosition,
+            velocity: Vector3.Zero,
+            identity: info.Identity!,
+            confidence: 0f,
+            decayStrategy: info.Identity?.ResolvePerceptionDecay() ?? this.FallbackDecayStrategy));
+        this.AddToCategoryCache(info);
+        this.MemoryUpdatedEventHandler.Invoke(this, info);
     }
 
     private void AddToCategoryCache(Perception3DInfo info)
@@ -389,14 +404,9 @@ public partial class AIPerceptionManager3D : Node, IGodotNodeInterface, IDebugPa
         return this._memoryByTarget.Values.Where(info => info.IsActive);
     }
 
-    public IEnumerable<Perception3DInfo> GetSensedByCategory(Category category)
-    {
-        if (!this._memoryByCategory.TryGetValue(category, out var memorySet))
-        {
-            return [];
-        }
-        return memorySet.Where(info => info.IsActive);
-    }
+    /// <summary>The active memories in <paramref name="category"/>; a foreach over it allocates nothing.</summary>
+    public CategoryMemories GetSensedByCategory(Category category)
+        => new(this._memoryByCategory.TryGetValue(category, out var memorySet) ? memorySet : null);
 
     /// <summary>
     ///     Finds the most prominent (highest confidence) active memory belonging to a specific category. This is a highly

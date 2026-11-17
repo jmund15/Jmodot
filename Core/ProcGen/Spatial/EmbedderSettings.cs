@@ -28,6 +28,15 @@ public partial class EmbedderSettings : Resource
     [Export(PropertyHint.Range, "1,4096")]
     public int RepairBudget { get; set; } = 64;
 
+    /// <summary>
+    ///     Repairs a speculative trial may spend placing a decoration (a loop route or branch) before it is dropped
+    ///     and the generator tries its next option. The floor's committed placement keeps the dynamic budget. Read
+    ///     only on the progressive-embed path (FloorPipelineSettings.UseProgressiveEmbed); the holistic embed
+    ///     ignores it. Must be positive.
+    /// </summary>
+    [Export(PropertyHint.Range, "1,4096")]
+    public int TrialRepairBudget { get; set; } = 64;
+
     /// <summary>Dynamic-budget constant term — repairs granted to every floor regardless of size.</summary>
     [ExportSubgroup("Dynamic budget (auto-sized from topology)")]
     [Export(PropertyHint.Range, "0,4096")]

@@ -9,6 +9,8 @@ using Jmodot.Implementation.Combat;
 using Jmodot.Core.Combat;
 using Shared;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Status;
 
@@ -19,6 +21,9 @@ using Status;
 public partial class CombatLogger : Node, IComponent, IBlackboardProvider
 {
     private CombatantComponent? _combatant;
+    private readonly List<IEntityBodyGraph> _graphs = new();
+    private readonly List<CombatantComponent> _bodyCombatants = new();
+    private readonly List<CombatantComponent> _dyingMembers = new();
 
     /// <summary>
     /// Set to true to enable verbose logging of combat events to the Godot console.
@@ -55,6 +60,73 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
     {
         if (_combatant == null) { return; }
         _combatant.CombatResultEvent += HandleCombatResultEvent;
+
+        var entity = Owner ?? GetParent();
+        if (entity == null) { return; }
+        foreach (var graph in entity.GetChildrenOfInterface<IEntityBodyGraph>())
+        {
+            if (!graph.MemberHitsAreOwn) { continue; }
+            _graphs.Add(graph);
+            graph.BodyGraphChanged += RefreshBodyCombatants;
+        }
+        RefreshBodyCombatants();
+    }
+
+    /// <summary>
+    /// Re-reads every body graph's roster so a hit on any member reaches this log once. Only
+    /// <see cref="HitReport"/> is forwarded: a member's death is not the creature's death.
+    /// </summary>
+    private void RefreshBodyCombatants()
+    {
+        var wanted = new HashSet<CombatantComponent>();
+        foreach (var graph in _graphs)
+        {
+            foreach (var node in graph.BodyGraphNodes.ToArray())
+            {
+                if (!GodotObject.IsInstanceValid(node)) { continue; }
+                if (node.TryGetFirstChildOfType<CombatantComponent>(out var member, includeSubChildren: true)
+                    && member != null && member != _combatant)
+                {
+                    wanted.Add(member);
+                }
+            }
+        }
+
+        foreach (var member in _bodyCombatants.ToArray())
+        {
+            if (wanted.Remove(member)) { continue; }
+            _bodyCombatants.Remove(member);
+            if (!GodotObject.IsInstanceValid(member)) { continue; }
+            if (member.Health is { IsDead: true })
+            {
+                // A killing payload publishes its hit report after the death that dropped the member,
+                // so the member stays subscribed until that report arrives.
+                _dyingMembers.Add(member);
+            }
+            else { member.CombatResultEvent -= HandleBodyResultEvent; }
+        }
+
+        foreach (var member in wanted)
+        {
+            _bodyCombatants.Add(member);
+            member.CombatResultEvent += HandleBodyResultEvent;
+        }
+    }
+
+    private void HandleBodyResultEvent(CombatResult result)
+    {
+        if (result is not HitReport hit) { return; }
+        HandleCombatResultEvent(result);
+        if (hit.Killed) { ReleaseDyingMembers(); }
+    }
+
+    private void ReleaseDyingMembers()
+    {
+        foreach (var member in _dyingMembers)
+        {
+            if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
+        }
+        _dyingMembers.Clear();
     }
 
     private void HandleCombatResultEvent(CombatResult result)
@@ -90,6 +162,15 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
         {
             _combatant.CombatResultEvent -= HandleCombatResultEvent;
         }
+
+        foreach (var graph in _graphs) { graph.BodyGraphChanged -= RefreshBodyCombatants; }
+        _graphs.Clear();
+        foreach (var member in _bodyCombatants)
+        {
+            if (GodotObject.IsInstanceValid(member)) { member.CombatResultEvent -= HandleBodyResultEvent; }
+        }
+        _bodyCombatants.Clear();
+        ReleaseDyingMembers();
     }
 
     #region Verbose Logging
@@ -156,6 +237,22 @@ public partial class CombatLogger : Node, IComponent, IBlackboardProvider
                 sb.AppendLine($"║ Final Amount:    {dmg.FinalAmount:F2} (after armor/mitigation)");
                 sb.AppendLine($"║ Is Critical:     {dmg.IsCritical}");
                 sb.AppendLine($"║ Is Fatal:        {dmg.IsFatal}");
+                break;
+
+            case HitReport hit:
+                sb.AppendLine($"║ Damage:          {hit.Damage:F2} | Killed: {hit.Killed} | Overkill: {hit.Overkill:F2}");
+                sb.AppendLine($"║ Push (m/s):      {hit.AppliedDeltaV:F2} | Critical: {hit.IsCritical} | Kind: {hit.Kind}");
+                sb.AppendLine($"║ Weight:          {hit.Weight:F2} (damage {hit.DamageFraction:F2}, push {hit.PushFraction:F2}) | Magnitude: {hit.Magnitude:F2}");
+                sb.AppendLine($"║ Attacker:        {hit.Attacker.IfValid()?.Name.ToString() ?? "(null)"} | Point: {hit.Point}");
+                break;
+
+            case DeathReport death:
+                sb.AppendLine($"║ Killer:          {death.Killer.IfValid()?.Name.ToString() ?? "(none)"} | Kind: {death.Kind} | Paired: {death.Paired}");
+                sb.AppendLine($"║ Magnitude:       {death.Magnitude:F2} | Overkill: {death.Overkill:F2} | Point: {death.Point}");
+                break;
+
+            case KnockbackAppliedResult push:
+                sb.AppendLine($"║ Applied push:    {push.DeltaV:F2} m/s toward {push.Direction}");
                 break;
 
             case HealResult heal:

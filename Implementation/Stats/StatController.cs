@@ -36,7 +36,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     private readonly IntCalculationStrategy _defaultIntCalcStrat = new();
     private readonly BoolCalculationStrategy _defaultBoolCalcStrat = new();
 
-    private readonly HashSet<StatContext> _activeContexts = new();
+    private readonly Dictionary<StatContext, int> _activeContexts = new();
 
 
     private EntityStatSheet _archetype = null!;
@@ -282,13 +282,13 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
     }
 
-    public bool TryAddModifier(Attribute attribute, Resource modifierResource, object owner, out ModifierHandle? handle)
+    public bool TryAddModifier(Attribute attribute, AttributeModifier? modifier, object owner, out ModifierHandle? handle)
     {
         if (_stats.TryGetValue(attribute, out var property))
         {
             // 1. Delegate the actual modification to the specialized property.
             // It returns a unique internal ID for this specific application.
-            Guid newId = property.AddModifier(modifierResource, owner);
+            Guid newId = property.AddModifier(modifier, owner);
 
             if (newId != Guid.Empty)
             {
@@ -303,9 +303,9 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         return false; // Indicates failure
     }
 
-    public ModifierHandle AddModifier(Attribute attribute, Resource modifierResource, object owner)
+    public ModifierHandle AddModifier(Attribute attribute, AttributeModifier? modifier, object owner)
     {
-        if (TryAddModifier(attribute, modifierResource, owner, out var handle))
+        if (TryAddModifier(attribute, modifier, owner, out var handle))
         {
             return handle!;
         }
@@ -313,7 +313,7 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         // DEBUG: Logging to diagnose why TryAddModifier returned false
         var sb = new StringBuilder();
         sb.AppendLine(
-            $"[StatController] FAILED to add modifier '{modifierResource.ResourceName}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
+            $"[StatController] FAILED to add modifier '{modifier?.ResourceName ?? "<null>"}' to attribute '{attribute.AttributeName}' (ID: {attribute.GetInstanceId()})");
         sb.AppendLine($"Available Attributes in _stats ({_stats.Count}):");
         foreach (var key in _stats.Keys)
         {
@@ -324,30 +324,9 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
 
         throw JmoLogger.LogAndRethrow(
             new InvalidOperationException(
-                $"unable to add modifier {modifierResource.ResourcePath} to attribute {attribute.AttributeName}"),
+                $"unable to add modifier {modifier?.ResourcePath ?? "<null>"} to attribute {attribute.AttributeName}"),
             this
         );
-        // try
-        // {
-        //     // The 'dynamic' keyword defers the type check until runtime.
-        //     // It will attempt to call prop.AddModifier(modifierResource).
-        //     // If the generic types of the property (e.g., <float>) and the modifier
-        //     // (e.g., IModifier<float>) match, it will succeed.
-        //     // If they do not match, it will throw a RuntimeBinderException, which we catch.
-        //     dynamic typedProp = prop;
-        //     typedProp.AddModifier(modifierResource);
-        //     return true;
-        // }
-        // catch (RuntimeBinderException ex)
-        // {
-        //     JmoLogger.Info(this,
-        //         $"attempted modifier: {modifierResource.GetType().FullName}." +
-        //         $"\nNeeded modifier: {prop.GetType().FullName}");
-        //     // This catch block is our runtime type validation.
-        //     // It means the modifier's type was incompatible with the stat's type.
-        //     JmoLogger.Error(this, $"Type Mismatch: Failed to add modifier '{modifierResource.ResourcePath}' to attribute '{attribute.AttributeName}'. The modifier's type is incompatible with the attribute's internal type. Details: {ex.Message}");
-        //     return false;
-        // }
     }
 
     public void RemoveModifier(ModifierHandle handle)
@@ -375,20 +354,34 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
     /// <c>MovementQuirkProcessor3D.ActiveQuirks</c>: a scoped hold is only auditable if what
     /// is held can be read back.
     /// </summary>
-    public IReadOnlyCollection<StatContext> ActiveContexts => _activeContexts;
+    public IReadOnlyCollection<StatContext> ActiveContexts => _activeContexts.Keys;
 
+    /// <inheritdoc/>
+    /// <remarks>The installed modifiers are owned by <paramref name="context"/> itself.</remarks>
     public void AddActiveContext(StatContext context)
     {
-        _activeContexts.Add(context);
+        _activeContexts.TryGetValue(context, out var holds);
+        _activeContexts[context] = holds + 1;
+        if (holds > 0) { return; }
 
         foreach (var (attribute, modifier) in context.Modifiers)
         {
-            AddModifier(attribute, modifier, context);
+            var typed = AttributeModifier.FromUntyped(modifier, attribute, this);
+            if (typed == null) { continue; }
+            AddModifier(attribute, typed, context);
         }
     }
 
+    /// <inheritdoc/>
     public void RemoveActiveContext(StatContext context)
     {
+        if (!_activeContexts.TryGetValue(context, out var holds)) { return; }
+        if (holds > 1)
+        {
+            _activeContexts[context] = holds - 1;
+            return;
+        }
+
         _activeContexts.Remove(context);
         // This is a simple, powerful shorthand for the most common cleanup operation.
         RemoveAllModifiersFromSource(context);
@@ -578,11 +571,11 @@ public partial class StatController : Node, IStatProvider, IRuntimeCopyable<Stat
         }
 
         // 5. Copy Active Contexts
-        // Contexts act as tags/flags, so shallow copying the list is sufficient
-        // (Assuming StatContext is a shared Resource)
-        foreach (var context in original._activeContexts)
+        // Contexts are shared Resources, so the hold counts copy with their keys; the cloned
+        // properties already carry the modifiers each context installed.
+        foreach (var (context, holds) in original._activeContexts)
         {
-            _activeContexts.Add(context);
+            _activeContexts[context] = holds;
         }
 
         // 6. Notify Initial State

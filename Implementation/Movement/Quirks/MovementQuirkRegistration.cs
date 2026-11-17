@@ -36,27 +36,37 @@ public struct MovementQuirkRegistration
 {
     private MovementQuirkProcessor3D? _processor;
     private GColl.Array<MovementQuirk3D>? _quirks;
+    private bool _suspendDrive;
 
     /// <summary>What <see cref="Register" /> actually took, and all <see cref="Release" /> may drop.</summary>
     private MovementQuirk3D[]? _held;
+
+    /// <summary>True when this owner took the processor's scoped drive suspension.</summary>
+    private bool _heldSuspension;
 
     /// <summary>True between a <see cref="Register" /> and its matching <see cref="Release" />.</summary>
     public bool IsHeld { get; private set; }
 
     /// <summary>
-    /// Bind the owner's authored array and resolve its processor from the blackboard. Safe to call
-    /// again after the array changes: a live hold is released first, so the rebind can never strand
-    /// references against the pre-change array. Fails loud when quirks are authored with no processor
-    /// to host them, rather than degrading to a per-use warning.
+    /// Bind the owner's authored array and requested drive suspension, and resolve the processor
+    /// from the blackboard. Safe to call again after either changes: a live hold is released first,
+    /// so the rebind can never strand references or a suspension against the old configuration.
+    /// A processor resolves when quirks are assigned OR suspension is requested, so an empty array
+    /// does not make a step's gait opt-out silently inert.
     /// </summary>
     /// <exception cref="NodeConfigurationException">
-    /// Quirks are assigned but the agent has no <see cref="MovementQuirkProcessor3D" />.
+    /// Quirks or a drive suspension are requested but the agent has no
+    /// <see cref="MovementQuirkProcessor3D" />.
     /// </exception>
-    public void Resolve(IBlackboard? bb, GColl.Array<MovementQuirk3D> quirks, Node owner)
+    public void Resolve(IBlackboard? bb, GColl.Array<MovementQuirk3D> quirks, Node owner,
+        bool suspendDrive = false)
     {
         this.Release();
+        this._processor = null;
+        this._quirks = null;
+        this._suspendDrive = suspendDrive;
 
-        if (quirks.Count == 0)
+        if (quirks.Count == 0 && !suspendDrive)
         {
             this._quirks = quirks;
             return;
@@ -66,10 +76,14 @@ public struct MovementQuirkRegistration
             || !bb.TryGet<MovementQuirkProcessor3D>(BBDataSig.MovementQuirkProcessor, out var processor)
             || processor == null)
         {
-            // Bind nothing: a caller that swallows this must not be left holding an array whose
-            // processor never resolved.
+            // Bind nothing: a caller that swallows this must not be left holding an array or a
+            // suspension request whose processor never resolved.
+            var capability = quirks.Count > 0
+                ? (suspendDrive ? "MovementQuirks and SuspendGait" : "MovementQuirks")
+                : "SuspendGait";
             throw new NodeConfigurationException(
-                "MovementQuirks are assigned but the agent has no MovementQuirkProcessor3D.", owner);
+                $"'{owner.Name}' requests {capability} but the agent has no MovementQuirkProcessor3D.",
+                owner);
         }
 
         this._quirks = quirks;
@@ -77,8 +91,9 @@ public struct MovementQuirkRegistration
     }
 
     /// <summary>
-    /// Take a reference on every authored quirk. Idempotent — a second call without an intervening
-    /// <see cref="Release" /> is inert, so a re-entered owner cannot double-count itself.
+    /// Take a reference on every authored quirk and, when requested, one drive suspension.
+    /// Idempotent — a second call without an intervening <see cref="Release" /> is inert, so a
+    /// re-entered owner cannot double-count itself.
     /// </summary>
     public void Register()
     {
@@ -91,11 +106,18 @@ public struct MovementQuirkRegistration
         {
             this._processor?.RegisterQuirk(quirk);
         }
+
+        if (this._suspendDrive)
+        {
+            this._processor?.SuspendDrive();
+            this._heldSuspension = this._processor != null;
+        }
     }
 
     /// <summary>
-    /// Drop this owner's references. Idempotent, and inert when this owner never registered — safe
-    /// to call from an exit path that runs whether or not the matching entry path ever did.
+    /// Drop this owner's references and its drive suspension if it took one. Idempotent, and inert
+    /// when this owner never registered — safe to call from an exit path that runs whether or not
+    /// the matching entry path ever did.
     /// </summary>
     public void Release()
     {
@@ -104,6 +126,12 @@ public struct MovementQuirkRegistration
         var held = this._held;
         this._held = null;
         this.IsHeld = false;
+
+        if (this._heldSuspension)
+        {
+            this._processor?.ResumeDrive();
+            this._heldSuspension = false;
+        }
 
         if (held == null) { return; }
         foreach (var quirk in held)

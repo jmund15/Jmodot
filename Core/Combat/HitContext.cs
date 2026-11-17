@@ -76,6 +76,14 @@ public sealed record class HitContext
     public Vector3? ImpactDirection { get; init; }
 
     /// <summary>
+    /// True when this hit is one contact of a source that keeps touching its target — a continuous
+    /// hitbox, a beam's repeat tick, ride damage — rather than a fresh blow. Every result the hit
+    /// produces carries it as <see cref="Reactions.CombatResult.Sustained"/>, so per-blow reactions
+    /// (stagger, impact feedback) can skip a held contact.
+    /// </summary>
+    public bool Continuous { get; init; }
+
+    /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.
     /// <c>TickStatusRunner.OnTick</c> reissues the impact context as <c>DamageKind.Tick</c>).

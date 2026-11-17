@@ -11,7 +11,7 @@ public partial class BoolFlipAttributeModifier : AttributeModifier, IBoolModifie
 {
     [Export] public bool Value { get; private set; }
 
-    [Export] public BoolModifierStageRule StageRule { get; private set; }
+    [Export] public BoolModifierStageRule? StageRule { get; private set; }
 
     public BoolFlipAttributeModifier()
     {

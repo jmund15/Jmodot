@@ -127,7 +127,8 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
     /// <param name="impactDirection">The direction the blow travelled, when the attacker knows it and
     /// the geometry cannot say (mirrors 3D). Carried on the context verbatim; it never displaces the
     /// inferred <see cref="HitContext2D.HitDirection"/>.</param>
-    public bool ProcessHit(IAttackPayload payload, Vector2? impactDirection = null)
+    /// <param name="continuous">True when this hit is one contact of a held source (mirrors 3D).</param>
+    public bool ProcessHit(IAttackPayload payload, Vector2? impactDirection = null, bool continuous = false)
     {
         if (!CanReceiveHit()) { return false; }
 
@@ -144,6 +145,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
             DistanceFromEpicenter = GlobalPosition.DistanceTo(epicenter),
             HitSeed = hitSeed,
             ImpactDirection = impactDirection,
+            Continuous = continuous,
         };
 
         // Forward to Brain. The Combatant's ProcessPayload signature is dimension-
@@ -153,7 +155,7 @@ public partial class HurtboxComponent2D : Area2D, IComponent, IBlackboardProvide
         // context type. For now we adapt by passing the 2D context through the
         // shared Node fields (Attacker, Source); direction/velocity are 2D-specific
         // and read from HitContext2D in 2D-aware effects.
-        _combatant.ProcessPayload(payload, ToHitContext(context));
+        _combatant.ProcessPayload(payload, ToHitContext(context), IncomingMagnitude.Resolve(payload.Source ?? payload.Attacker, _combatant));
 
         OnHitReceived?.Invoke(payload, context);
         return true;

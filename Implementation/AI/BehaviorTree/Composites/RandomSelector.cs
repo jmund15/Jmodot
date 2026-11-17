@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
+using Tasks;
+
 using Godot;
 using Core.AI;
 using Core.AI.BB;
@@ -20,6 +22,9 @@ public partial class RandomSelector : CompositeTask
     // (the pooling-refresh contract: a re-acquired agent re-stamps its seed, then re-Inits).
     private JmoRng _rng = null!;
     private bool _warnedNoSeed;
+
+    public override string? DescribeStarvationBy(BehaviorTask? child)
+        => AuthoredChildren().Count > 1 ? "a RandomSelector branch with siblings, which this step would starve" : null;
 
     public override void Init(Node agent, IBlackboard bb)
     {

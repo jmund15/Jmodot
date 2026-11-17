@@ -27,15 +27,7 @@ public partial class DelayedStatusRunner : StatusRunner
 
     public override void _Ready()
     {
-        _delayTimer = GetNodeOrNull<Timer>("DelayTimer");
-        if (_delayTimer == null)
-        {
-            _delayTimer = new Timer { Name = "DelayTimer" };
-            AddChild(_delayTimer);
-        }
-
-        _delayTimer.OneShot = true;
-        _delayTimer.Autostart = false;
+        _delayTimer = AcquireTimer("DelayTimer", oneShot: true);
     }
 
     public override void Start(ICombatant target, HitContext context)

@@ -14,7 +14,7 @@ public partial class InputIntentBoolCondition : TransitionCondition
     public override bool Check(Node agent, IBlackboard bb)
     {
         var intentSource = bb.Get<IIntentSource>(BBDataSig.IntentSource);
-        var intents = intentSource.GetProcessIntents(); // called in process frame so do this one right?
+        var intents = intentSource.GetPhysicsIntents();
 
         if (!intents.ContainsKey(_requiredAction))
         {

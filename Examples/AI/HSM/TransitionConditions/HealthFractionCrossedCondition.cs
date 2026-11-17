@@ -29,6 +29,14 @@ public partial class HealthFractionCrossedCondition : CombatLogCondition
     [Export(PropertyHint.Range, "0.01,10,0.01")]
     public float WindowSeconds { get; set; } = 0.25f;
 
+    /// <summary>
+    /// The crossing waits until the newest damage is this old in combat time (one physics tick), the same wait the
+    /// impact-weight edges use, so a milestone ordered after them does not pre-empt a hit they are about to route.
+    /// Zero fires at once.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,0.1,0.005,suffix:s")]
+    public float SettleSeconds { get; set; }
+
     public override bool Check(Node agent, IBlackboard bb)
     {
         if (!bb.TryGet(BBDataSig.HealthComponent, out IHealth? health) || health == null)
@@ -57,6 +65,11 @@ public partial class HealthFractionCrossedCondition : CombatLogCondition
         {
             throw new ResourceConfigurationException(
                 $"Required blackboard dependency '{BBDataSig.HealthComponent}' was not provided.", this);
+        }
+
+        if (SettleSeconds > 0f && log.AnyWithinCombatTime<DamageResult>(SettleSeconds))
+        {
+            return false;
         }
 
         var current = health.CurrentHealth;

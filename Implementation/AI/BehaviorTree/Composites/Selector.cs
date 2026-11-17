@@ -1,5 +1,7 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 
+using Tasks;
+
 /// <summary>
 /// A composite task that executes its children in order until one succeeds. It succeeds
 /// as soon as one of its children succeeds. It fails only if all of its children fail.
@@ -13,4 +15,6 @@ namespace Jmodot.Implementation.AI.BehaviorTree.Composites;
 [GlobalClass, Tool]
 public partial class Selector : PrioritySelectorBase
 {
+    public override string? DescribeStarvationBy(BehaviorTask? child)
+        => AuthoredChildren().Count > 1 ? "a Selector branch with siblings, which this step would starve" : null;
 }

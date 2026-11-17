@@ -24,7 +24,12 @@ using Implementation.Shared.GodotExceptions;
 /// <para>
 /// Author this as a DIRECT child of the head scene's root; the root is the pose this chain follows
 /// and its parent is where the units are placed. Units are never reparented under the head, so the
-/// head's subtree still contains exactly one health and the tail is not freed with the head.
+/// head's subtree still contains exactly one health. Freeing the head therefore frees no unit, so the
+/// head's death kills every unit explicitly: a body ends with its head.
+/// </para>
+/// <para>
+/// A unit's death splits the body there. Each piece of at least <see cref="MinLength"/> lives, and the
+/// piece behind the gap promotes its front unit into a new head; a piece shorter than that dies.
 /// </para>
 /// <para>
 /// Sampling and placement run on the idle frame, which always follows the physics frame that moved
@@ -54,7 +59,10 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     /// <summary>Hard ceiling on units, so total body length caps at MaxSegments + 1.</summary>
     [Export] public int MaxSegments { get; private set; } = 11;
 
-    /// <summary>Shortest total body — head included — that stays alive. Never below 2.</summary>
+    /// <summary>
+    /// Shortest total body, head included, that stays alive: a severed run shorter than this dies, and a head
+    /// left shorter than this kills itself and its remaining units. Never below 2.
+    /// </summary>
     [Export] public int MinLength { get; private set; } = 2;
 
     private readonly List<BodySegment3D> _segments = new();
@@ -72,6 +80,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     private const float BuriedProbeHeight = 3f;
 
     private PositionHistory? _history;
+    private float[] _sampleDistances = Array.Empty<float>();
+    private (Vector3 position, Vector3 facing)[] _sampleResults = Array.Empty<(Vector3, Vector3)>();
     private Node3D? _head;
     private HealthComponent? _headHealth;
     private Vector3 _headFacing = Vector3.Forward;
@@ -87,6 +97,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
     /// <inheritdoc />
     public IEnumerable<Node> BodyGraphNodes => this._segments.Select(segment => segment.Body);
+
+    /// <inheritdoc />
+    public bool MemberHitsAreOwn => true;
+
+    /// <inheritdoc />
+    public event Action BodyGraphChanged = delegate { };
 
     /// <summary>Total body length: the units plus the head.</summary>
     public int Length => this._segments.Count + 1;
@@ -104,7 +120,10 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             ?? throw new NodeConfigurationException(
                 $"{nameof(SegmentedBodyComponent3D)} must be a direct child of the head scene's Node3D root.", this);
 
+        PhysicsOrder.ApplyIfDefault(this, PhysicsOrder.AfterMovement);
         this._history = new PositionHistory(this.MaxSegments, this.SegmentSpacing);
+        this._sampleDistances = new float[this.MaxSegments];
+        this._sampleResults = new (Vector3, Vector3)[this.MaxSegments];
         if (this._segments.Count > 0)
         {
             this.ReseedFromCurrentPoses();
@@ -147,7 +166,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         Callable.From(this.FreeSegmentsIfRemoved).CallDeferred();
     }
 
-    public override void _Process(double delta)
+    /// <summary>
+    /// Samples the head's history and writes every unit's pose on the physics tick: units are physics
+    /// bodies, so their positions must land with the tick that moves the head. Runs at
+    /// <see cref="PhysicsOrder.AfterMovement"/>, after the head's own movement at the default priority.
+    /// </summary>
+    public override void _PhysicsProcess(double delta)
     {
         if (Engine.IsEditorHint()) { return; }
         if (this._head == null || this._history == null) { return; }
@@ -160,12 +184,21 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
         this._history.TryAppend(headPosition, this._headFacing);
 
-        for (var k = 0; k < this._segments.Count; k++)
+        var count = this._segments.Count;
+        var distances = this._sampleDistances.AsSpan(0, count);
+        for (var k = 0; k < count; k++)
         {
-            var (position, facing) = this._history.SampleAtDistance((k + 1) * this.SegmentSpacing);
+            distances[k] = (k + 1) * this.SegmentSpacing;
+        }
+
+        var results = this._sampleResults.AsSpan(0, count);
+        this._history.SampleAscending(distances, results);
+
+        for (var k = 0; k < count; k++)
+        {
             var segment = this._segments[k];
-            segment.Body.GlobalPosition = position;
-            segment.Facing = facing;
+            segment.Body.GlobalPosition = results[k].position;
+            segment.Facing = results[k].facing;
         }
     }
 
@@ -185,8 +218,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     public event Action<BodySegment3D, int>? SegmentAdopted;
 
     /// <summary>
-    /// Raised once when a split leaves the head with a body shorter than it can live as, immediately
-    /// before the head kills itself through its own health — which is the kill an encounter counts.
+    /// Raised once when a split leaves the head shorter than <see cref="MinLength"/>, immediately before the head
+    /// kills itself through its own health, which is the kill an encounter counts.
     /// </summary>
     public event Action? BelowMinimumLength;
 
@@ -202,6 +235,9 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     /// units when it readies skips its own initial spawn, so a promoted body wears the tail it
     /// inherited instead of growing a fresh one on top of it.
     /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The roster would exceed <see cref="MaxSegments"/>; no unit is adopted.
+    /// </exception>
     public void AdoptSegments(IReadOnlyList<BodySegment3D> tail)
     {
         if (tail == null) { return; }
@@ -210,16 +246,28 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         foreach (var segment in tail)
         {
             if (segment == null || !GodotObject.IsInstanceValid(segment)) { continue; }
-            if (this._segments.Contains(segment)) { continue; }
+            if (this._segments.Contains(segment) || adopted.Contains(segment)) { continue; }
 
+            adopted.Add(segment);
+        }
+
+        if (this._segments.Count + adopted.Count > this.MaxSegments)
+        {
+            throw new ArgumentException(
+                $"Adopting {adopted.Count} units onto {this._segments.Count} would exceed MaxSegments ({this.MaxSegments}).",
+                nameof(tail));
+        }
+
+        foreach (var segment in adopted)
+        {
             this._segments.Add(segment);
             if (segment.Body.IsInsideTree()) { NormalizeWorldBasis(segment.Body); }
             segment.Died += this.OnSegmentDied;
             this.HookSegment(segment);
-            adopted.Add(segment);
         }
 
         this.Reindex();
+        if (adopted.Count > 0) { this.BodyGraphChanged(); }
         foreach (var segment in adopted)
         {
             this.SegmentAdopted?.Invoke(segment, this._segments.IndexOf(segment));
@@ -507,6 +555,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         segment.Died += this.OnSegmentDied;
         this.HookSegment(segment);
         this.Reindex();
+        this.BodyGraphChanged();
         this.SegmentAdopted?.Invoke(segment, index);
     }
 
@@ -561,13 +610,21 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
     private void RecordDeath(BodySegment3D segment)
     {
+        if (!this.RecordLoss(segment, out var index)) { return; }
+
+        this.SegmentDied?.Invoke(segment, index);
+    }
+
+    // A loss joins the frame's dead set and queues the split; only a death also raises SegmentDied.
+    private bool RecordLoss(BodySegment3D segment, out int index)
+    {
         this.OpenResolution();
-        var index = this._resolutionRoster.IndexOf(segment);
-        if (index < 0) { return; }
+        index = this._resolutionRoster.IndexOf(segment);
+        if (index < 0) { return false; }
 
         this._deadIndices.Add(index);
-        this.SegmentDied?.Invoke(segment, index);
         this.QueueResolution();
+        return true;
     }
 
     // The roster is frozen at the frame's FIRST death: every later index this frame addresses the
@@ -599,8 +656,9 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         var roster = this._resolutionRoster.ToArray();
         var dead = new HashSet<int>(this._deadIndices);
         var headDead = this._headDead;
-        if (!this._promotionGroundRetryPending
-            && this.RequiresPromotionGroundRetry(roster, dead, headDead))
+        if (!headDead
+            && !this._promotionGroundRetryPending
+            && this.RequiresPromotionGroundRetry(roster, dead))
         {
             this._promotionGroundRetryPending = true;
             this.GetTree().Connect(
@@ -615,6 +673,12 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         this._resolutionRoster.Clear();
         this._deadIndices.Clear();
         this._headDead = false;
+
+        if (headDead)
+        {
+            this.KillWholeBody(roster);
+            return;
+        }
 
         if (roster.Length == 0) { return; }
 
@@ -634,8 +698,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
             if (members.Count == 0) { continue; }
 
-            // A living head keeps the run still attached to it, which is the one starting at its own end.
-            if (!headDead && range.Start.Value == 0) { continue; }
+            // The living head keeps the run still attached to it, which is the one starting at its own end.
+            if (range.Start.Value == 0) { continue; }
 
             // Refusal targets the BURIED class only: a front unit whose column's walkable surface sits
             // ABOVE it is below the world and would promote into an out-of-bounds fall. A column with no
@@ -677,24 +741,25 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             }
 
             var progeny = ChainPromotion.Promote(this, headRoot, members, container, parentSeed, this._progenyOrdinal++);
+            JmoLogger.Info(this, $"[SegmentedBody] promoted a {members.Count}-unit fragment into its own body.");
             this.ProgenySpawned?.Invoke(progeny);
         }
 
-        if (headDead || this.Length >= this.MinLength) { return; }
+        if (this.Length >= this.MinLength) { return; }
 
+        JmoLogger.Info(this, $"[SegmentedBody] head left at length {this.Length}, under MinLength {this.MinLength} — killed.");
         this.BelowMinimumLength?.Invoke();
         this._headHealth?.Kill(this);
     }
 
     private bool RequiresPromotionGroundRetry(
         IReadOnlyList<BodySegment3D> roster,
-        HashSet<int> dead,
-        bool headDead)
+        HashSet<int> dead)
     {
         if (this._head is not PhysicsBody3D || !GodotObject.IsInstanceValid(this._head)) { return false; }
         foreach (var range in SegmentSplitResolver.Resolve(dead, roster.Count))
         {
-            if (!headDead && range.Start.Value == 0) { continue; }
+            if (range.Start.Value == 0) { continue; }
             var front = roster[range.Start.Value];
             if (GodotObject.IsInstanceValid(front)
                 && !this.TryProbeGround(front.Body.GlobalPosition, out _))
@@ -704,6 +769,20 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         return false;
+    }
+
+    // The head's death ends the body: every unit still standing dies through its own death path, with no
+    // run left to promote.
+    private void KillWholeBody(IReadOnlyList<BodySegment3D> roster)
+    {
+        var members = roster.Concat(this._segments).Distinct().Where(GodotObject.IsInstanceValid).ToList();
+        if (members.Count == 0) { return; }
+
+        JmoLogger.Info(this, $"[SegmentedBody] head died — killing its {members.Count} remaining unit(s).");
+        foreach (var member in members) { member.EndedWithHead = true; }
+
+        this.Detach(members);
+        KillFragment(members, this);
     }
 
     private void Detach(IReadOnlyList<BodySegment3D> members)
@@ -719,6 +798,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         this.Reindex();
+        this.BodyGraphChanged();
     }
 
     private static void KillFragment(IReadOnlyList<BodySegment3D> members, object source)
@@ -747,6 +827,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     {
         if (GodotObject.IsInstanceValid(segment) && segment.IsInsideTree()) { return; }
 
+        this.RecordLoss(segment, out _);
         this.DropSegment(segment);
     }
 
@@ -762,6 +843,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         }
 
         this.Reindex();
+        this.BodyGraphChanged();
     }
 
     private void Reindex()
@@ -810,6 +892,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
 
         this._segments.Clear();
         this._exitHooks.Clear();
+        this.BodyGraphChanged();
     }
 
     #region Test Helpers

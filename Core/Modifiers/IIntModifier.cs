@@ -8,6 +8,7 @@ using StageRules;
 /// </summary>
 public interface IIntModifier : IModifier<int>
 {
-    IntModifierStageRule StageRule { get; }
+    /// <summary>The fold rule. Null when an authored slot is unset; the calculation strategy then drops this modifier with a warning.</summary>
+    IntModifierStageRule? StageRule { get; }
     int Value { get; }
 }

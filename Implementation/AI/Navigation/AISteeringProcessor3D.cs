@@ -250,6 +250,8 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     {
         var warnings = new List<string>();
         if (_considerations.Count == 0) { warnings.Add("No considerations are assigned. The AI will have no environmental awareness."); }
+        warnings.AddRange(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations));
+        warnings.AddRange(ConfigWarnings.AgentSlotWarnings("Considerations", _considerations, this));
         if (MovementDirections == null || !MovementDirections.Directions.Any()) { warnings.Add("No movement directions are defined. The AI will not know how to score potential moves."); }
         if (_navPathConsideration == null && GetParent()?.FindChild("AINavigator3D") != null)
         {
@@ -337,6 +339,14 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     }
 
     /// <summary>
+    /// True when <paramref name="consideration"/> is registered right now, authored or runtime.
+    /// Reads the current lists, not the runtime cache: an unregistered consideration keeps its
+    /// runtime, so the cache cannot answer who currently owns a term.
+    /// </summary>
+    public bool IsConsiderationRegistered(BaseAIConsideration3D consideration)
+        => _considerations.Contains(consideration) || _runtimeConsiderations.Contains(consideration);
+
+    /// <summary>
     /// Unregisters a previously registered runtime consideration.
     /// Used by BT actions to remove their steering behaviors when their task ends.
     /// </summary>
@@ -396,6 +406,8 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
     #region Test Helpers
 #if TOOLS
     internal void SetMovementDirections(DirectionSet3D directions) => MovementDirections = directions;
+    internal void AddAuthoredConsiderationForTest(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathConsideration(NavigationPath3DConsideration? consideration) => _navPathConsideration = consideration;
     internal NavigationPath3DConsideration? GetActiveNavPathConsideration() => _navPathOverride ?? _navPathConsideration;
     internal void SetSynthesisStrategy(SteeringSynthesisStrategy3D? strategy) => _synthesisStrategy = strategy;
@@ -434,18 +446,16 @@ public partial class AISteeringProcessor3D : Node, IBlackboardProvider
         _recorder?.BeginFrame(_map);
 
         // --- 2. Evaluate all environmental considerations ---
-        // NavigationOnly claim skips consideration scoring entirely.
-        if (mode != SteeringControlMode.NavigationOnly)
+        // A NavigationOnly claim skips scoring except for terms that are ambient by nature.
+        // Indexed rather than foreach: ActiveConsiderations is typed as the interface, so foreach
+        // would box the List enumerator once per agent per physics frame on a hot path.
+        for (int i = 0; i < ActiveConsiderations.Count; i++)
         {
-            // Indexed rather than foreach: ActiveConsiderations is typed as the interface, so foreach
-            // would box the List enumerator once per agent per physics frame on a hot path.
-            for (int i = 0; i < ActiveConsiderations.Count; i++)
-            {
-                var consideration = ActiveConsiderations[i];
-                _recorder?.CaptureBefore(_map);
-                consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(consideration));
-                _recorder?.CaptureAfter(consideration, _map);
-            }
+            var consideration = ActiveConsiderations[i];
+            if (mode == SteeringControlMode.NavigationOnly && consideration is not IAmbientSteeringConsideration) { continue; }
+            _recorder?.CaptureBefore(_map);
+            consideration.Evaluate(context3D, blackboard, MovementDirections, _map, GetOrCreateRuntime(consideration));
+            _recorder?.CaptureAfter(consideration, _map);
         }
 
         // --- 2b. Evaluate the dedicated nav path consideration ---

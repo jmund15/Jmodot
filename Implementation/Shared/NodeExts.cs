@@ -79,40 +79,13 @@ public static class NodeExts
     /// </example>
     public static void ValidateRequiredExports(this Node node)
     {
-        var type = node.GetType();
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-        // Check properties
-        foreach (var prop in type.GetProperties(flags))
+        foreach (var member in RequiredExportMembers.For(node.GetType()))
         {
-            if (prop.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = prop.GetValue(node);
-            if (value == null)
+            if (member.GetValue(node) == null)
             {
                 var ownerName = node.Owner?.Name ?? "[no owner]";
                 throw new NodeConfigurationException(
-                    $"Required export '{prop.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
-            }
-        }
-
-        // Check fields
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.GetCustomAttribute<RequiredExportAttribute>() == null)
-            {
-                continue;
-            }
-
-            var value = field.GetValue(node);
-            if (value == null)
-            {
-                var ownerName = node.Owner?.Name ?? "[no owner]";
-                throw new NodeConfigurationException(
-                    $"Required export '{field.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
+                    $"Required export '{member.Name}' must be assigned in the Inspector for scene owner {ownerName}.", node);
             }
         }
     }
@@ -522,6 +495,27 @@ public static class NodeExts
     #endregion
 
     #region IDENTITY_EXTENSIONS
+
+    /// <summary>
+    /// Walks <paramref name="node"/> and its ancestors (upward, starting at
+    /// <paramref name="node"/> itself) for the first <see cref="IIdentifiable"/>. Returns the
+    /// matching provider, or <c>null</c> when none is found.
+    /// </summary>
+    /// <remarks>
+    /// This is the promoted form of the hit path's private identity walk — an UPWARD traversal.
+    /// It is NOT the same traversal as the downward child-walks
+    /// (<c>TryGetFirstChildOfInterface&lt;IIdentifiable&gt;</c>); the two must not be conflated.
+    /// </remarks>
+    public static IIdentifiable? TryResolveIdentifiable(this Node? node)
+    {
+        var current = node;
+        while (current != null)
+        {
+            if (current is IIdentifiable identifiable) { return identifiable; }
+            current = current.GetParent();
+        }
+        return null;
+    }
 
     /// <summary>
     /// True if the node carries an <see cref="IIdentifiable"/> child whose identity

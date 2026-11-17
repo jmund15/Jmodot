@@ -44,8 +44,6 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
 
     #endregion
 
-    private const float Epsilon = 0.001f;
-
     /// <summary>
     /// Calculates steering scores toward the current target, using stat values
     /// to determine the effective influence range.
@@ -97,28 +95,7 @@ public partial class StatDrivenConsideration3D : BaseAIConsideration3D
         float distanceFactor = Mathf.Clamp(distanceToTarget / influenceRange, 0f, 1f);
         float scoreBase = distanceFactor;
 
-        // 8. Score each direction based on alignment with ideal direction
-        foreach (var availableDir in directions.Directions)
-        {
-            Vector3 flatDir = availableDir;
-            flatDir.Y = 0;
-
-            if (flatDir.LengthSquared() < Epsilon)
-            {
-                continue;
-            }
-
-            flatDir = flatDir.Normalized();
-            float alignment = flatDir.Dot(idealDirection);
-
-            // Only score directions that point toward the target (positive alignment)
-            if (alignment > 0)
-            {
-                scores[availableDir] = scoreBase * alignment;
-            }
-        }
-
-        return scores;
+        return DirectionScoring.ByAlignment(directions, idealDirection, scale: scoreBase, into: scores);
     }
 
     /// <summary>

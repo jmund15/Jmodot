@@ -136,28 +136,7 @@ public partial class FormationConsideration3D : BaseAIConsideration3D
             (distanceToSlot - _arrivalRadius) / Mathf.Max(Epsilon, _fullPullDistance - _arrivalRadius),
             0f, 1f);
 
-        // 10. Score each direction based on alignment with ideal direction
-        foreach (var availableDir in directions.Directions)
-        {
-            Vector3 flatDir = availableDir;
-            flatDir.Y = 0;
-
-            if (flatDir.LengthSquared() < Epsilon)
-            {
-                continue;
-            }
-
-            flatDir = flatDir.Normalized();
-            float alignment = flatDir.Dot(idealDirection);
-
-            // Only score directions that point toward the slot (positive alignment)
-            if (alignment > 0)
-            {
-                scores[availableDir] = scoreBase * alignment;
-            }
-        }
-
-        return scores;
+        return DirectionScoring.ByAlignment(directions, idealDirection, scale: scoreBase, into: scores);
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
 using Jmodot.Core.AI.BB;
+using Jmodot.Core.Math;
 using Jmodot.Core.Pooling;
 using Jmodot.Core.Stats;
 using Jmodot.Implementation.Combat.CapacityProviders;
@@ -151,8 +152,10 @@ using AI.BB;
         // _ownsHitLedger is false while that set is on loan: the set's lifetime is the injector's,
         // so start/end of an attack must not empty someone else's record.
         private HashSet<HurtboxComponent3D> _hitHurtboxes = new();
+        private bool _endPending;
         private bool _ownsHitLedger = true;
-        private double _tickTimer = 0.0;
+        // NOT readonly: IntervalClock is a mutable struct.
+        private IntervalClock _tickClock = new();
 
         // Cap-rule state. _acceptedHits is the count consulted by CapacityProviders and
         // is incremented synchronously after each accepted hit. _cachedStatProvider is
@@ -228,6 +231,12 @@ using AI.BB;
 
         public override void _PhysicsProcess(double delta)
         {
+            if (_endPending)
+            {
+                EndAttack();
+                return;
+            }
+
             // CRITICAL: Check for pending overlap scan FIRST (before early returns).
             // This catches targets that were already overlapping when the hitbox activated.
             // GetOverlappingAreas() needs the physics broadphase to sync after Monitoring=true.
@@ -250,23 +259,25 @@ using AI.BB;
             if (!IsActive) { return; }
             if (!IsContinuous) { return; }
 
-            _tickTimer += delta;
-
-            if (_tickTimer >= ContinuousTickInterval)
+            // A pending end ends the walk: the pass in flight lands, and no later fire starts this frame.
+            for (int n = _tickClock.Advance(delta, ContinuousTickInterval); n > 0 && IsActive && !_endPending; n--)
             {
-                _tickTimer = 0.0;
-
-                // Reset tracking to allow re-hitting targets inside the volume. A SHARED registry is
-                // cleared here too, by design: continuous mode's whole contract is re-hitting on a
-                // tick cadence, and a ledger that outlived the tick would cap the volume at one hit
-                // per target for its entire life.
-                _hitHurtboxes.Clear();
-                // Reset cap counter so capacity rules apply per-tick (e.g., "max 3 per tick").
-                _acceptedHits = 0;
-
-                // Manually scan for targets currently inside.
-                ProcessOverlappingAreas();
+                ProcessContinuousTick();
             }
+        }
+
+        private void ProcessContinuousTick()
+        {
+            // Reset tracking to allow re-hitting targets inside the volume. A SHARED registry is
+            // cleared here too, by design: continuous mode's whole contract is re-hitting on a
+            // tick cadence, and a ledger that outlived the tick would cap the volume at one hit
+            // per target for its entire life.
+            _hitHurtboxes.Clear();
+            // Reset cap counter so capacity rules apply per-tick (e.g., "max 3 per tick").
+            _acceptedHits = 0;
+
+            // Manually scan for targets currently inside.
+            ProcessOverlappingAreas();
         }
         #endregion
 
@@ -323,15 +334,83 @@ using AI.BB;
         /// itself; otherwise its hurtbox descendant is resolved by type, breadth-first, so grouping the
         /// hurtbox under a presentation node does not silence this channel. A collider that is neither
         /// is a no-op.</param>
-        public void TryHitNode(Node3D collider)
+        /// <param name="continuous">True when the caller delivers one contact of a held source (a
+        /// beam's repeat tick). The hit is then stamped <see cref="HitContext.Continuous"/>, as every
+        /// hit of an <see cref="IsContinuous"/> hitbox already is.</param>
+        public void TryHitNode(Node3D collider, bool continuous = false)
         {
-            if (collider is HurtboxComponent3D self) { TryHitHurtbox(self); return; }
-
-            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
-            {
-                TryHitHurtbox(hurtbox);
-            }
+            if (FindHurtbox(collider) is { } hurtbox) { TryHitHurtbox(hurtbox, continuous); }
         }
+
+        /// <summary>
+        /// The hurtbox a contact on <paramref name="collider"/> reaches. A collider that is itself a
+        /// <see cref="HurtboxComponent3D"/> is taken as itself; otherwise its hurtbox descendants are
+        /// searched breadth-first, so grouping them under a presentation node does not hide them.
+        /// With several, the first found stands in, unless <paramref name="strikeOrigin"/> is given:
+        /// then the one whose shape surface is nearest that point, as the detector's overlap picks
+        /// the hurtbox a strike reaches. A hurtbox queued for deletion, or whose shapes are all
+        /// disabled, is never the one: no detector reaches it. Null when the collider holds none.
+        /// Every contact looks the hurtbox up once and passes it on (<see cref="TryHitHurtbox"/>).
+        /// </summary>
+        public static HurtboxComponent3D? FindHurtbox(Node3D collider, Vector3? strikeOrigin = null)
+            => strikeOrigin is { } origin
+                ? FindHurtbox(collider, origin, static point => point)
+                : FindHurtbox<Vector3>(collider, default, null);
+
+        /// <summary>
+        /// <see cref="FindHurtbox(Node3D, Vector3?)"/> for a caller whose strike origin costs something to
+        /// compute: <paramref name="strikeOrigin"/> runs at most once, with <paramref name="state"/>, and only
+        /// when the collider holds a second hurtbox to rank against the first. A collider with one hurtbox, or
+        /// none, never pays for it. A non-capturing delegate allocates nothing per call.
+        /// </summary>
+        public static HurtboxComponent3D? FindHurtbox<TState>(
+            Node3D collider, TState state, Func<TState, Vector3>? strikeOrigin)
+        {
+            if (collider is HurtboxComponent3D self) { return self; }
+
+            Vector3 origin = default;
+
+            HurtboxComponent3D? first = null;
+            HurtboxComponent3D? nearest = null;
+            float nearestDistSq = float.MaxValue;
+            var pending = new Queue<Node>();
+            pending.Enqueue(collider);
+            while (pending.Count > 0)
+            {
+                var node = pending.Dequeue();
+                for (int i = 0; i < node.GetChildCount(); i++)
+                {
+                    var child = node.GetChild(i);
+                    pending.Enqueue(child);
+                    if (child is not HurtboxComponent3D candidate || !CanBeStruck(candidate)) { continue; }
+                    if (strikeOrigin == null) { return candidate; }
+
+                    // A lone hurtbox needs no ranking: it is measured only once a second one appears.
+                    if (first == null)
+                    {
+                        first = candidate;
+                        continue;
+                    }
+                    if (nearest == null)
+                    {
+                        origin = strikeOrigin(state);
+                        nearest = first;
+                        nearestDistSq = DistanceSqToSurface(origin, first);
+                    }
+                    float distSq = DistanceSqToSurface(origin, candidate);
+                    if (distSq >= nearestDistSq) { continue; }
+                    nearest = candidate;
+                    nearestDistSq = distSq;
+                }
+            }
+            return nearest ?? first;
+        }
+
+        private static bool CanBeStruck(HurtboxComponent3D hurtbox)
+            => !hurtbox.IsQueuedForDeletion() && !Physics.ShapeProximityCalculator.HasOnlyDisabledShapes(hurtbox);
+
+        private static float DistanceSqToSurface(Vector3 origin, HurtboxComponent3D hurtbox)
+            => origin.DistanceSquaredTo(Physics.ShapeProximityCalculator.GetClosestSurfacePointOnBody(origin, hurtbox));
 
         /// <summary>
         /// The entity a contact should be delivered to and attributed against. A cast or swept
@@ -358,12 +437,7 @@ using AI.BB;
         /// </summary>
         public void ClearHitEntry(Node3D collider)
         {
-            if (collider is HurtboxComponent3D self) { _hitHurtboxes.Remove(self); return; }
-
-            if (collider.TryGetFirstChildOfType<HurtboxComponent3D>(out var hurtbox, includeSubChildren: true) && hurtbox != null)
-            {
-                _hitHurtboxes.Remove(hurtbox);
-            }
+            if (FindHurtbox(collider) is { } hurtbox) { _hitHurtboxes.Remove(hurtbox); }
         }
 
         public void StartAttack(IAttackPayload payload)
@@ -375,8 +449,9 @@ using AI.BB;
             }
 
             CurrentPayload = payload;
+            _endPending = false;
             if (_ownsHitLedger) { _hitHurtboxes.Clear(); }
-            _tickTimer = 0.0;
+            _tickClock.Reset();
             _acceptedHits = 0;
             _cachedStatProvider = payload.Stats;
 
@@ -412,6 +487,7 @@ using AI.BB;
 
         public void EndAttack()
         {
+            _endPending = false;
             if (!IsInitialized || !IsActive) { return; }
 
             // Captured before the clear — subscribers of OnAttackFinished cannot read the count,
@@ -430,15 +506,29 @@ using AI.BB;
         }
 
         /// <summary>
+        /// Ends the attack at the next physics step, for an owner that died. A hit already in
+        /// flight still lands (an overlap walk under way, an area signal yet to dispatch: the owner's
+        /// death does not unmake the contact that killed it), but the hitbox starts no further
+        /// continuous tick or overlap retry. A new attack started before that step is left alone.
+        /// </summary>
+        public void EndAttackAtFrameEnd()
+        {
+            if (!IsActive || _endPending) { return; }
+
+            _endPending = true;
+        }
+
+        /// <summary>
         /// Resets hitbox state for pool reuse. Called automatically via IPoolResetable.
         /// Uses immediate (synchronous) deactivation since pool reset is NOT a physics callback.
         /// </summary>
         public void OnPoolReset()
         {
             _pendingOverlapRetries = 0;  // Clear pending scan for clean pool state
+            _endPending = false;
 
             // CRITICAL: Clear accumulated event handlers BEFORE the early return.
-            // WireCombatListener subscribes OnHitRegistered += each pool cycle.
+            // WireLandedHitImpact subscribes OnHitRegistered += each pool cycle.
             // Without clearing, Nth reuse fires N handlers per hit → N Destroy calls.
             OnHitRegistered = delegate { };
             OnAttackStarted = delegate { };
@@ -709,7 +799,11 @@ using AI.BB;
             }
         }
 
-        private void TryHitHurtbox(HurtboxComponent3D hurtbox)
+        /// <summary>
+        /// Delivers a hit to <paramref name="hurtbox"/> through the same guards as
+        /// <see cref="TryHitNode"/>, for a caller that already holds the hurtbox it resolved.
+        /// </summary>
+        public void TryHitHurtbox(HurtboxComponent3D hurtbox, bool continuous = false)
         {
             if (!IsActive || CurrentPayload == null)
             {
@@ -784,7 +878,7 @@ using AI.BB;
             }
 
             // 4. The Handshake (Direct Method Call)
-            bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit);
+            bool wasAccepted = hurtbox.ProcessHit(payloadForProcessHit, continuous: IsContinuous || continuous);
 
             if (wasAccepted)
             {

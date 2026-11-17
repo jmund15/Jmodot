@@ -49,7 +49,7 @@ public class DurationEffect : ISpreadAwareCombatEffect
     /// <summary>
     /// Executes the instruction: Spawns the Runner Node and adds it to the target.
     /// </summary>
-    public CombatResult? Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         // 1. Validation
         if (target == null || Prefab == null)

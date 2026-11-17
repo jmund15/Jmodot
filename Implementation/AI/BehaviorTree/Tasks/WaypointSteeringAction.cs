@@ -1,6 +1,5 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
-using System;
 using System.Collections.Generic;
 using BB;
 using Core.AI;
@@ -95,7 +94,6 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
 
     protected override void OnProcessSteeringPhysics(float delta)
     {
-        if (!CadenceAllowsSteering) { return; }
         if (!_navActive || _navAgent == null) { return; }
 
         if (_pendingFirstTarget)
@@ -162,18 +160,7 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
         _navAgent = nav;
     }
 
-    private void TryClearNavPath()
-    {
-        try
-        {
-            _navAgent!.ClearPath();
-        }
-        catch (NullReferenceException)
-        {
-            // ClearPath accesses _ownerAgent which may be null in test contexts
-            // where AINavigator3D._Ready() never ran. Safe to ignore.
-        }
-    }
+    private void TryClearNavPath() => _navAgent!.ClearPath();
 
     #region Test Helpers
 #if TOOLS

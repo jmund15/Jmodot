@@ -269,8 +269,7 @@ public partial class SoundEffectComponent : Node, IComponent
         {
             return;
         }
-        _cadenceTimer = new Timer { OneShot = false };
-        AddChild(_cadenceTimer);
+        _cadenceTimer = GameClock.AddPhysicsTimer(this, "CadenceTimer", oneShot: false);
         _cadenceTimer.Timeout += OnCadenceTick;
     }
 

@@ -29,6 +29,19 @@ public abstract partial class CompositeTask : BehaviorTask
         }
     }
 
+    /// <summary>
+    /// Why a child of this composite that never finishes would starve the rest, worded as the clause
+    /// of a warning ("a Sequence branch with a later sibling, which this step would starve"), or null
+    /// when the composite keeps serving its other children. Every composite answers, so a new one
+    /// cannot silently skip the never-ending-step warning. It reads the authored scene children, so
+    /// it answers in the editor, before Init.
+    /// </summary>
+    public abstract string? DescribeStarvationBy(BehaviorTask? child);
+
+    /// <summary>The tasks authored directly under this composite; unlike <see cref="ChildTasks"/> they exist before Init.</summary>
+    protected List<BehaviorTask> AuthoredChildren()
+        => this.GetChildrenOfType<BehaviorTask>(includeSubChildren: false).ToList();
+
     public override string[] _GetConfigurationWarnings()
     {
         var warnings = new List<string>();

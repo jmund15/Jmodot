@@ -6,6 +6,7 @@ using Godot;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Combat;
 using Jmodot.Core.Components;
+using Jmodot.Core.Health;
 using Jmodot.Core.Interaction;
 using Jmodot.Core.Shared.Attributes;
 using Jmodot.Core.Stats;
@@ -34,9 +35,16 @@ using Jmodot.Implementation.Visual;
 /// <c>QueueFree</c>d and will be gone next frame.
 /// </para>
 ///
+/// <para>
+/// <b>A host's own end releases its riders.</b> Leaving the tree does, and so does the death of
+/// the host's entity — a killed entity can linger in the tree (a knocked-out wizard), carrying riders
+/// nothing would otherwise shake off. Both detach with <see cref="DetachCause.HostRemoved"/>.
+/// </para>
+///
 /// <para>Required BB key: none. Optional: <see cref="BBDataSig.Agent"/> (the entity whose art is
 /// measured and whose transform anchors are expressed in — falls back to this node),
-/// <see cref="BBDataSig.Stats"/>, <see cref="BBDataSig.EntitySeed"/>.</para>
+/// <see cref="BBDataSig.Stats"/>, <see cref="BBDataSig.EntitySeed"/>,
+/// <see cref="BBDataSig.HealthComponent"/> (a host with none is released only by leaving the tree).</para>
 /// </summary>
 [GlobalClass]
 public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboardProvider, IAttachmentHost, IEntityBodyGraph
@@ -58,6 +66,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     private readonly Dictionary<IAttachmentRider, Action> _treeExitHandlers = new();
 
     private IStatProvider? _stats;
+    private IHealth? _health;
     private Node3D _entity = null!;
     private JmoRng _rng = null!;
     private bool _warnedMissingSeed;
@@ -86,6 +95,12 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public IReadOnlyList<AttachmentRecord> Attachments => this._records;
 
     /// <inheritdoc />
+    public bool MemberHitsAreOwn => false;
+
+    /// <inheritdoc />
+    public event Action BodyGraphChanged = delegate { };
+
+    /// <inheritdoc />
     public IEnumerable<Node> BodyGraphNodes
     {
         get
@@ -102,6 +117,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
     /// <inheritdoc />
     public Node3D HostEntity => GodotObject.IsInstanceValid(this._entity) ? this._entity : this;
+
+    /// <inheritdoc />
+    public event Action<IAttachmentRider> RiderAttached = delegate { };
 
     /// <inheritdoc />
     public event Action<IAttachmentRider, DetachCause> RiderDetached = delegate { };
@@ -126,17 +144,39 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     }
 
     /// <summary>
+    /// Re-arms the death hook that <see cref="_ExitTree"/> drops. Reparenting fires both, so without
+    /// this a moved host could no longer release its riders when its entity dies.
+    /// </summary>
+    public override void _EnterTree() => this.SubscribeHostDeath();
+
+    /// <summary>
     /// The host is leaving: every rider is released here, because <c>QueueFree</c> raises no domain
     /// event a rider could subscribe to. Riders additionally poll this host's validity, which is
     /// what covers a host freed without this ever running.
     /// </summary>
     public override void _ExitTree()
     {
+        this.UnsubscribeHostDeath();
 #if TOOLS
         if (this._TestSuppressExitTreeDetach) { return; }
 #endif
         this.DetachAll(DetachCause.HostRemoved);
     }
+
+    private void SubscribeHostDeath()
+    {
+        if (this._health == null) { return; }
+
+        this._health.OnDied -= this.OnHostDied;
+        this._health.OnDied += this.OnHostDied;
+    }
+
+    private void UnsubscribeHostDeath()
+    {
+        if (this._health != null) { this._health.OnDied -= this.OnHostDied; }
+    }
+
+    private void OnHostDied(HealthChangeEventArgs args) => this.DetachAll(DetachCause.HostRemoved);
 
     /// <inheritdoc />
     public bool TryReserve(IAttachmentRider rider, out AttachmentRecord record)
@@ -190,6 +230,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
             pose);
 
         this._records.Add(record);
+        this.BodyGraphChanged();
         this.SubscribeTreeExiting(rider);
         rider.OnReserved(this, localAnchor);
         return true;
@@ -277,6 +318,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
 
         this._records[index] = this._records[index] with { Phase = AttachmentPhase.Riding };
         rider.OnAttached(this, this._records[index].LocalAnchor);
+        this.RiderAttached.Invoke(rider);
     }
 
     /// <inheritdoc />
@@ -419,6 +461,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (index < 0) { return false; }
 
         this._records.RemoveAt(index);
+        this.BodyGraphChanged();
         this.UnsubscribeTreeExiting(rider);
         this.RiderDetached.Invoke(rider, cause);
         return true;
@@ -561,7 +604,8 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     /// resolvers, payload interceptors and i-frames all run. The host performs the call rather than the
     /// rider reaching across into another entity's components — the mirror of
     /// <see cref="IAttachmentRider.TryApplyShedDamage"/>, and for the same reason: a hurtbox is resolved
-    /// from its owning entity's blackboard.
+    /// from its owning entity's blackboard. A rider grinds on its host for as long as it rides, so each
+    /// application is a continuous hit (<see cref="HitContext.Continuous"/>).
     /// </summary>
     /// <returns>True when the hurtbox processed the hit; false when it rejected it or none exists.</returns>
     public bool TryApplyRideDamage(IAttackPayload payload)
@@ -569,7 +613,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         if (payload == null) { return false; }
         if (this._hurtbox == null || !GodotObject.IsInstanceValid(this._hurtbox)) { return false; }
 
-        return this._hurtbox.ProcessHit(payload);
+        return this._hurtbox.ProcessHit(payload, continuous: true);
     }
 
     #region IComponent
@@ -594,6 +638,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         this._entity = bb.TryGet<Node3D>(BBDataSig.Agent, out var agent) && agent != null ? agent : this;
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out this._stats);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
+        bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
         this._rng = EntityRngResolver.Resolve(bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
 
         IsInitialized = true;
@@ -604,6 +649,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     public void OnPostInitialize()
     {
         ProcessMode = ProcessModeEnum.Inherit;
+
+        // Idempotent: OnPostInitialize re-runs on pool reuse and scene rebind.
+        this.SubscribeHostDeath();
 
         if (this._hurtbox == null)
         {

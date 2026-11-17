@@ -80,9 +80,9 @@ public partial class HolderComponent3D : Node3D, IComponent, IHolder3D
         ProcessMode = ProcessModeEnum.Disabled;
     }
 
-    public override void _Process(double delta)
+    public override void _PhysicsProcess(double delta)
     {
-        var intents = _intentSource.GetProcessIntents();
+        var intents = _intentSource.GetPhysicsIntents();
 
         var matched = ProcessReleaseIntents(intents, _heldGrabbable);
         if (matched != null && _heldGrabbable != null)
@@ -103,7 +103,7 @@ public partial class HolderComponent3D : Node3D, IComponent, IHolder3D
     /// <summary>
     /// Pure verb-selection: returns the first verb whose trigger just became pressed (per-verb
     /// edge-tracked) and whose capability gate passes for the held grabbable, or null. Extracted
-    /// from <see cref="_Process"/> so the decision is CLR-testable without a frame pump.
+    /// from <see cref="_PhysicsProcess"/> so the decision is CLR-testable without a frame pump.
     /// </summary>
     internal ReleaseVerb? ProcessReleaseIntents(
         IReadOnlyDictionary<InputAction, IntentData> intents, IGrabbable3D? heldGrabbable)

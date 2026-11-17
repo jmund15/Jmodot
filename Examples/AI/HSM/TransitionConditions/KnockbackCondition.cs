@@ -3,23 +3,27 @@ namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
+using Jmodot.Implementation.Combat;
+using Jmodot.Implementation.AI.BB;
 
 /// <summary>
 /// A flexible condition for selecting reaction states based on force-bearing combat events.
-/// Matches any <see cref="CombatResult"/> implementing <see cref="IForceCarrier"/> — currently
-/// <see cref="DamageResult"/> (e.g., a hit that both damages and knocks back) and
-/// <see cref="KnockbackResult"/> (e.g., a Wind-Blast push that delivers impulse without damage).
+/// Matches a <see cref="DamageResult"/> (a hit that both damages and knocks back) by its force, and a
+/// <see cref="KnockbackAppliedResult"/> (the push a receiver actually applied, such as a Wind-Blast
+/// that delivers impulse without damage) by its velocity change.
 /// Enables data-driven reaction tiers (flinch/hurt/launch/crumple) via .tres configuration.
+/// A sustained result (<see cref="CombatResult.Sustained"/>) never matches: a held contact's push is
+/// not a blow, and re-entering a reaction tier every tick would lock its target in it.
 ///
 /// Example configurations:
 /// - Flinch: MinForce=0, MaxForce=15
 /// - Launch: MinForce=30, MaxForce=∞
 /// - Crumple (high-damage low-knockback hit): pair with DamageCondition's MinDamage/MaxDamage
 ///
-/// The Force value matched here is the receiver's post-resistance velocity-delta (m/s) for
-/// KnockbackResult, or the effect's pre-resistance amplitude for DamageResult — both are
-/// IForceCarrier.Force, but with different physical interpretation. Tune thresholds per
-/// the result type your effects emit.
+/// MinForce and MaxForce compare the receiver's post-resistance velocity change (m/s) for a
+/// KnockbackAppliedResult, and the effect's pre-resistance amplitude for a DamageResult: different
+/// physical meanings, so tune thresholds for the result type your hits produce. A producer's own
+/// KnockbackResult never matches; only what a receiver applied does.
 /// </summary>
 [GlobalClass, Tool]
 public partial class KnockbackCondition : CombatLogCondition
@@ -51,31 +55,48 @@ public partial class KnockbackCondition : CombatLogCondition
     [Export(PropertyHint.Range, "0.0,2.0,0.05,suffix:s")]
     public float WithinSeconds { get; set; }
 
+    /// <summary>
+    /// On: defers this transition while the victim's push is pending (held, or released but not yet applied
+    /// by its movement), so a launch-strength hit cannot match a lower tier first, and after release reads the receiver's held-push evidence window in place
+    /// of Within Seconds, a Within Seconds of 0 included. Off: Within Seconds alone decides, and the
+    /// transition can fire during the hold.
+    /// </summary>
+    [Export] public bool DeferWhileHeld { get; set; } = true;
+
     protected override bool CheckEvent(CombatLog log)
     {
-        // OR-combine across both force-bearing CombatResult subtypes. Damaging hits route
-        // through DamageResult (Fireball, Slap), pure-impulse hits through KnockbackResult
-        // (Wind Blast). The receiver-side KnockbackComponent3D writes KnockbackResult
-        // post-resistance, so launch thresholds match what the actor actually experienced.
-        return MatchesForceCarrier<DamageResult>(log) || MatchesForceCarrier<KnockbackResult>(log);
+        // Damaging hits route through DamageResult (Fireball, Slap), pushes through the receiver's
+        // KnockbackAppliedResult (Wind Blast), logged post-resistance, so launch thresholds match
+        // what the actor actually experienced.
+        float window = WithinSeconds;
+        if (DeferWhileHeld
+            && KnockbackComponent3D.TryGetHeldPushWindow(CurrentBlackboard, out var heldWindow, out var holding))
+        {
+            if (holding) { return false; }
+            window = heldWindow;
+        }
+        return Matches<DamageResult>(log, r => r.Force, window) || Matches<KnockbackAppliedResult>(log, r => r.DeltaV, window);
     }
 
-    private bool MatchesForceCarrier<T>(CombatLog log) where T : CombatResult, IForceCarrier
+    private bool Matches<T>(CombatLog log, System.Func<T, float> amount, float window) where T : CombatResult
     {
-        if (WithinSeconds > 0f)
+        bool MatchesEntry(T r)
         {
-            return log.AnyWithinCombatTime<T>(WithinSeconds, MatchesEntry);
+            if (r.Sustained) { return false; }
+
+            var value = amount(r);
+            if (value < MinForce || value > MaxForce)
+            {
+                return false;
+            }
+
+            return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
+        }
+
+        if (window > 0f)
+        {
+            return log.AnyWithinCombatTime<T>(window, MatchesEntry);
         }
         return log.HasEvent<T>(MatchesEntry);
-    }
-
-    private bool MatchesEntry<T>(T r) where T : CombatResult, IForceCarrier
-    {
-        if (r.Force < MinForce || r.Force > MaxForce)
-        {
-            return false;
-        }
-
-        return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
     }
 }

@@ -22,8 +22,8 @@ using Jmodot.Implementation.ProcGen.Spatial;
 ///         Geometry is reconstructed in graph space: the generator commits every node through a
 ///         single parent edge (spine/route/branch, all inserted spine-first), so a BFS from the
 ///         Source over <see cref="PartialGraph" /> edges in insertion order yields each node's world
-///         pose via <see cref="SpatialPoseMath.SolveAbutment"/> — the same arithmetic the embedder
-///         uses — without inventing any API. Reconstruction is conservative (declared ports, no
+///         pose via the first origin of <see cref="SpatialPoseMath.AbutmentSlides"/> — the pose the
+///         embedder tries first — without inventing any API. Reconstruction is conservative (declared ports, no
 ///         embedder rebinding); a placement that survives it is geometrically simple, and one that
 ///         folds here is flagged neutral even though the embedder might rebind past it.
 ///     </para>
@@ -106,8 +106,8 @@ public sealed partial class FaceContinuationWeight : SlotWeight
             return 1; // candidate and template faces cannot abut
         }
 
-        WorldPort candidateWorld = SpatialPoseMath.WorldPortOf(anchorPose, ((ISpatialNodeTemplate)slot.Node.Template).FootprintCells, candidatePort);
-        Vector3I? origin = SpatialPoseMath.SolveAbutment(candidateWorld, entrySpatial, newTemplate.FootprintCells, newYaw.Value);
+        WorldSpan candidateSpan = SpatialPoseMath.SpanOf(anchorPose, ((ISpatialNodeTemplate)slot.Node.Template).FootprintCells, candidatePort);
+        Vector3I? origin = SpatialPoseMath.FirstSlide(candidateSpan, entrySpatial, newTemplate.FootprintCells, newYaw.Value);
         if (origin == null)
         {
             return 1;
@@ -282,15 +282,15 @@ public sealed partial class FaceContinuationWeight : SlotWeight
         }
 
         CellPose placedPose = poses[placed.Id];
-        WorldPort placedWorld = SpatialPoseMath.WorldPortOf(placedPose, placedTemplate.FootprintCells, placedPort);
+        WorldSpan placedSpan = SpatialPoseMath.SpanOf(placedPose, placedTemplate.FootprintCells, placedPort);
 
-        YawQuadrant? yaw = YawForWorldFace(otherPort.Face, placedWorld.Face);
+        YawQuadrant? yaw = YawForWorldFace(otherPort.Face, placedSpan.Face);
         if (yaw == null)
         {
             return false;
         }
 
-        Vector3I? origin = SpatialPoseMath.SolveAbutment(placedWorld, otherPort, otherTemplate.FootprintCells, yaw.Value);
+        Vector3I? origin = SpatialPoseMath.FirstSlide(placedSpan, otherPort, otherTemplate.FootprintCells, yaw.Value);
         if (origin == null)
         {
             return false;

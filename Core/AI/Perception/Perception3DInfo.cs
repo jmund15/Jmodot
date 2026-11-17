@@ -12,7 +12,7 @@ using Implementation.Shared;
 public class Perception3DInfo
 {
     private float _baseConfidence;
-    private MemoryDecayStrategy _decayStrategy = null!;
+    private MemoryDecayStrategy? _decayStrategy;
     private bool _sensingActive = true;
     private ulong _exitTime;
 
@@ -37,19 +37,22 @@ public class Perception3DInfo
     /// </summary>
     public float CurrentConfidence => GetConfidenceAt(GameClock.NowMsec);
 
+    /// <summary>True while a sensor still reports the target; false once every sensor lost it and the memory decays on its own clock.</summary>
+    public bool IsSensing => _sensingActive;
+
     /// <summary>Returns true if the memory is still considered active (confidence is above zero).</summary>
     public bool IsActive => this.CurrentConfidence > 0.001f;
 
     /// <summary>
     ///     Calculates confidence at a specific point in time.
     ///     While actively sensed, returns the raw sensor confidence regardless of time.
-    ///     After exit, applies the decay strategy using elapsed time since exit.
+    ///     After exit, applies the decay strategy using elapsed time since exit; a null strategy never fades.
     /// </summary>
     public float GetConfidenceAt(ulong currentTimeMs)
     {
         if (_sensingActive) { return _baseConfidence; }
         var elapsed = (currentTimeMs - _exitTime) / 1000f;
-        return _decayStrategy?.CalculateConfidence(_baseConfidence, elapsed) ?? 0f;
+        return _decayStrategy?.CalculateConfidence(_baseConfidence, elapsed) ?? _baseConfidence;
     }
 
     /// <summary>

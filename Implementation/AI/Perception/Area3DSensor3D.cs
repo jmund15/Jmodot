@@ -9,6 +9,7 @@ using Core.Combat.EffectDefinitions;
 using Core.Components;
 using Core.Identification;
 using Core.Stats;
+using Jmodot.Core.Math;
 using Shared;
 using Strategies;
 
@@ -70,8 +71,14 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     [ExportGroup("Line of Sight")]
     [Export] private bool _requireLineOfSight;
 
-    /// <summary>Physics layers that BLOCK sight (walls, closed doors). The ray excludes this
-    /// sensor's parent body and the target, so layers shared with either are safe to include.</summary>
+    /// <summary>On: this sensor's own <c>Occlusion Mask</c> decides what blocks its sight. Off: the project's
+    /// default (<see cref="PerceptionDefaults.SightOcclusionMask3D"/>) decides, so every sensor stays consistent;
+    /// the own mask is used only when the project wires no default.</summary>
+    [Export] private bool _overrideOcclusionMask;
+
+    /// <summary>Physics layers that BLOCK sight (walls, closed doors) when <c>Override Occlusion Mask</c> is on
+    /// or the project wires no default. The ray excludes this sensor's parent body and the target, so layers
+    /// shared with either are safe to include.</summary>
     [Export(PropertyHint.Layers3DPhysics)] private uint _occlusionMask = 3;
 
     /// <summary>Vertical offset applied to both ray endpoints — sight runs eye-to-eye, not
@@ -89,7 +96,11 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     private readonly HashSet<Node3D> _trackedBodies = new();
     private readonly HashSet<Node3D> _visibleBodies = new();
     private readonly HashSet<Node3D> _polledBodies = new();
-    private float _pollTimer;
+    // NOT readonly: IntervalClock is a mutable struct.
+    private IntervalClock _pollClock = new();
+#if TOOLS
+    private int _pollCount;
+#endif
     private CollisionShape3D? _cachedCollisionShape;
     private IStatProvider? _statProvider;
     private bool _resyncPending;
@@ -149,6 +160,10 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         SubscribeStatProvider();
 
         ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+        if (shapeNode.Shape is SphereShape3D projected)
+        {
+            JmoLogger.Info(this, $"[Perception] '{GetParent()?.Name}' sensor '{Name}' range {projected.Radius:0.0}m");
+        }
     }
 
     // Idempotent: unsubscribe-then-subscribe so _EnterTree resubscribes and OnPostInitialize's
@@ -172,26 +187,32 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     private void OnStatProviderStatChanged(Core.Stats.Attribute attribute, Variant newValue)
     {
         if (!IsInitialized || _rangeDefinition == null) { return; }
-        ApplyRange(_rangeDefinition.ResolveFloatValue(_statProvider));
+        float range = _rangeDefinition.ResolveFloatValue(_statProvider);
+        if (ApplyRange(range))
+        {
+            JmoLogger.Info(this, $"[Perception] '{GetParent()?.Name}' sensor '{Name}' range changed to {range:0.0}m");
+        }
     }
 
-    private void ApplyRange(float range)
+    /// <summary>Projects <paramref name="range"/> onto the sphere radius; true when the radius changed.</summary>
+    private bool ApplyRange(float range)
     {
         var shapeNode = ResolveCollisionShape();
-        if (shapeNode?.Shape is not SphereShape3D sphere) { return; }
+        if (shapeNode?.Shape is not SphereShape3D sphere) { return false; }
         if (range <= 0f)
         {
             JmoLogger.Warning(this,
                 $"Sensor range resolved to non-positive value ({range}); keeping previous radius {sphere.Radius}. Check the sight_range stat / modifiers.");
-            return;
+            return false;
         }
         // OnStatChanged is coarse — it fires for every attribute, so most calls land here unchanged.
-        if (Mathf.IsEqualApprox(sphere.Radius, range)) { return; }
+        if (Mathf.IsEqualApprox(sphere.Radius, range)) { return false; }
 
         sphere.Radius = range;
         // Deferred to a physics frame, not CallDeferred: the physics server only reflects the
         // resized shape after it ticks, so an idle-frame resync reads stale overlaps.
         _resyncPending = true;
+        return true;
     }
 
     /// <summary>
@@ -287,11 +308,14 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         // Static body polling via IntersectShape (replaces body_entered for static bodies)
         if (_staticBodyPolling)
         {
-            _pollTimer += (float)delta;
-            if (_pollTimer >= _pollInterval)
+            // A non-positive interval polls every tick. One poll covers every fire due this tick:
+            // a poll samples current state, so extra fires add nothing.
+            if (_pollClock.Advance(delta, _pollInterval) > 0)
             {
-                _pollTimer = 0f;
                 PollStaticBodies();
+#if TOOLS
+                _pollCount++;
+#endif
             }
         }
 
@@ -341,13 +365,20 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
         var offset = Vector3.Up * _sightHeightOffset;
         var query = PhysicsRayQueryParameters3D.Create(
-            GlobalPosition + offset, body.GlobalPosition + offset, _occlusionMask);
+            GlobalPosition + offset, body.GlobalPosition + offset, ResolvedOcclusionMask);
         var exclude = new Godot.Collections.Array<Rid>();
         if (GetParent() is CollisionObject3D self) { exclude.Add(self.GetRid()); }
         if (body is CollisionObject3D target) { exclude.Add(target.GetRid()); }
         query.Exclude = exclude;
         return spaceState.IntersectRay(query).Count == 0;
     }
+
+    /// <summary>The layers that block this sensor's sight: its own mask when overridden or when no project
+    /// default is wired, else the project default.</summary>
+    internal uint ResolvedOcclusionMask =>
+        _overrideOcclusionMask || PerceptionDefaults.SightOcclusionMask3D is not { } projectMask
+            ? _occlusionMask
+            : projectMask;
 
     public Node GetUnderlyingNode() => this;
 
@@ -424,11 +455,17 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     internal void SetContinuousTracking(bool enabled) => _continuousTracking = enabled;
     internal void SetStaticBodyPolling(bool enabled) => _staticBodyPolling = enabled;
     internal void SetRequireLineOfSight(bool enabled) => _requireLineOfSight = enabled;
-    internal void SetOcclusionMask(uint mask) => _occlusionMask = mask;
+    internal void SetOcclusionMask(uint mask)
+    {
+        _occlusionMask = mask;
+        _overrideOcclusionMask = true;
+    }
+    internal uint AuthoredOcclusionMask => _occlusionMask;
     internal void SetRangeDefinitionForTesting(BaseFloatValueDefinition? definition) => _rangeDefinition = definition;
     internal int VisibleBodyCount => _visibleBodies.Count;
     internal int TrackedBodyCount => _trackedBodies.Count;
     internal int PolledBodyCount => _polledBodies.Count;
+    internal int PollCount => _pollCount;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
     internal void SimulatePhysicsTick(double delta) => _PhysicsProcess(delta);

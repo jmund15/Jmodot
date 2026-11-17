@@ -132,6 +132,19 @@ public static class JmoMath
     }
 
     /// <summary>
+    /// Scalar distance between two world positions measured on the XZ plane: <c>toPosition - fromPosition</c>
+    /// with Y dropped, then its length. Vertical separation never contributes, so two positions that differ
+    /// only on Y are horizontally co-located and return zero. This is the one owner of that operation; do not
+    /// re-derive it inline.
+    /// </summary>
+    public static float HorizontalDistance(Vector3 fromPosition, Vector3 toPosition)
+    {
+        var delta = toPosition - fromPosition;
+        delta.Y = 0f;
+        return delta.Length();
+    }
+
+    /// <summary>
     /// Closest distance from point <paramref name="p"/> to the line segment [<paramref name="a"/>, <paramref name="b"/>].
     /// Projects <paramref name="p"/> onto the segment and clamps the parameter to [0,1] so points
     /// beyond the endpoints measure to the nearest endpoint. Degenerate segments (a == b) collapse
@@ -209,4 +222,22 @@ public static class JmoMath
     /// </summary>
     public static float MirroredInPlaneRotation(float baseAngle, bool flip)
         => flip ? baseAngle - Mathf.Pi : baseAngle;
+
+    /// <summary>
+    /// The point <paramref name="roll"/> of the way across the inclusive band between
+    /// <paramref name="min"/> and <paramref name="max"/>: 0 returns the lower bound and 1 the upper.
+    /// The roll is clamped to [0, 1] and an inverted band is normalized, so a swapped authored pair
+    /// still yields a value inside it. The caller owns the random draw.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Any argument is NaN or infinite.</exception>
+    public static float RollInRange(float min, float max, float roll)
+    {
+        if (!float.IsFinite(min)) { throw new ArgumentOutOfRangeException(nameof(min), min, "The band's bounds must be finite."); }
+        if (!float.IsFinite(max)) { throw new ArgumentOutOfRangeException(nameof(max), max, "The band's bounds must be finite."); }
+        if (!float.IsFinite(roll)) { throw new ArgumentOutOfRangeException(nameof(roll), roll, "The roll must be finite."); }
+
+        float lo = Math.Min(min, max);
+        float hi = Math.Max(min, max);
+        return lo + Math.Clamp(roll, 0f, 1f) * (hi - lo);
+    }
 }

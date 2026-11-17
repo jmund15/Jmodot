@@ -25,8 +25,8 @@ using Jmodot.Implementation.Shared.GodotExceptions;
 ///         budget): config errors throw at entry; <see cref="ViolationKind.PinUnsatisfiable" />
 ///         returns immediately; <see cref="EmbedFailureCause.ClosureParity" /> against a
 ///         parity-UNIFORM pool returns immediately (every re-roll re-draws templates from the same
-///         parity class — design-se §4's parity-conditional semantics). This is also the single
-///         site where <see cref="EmbedFailureCause" /> becomes a <see cref="Violation" />.
+///         parity class — design-se §4's parity-conditional semantics). A cause becomes a
+///         <see cref="Violation" /> only through <see cref="EmbedFailureMapping" />.
 ///     </para>
 /// </summary>
 public static class FloorPipeline
@@ -54,7 +54,7 @@ public static class FloorPipeline
         embedder ??= new GridFloorEmbedder();
 
         bool parityUniform = PoolIsParityUniform(config.TemplatePool);
-        ConnectorPolicy connectorPolicy = config.AlternateRoutes?.ConnectorPolicy ?? ConnectorPolicy.Closable;
+        ConnectorRules connectorRules = config.AlternateRoutes?.ConnectorRules ?? default;
 
         IReadOnlyList<Violation> lastViolations = new List<Violation>
         {
@@ -67,7 +67,7 @@ public static class FloorPipeline
         // fresh holistic Embed. Reset per attempt so a pre-spine failure never reuses a stale session.
         ILayoutAdvisor? sessionAdvisor = null;
         Func<IFloorGraph, ILayoutAdvisor>? advisorFactory = settings.UseProgressiveEmbed
-            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder, connectorPolicy)
+            ? backbone => sessionAdvisor = embedder.BeginSession(backbone, envelope, settings.Embedder, connectorRules)
             : null;
 
         for (int attempt = 0; attempt < settings.MaxFloorAttempts; attempt++)
@@ -89,7 +89,7 @@ public static class FloorPipeline
             IFloorGraph topology = stage1.Graph!;
             if (!PreEmbedGates.Check(topology, envelope, out EmbedFailureCause gateCause, out StringName? gateNode))
             {
-                lastViolations = Append(stage1.Violations, MapEmbedFailure(gateCause, gateNode));
+                lastViolations = Append(stage1.Violations, EmbedFailureMapping.ToViolation(gateCause, gateNode));
                 continue;
             }
 
@@ -97,11 +97,11 @@ public static class FloorPipeline
             // decoration; otherwise run the classic holistic embed. Both yield the same result shape.
             FloorEmbedResult embed = sessionAdvisor != null
                 ? sessionAdvisor.BuildResult(topology)
-                : embedder.Embed(topology, envelope, settings.Embedder, connectorPolicy);
+                : embedder.Embed(topology, envelope, settings.Embedder, connectorRules);
             if (!embed.Succeeded)
             {
                 EmbedFailureCause cause = embed.FailureCause!.Value;
-                lastViolations = Append(stage1.Violations, MapEmbedFailure(cause, embed.FailingNodeId));
+                lastViolations = Append(stage1.Violations, EmbedFailureMapping.ToViolation(cause, embed.FailingNodeId));
                 if (cause == EmbedFailureCause.ClosureParity && parityUniform)
                 {
                     return FloorGenerationResult.Failure(attempt + 1, lastViolations, settings.UseProgressiveEmbed);
@@ -141,20 +141,6 @@ public static class FloorPipeline
         }
 
         return descriptors.Count <= 1;
-    }
-
-    private static Violation MapEmbedFailure(EmbedFailureCause cause, StringName? failingNodeId)
-    {
-        ViolationKind kind = cause switch
-        {
-            EmbedFailureCause.ClosureParity => ViolationKind.EmbedClosureParity,
-            EmbedFailureCause.SpaceTight => ViolationKind.EmbedSpaceTight,
-            EmbedFailureCause.NoBinding => ViolationKind.EmbedNoBinding,
-            _ => throw new ArgumentOutOfRangeException(nameof(cause), cause, "Unknown embed failure cause."),
-        };
-
-        string at = failingNodeId == null ? string.Empty : $" at node '{failingNodeId}'";
-        return new Violation(kind, Severity.Fatal, $"Floor embedding failed ({cause}){at}.");
     }
 
     private static IReadOnlyList<Violation> Append(IReadOnlyList<Violation> warnings, Violation violation)

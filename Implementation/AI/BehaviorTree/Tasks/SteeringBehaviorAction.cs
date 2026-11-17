@@ -1,8 +1,11 @@
 namespace Jmodot.Implementation.AI.BehaviorTree.Tasks;
 
+using System.Collections.Generic;
+using System.Linq;
 using Core.AI;
 using Core.AI.Navigation;
 using Core.AI.Navigation.Considerations;
+using Core.Shared;
 using Jmodot.AI.Navigation;
 using Navigation.Considerations;
 using Shared;
@@ -19,24 +22,34 @@ using GColl = Godot.Collections;
 [GlobalClass, Tool]
 public partial class SteeringBehaviorAction : BehaviorAction
 {
+    /// <summary>
+    /// Style and environment terms that bend how this step moves. They never decide where the step
+    /// goes or when it ends: a MoveAction's goal owns that. An empty list is legal.
+    /// </summary>
     [Export] private GColl.Array<BaseAIConsideration3D> _considerations = new();
+
+    /// <summary>The authored style terms, read-only. Their runtime registrations belong to the processor.</summary>
+    protected IReadOnlyList<BaseAIConsideration3D> Considerations => _considerations;
 
     [ExportGroup("Navigation Path Override")]
     [Export] private NavigationPath3DConsideration? _navPathOverride;
-
-    /// <summary>Optional move/pause cadence. Null means continuous steering.</summary>
-    [ExportGroup("Movement Cadence")]
-    [Export] public MovementCadenceResource? Cadence { get; private set; }
 
     /// <summary>Optional per-action synthesis strategy claimed on enter (owned-slot, owner = task Name)
     /// and released on exit. A conflicting concurrent claim is rejected+warned by the processor.</summary>
     [ExportGroup("Synthesis Override")]
     [Export] private SteeringSynthesisStrategy3D? _synthesisOverride;
 
+    public override string[] _GetConfigurationWarnings()
+    {
+        // The editor has no Init'ed agent, so the action itself stands in for the entity walk.
+        var agentForWarnings = (Node?)Agent ?? this;
+        return base._GetConfigurationWarnings()
+            .Concat(ConfigWarnings.ResourceSlotWarnings("Considerations", _considerations))
+            .Concat(ConfigWarnings.AgentSlotWarnings("Considerations", _considerations, agentForWarnings))
+            .ToArray();
+    }
+
     private AISteeringProcessor3D? _cachedSteering;
-    private bool _cadencePaused;
-    private float _cadenceTimer;
-    private bool _cadenceClaimed;
 
     /// <summary>
     /// Enter() skips OnEnter() when the task's condition check fails, but Exit() runs OnExit()
@@ -48,9 +61,6 @@ public partial class SteeringBehaviorAction : BehaviorAction
     protected override void OnEnter()
     {
         base.OnEnter();
-
-        _cadencePaused = false;
-        _cadenceTimer = Cadence?.MoveSeconds ?? 0f;
 
         if (!TryGetSteering(out var steering))
         {
@@ -78,59 +88,13 @@ public partial class SteeringBehaviorAction : BehaviorAction
     }
 
     protected sealed override void OnProcessPhysics(float delta)
-    {
-        var steeringAllowed = TickCadence(delta);
-        UpdateCadenceControl(steeringAllowed);
-        OnProcessSteeringPhysics(delta);
-    }
+        => OnProcessSteeringPhysics(delta);
 
-    /// <summary>Runs action-specific steering and lifecycle work after cadence state updates.</summary>
+    /// <summary>Runs action-specific steering and lifecycle work.</summary>
     protected virtual void OnProcessSteeringPhysics(float delta) { }
-
-    /// <summary>True when the cadence permits a destination or consideration update this tick.</summary>
-    protected bool CadenceAllowsSteering => !_cadencePaused;
-
-    private bool TickCadence(float delta)
-    {
-        if (Cadence == null || !(Cadence.MoveSeconds > 0f))
-        {
-            _cadencePaused = false;
-            return true;
-        }
-
-        var moving = MovementCadenceResource.AdvanceCadence(
-            _cadencePaused, _cadenceTimer, Cadence.MoveSeconds, Cadence.PauseSeconds, delta,
-            out _cadencePaused, out _cadenceTimer);
-        return moving;
-    }
-
-    private void UpdateCadenceControl(bool steeringAllowed)
-    {
-        if (steeringAllowed)
-        {
-            if (_cadenceClaimed && _cachedSteering != null)
-            {
-                _cachedSteering.ReleaseControl(this.Name);
-                _cadenceClaimed = false;
-            }
-            return;
-        }
-
-        if (_cadenceClaimed || !TryGetSteering(out var steering)) { return; }
-        if (!steering.TryClaimControl(this.Name, SteeringControlMode.DirectionOverride, Godot.Vector3.Zero)) { return; }
-        _cadenceClaimed = true;
-    }
 
     protected override void OnExit()
     {
-        if (_cadenceClaimed && _cachedSteering != null)
-        {
-            _cachedSteering.ReleaseControl(this.Name);
-            _cadenceClaimed = false;
-        }
-        _cadencePaused = false;
-        _cadenceTimer = 0f;
-
         base.OnExit();
 
         if (!_considerationsRegistered) { return; }
@@ -154,7 +118,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
         }
     }
 
-    private bool TryGetSteering(out AISteeringProcessor3D steering)
+    protected bool TryGetSteering(out AISteeringProcessor3D steering)
     {
         if (_cachedSteering != null)
         {
@@ -162,7 +126,7 @@ public partial class SteeringBehaviorAction : BehaviorAction
             return true;
         }
 
-        if (Agent.TryGetFirstChildOfType(out AISteeringProcessor3D? found))
+        if (Agent.TryGetFirstChildOfType(out AISteeringProcessor3D? found, includeSubChildren: true))
         {
             _cachedSteering = found;
             steering = found;
@@ -176,8 +140,20 @@ public partial class SteeringBehaviorAction : BehaviorAction
     #region Test Helpers
 #if TOOLS
     internal void AddConsideration(BaseAIConsideration3D consideration) => _considerations.Add(consideration);
+    internal IReadOnlyList<BaseAIConsideration3D> AuthoredConsiderationsForTest => _considerations;
     internal void SetNavPathOverride(NavigationPath3DConsideration? navPath) => _navPathOverride = navPath;
     internal void SetSynthesisOverride(SteeringSynthesisStrategy3D? strategy) => _synthesisOverride = strategy;
+
+    /// <summary>Copies the whole authored slot of <paramref name="replaced"/>, adding the style terms and both overrides when it steers.</summary>
+    internal override void AdoptSlotFromForTest(BehaviorAction replaced)
+    {
+        base.AdoptSlotFromForTest(replaced);
+        if (replaced is not SteeringBehaviorAction steering) { return; }
+
+        foreach (var term in steering._considerations) { _considerations.Add(term); }
+        _navPathOverride = steering._navPathOverride;
+        _synthesisOverride = steering._synthesisOverride;
+    }
 #endif
     #endregion
 }

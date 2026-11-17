@@ -4,6 +4,11 @@ using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
 
+/// <summary>
+/// Passes on a damage result in the current frame's combat log within the damage range and carrying a
+/// required tag. A sustained result (<see cref="CombatResult.Sustained"/>) never passes: this is a
+/// per-blow reaction, and a held contact re-entering it every tick would lock its target in place.
+/// </summary>
 [GlobalClass, Tool]
 public partial class DamageCondition : CombatLogCondition
 {
@@ -27,6 +32,8 @@ public partial class DamageCondition : CombatLogCondition
     {
         return log.HasEvent<DamageResult>(r =>
         {
+            if (r.Sustained) { return false; }
+
             if (r.FinalAmount < MinDamage || r.FinalAmount > MaxDamage)
             {
                 return false;

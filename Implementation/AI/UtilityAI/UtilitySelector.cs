@@ -40,6 +40,10 @@ public partial class UtilitySelector : CompositeTask
     #endregion
 
     #region TASK_UPDATES
+    // It re-scores on an interval and can switch away from the running action, so a child that
+    // never finishes starves nobody.
+    public override string? DescribeStarvationBy(BehaviorTask? child) => null;
+
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);

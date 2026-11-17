@@ -50,11 +50,6 @@ public partial class LagQueue : BehaviorAction
         base.OnExit();
     }
 
-    protected override void OnProcessFrame(float delta)
-    {
-        base.OnProcessFrame(delta);
-    }
-
     protected override void OnProcessPhysics(float delta)
     {
         base.OnProcessPhysics(delta);

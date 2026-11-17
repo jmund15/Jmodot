@@ -22,6 +22,12 @@ public sealed partial class AlternateRouteSpec : Resource
     [Export]
     public ConnectorPolicy ConnectorPolicy { get; private set; } = ConnectorPolicy.Closable;
 
+    /// <summary>Longest corridor, in cells from junction to junction, a loop may synthesize to close; ignored under AbutmentOnly. 0 = bounded only by the envelope's longest side. Guaranteed routes are composed to close within the cap on the progressive-embed path (FloorPipelineSettings.UseProgressiveEmbed); on other paths the cap only rejects longer closures. Ports with slack along their walls close a loop flush or across a few cells, so they hold a shorter cap than a pool of fixed ports; too short a cap for the port pool fails to close loops.</summary>
+    [Export(PropertyHint.Range, "0,64,or_greater")] public int MaxConnectorLengthCells { get; private set; }
+
+    /// <summary>The loop-closure rules this spec hands the embedder: <see cref="ConnectorPolicy" /> and <see cref="MaxConnectorLengthCells" />.</summary>
+    public ConnectorRules ConnectorRules => new(this.ConnectorPolicy, this.MaxConnectorLengthCells);
+
     /// <summary>Inclusive count of GUARANTEED loops — co-planned with the spine, closure guaranteed (anchors reserved during spine layout). Null leaves it to the generator default. Backbone feasibility: the consuming profile requires Spine.Length.Min ≥ GuaranteedCount.Min × MinAnchorSeparation + 3.</summary>
     [ExportGroup("Topology")]
     [Export] public IntRange? GuaranteedCount { get; private set; }
@@ -29,7 +35,7 @@ public sealed partial class AlternateRouteSpec : Resource
     /// <summary>Inclusive count of OPPORTUNISTIC loops — extra best-effort routes decorated after the backbone; soft-skipped if they cannot close. Null leaves it to the generator default.</summary>
     [Export] public IntRange? OpportunisticCount { get; private set; }
 
-    /// <summary>Inclusive node-count range per alternate route. Null leaves it to the generator default.</summary>
+    /// <summary>Inclusive node-count range per alternate route. The composer tries first the count whose rooms best span the anchors' gap, so a wider range lets more gaps close without a corridor. Null leaves it to the generator default.</summary>
     [Export] public IntRange? Length { get; private set; }
 
     /// <summary>Minimum spine separation (DistanceFromSource gap) between a guaranteed loop's divergence X and rejoin Y. <c>&gt;= 2</c> keeps the loop non-degenerate (avoids a 1-segment loop). Read by the generator's anchor-pair eligibility and by the consuming profile's backbone-feasibility check (Spine.Length.Min ≥ GuaranteedCount.Min × this + 3).</summary>
@@ -103,6 +109,11 @@ public sealed partial class AlternateRouteSpec : Resource
                 $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxAnchorSeparation)} ({this.MaxAnchorSeparation}) must be >= " +
                 $"{nameof(this.MinAnchorSeparation)} ({this.MinAnchorSeparation}) when bounded.", this);
         }
+        if (this.MaxConnectorLengthCells < 0)
+        {
+            throw new ResourceConfigurationException(
+                $"{nameof(AlternateRouteSpec)}.{nameof(this.MaxConnectorLengthCells)} must be >= 0 (0 = envelope-bounded).", this);
+        }
         if (this.AttachmentWeights.Any(w => w is null))
         {
             throw new ResourceConfigurationException(
@@ -124,6 +135,7 @@ public sealed partial class AlternateRouteSpec : Resource
 #if TOOLS
     internal void SetGuaranteedCount(IntRange? value) => this.GuaranteedCount = value;
     internal void SetConnectorPolicy(ConnectorPolicy value) => this.ConnectorPolicy = value;
+    internal void SetMaxConnectorLengthCells(int value) => this.MaxConnectorLengthCells = value;
     internal void SetOpportunisticCount(IntRange? value) => this.OpportunisticCount = value;
     internal void SetLength(IntRange? value) => this.Length = value;
     internal void SetMinAnchorSeparation(int value) => this.MinAnchorSeparation = value;

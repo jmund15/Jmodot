@@ -60,7 +60,7 @@ public struct DistanceScaledDamageEffect : ICombatEffect
         CritEffectIndex = critEffectIndex;
     }
 
-    public CombatResult? Apply(ICombatant target, HitContext context)
+    public CombatResult? Apply(ICombatant target, HitContext context, float incomingMagnitudeScale = 1.0f)
     {
         // 1. Check if we should affect this target at all
         if (_damageFalloff != null && !_damageFalloff.ShouldAffect(context.DistanceFromEpicenter))
@@ -103,7 +103,7 @@ public struct DistanceScaledDamageEffect : ICombatEffect
             return null;
         }
 
-        health.TakeDamage(finalDamage, context.Attacker, context.Kind, context.ImpactDirection);
+        float dealtDamage = IncomingMagnitude.ApplyDamage(health, finalDamage, incomingMagnitudeScale, context);
 
         // 5. Return result
         return new DamageResult
@@ -112,7 +112,7 @@ public struct DistanceScaledDamageEffect : ICombatEffect
             Target = target.OwnerNode,
             Tags = Tags,
             OriginalAmount = BaseDamage,
-            FinalAmount = finalDamage,
+            FinalAmount = dealtDamage,
             Direction = context.HitDirection,
             Force = totalKnockback,
             IsCritical = isCritical,

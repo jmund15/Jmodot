@@ -2,6 +2,7 @@ namespace Jmodot.Examples.AI.BehaviorTree.Tasks;
 
 using System;
 using Core.AI;
+using Core.AI.BB;
 using Implementation.AI.BehaviorTree.Tasks;
 using Implementation.Shared;
 
@@ -9,7 +10,9 @@ using Implementation.Shared;
 /// A BehaviorAction that waits for a duration and then succeeds.
 /// Supports both fixed and variable durations via _additiveVariation.
 /// When _additiveVariation is 0 (default), waits exactly _duration seconds.
-/// When _additiveVariation > 0, waits _duration + Random(0, _additiveVariation) seconds.
+/// When _additiveVariation > 0, waits _duration + Random(0, _additiveVariation) seconds, drawn from a stream seeded by
+/// the entity seed and this task's name, so the same staging rolls the same waits. Without an entity seed the stream
+/// is <see cref="JmoRng.UnseededByDesign"/> and warns once.
 /// </summary>
 [GlobalClass, Tool]
 public partial class Lag : BehaviorAction
@@ -22,12 +25,21 @@ public partial class Lag : BehaviorAction
 
     private SceneTreeTimer _timer = null!;
     private JmoRng? _rng;
+    private bool _warnedNoSeed;
+    private float _lastEffectiveDuration;
+
+    public override void Init(Node agent, IBlackboard bb)
+    {
+        base.Init(agent, bb);
+        _rng = ResolveRng();
+    }
 
     protected override void OnEnter()
     {
         base.OnEnter();
-        _rng ??= JmoRng.NonDeterministic();
+        _rng ??= ResolveRng();
         float effectiveDuration = CalculateEffectiveDuration(_duration, _additiveVariation, _rng.GetRndFloat());
+        _lastEffectiveDuration = effectiveDuration;
 
         if (effectiveDuration <= 0f)
         {
@@ -38,6 +50,8 @@ public partial class Lag : BehaviorAction
         _timer = GameClock.CreateTimer(this, effectiveDuration);
         _timer.Timeout += OnLagTimeout;
     }
+
+    private JmoRng ResolveRng() => EntityRngResolver.Resolve(BB, $"{SeedKinds.Lag}:{Name}", this, ref _warnedNoSeed);
 
     protected override void OnExit()
     {
@@ -78,6 +92,7 @@ public partial class Lag : BehaviorAction
 #if TOOLS
     internal void SetDuration(float value) => _duration = value;
     internal void SetAdditiveVariation(float value) => _additiveVariation = value;
+    internal float LastEffectiveDurationForTest => _lastEffectiveDuration;
 #endif
     #endregion
 }

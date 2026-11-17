@@ -60,6 +60,9 @@ public sealed record class HitContext2D
     /// </summary>
     public Vector2? ImpactDirection { get; init; }
 
+    /// <summary>True when this hit is one contact of a held source (see <see cref="HitContext.Continuous"/>).</summary>
+    public bool Continuous { get; init; }
+
     /// <summary>
     /// Returns a copy with the supplied <paramref name="kind"/>; all other fields preserved.
     /// Use when re-applying an existing context under a different damage cause (e.g.

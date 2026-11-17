@@ -15,7 +15,7 @@ using Implementation.Actors;
 /// Three-step chain (in order of preference):
 /// </para>
 /// <list type="number">
-///   <item>Most recent <see cref="KnockbackResult"/> in the supplied <c>combatLog</c>
+///   <item>Most recent <see cref="KnockbackAppliedResult"/> in the supplied <c>combatLog</c>
 ///         within <c>windowSeconds</c> — typically the spell or actor that
 ///         just knocked the target into the wall.</item>
 ///   <item>Dominant sustained force from the supplied <c>forceReceiver</c> — wave drag,
@@ -54,7 +54,7 @@ public static class SourceAttributionResolver
     {
         if (combatLog != null)
         {
-            var latest = combatLog.GetMostRecent<KnockbackResult>(windowSeconds);
+            var latest = combatLog.GetMostRecent<KnockbackAppliedResult>(windowSeconds);
             if (latest?.Source != null)
             {
                 return (latest.Source, ImpactCause.Knockback);

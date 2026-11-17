@@ -33,6 +33,12 @@ public static class SeedKinds
     [SeedStreamKey("zone_shape")] public const string ZoneShape = "zone_shape";
     [SeedStreamKey("movement_quirk")] public const string MovementQuirk = "movement_quirk";
     [SeedStreamKey("attachment")] public const string Attachment = "attachment";
+    [SeedStreamKey("random_time_limit")] public const string RandomTimeLimit = "random_time_limit";
+    [SeedStreamKey("dither")] public const string Dither = "dither";
+    [SeedStreamKey("cadence_phase")] public const string CadencePhase = "cadence_phase";
+    [SeedStreamKey("lag")] public const string Lag = "lag";
+    [SeedStreamKey("probability_to_run")] public const string ProbabilityToRun = "probability_to_run";
+    [SeedStreamKey("orbit_goal")] public const string OrbitGoal = "orbit_goal";
 
     // A body split off an existing one derives from its parent's entity seed plus its ordinal, so
     // several fragments promoting in one frame diverge from the parent and from each other.

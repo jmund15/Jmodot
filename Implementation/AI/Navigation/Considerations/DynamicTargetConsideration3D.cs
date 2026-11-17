@@ -1,14 +1,15 @@
 namespace Jmodot.Implementation.AI.Navigation.Considerations;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Core.AI.BB;
 using Core.AI.Navigation.Considerations;
-using Core.AI.Perception;
-using Core.Identification;
 using Core.Movement;
-using Jmodot.Core.Shared.Attributes;
+using Core.Shared;
+using Jmodot.Implementation.AI.Navigation.Targets;
 using Shared;
+using Shared.GodotExceptions;
 
 /// <summary>How a consideration reacts to a perceived target: steer toward it, or away from it.</summary>
 public enum TargetResponseMode
@@ -21,29 +22,34 @@ public enum TargetResponseMode
 /// A unified steering consideration for reacting to dynamic targets (threats, prey, allies).
 ///
 /// Two continuous sliders create a 2D personality space:
-///   <see cref="_threatResolution"/>: 0=overwhelmed/cornerable → 1=analytical/gap-finding
-///   <see cref="_threatFocus"/>: 0=all threats equal → 1=tunnel vision on dominant threat
+///   Resolution: 0=overwhelmed/cornerable → 1=analytical/gap-finding
+///   Focus: 0=all threats equal → 1=tunnel vision on dominant threat
 ///
 /// Two velocity dimensions:
 ///   <see cref="_velocityInfluence"/>: How much target velocity affects response DIRECTION (prediction)
 ///   <see cref="_approachSpeedWeight"/>: How much closing speed affects threat DANGER weight
+///
+/// Who the consideration reacts to is a <see cref="MovementTarget3D"/>; the combination math
+/// lives in <see cref="TargetResponseScoring3D"/>, so goals score through the same owners.
 /// </summary>
 [GlobalClass, Tool]
-public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
+public partial class DynamicTargetConsideration3D : BaseAIConsideration3D, IResourceConfigurationWarnings, IAgentConfigurationWarnings
 {
     #region Exports
+
+    /// <summary>
+    /// What this consideration reacts to. Empty follows the primary target with no key to type;
+    /// assign a TrackedTarget3D to follow another key, or a CategoryTarget3D to react to a group.
+    /// A category target's Resolution and Focus are set on its Policy.
+    /// </summary>
+    [ExportGroup("Behavior")]
+    [Export] public MovementTarget3D? Target { get; private set; }
 
     /// <summary>
     /// Chase steers toward perceived targets; Avoid steers away (directions mirrored).
     /// Contribution magnitude is owned by the base Weight, not by this mode.
     /// </summary>
-    [ExportGroup("Behavior")]
     [Export] public TargetResponseMode Mode { get; private set; } = TargetResponseMode.Chase;
-
-    /// <summary>
-    /// Category filter for which perceived targets this consideration reacts to.
-    /// </summary>
-    [Export, RequiredExport] private Category _targetCategory = null!;
 
     /// <summary>
     /// Optional BB key holding a Vector4 zone (center xyz + radius in W). While that zone is active
@@ -53,26 +59,6 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
     /// Vector4-BB convention.
     /// </summary>
     [Export] private StringName? _suppressWhileZoneKey;
-
-    /// <summary>
-    /// Controls how multiple threats are aggregated into directional scores.
-    /// 0.0 = Overwhelmed: sum all threat vectors first, then score. Produces cornered
-    ///        emergence when opposing threats cancel to zero.
-    /// 1.0 = Analytical: score each threat independently, then sum. Finds gaps between
-    ///        threats. Never freezes.
-    /// Intermediate values blend both strategies.
-    /// </summary>
-    [ExportGroup("Threat Processing")]
-    [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
-    private float _threatResolution = 0.0f;
-
-    /// <summary>
-    /// Controls how attention is distributed across threats.
-    /// 0.0 = All threats weighted equally.
-    /// 1.0 = Tunnel vision: only the most dangerous threat matters, others ignored.
-    /// </summary>
-    [Export(PropertyHint.Range, "0.0, 1.0, 0.05")]
-    private float _threatFocus = 0.0f;
 
     /// <summary>
     /// How much target velocity affects the response DIRECTION.
@@ -102,29 +88,28 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
 
     #endregion
 
-    private const float Epsilon = 0.001f;
-    private bool _missingMemoryLogged;
-    private readonly List<TargetData> _targetDataCache = new();
+    public override AIConsiderationRuntime? CreateRuntime(IBlackboard? blackboard) => new TargetRuntime();
 
-    /// <summary>Per-target computed data for the two-pass algorithm.</summary>
-    private readonly struct TargetData
-    {
-        public readonly Vector3 ResponseDirection;
-        public readonly float Weight;
+    private static readonly Func<TargetMember, Vector3, float, Vector3> ChaseResponse =
+        (_, toTarget, _) => toTarget.Normalized();
 
-        public TargetData(Vector3 responseDirection, float weight)
-        {
-            ResponseDirection = responseDirection;
-            Weight = weight;
-        }
-    }
+    private static readonly Func<TargetMember, Vector3, float, Vector3> AvoidResponse =
+        (_, toTarget, _) => -toTarget.Normalized();
+
+    public string[] GetResourceConfigurationWarnings()
+        => ConfigWarnings.ResourceSlotWarnings("Target", Target, required: false);
+
+    /// <summary>
+    /// The entity faults of the target this term reacts to, such as a category with no perception
+    /// manager, worded under the Target slot like this term's own resource warnings.
+    /// </summary>
+    public string[] GetAgentWarnings(Node agent)
+        => ConfigWarnings.AgentSlotWarnings("Target", Target, agent);
 
     #region Effective Parameter Accessors
 
     // Current: return exported value directly.
     // Future: resolve via BaseParameterDefinition for emotion/stat-driven parameters.
-    private float EffectiveThreatResolution(IBlackboard _) => _threatResolution;
-    private float EffectiveThreatFocus(IBlackboard _) => _threatFocus;
     private float EffectiveVelocityInfluence(IBlackboard _) => _velocityInfluence;
     private float EffectiveApproachSpeedWeight(IBlackboard _) => _approachSpeedWeight;
 
@@ -134,211 +119,44 @@ public partial class DynamicTargetConsideration3D : BaseAIConsideration3D
         DirectionSet3D directions, SteeringDecisionContext3D context3D, IBlackboard blackboard,
         AIConsiderationRuntime? runtime)
     {
-        // Lazy: this runs per-frame per-agent, and in the common has-targets case the zero
-        // dictionary would be allocated only to be discarded in favor of AggregateScores.
-        Dictionary<Vector3, float> ZeroScores() => directions.Directions.ToDictionary(dir => dir, _ => 0f);
+        var state = NarrowRuntime<TargetRuntime>(runtime);
 
-        if (_targetCategory == null) { return ZeroScores(); }
-
-        if (IsSuppressedByZone(blackboard)) { return ZeroScores(); }
-
-        if (context3D.Memory == null)
+        bool unlatched = false;
+        if (ZoneSuppression.IsSuppressed(blackboard, _suppressWhileZoneKey, this,
+                ref state != null ? ref state.ZoneKeyWrongTypeLogged : ref unlatched))
         {
-            if (!_missingMemoryLogged)
-            {
-                JmoLogger.Error(this,
-                    $"DynamicTargetConsideration3D '{ResourceName}' requires an AIPerceptionManager3D " +
-                    "but the steering context has no Memory. This consideration will have no effect.");
-                _missingMemoryLogged = true;
-            }
-            return ZeroScores();
+            return DirectionScoring.ZeroScores(directions);
         }
 
-        var targets = context3D.Memory.GetSensedByCategory(_targetCategory);
+        var sample = state?.Sample ?? new TargetSample();
+        MovementTarget3D.ResolveOrPrimary(
+            Target, context3D.AgentPosition, blackboard, context3D.Memory, sample);
+        if (sample.State != TargetSampleState.Resolved) { return DirectionScoring.ZeroScores(directions); }
 
-        float effectiveVelocity = EffectiveVelocityInfluence(blackboard);
-        float effectiveApproach = EffectiveApproachSpeedWeight(blackboard);
-        float effectiveFocus = EffectiveThreatFocus(blackboard);
-        float effectiveResolution = EffectiveThreatResolution(blackboard);
-        bool isChase = Mode == TargetResponseMode.Chase;
+        var settings = new TargetResponseSettings(
+            confidenceWeighted: _confidenceWeighted,
+            projectionInfluence: EffectiveVelocityInfluence(blackboard),
+            approachSpeedWeight: EffectiveApproachSpeedWeight(blackboard),
+            hasVerticalMovement: _hasVerticalMovement);
 
-        // Pass 1: Compute per-target response direction and raw weight
-        _targetDataCache.Clear();
-        float maxWeight = 0f;
-
-        foreach (var target in targets)
-        {
-            Vector3 effectivePos = ComputeEffectivePosition(target, effectiveVelocity);
-            Vector3 toTarget = effectivePos - context3D.AgentPosition;
-            if (!_hasVerticalMovement) { toTarget.Y = 0; }
-            if (toTarget.LengthSquared() < Epsilon * Epsilon) { continue; }
-
-            Vector3 toTargetDir = toTarget.Normalized();
-            Vector3 responseDir = isChase ? toTargetDir : -toTargetDir;
-
-            float weight = ComputeThreatWeight(target, toTargetDir, effectiveApproach);
-            if (weight < Epsilon) { continue; }
-
-            maxWeight = Mathf.Max(maxWeight, weight);
-            _targetDataCache.Add(new TargetData(responseDir, weight));
-        }
-
-        if (_targetDataCache.Count == 0) { return ZeroScores(); }
-
-        // Pass 2: Aggregate using _threatResolution blend
-        return AggregateScores(directions, effectiveFocus, effectiveResolution, maxWeight);
+        var scratch = state?.ResponseBuffer ?? new List<TargetResponse>();
+        return TargetResponseScoring3D.Aggregate(directions, sample, context3D.AgentPosition, settings,
+            Mode == TargetResponseMode.Chase ? ChaseResponse : AvoidResponse, scratch);
     }
 
     #region Core Computation
-
-    /// <summary>
-    /// True when a suppression zone key is configured and its BB Vector4 has a positive radius (W).
-    /// </summary>
-    private bool IsSuppressedByZone(IBlackboard blackboard)
-        => !string.IsNullOrEmpty(_suppressWhileZoneKey)
-           && blackboard.TryGet<Vector4>(_suppressWhileZoneKey!, out var zone)
-           && zone.W > 0f;
-
-    /// <summary>
-    /// Gets the effective position for a target, using velocity projection scaled by influence.
-    /// At 0: raw LastKnownPosition. At 1: full velocity-projected position.
-    /// </summary>
-    private static Vector3 ComputeEffectivePosition(Perception3DInfo target, float velocityInfluence)
-        => target.GetProjectedPosition(velocityInfluence);
-
-    /// <summary>
-    /// Computes the weight (danger level) for a single target.
-    /// Factors: confidence (memory freshness) and approach speed (closing velocity).
-    /// </summary>
-    private float ComputeThreatWeight(Perception3DInfo target, Vector3 toTargetDir,
-        float effectiveApproach)
-    {
-        float weight = 1f;
-
-        if (_confidenceWeighted)
-        {
-            weight *= target.CurrentConfidence;
-        }
-
-        if (effectiveApproach > Epsilon)
-        {
-            Vector3 toAgentDir = -toTargetDir;
-            float closingSpeed = Mathf.Max(0f, target.LastKnownVelocity.Dot(toAgentDir));
-            // Scale: 5 m/s closing at full weight ≈ 2x multiplier
-            weight *= (1f + closingSpeed * 0.2f * effectiveApproach);
-        }
-
-        return weight;
-    }
-
-    /// <summary>
-    /// Applies threat focus weighting: at focus=0, all threats equal; at focus=1, only dominant.
-    /// </summary>
-    private static float ApplyFocusWeight(float weight, float maxWeight, float focus)
-    {
-        if (focus < Epsilon) { return weight; }
-        bool isDominant = Mathf.IsEqualApprox(weight, maxWeight);
-        return isDominant ? weight : weight * (1f - focus);
-    }
-
-    /// <summary>
-    /// Blends CombineFirst and PerTarget aggregation strategies based on threat resolution.
-    /// Both strategies normalize by total focused weight so output stays in [0,1] — the base
-    /// Weight is the sole magnitude knob; focused weight only shapes RELATIVE per-threat pull.
-    /// </summary>
-    private Dictionary<Vector3, float> AggregateScores(DirectionSet3D directions,
-        float effectiveFocus, float effectiveResolution, float maxWeight)
-    {
-        // CombineFirst: weighted average of unit response vectors (|avgResponse| ≤ 1), then score.
-        var combinedDirection = Vector3.Zero;
-        float totalFocusedWeight = 0f;
-        foreach (var td in _targetDataCache)
-        {
-            float focusedWeight = ApplyFocusWeight(td.Weight, maxWeight, effectiveFocus);
-            combinedDirection += td.ResponseDirection * focusedWeight;
-            totalFocusedWeight += focusedWeight;
-        }
-
-        if (totalFocusedWeight < Epsilon)
-        {
-            return directions.Directions.ToDictionary(d => d, _ => 0f);
-        }
-
-        Vector3 avgResponse = combinedDirection / totalFocusedWeight;
-        var combineFirstScores = ScoreByAlignment(directions, avgResponse);
-
-        // Optimization: skip PerTarget if resolution is 0
-        if (effectiveResolution < Epsilon) { return combineFirstScores; }
-
-        // PerTarget: score each target independently, weighted by its NORMALIZED focused weight,
-        // so the summed map is a convex blend of [0,1] alignments and stays in [0,1].
-        var perTargetScores = directions.Directions.ToDictionary(d => d, _ => 0f);
-        foreach (var td in _targetDataCache)
-        {
-            float focusedWeight = ApplyFocusWeight(td.Weight, maxWeight, effectiveFocus);
-            float normalizedWeight = focusedWeight / totalFocusedWeight;
-            var targetScores = ScoreByAlignment(directions, td.ResponseDirection);
-            foreach (var dir in directions.Directions)
-            {
-                perTargetScores[dir] += targetScores[dir] * normalizedWeight;
-            }
-        }
-
-        // Optimization: skip blend if resolution is 1
-        if (effectiveResolution > 1f - Epsilon) { return perTargetScores; }
-
-        // Blend CombineFirst and PerTarget (Lerp of two [0,1] maps stays [0,1]).
-        var blended = new Dictionary<Vector3, float>();
-        foreach (var dir in directions.Directions)
-        {
-            float cf = combineFirstScores.GetValueOrDefault(dir, 0f);
-            float pt = perTargetScores.GetValueOrDefault(dir, 0f);
-            blended[dir] = Mathf.Lerp(cf, pt, effectiveResolution);
-        }
-        return blended;
-    }
-
-    /// <summary>
-    /// Scores each direction by its positive alignment with a response vector whose magnitude
-    /// already encodes relative pull (≤ 1). Output ∈ [0, |responseVector|] ⊆ [0,1].
-    /// </summary>
-    private Dictionary<Vector3, float> ScoreByAlignment(DirectionSet3D directions,
-        Vector3 responseVector)
-    {
-        var scores = directions.Directions.ToDictionary(d => d, _ => 0f);
-
-        foreach (var dir in directions.Directions)
-        {
-            Vector3 flatDir = dir;
-            if (!_hasVerticalMovement)
-            {
-                flatDir.Y = 0;
-                if (flatDir.LengthSquared() < Epsilon) { continue; }
-                flatDir = flatDir.Normalized();
-            }
-
-            float alignment = flatDir.Dot(responseVector);
-            if (alignment > 0f)
-            {
-                scores[dir] = alignment;
-            }
-        }
-
-        return scores;
-    }
 
     #endregion
 
     #region Test Helpers
 #if TOOLS
-    internal void SetTargetCategory(Category category) => _targetCategory = category;
+    internal void SetTarget(MovementTarget3D? target) => Target = target;
     internal void SetSuppressWhileZoneKey(StringName key) => _suppressWhileZoneKey = key;
     internal void SetMode(TargetResponseMode mode) => Mode = mode;
-    internal void SetThreatResolution(float value) => _threatResolution = value;
-    internal void SetThreatFocus(float value) => _threatFocus = value;
     internal void SetVelocityInfluence(float value) => _velocityInfluence = value;
     internal void SetApproachSpeedWeight(float value) => _approachSpeedWeight = value;
     internal void SetConfidenceWeighted(bool value) => _confidenceWeighted = value;
+    internal void SetHasVerticalMovement(bool value) => _hasVerticalMovement = value;
 #endif
     #endregion
 }

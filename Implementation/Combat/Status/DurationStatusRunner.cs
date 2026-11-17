@@ -31,15 +31,7 @@ public partial class DurationStatusRunner : StatusRunner, IDurationModifiable, I
 
     public override void _Ready()
     {
-        _durationTimer = GetNodeOrNull<Timer>("DurationTimer");
-        if (_durationTimer == null)
-        {
-            _durationTimer = new Timer { Name = "DurationTimer" };
-            AddChild(_durationTimer);
-        }
-
-        _durationTimer.OneShot = true;
-        _durationTimer.Autostart = false;
+        _durationTimer = AcquireTimer("DurationTimer", oneShot: true);
     }
 
     public override void Start(ICombatant target, HitContext context)

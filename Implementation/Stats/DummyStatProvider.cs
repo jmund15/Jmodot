@@ -23,7 +23,7 @@ public class DummyStatProvider : IStatProvider
         throw new System.NotImplementedException();
     }
 
-    public bool TryAddModifier(Attribute attribute, Resource modifierResource, object owner, out ModifierHandle? handle)
+    public bool TryAddModifier(Attribute attribute, AttributeModifier? modifier, object owner, out ModifierHandle? handle)
     {
         throw new System.NotImplementedException();
     }

@@ -32,43 +32,18 @@ public partial class ImpactCollisionStrategy : CollisionPhysicsStrategy
         var normal = contact.Normal;
         var incomingVelocity = controller.PreMoveVelocity;
 
-        // Discover self's IImpactable from host's blackboard
-        TryGetImpactable(host.GetUnderlyingNode(), out var selfImpactable);
-
-        // Discover target's IImpactable from collider's blackboard
-        bool targetIsElastic = TryGetImpactable(contact.Collider, out var targetImpactable)
-            && targetImpactable!.ParticipatesInElasticCollisions
-            && selfImpactable != null
-            && selfImpactable.ParticipatesInElasticCollisions;
+        var selfImpactable = ImpactPhysics.FindImpactable(host.GetUnderlyingNode());
+        var targetImpactable = ImpactPhysics.FindImpactable(contact.Collider);
+        bool targetIsElastic = targetImpactable is { ParticipatesInElasticCollisions: true }
+            && selfImpactable is { ParticipatesInElasticCollisions: true };
 
         ImpactSolveResult result;
 
         if (targetIsElastic)
         {
-            // Entity-entity elastic collision — deduplicate via frame tracker
-            ulong selfId = host.GetUnderlyingNode().GetInstanceId();
-            ulong targetId = contact.Collider.GetInstanceId();
-
-            if (!ImpactFrameTracker.TryClaimPair(selfId, targetId))
-            {
-                return PhysicsApplyResult.Skipped; // Pair already resolved by the other entity
-            }
-
-            float combinedCor = ImpactPhysics.CombineRestitution(
-                selfImpactable!.BounceRestitution, targetImpactable!.BounceRestitution);
-
-            result = ImpactPhysics.ResolveElasticCollision(
-                incomingVelocity, targetImpactable.Velocity,
-                selfImpactable.Stability, targetImpactable.Stability,
-                normal, combinedCor);
-
-            if (!result.IsValid)
-            {
-                return PhysicsApplyResult.Skipped; // Separating — persist without physics
-            }
-
-            // Apply to target via IImpactable (additive delta preserves other forces)
-            targetImpactable.ApplyImpactVelocity(result.NewVelocityB);
+            result = ImpactPhysics.ResolveEntityContact(host.GetUnderlyingNode(), contact.Collider,
+                incomingVelocity, normal);
+            if (!result.IsValid) { return PhysicsApplyResult.Skipped; }
         }
         else
         {
@@ -121,16 +96,6 @@ public partial class ImpactCollisionStrategy : CollisionPhysicsStrategy
         }
 
         return reflectedVelocity;
-    }
-
-    private static bool TryGetImpactable(Node node, out IImpactable? target)
-    {
-        target = null;
-        if (!node.TryGetFirstChildOfInterface<IBlackboard>(out var bb) || bb == null)
-        {
-            return false;
-        }
-        return bb.TryGet(BBDataSig.PhysicsInteraction, out target) && target != null;
     }
 
     public override void ConfigureBody(ICollisionHost host, HitboxComponent3D? hitbox)

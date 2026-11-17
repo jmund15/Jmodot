@@ -40,6 +40,14 @@ public abstract partial class AnimVariantSource : Resource
     public virtual string SelectAnimVariant(StringName baseName) => GetAnimVariant();
 
     /// <summary>
+    /// Every label this source may contribute for <paramref name="baseName"/>, so a presence check can
+    /// ask whether a varied clip exists without drawing a roll. Empty when this source does not vary
+    /// the base name or cannot enumerate its labels.
+    /// </summary>
+    public virtual System.Collections.Generic.IReadOnlyList<string> PossibleVariants(StringName baseName)
+        => System.Array.Empty<string>();
+
+    /// <summary>
     /// The seed-stream kind this source needs a per-entity <see cref="IRng"/> for, or null when it
     /// draws no randomness. Named by the source rather than by the orchestrator so a game-side
     /// concrete can point at its own key registry without the framework referencing it.

@@ -22,6 +22,7 @@ public static class HitContextAdapter
         DistanceFromEpicenter = c.DistanceFromEpicenter,
         Kind = c.Kind,
         HitSeed = c.HitSeed,
+        Continuous = c.Continuous,
         ImpactDirection = c.ImpactDirection.HasValue
             ? new Vector3(c.ImpactDirection.Value.X, 0f, c.ImpactDirection.Value.Y)
             : null,

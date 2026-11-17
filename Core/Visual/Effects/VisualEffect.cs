@@ -33,6 +33,12 @@ public abstract partial class VisualEffect : Resource
     [Export(PropertyHint.Range, "0,1,0.05")] public float EmissionWeight { get; set; } = 0f;
 
     /// <summary>
+    /// The nodes this effect reaches on its controller; null reaches every node. A node the controller tracks
+    /// without a <see cref="VisualNodeHandle"/> (a sprite scanned under its <c>Root</c>) is reached only by a null scope.
+    /// </summary>
+    public VisualQuery? Scope { get; set; }
+
+    /// <summary>
     /// Configure the Tween to perform this effect on the handle.
     /// The tween is already created; add your TweenProperty/TweenCallback calls targeting the handle.
     /// </summary>

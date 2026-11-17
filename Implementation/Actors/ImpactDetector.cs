@@ -23,7 +23,7 @@ using Shared;
 /// pump's <c>MoveAndSlide</c>, so this node's <c>_PhysicsProcess</c> must run AFTER the
 /// movement pump in the same physics frame. Godot 4.3+ runs HIGHER
 /// <c>ProcessPhysicsPriority</c> later, and the movement pumps sit at the default 0, so
-/// <see cref="_physicsPriority"/> defaults to 10 to land safely after them. A scene that
+/// <see cref="_physicsPriority"/> defaults to <see cref="Jmodot.Implementation.Shared.PhysicsOrder.AfterMovement"/> to land safely after them. A scene that
 /// explicitly authors a non-zero <c>ProcessPhysicsPriority</c> wins — the export is only
 /// the fallback, so an author who has reasoned about frame ordering is never clobbered.
 /// </remarks>
@@ -42,7 +42,7 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
     /// frame — a higher priority runs later (Godot 4.3+). Default sits above the priority-0
     /// movement pumps.
     /// </summary>
-    [Export] private int _physicsPriority = 10;
+    [Export] private int _physicsPriority = PhysicsOrder.AfterMovement;
 
     public event Action<ImpactInfo> Impacted = delegate { };
 
@@ -105,10 +105,7 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
     {
         // Runs-after-movement ordering contract (see class remarks). Only supply the
         // fallback — a scene-authored non-zero value is a deliberate ordering decision.
-        if (ProcessPhysicsPriority == 0)
-        {
-            ProcessPhysicsPriority = _physicsPriority;
-        }
+        PhysicsOrder.ApplyIfDefault(this, _physicsPriority);
         base._Ready();
     }
 

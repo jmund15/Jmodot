@@ -40,4 +40,25 @@ public static class EntityRngResolver
         }
         return JmoRng.UnseededByDesign();
     }
+
+    /// <summary>
+    /// The agent's per-kind unit value in [0, 1) (<see cref="SeedManager.DeriveUnit"/>), for a consumer that needs one
+    /// seeded phase or delay and not a stream. A missing <see cref="BBDataSig.EntitySeed"/> reads 0 and warns once
+    /// through <paramref name="warned"/>.
+    /// </summary>
+    public static float ResolveUnit(IBlackboard? bb, string kind, GodotObject warnContext, ref bool warned)
+    {
+        if (bb != null && bb.TryGet<int>(BBDataSig.EntitySeed, out var entitySeed))
+        {
+            return SeedManager.DeriveUnit(entitySeed, kind);
+        }
+
+        if (!warned)
+        {
+            JmoLogger.Warning(warnContext,
+                $"[Lineage] No EntitySeed for unit '{kind}' — reading 0 (unseeded).");
+            warned = true;
+        }
+        return 0f;
+    }
 }

@@ -135,10 +135,13 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
     }
 
     /// <summary>
-    /// Stops all navigation and clears the current path.
+    /// Stops all navigation and clears the current path. A navigator whose <c>_Ready</c> has not
+    /// resolved its owner has no path to clear, so the call does nothing.
     /// </summary>
     public void ClearPath()
     {
+        if (_ownerAgent == null) { return; }
+
         TargetPosition = _ownerAgent.GlobalPosition;
         _lastCalculatedTargetPath = _ownerAgent.GlobalPosition;
     }

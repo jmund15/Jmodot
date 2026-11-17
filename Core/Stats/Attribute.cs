@@ -30,8 +30,6 @@ public partial class Attribute : Resource
     [Export] public float MaxValue { get; private set; }
     [Export] public float Step { get; private set; }
 
-    public static Attribute CreateTestAttribute(string testName) => new() { AttributeName = testName };
-
     /// <summary>
     ///     Throws <see cref="ResourceConfigurationException"/> when <see cref="HasRange"/> is set with a
     ///     non-finite bound, MinValue >= MaxValue, or Step &lt;= 0; returns silently otherwise.
@@ -62,6 +60,8 @@ public partial class Attribute : Resource
 
     #region Test Helpers
 #if TOOLS
+    internal static Attribute CreateTestAttribute(string testName) => new() { AttributeName = testName };
+
     internal void SetGroup(string group) => this.Group = group;
     internal void SetUnit(string unit) => this.Unit = unit;
 

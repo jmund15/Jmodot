@@ -12,7 +12,7 @@ public partial class VariantOverrideModifier : AttributeModifier, IVariantModifi
 {
     [Export] public Variant Value { get; private set; }
 
-    [Export] public VariantModifierStageRule StageRule { get; private set; }
+    [Export] public VariantModifierStageRule? StageRule { get; private set; }
 
     public VariantOverrideModifier()
     {

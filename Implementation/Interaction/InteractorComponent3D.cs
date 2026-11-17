@@ -67,11 +67,14 @@ public partial class InteractorComponent3D : Area3D, IComponent, IBlackboardProv
 
     public override void _Process(double delta)
     {
+        (CurrentTarget as IInteractionFeedbackProvider3D)?.FeedbackStrategy?.OnProcess(delta);
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
         RecomputeTarget();
 
-        (CurrentTarget as IInteractionFeedbackProvider3D)?.FeedbackStrategy?.OnProcess(delta);
-
-        var intents = _intentSource.GetProcessIntents();
+        var intents = _intentSource.GetPhysicsIntents();
         bool isPressed = intents.TryGetValue(InteractAction, out var data) && data.GetBool();
         bool justPressed = isPressed && !_wasPressedLastFrame;
         _wasPressedLastFrame = isPressed;

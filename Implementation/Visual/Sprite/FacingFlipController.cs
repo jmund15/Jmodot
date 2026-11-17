@@ -74,6 +74,13 @@ public partial class FacingFlipController : Node
     // spawned scene is instantiated at runtime — the same reason HostFacingMirror3D.Sprites is a field.
     [Export] public GCol.Array<Node> Sprites = new();
 
+    /// <summary>
+    /// Base clips that are one-shots by design (a hurt, a land): ending in a held pose is their intent, so
+    /// the runtime non-looping warning skips them. Matched against the resolved clip name. Never loop a
+    /// clip to silence the warning — list it here only when it is meant to end.
+    /// </summary>
+    [Export] public GCol.Array<StringName> OneShotBaseClips = new();
+
     private MirrorFacingConfig? ActiveMirror => this.FacingProfile?.Mirror;
 
     private IDirectionalResolutionSource? _source;
@@ -283,6 +290,7 @@ public partial class FacingFlipController : Node
         // so a second offending clip freezes with no trace at all.
         if (_warnedNonLoopingBaseClips.Contains(resolvedName)) { return; }
         if (animator.IsAnimationLooping(resolvedName)) { return; }
+        if (OneShotBaseClips.Contains(resolvedName)) { return; }
 
         _warnedNonLoopingBaseClips.Add(resolvedName);
 

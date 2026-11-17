@@ -38,9 +38,13 @@ public partial class ScaleRatioProfile : Resource
     /// </remarks>
     [Export] public Curve? ScaleCurve { get; private set; }
 
-    /// <summary>Magnitude for <paramref name="ratio"/>, interpolated between the two endpoints.</summary>
+    /// <summary>Magnitude for <paramref name="ratio"/>, interpolated between the two endpoints. A non-finite ratio reads as 0.</summary>
     public float Evaluate(float ratio)
     {
+        // A non-finite ratio reads as the zero endpoint: Mathf.Clamp only compares, so NaN survives
+        // both clamps and Mathf.Lerp then returns NaN at every ratio — a missing sprite, not a floor.
+        if (!float.IsFinite(ratio)) { ratio = 0f; }
+
         // Both clamps are load-bearing and guard different inputs. The first: a depleting resource
         // drives its ratio negative for the frame before its owner reacts. The second: Curve.Sample
         // honours the curve's own Min/MaxValue, which a designer can drag outside 0..1 and an
