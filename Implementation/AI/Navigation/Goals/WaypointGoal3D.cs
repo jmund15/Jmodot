@@ -56,7 +56,7 @@ public partial class WaypointGoal3D : MovementGoal3D
     public override AIConsiderationRuntime? CreateRuntime(IBlackboard? bb)
     {
         var runtime = new WaypointRuntime();
-        runtime.Rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, this, ref runtime.WarnedNoSeed);
+        runtime.Rng = EntityRngResolver.ResolveEntityScoped(bb, SeedKinds.ZoneShape, this, ref runtime.WarnedNoSeed);
         return runtime;
     }
 

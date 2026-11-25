@@ -59,7 +59,7 @@ public partial class CompositeConsideration : UtilityConsideration
         {
             // Per-agent deterministic pick off the entity seed. Re-derived each evaluation →
             // the pick is FIXED per agent (was non-deterministic-varying); intentional, pinned.
-            var rng = EntityRngResolver.Resolve(context, SeedKinds.CompositeConsideration, this, ref _warnedNoSeed);
+            var rng = EntityRngResolver.ResolveEntityScoped(context, SeedKinds.CompositeConsideration, this, ref _warnedNoSeed);
             var randConsid = Considerations[rng.GetRndInt(Considerations.Count)];
             return randConsid.Evaluate(context);
         }

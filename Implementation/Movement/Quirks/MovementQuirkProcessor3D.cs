@@ -161,7 +161,7 @@ public partial class MovementQuirkProcessor3D : Node
     /// OnEnter can register a quirk before the entity has wired its processor up.
     /// </summary>
     private IRng ResolveRng()
-        => _rng ??= EntityRngResolver.Resolve(_bb, SeedKinds.MovementQuirk, this, ref _warnedNoSeed);
+        => _rng ??= EntityRngResolver.ResolveEntityScoped(_bb, SeedKinds.MovementQuirk, this, ref _warnedNoSeed);
 
     /// <summary>
     /// Distinct is load-bearing: one quirk must tick once however many owners hold it. The refcount

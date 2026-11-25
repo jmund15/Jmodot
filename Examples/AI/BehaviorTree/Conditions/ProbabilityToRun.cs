@@ -38,8 +38,7 @@ public partial class ProbabilityToRun : BTCondition
 
     private IRng ResolveRng()
     {
-        var ownerName = OwnerTask != null && IsInstanceValid(OwnerTask) ? OwnerTask.Name.ToString() : "unbound";
-        return EntityRngResolver.Resolve(BB, $"{SeedKinds.ProbabilityToRun}:{ownerName}", this, ref _warnedNoSeed);
+        return EntityRngResolver.Resolve(BB, SeedKinds.ProbabilityToRun, Agent, OwnerTask, this, ref _warnedNoSeed);
     }
 
     public override void OnParentTaskExit()

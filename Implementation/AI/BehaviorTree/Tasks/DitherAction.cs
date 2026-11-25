@@ -97,7 +97,7 @@ public partial class DitherAction : BehaviorAction
                 "DirectionOverride toward nowhere and pins the agent with leash and separation suppressed.", this);
         }
 
-        this._rng = EntityRngResolver.Resolve(bb, $"{SeedKinds.Dither}:{this.Name}", this, ref this._warnedNoSeed);
+        this._rng = EntityRngResolver.Resolve(bb, SeedKinds.Dither, Agent, this, this, ref this._warnedNoSeed);
 
         if (!bb.TryGet<AISteeringProcessor3D>(BBDataSig.SteeringComp, out this._steering) || this._steering == null)
         {

@@ -161,7 +161,7 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
                 continue;
             }
 
-            source!.SetRng(EntityRngResolver.Resolve(bb, kind, this, ref _warnedMissingSeed));
+            source!.SetRng(EntityRngResolver.ResolveEntityScoped(bb, kind, this, ref _warnedMissingSeed));
         }
 
         _rngDistributed = true;

@@ -66,8 +66,7 @@ public partial class RandomTimeLimit : BTCondition
     /// </summary>
     private IRng ResolveRng()
     {
-        var ownerName = OwnerTask != null && IsInstanceValid(OwnerTask) ? OwnerTask.Name.ToString() : "unbound";
-        return EntityRngResolver.Resolve(BB, $"{SeedKinds.RandomTimeLimit}:{ownerName}", this, ref _warnedNoSeed);
+        return EntityRngResolver.Resolve(BB, SeedKinds.RandomTimeLimit, Agent, OwnerTask, this, ref _warnedNoSeed);
     }
 
     public override void OnParentTaskExit()

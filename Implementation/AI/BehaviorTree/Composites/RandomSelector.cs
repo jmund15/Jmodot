@@ -29,7 +29,7 @@ public partial class RandomSelector : CompositeTask
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _rng = EntityRngResolver.Resolve(bb, SeedKinds.Selector, this, ref _warnedNoSeed);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.Selector, Agent, this, this, ref _warnedNoSeed);
     }
 
     protected override void OnEnter()
@@ -129,7 +129,7 @@ public partial class RandomSelector : CompositeTask
         // Fisher-Yates shuffle
         for (int i = _shuffledIndices.Length - 1; i > 0; i--)
         {
-            int j = (_rng ??= EntityRngResolver.Resolve(BB, SeedKinds.Selector, this, ref _warnedNoSeed)).GetRndInt(i + 1);
+            int j = (_rng ??= EntityRngResolver.Resolve(BB, SeedKinds.Selector, Agent, this, this, ref _warnedNoSeed)).GetRndInt(i + 1);
             (_shuffledIndices[i], _shuffledIndices[j]) = (_shuffledIndices[j], _shuffledIndices[i]);
         }
     }

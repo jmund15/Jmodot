@@ -62,7 +62,7 @@ public partial class WaypointSteeringAction : SteeringBehaviorAction
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, this, ref _warnedNoSeed);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, Agent, this, this, ref _warnedNoSeed);
     }
 
     protected override void OnEnter()

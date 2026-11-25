@@ -51,7 +51,7 @@ public partial class Lag : BehaviorAction
         _timer.Timeout += OnLagTimeout;
     }
 
-    private JmoRng ResolveRng() => EntityRngResolver.Resolve(BB, $"{SeedKinds.Lag}:{Name}", this, ref _warnedNoSeed);
+    private JmoRng ResolveRng() => EntityRngResolver.Resolve(BB, SeedKinds.Lag, Agent, this, this, ref _warnedNoSeed);
 
     protected override void OnExit()
     {

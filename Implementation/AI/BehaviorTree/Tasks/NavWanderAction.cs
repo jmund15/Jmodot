@@ -58,7 +58,7 @@ public partial class NavWanderAction : SteeringBehaviorAction
     public override void Init(Node agent, IBlackboard bb)
     {
         base.Init(agent, bb);
-        _rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, this, ref _warnedNoSeed);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.ZoneShape, Agent, this, this, ref _warnedNoSeed);
     }
 
     protected override void OnEnter()
@@ -138,7 +138,7 @@ public partial class NavWanderAction : SteeringBehaviorAction
         for (int i = 0; i < _maxTargetAttempts; i++)
         {
             Vector3 candidate = _targetZone.SampleRandomInteriorPoint(
-                _zoneCenter, _rng ??= EntityRngResolver.Resolve(BB, SeedKinds.ZoneShape, this, ref _warnedNoSeed));
+                _zoneCenter, _rng ??= EntityRngResolver.Resolve(BB, SeedKinds.ZoneShape, Agent, this, this, ref _warnedNoSeed));
             var response = _navAgent.RequestNewNavPath(candidate, overridePathCalcThresh: 0f);
             if (response == NavReqPathResponse.Success)
             {

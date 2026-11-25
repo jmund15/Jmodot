@@ -48,7 +48,7 @@ public partial class UtilitySelector : CompositeTask
     {
         base.Init(agent, bb);
 
-        _rng = EntityRngResolver.Resolve(bb, SeedKinds.UtilitySelector, this, ref _warnedNoSeed);
+        _rng = EntityRngResolver.Resolve(bb, SeedKinds.UtilitySelector, Agent, this, this, ref _warnedNoSeed);
 
         // Validate that children are the correct type during initialization.
         foreach (var childTask in ChildTasks)
@@ -159,7 +159,7 @@ public partial class UtilitySelector : CompositeTask
                     bestAction = topTasks.OrderByDescending(t => t.Priority).First();
                     break;
                 case TieBreaker.Random:
-                    bestAction = topTasks[(_rng ??= EntityRngResolver.Resolve(BB, SeedKinds.UtilitySelector, this, ref _warnedNoSeed)).GetRndInt(topTasks.Count)];
+                    bestAction = topTasks[(_rng ??= EntityRngResolver.Resolve(BB, SeedKinds.UtilitySelector, Agent, this, this, ref _warnedNoSeed)).GetRndInt(topTasks.Count)];
                     break;
                 case TieBreaker.FirstInList:
                 default:

@@ -334,7 +334,7 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         var jitter = this.FlingUpwardAngleJitter;
         if (jitter > 0f)
         {
-            this._flingRng ??= EntityRngResolver.Resolve(this._bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
+            this._flingRng ??= EntityRngResolver.ResolveEntityScoped(this._bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
             degrees += this._flingRng.GetRndInRange(-jitter, jitter);
         }
 
