@@ -184,6 +184,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     public override void _PhysicsProcess(double delta)
     {
         if (Engine.IsEditorHint()) { return; }
+        if (this._promotionGroundRetryPending) { this.ResolveSplits(); }
         if (this._head == null || this._history == null) { return; }
         if (this._spawnProbesLeft > 0) { this.TrySpawnInitialSegments(); }
         if (this._segments.Count == 0) { return; }
@@ -671,10 +672,6 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
             && this.RequiresPromotionGroundRetry(roster, dead))
         {
             this._promotionGroundRetryPending = true;
-            this.GetTree().Connect(
-                SceneTree.SignalName.PhysicsFrame,
-                Callable.From(this.ResolveSplits),
-                (uint)GodotObject.ConnectFlags.OneShot);
             return;
         }
 
@@ -908,6 +905,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     #region Test Helpers
 #if TOOLS
     internal void _TestSetHead(Node3D head) => this._head = head;
+    internal bool _TestPromotionRetryPending => this._promotionGroundRetryPending;
     internal bool _TestIsFrontUnitBuried(Vector3 frontPos) => this.IsFrontUnitBuried(frontPos);
     internal void _TestSetSegmentRange(int initialMin, int initialMax, int minLength)
     {
