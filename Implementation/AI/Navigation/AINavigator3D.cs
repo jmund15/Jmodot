@@ -1,8 +1,6 @@
 namespace Jmodot.Implementation.AI.Navigation;
 
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Core.AI.BB;
 using Core.AI.Navigation;
 using Shared;
@@ -303,36 +301,6 @@ public partial class AINavigator3D : NavigationAgent3D, IBlackboardProvider
                     closestTarget = target;
                 }
             }
-        }
-        return closestTarget;
-    }
-
-    public async Task<Node3D?> FindNearestNavTargetAsync(IEnumerable<Node3D> targets, CancellationToken cancellationToken, bool optimize = true)
-    {
-        Node3D? closestTarget = null;
-        float shortestDistance = float.MaxValue;
-        Rid map = GetNavigationMap();
-
-        foreach (var target in targets)
-        {
-            // Check if the task was cancelled from outside
-            if (cancellationToken.IsCancellationRequested) { return null; }
-
-            //NavigationServer3D.QueryPath // TODO: look into using this instead
-            Vector3[] path = NavigationServer3D.MapGetPath(map, _ownerAgent.GlobalPosition, target.GlobalPosition, optimize, _activeProfile?.NavigationLayers ?? 1);
-
-            if (path.Length > 0)
-            {
-                float distance = CalculatePathLength(path);
-                if (distance < shortestDistance)
-                {
-                    shortestDistance = distance;
-                    closestTarget = target;
-                }
-            }
-
-            // Wait for the next frame before starting the next expensive query.
-            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
         }
         return closestTarget;
     }
