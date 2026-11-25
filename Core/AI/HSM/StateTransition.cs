@@ -69,12 +69,28 @@ public partial class StateTransition : Resource
 
     /// <summary>Evaluates valid conditions once each, passing the emitting state's entry mark.</summary>
     public bool AreConditionsMet(Node agent, IBlackboard bb, in Jmodot.Core.Combat.CombatLogMark entry)
+        => EvaluateConditions(agent, bb, in entry, null);
+
+    /// <summary>
+    /// Evaluates this transition's conditions as <see cref="AreConditionsMet(Node, IBlackboard)"/> does,
+    /// leaving out the entry that is the same instance as <paramref name="skip"/>.
+    /// A skipped entry is not counted: under <see cref="ConditionOperator.Or"/> it neither passes nor
+    /// fails the transition, and a list holding only the skipped entry is true, as an empty list is.
+    /// A <paramref name="skip"/> that is null or not in <see cref="Conditions"/> skips nothing.
+    /// </summary>
+    /// <param name="agent">The agent node being evaluated.</param>
+    /// <param name="bb">The blackboard containing state data.</param>
+    /// <param name="skip">The condition to leave out.</param>
+    public bool AreConditionsMetExcept(Node agent, IBlackboard bb, TransitionCondition skip)
+        => EvaluateConditions(agent, bb, Jmodot.Core.Combat.CombatLogMark.Origin, skip);
+
+    private bool EvaluateConditions(Node agent, IBlackboard bb, in Jmodot.Core.Combat.CombatLogMark entry, TransitionCondition? skip)
     {
         bool any = false;
         for (int i = 0; i < Conditions.Count; i++)
         {
             var condition = Conditions[i];
-            if (!condition.IsValid()) { continue; }
+            if (!condition.IsValid() || ReferenceEquals(condition, skip)) { continue; }
             any = true;
             bool passed = condition.Check(agent, bb, entry);
             if (Operator == ConditionOperator.And && !passed) { return false; }
