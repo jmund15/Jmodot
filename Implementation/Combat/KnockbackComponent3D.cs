@@ -134,21 +134,42 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	/// <summary>True while this receiver owns a pending push and movement suspension.</summary>
 	public bool IsHolding { get; private set; }
 	/// <summary>
-	/// True while a push is held, and after its release until this receiver's next physics tick: movement
-	/// queues the released impulse and applies it on its own tick, so velocity shows it only then.
+	/// True while this receiver's own push has not landed: held, or queued on the movement processor and not yet
+	/// flushed by it. An impulse another system queued, and a sustained push, never make it true.
 	/// </summary>
-	public bool IsPushPending => IsHolding || _releaseLanding;
-	private bool _releaseLanding;
+	public bool IsPushPending => IsHolding || (_pushStamped && _movementProcessor.ImpulseFlushCount == _pushStampFlush);
+	private bool _pushStamped;
+	private ulong _pushStampFlush;
+	private float _pushStampedAt;
+
 	/// <summary>
-	/// Evidence window of a held push, including its release latency, while the push is held and for
-	/// <see cref="ReleaseMarginSeconds"/> after it releases; zero otherwise.
+	/// The push-landed evidence a consumer reads. <see cref="Seconds"/> is the combat-time look-back that reaches the
+	/// push's own log entry; <see cref="Pending"/> is <see cref="IsPushPending"/>; <see cref="IsOpen"/> stays true for
+	/// the one evaluation after the flush that reads the landed push, so branch on it and never on <see cref="Seconds"/>.
 	/// </summary>
-	public float SourceLookupSeconds
-		=> IsHolding || _unscaledSeconds() <= _windowClosesAt ? _sourceLookupSeconds : 0f;
-	private float _sourceLookupSeconds;
-	private double _windowClosesAt = double.NegativeInfinity;
-	/// <summary>Seconds a released hold keeps its evidence window open, so the state machine reacting to the release still finds the push.</summary>
-	public const float ReleaseMarginSeconds = 0.25f;
+	public readonly record struct PushEvidence(float Seconds, bool Pending, bool IsOpen);
+
+	private bool EvidenceOpen => IsHolding || (_pushStamped && _movementProcessor.ImpulseFlushCount - _pushStampFlush < 2);
+
+	private PushEvidence Evidence()
+	{
+		if (!EvidenceOpen) { return default; }
+		float elapsed = _combatLog == null ? 0f : _combatLog.CombatTimeElapsed - _pushStampedAt;
+		return new PushEvidence(elapsed + 1f / Engine.PhysicsTicksPerSecond, IsPushPending, true);
+	}
+
+	private void OpenEvidence()
+	{
+		if (EvidenceOpen) { return; }
+		_pushStampedAt = _combatLog?.CombatTimeElapsed ?? 0f;
+	}
+
+	private void ArmFlushStamp()
+	{
+		OpenEvidence();
+		_pushStampFlush = _movementProcessor.ImpulseFlushCount;
+		_pushStamped = true;
+	}
 	private IHealth? _health;
 	private IAnimationOrchestrator? _orchestrator;
 	private IBlackboard? _blackboard;
@@ -293,12 +314,11 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			}
 			return;
 		}
-		_sourceLookupSeconds = 0f;
 		float seconds = Hold == null ? 0f : KnockbackHold.Seconds(resolved.Impulse.Length(), deltaMagnitude, Hold);
 		if (!sustained && !IsDead && !IsSuppressed() && float.IsFinite(seconds) && seconds > 0f && double.IsFinite(now)
 			&& _movementProcessor.TryClaimSuspension(Name, SuspensionVelocityPolicy.Zero))
 		{
-			_sourceLookupSeconds = Hold!.MaxSeconds + ReleaseMarginSeconds;
+			OpenEvidence();
 			_held.Start(resolved.Impulse, velocityDelta, attributedSource, now + seconds, now + Hold.MaxSeconds, Name);
 			IsHolding = true;
 			SetPhysicsProcess(true);
@@ -306,6 +326,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 			return;
 		}
 
+		if (!sustained) { ArmFlushStamp(); }
 		_movementProcessor.ApplyImpulse(velocityDelta);
 		EmitSignal(SignalName.KnockbackApplied, resolved.AppliedDirection, deltaMagnitude, ValidSource(attributedSource));
 
@@ -313,29 +334,21 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	}
 
 	/// <summary>
-	/// Resolves the entity's knockback receiver from <paramref name="bb"/> and reports whether it is
-	/// inside a held push's evidence window — still holding, or released with the window retained.
-	/// The one lookup every hold-aware consumer shares.
+	/// Resolves the entity's knockback receiver from <paramref name="bb"/> and reports its push evidence. The one
+	/// lookup every push-aware consumer shares.
 	/// </summary>
-	/// <param name="seconds">The receiver's evidence window in seconds; 0 when there is none.</param>
-	/// <param name="holding">The receiver's <see cref="IsPushPending"/>: held, or released and not yet applied by movement.</param>
-	/// <returns>False when no valid receiver carries a positive window; the outputs are then zero/false.</returns>
-	public static bool TryGetHeldPushWindow(IBlackboard? bb, out float seconds, out bool holding)
+	/// <returns><c>default</c> (closed) when no valid receiver is on the blackboard or no push of its own is live.</returns>
+	public static PushEvidence GetPushEvidence(IBlackboard? bb)
 	{
-		seconds = 0f;
-		holding = false;
 		if (bb == null
 			|| !bb.TryGet<KnockbackComponent3D>(BBDataSig.KnockbackComponent, out var receiver)
 			|| receiver == null
-			|| !GodotObject.IsInstanceValid(receiver)
-			|| !(receiver.SourceLookupSeconds > 0f))
+			|| !GodotObject.IsInstanceValid(receiver))
 		{
-			return false;
+			return default;
 		}
 
-		seconds = receiver.SourceLookupSeconds;
-		holding = receiver.IsPushPending;
-		return true;
+		return receiver.Evidence();
 	}
 
 	private static bool IsAlive(object? dependency) => dependency != null
@@ -364,11 +377,6 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	public override void _PhysicsProcess(double delta)
 	{
 		if (Engine.IsEditorHint()) { return; }
-		if (_releaseLanding)
-		{
-			_releaseLanding = false;
-			SetPhysicsProcess(IsHolding);
-		}
 		if (!IsHolding) { return; }
 		double remaining = _held.Deadline - _unscaledSeconds();
 		if (!double.IsFinite(remaining) || !(remaining > 0) || IsSuppressed()) { ReleaseHold(); }
@@ -380,11 +388,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 		var pending = _held.Delta;
 		var source = _held.Source;
 		var owner = _held.Owner;
+		if (!exiting && IsAlive(_movementProcessor)) { ArmFlushStamp(); }
 		IsHolding = false;
-		_windowClosesAt = _unscaledSeconds() + ReleaseMarginSeconds;
 		_held.Clear();
-		_releaseLanding = !exiting;
-		SetPhysicsProcess(_releaseLanding);
+		SetPhysicsProcess(false);
 		if (IsAlive(_movementProcessor)) { _movementProcessor.ReleaseSuspension(owner); }
 		SetSpriteFrozen(false);
 		if (exiting)
@@ -517,6 +524,7 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	// builds via #if TOOLS.
 	internal void SetHealthForTesting(IHealth? value) => _health = value;
 	internal void SetBlackboardForTesting(IBlackboard value) => _blackboard = value;
+	internal void SetCombatLogForTesting(CombatLog? value) => _combatLog = value;
 	internal void SetHoldDeadlineForTest_BypassEvents(double unscaledDeadline) => _held.Deadline = unscaledDeadline;
 	internal void SetHoldForTesting(KnockbackHoldConfig? value) => Hold = value;
 	internal void SetOrchestratorForTesting(IAnimationOrchestrator? value) => _orchestrator = value;

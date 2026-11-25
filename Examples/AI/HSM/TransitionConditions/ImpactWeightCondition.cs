@@ -18,11 +18,12 @@ using Implementation.Shared;
 public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Shared.IResourceConfigurationWarnings
 {
     /// <summary>
-    /// Defers this transition while the victim's push is still held, or released but not yet applied by its
-    /// movement, so a launch-strength hit cannot match a lower tier first. It only defers: the weighing window stays Within Seconds. Off lets the
-    /// transition fire during the hold, for an edge that must react at the hit itself.
+    /// Defers this transition while the victim's own push is pending (held, or queued and not yet applied by its
+    /// movement), so a launch-strength hit cannot match a lower tier first. It only defers: the weighing window stays
+    /// Within Seconds. Off (the escalation edges) lets the transition fire while the push is pending, for an edge
+    /// that must react at the hit itself. Default on.
     /// </summary>
-    [Export] public bool DeferWhileHeld { get; set; } = true;
+    [Export] public bool DeferWhilePushPending { get; set; } = true;
 
     /// <summary>Inclusive lower weight bound.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition MinWeight { get; private set; } = null!;
@@ -54,12 +55,7 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
     public override bool Check(Node agent, IBlackboard bb, in CombatLogMark entry)
     {
         this.ValidateRequiredExports();
-        if (DeferWhileHeld
-            && KnockbackComponent3D.TryGetHeldPushWindow(bb, out _, out var holding)
-            && holding)
-        {
-            return false;
-        }
+        if (DeferWhilePushPending && KnockbackComponent3D.GetPushEvidence(bb).Pending) { return false; }
         if (!bb.TryGet<CombatLog>(BBDataSig.CombatLog, out var log) || log == null) { return false; }
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out var stats);
         float poise = stats?.GetStatValue(PoiseAttribute, 0f) ?? 0f;
@@ -83,7 +79,7 @@ public partial class ImpactWeightCondition : CombatLogCondition, Jmodot.Core.Sha
         return warnings.ToArray();
     }
 
-    protected override bool CheckEvent(CombatLog log) => false;
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb) => false;
 
     #region Test Helpers
 #if TOOLS

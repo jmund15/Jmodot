@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.AI.BB;
 using Core.Combat;
 using Core.Combat.Reactions;
 using Jmodot.Core.Shared.Attributes;
@@ -13,7 +14,7 @@ public partial class CombatResultTagCondition : CombatLogCondition
 {
     [Export, RequiredExport] public Godot.Collections.Array<CombatTag> RequiredTags { get; set; } = null!;
 
-    protected override bool CheckEvent(CombatLog log)
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb)
     {
         return log.HasEvent<CombatResult>(r =>
         {

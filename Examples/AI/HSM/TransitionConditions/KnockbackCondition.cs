@@ -4,6 +4,7 @@ using Core.Combat.Reactions;
 using Godot;
 using Jmodot.Core.Combat;
 using Jmodot.Implementation.Combat;
+using Jmodot.Core.AI.BB;
 using Jmodot.Implementation.AI.BB;
 
 /// <summary>
@@ -46,35 +47,29 @@ public partial class KnockbackCondition : CombatLogCondition
     [Export] public Godot.Collections.Array<CombatTag> RequiredTags { get; set; } = [];
 
     /// <summary>
-    /// Evidence window in combat-time seconds. 0 (default) = current physics frame only
-    /// (<see cref="CombatLog.HasEvent{T}"/>). Set &gt; 0 when this condition is ANDed with a
-    /// persistent physics observation (e.g. VerticalVelocityCondition): the impulse an event
-    /// delivers only becomes observable velocity on LATER frames, so a same-frame AND of
-    /// event + velocity can never both pass — the window is what makes the composition satisfiable.
+    /// Evidence window in combat-time seconds. 0 (default) = the current physics tick, widened by the receiver's own
+    /// push evidence while its push is landing. Set &gt; 0 when this condition is ANDed with a persistent physics
+    /// observation (e.g. VerticalVelocityCondition) and the event must stay visible for longer.
     /// </summary>
     [Export(PropertyHint.Range, "0.0,2.0,0.05,suffix:s")]
     public float WithinSeconds { get; set; }
 
     /// <summary>
-    /// On: defers this transition while the victim's push is pending (held, or released but not yet applied
-    /// by its movement), so a launch-strength hit cannot match a lower tier first, and after release reads the receiver's held-push evidence window in place
-    /// of Within Seconds, a Within Seconds of 0 included. Off: Within Seconds alone decides, and the
-    /// transition can fire during the hold.
+    /// On (default): defers this transition while the victim's own push is pending (held, or queued and not yet
+    /// applied by its movement), so a launch-strength hit cannot match a lower tier first, and after it lands reads
+    /// the receiver's push evidence in place of Within Seconds. Off: Within Seconds alone decides, and the
+    /// transition can fire while the push is pending.
     /// </summary>
-    [Export] public bool DeferWhileHeld { get; set; } = true;
+    [Export] public bool DeferWhilePushPending { get; set; } = true;
 
-    protected override bool CheckEvent(CombatLog log)
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb)
     {
         // Damaging hits route through DamageResult (Fireball, Slap), pushes through the receiver's
         // KnockbackAppliedResult (Wind Blast), logged post-resistance, so launch thresholds match
         // what the actor actually experienced.
-        float window = WithinSeconds;
-        if (DeferWhileHeld
-            && KnockbackComponent3D.TryGetHeldPushWindow(CurrentBlackboard, out var heldWindow, out var holding))
-        {
-            if (holding) { return false; }
-            window = heldWindow;
-        }
+        var push = KnockbackComponent3D.GetPushEvidence(bb);
+        if (DeferWhilePushPending && push.Pending) { return false; }
+        float window = Mathf.Max(WithinSeconds, push.Seconds);
         return Matches<DamageResult>(log, r => r.Force, window) || Matches<KnockbackAppliedResult>(log, r => r.DeltaV, window);
     }
 
@@ -93,10 +88,6 @@ public partial class KnockbackCondition : CombatLogCondition
             return CombatTagMatcher.MatchesTags(r.Tags, RequiredTags, TagMatchMode.Any);
         }
 
-        if (window > 0f)
-        {
-            return log.AnyWithinCombatTime<T>(window, MatchesEntry);
-        }
-        return log.HasEvent<T>(MatchesEntry);
+        return log.AnyWithinCombatTime<T>(window, MatchesEntry);
     }
 }

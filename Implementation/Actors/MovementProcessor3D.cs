@@ -311,10 +311,13 @@ public class MovementProcessor3D : IMovementProcessor3D
         _frameImpulses += impulse;
     }
 
+    public ulong ImpulseFlushCount { get; private set; }
+
     public void ClearImpulses()
     {
         _frameImpulses = Vector3.Zero;
         _frameImpulsesReplace = false;
+        ImpulseFlushCount++;
     }
 
     /// <summary>

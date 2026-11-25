@@ -19,6 +19,13 @@ public interface IMovementProcessor3D : IImpulseReceiver3D
     void ClearImpulses();
 
     /// <summary>
+    /// Counts each time the queued impulse is emptied: a pump entry point draining it into the controller, a suspended
+    /// tick or claim discarding it, or <see cref="ClearImpulses"/>. An impulse applied at count N has landed (or been
+    /// dropped) once the count exceeds N, whichever node ticks first. Never decreases.
+    /// </summary>
+    ulong ImpulseFlushCount { get; }
+
+    /// <summary>
     /// The default movement strategy supplied at construction. Immutable. May be null
     /// for processors that always pass a strategy explicitly to ProcessMovement(strategy, ...).
     /// </summary>

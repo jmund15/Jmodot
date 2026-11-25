@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.AI.BB;
 using Core.Combat;
 using Core.Combat.Reactions;
 using Core.Identification;
@@ -65,7 +66,7 @@ public partial class WallImpactCondition : CombatLogCondition
     /// <summary>Optional category whose colliders should NOT trigger the transition. Typically the project's entity category, so body-checking other characters doesn't fire WallHit.</summary>
     [Export] public Category? ExcludeCategory { get; private set; }
 
-    protected override bool CheckEvent(CombatLog log)
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb)
     {
         foreach (var r in log.GetAllCombatResultsWithinCombatTime<ImpactResult>(LookbackSeconds))
         {

@@ -57,11 +57,9 @@ public partial class HealthFractionCrossedCondition : CombatLogCondition
         return base.Check(agent, bb);
     }
 
-    protected override bool CheckEvent(CombatLog log)
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb)
     {
-        if (CurrentBlackboard == null
-            || !CurrentBlackboard.TryGet(BBDataSig.HealthComponent, out IHealth? health)
-            || health == null)
+        if (!bb.TryGet(BBDataSig.HealthComponent, out IHealth? health) || health == null)
         {
             throw new ResourceConfigurationException(
                 $"Required blackboard dependency '{BBDataSig.HealthComponent}' was not provided.", this);

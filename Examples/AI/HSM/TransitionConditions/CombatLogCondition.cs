@@ -15,21 +15,8 @@ using Jmodot.Implementation.Shared;
 [Tool]
 public abstract partial class CombatLogCondition : TransitionCondition
 {
-    /// <summary>
-    /// The agent node currently being checked. Available during CheckEvent calls.
-    /// </summary>
-    protected Node? CurrentAgent { get; private set; }
-
-    /// <summary>
-    /// The blackboard of the agent currently being checked. Available during CheckEvent calls.
-    /// </summary>
-    protected IBlackboard? CurrentBlackboard { get; private set; }
-
     public override bool Check(Node agent, IBlackboard bb)
     {
-        CurrentAgent = agent;
-        CurrentBlackboard = bb;
-
         // 1. Safe Retrieval
         // We use the constant key from the Integrator to ensure type safety.
         if (!bb.TryGet(BBDataSig.CombatLog, out CombatLog? log))
@@ -39,11 +26,13 @@ public abstract partial class CombatLogCondition : TransitionCondition
             return false;
         }
 
-        return CheckEvent(log!);
+        return CheckEvent(log!, bb);
     }
 
     /// <summary>
-    /// Implemented by subclasses to query the specific event type.
+    /// Implemented by subclasses to query the specific event type. <paramref name="bb"/> is the checked entity's
+    /// blackboard; a condition reads what it needs from it and keeps no per-evaluation state, because one Resource
+    /// serves every entity that authors it.
     /// </summary>
-    protected abstract bool CheckEvent(CombatLog log);
+    protected abstract bool CheckEvent(CombatLog log, IBlackboard bb);
 }

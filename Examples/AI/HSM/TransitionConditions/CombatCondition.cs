@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.AI.BB;
 using System.Collections.Generic;
 using System.Linq;
 using Core.Combat;
@@ -28,7 +29,7 @@ public partial class CombatCondition : CombatLogCondition
     [Export] public float MinForce { get; set; } = 0f;
     [Export] public float MaxForce { get; set; } = float.MaxValue;
 
-    protected override bool CheckEvent(CombatLog log)
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb)
     {
         return ResultType switch
         {

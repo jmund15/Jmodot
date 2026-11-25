@@ -1,5 +1,6 @@
 namespace Jmodot.Examples.AI.HSM.TransitionConditions;
 
+using Jmodot.Core.AI.BB;
 using Core.Combat;
 using Core.Combat.Reactions;
 using Godot;
@@ -18,7 +19,7 @@ public partial class StatusAppliedCondition : CombatLogCondition
     /// </summary>
     [Export] public Godot.Collections.Array<CombatTag> RequiredTags { get; set; } = [];
 
-    protected override bool CheckEvent(CombatLog log)
+    protected override bool CheckEvent(CombatLog log, IBlackboard bb)
     {
         return log.HasEvent<StatusResult>(r =>
         {
