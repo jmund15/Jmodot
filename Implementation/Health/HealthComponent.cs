@@ -365,17 +365,25 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     }
 
     /// <summary>
-    /// Forces the entity to die by setting its health to zero.
+    /// Forces the entity to die by setting its health to zero, past the damage gates
+    /// (<see cref="IsDamageImmune"/> and <see cref="IsIndestructible"/>). The death carries
+    /// <paramref name="kind"/> on its events; a <see cref="DamageKind.Heal"/> kind is refused.
     /// </summary>
     /// <param name="source">The object responsible for the kill (e.g., a debug command, kill-zone).</param>
-    public void Kill(object source)
+    /// <param name="kind">The cause of the death, carried to subscribers so feedback can filter it.</param>
+    public void Kill(object source, DamageKind kind = DamageKind.Removal)
     {
+        if (kind == DamageKind.Heal)
+        {
+            JmoLogger.Warning(this, $"Kill ignored a Heal kind from '{DescribeSource(source)}'.");
+            return;
+        }
         if (IsDead || !IsInitialized)
         {
             JmoLogger.Warning(this, $"Can't kill an entity that's already dead!");
             return;
         }
-        SetHealth(0, source, DamageKind.Removal);
+        SetHealth(0, source, kind);
     }
 
     /// <summary>
