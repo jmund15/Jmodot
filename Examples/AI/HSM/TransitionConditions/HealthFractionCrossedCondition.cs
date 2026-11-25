@@ -7,6 +7,7 @@ using Jmodot.Core.Combat;
 using Jmodot.Core.Combat.Reactions;
 using Jmodot.Core.Health;
 using Jmodot.Implementation.AI.BB;
+using Jmodot.Implementation.Combat;
 using Jmodot.Implementation.Shared.GodotExceptions;
 
 /// <summary>
@@ -30,12 +31,12 @@ public partial class HealthFractionCrossedCondition : CombatLogCondition
     public float WindowSeconds { get; set; } = 0.25f;
 
     /// <summary>
-    /// The crossing waits until the newest damage is this old in combat time (one physics tick), the same wait the
-    /// impact-weight edges use, so a milestone ordered after them does not pre-empt a hit they are about to route.
-    /// Zero fires at once.
+    /// Defers the crossing while the victim's own push is pending (held, or queued and not yet applied by its
+    /// movement), so a milestone ordered after the hit-band edges does not pre-empt a hit they are about to route.
+    /// Off fires at the damage itself.
     /// </summary>
-    [Export(PropertyHint.Range, "0,0.1,0.005,suffix:s")]
-    public float SettleSeconds { get; set; }
+    [Export]
+    public bool DeferWhilePushPending { get; set; }
 
     public override bool Check(Node agent, IBlackboard bb)
     {
@@ -65,7 +66,7 @@ public partial class HealthFractionCrossedCondition : CombatLogCondition
                 $"Required blackboard dependency '{BBDataSig.HealthComponent}' was not provided.", this);
         }
 
-        if (SettleSeconds > 0f && log.AnyWithinCombatTime<DamageResult>(SettleSeconds))
+        if (DeferWhilePushPending && KnockbackComponent3D.GetPushEvidence(bb).Pending)
         {
             return false;
         }

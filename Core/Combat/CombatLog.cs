@@ -33,19 +33,20 @@ public class CombatLog
     /// <summary>
     /// The largest sum taken at the arrival of a result strictly after the mark, where each earlier result counts
     /// linearly decayed by its gap to that arrival and drops out at <paramref name="withinSeconds"/>. An arrival counts once it
-    /// is <paramref name="minAgeSeconds"/> old, so a caller can wait out the physics tick that applies a hit's consequences,
-    /// and stops counting once it is that wait plus the window old. How late the caller reads never lowers the value.
+    /// is older than <c>Max(withinSeconds, expireAfterSeconds)</c>: the decay span stays <paramref name="withinSeconds"/>,
+    /// while a longer <paramref name="expireAfterSeconds"/> keeps a hit routable at its arrival weight until then
+    /// (a caller whose consequence of the hit outlasts the window, such as a held push). How late the caller reads never lowers the value.
     /// </summary>
-    public float PeakDecayedSince<T>(in CombatLogMark since, float withinSeconds, System.Func<T, float> valueOf, float minAgeSeconds = 0f) where T : CombatResult
+    public float PeakDecayedSince<T>(in CombatLogMark since, float withinSeconds, System.Func<T, float> valueOf, float expireAfterSeconds = 0f) where T : CombatResult
     {
         if (!(withinSeconds > 0f) || !float.IsFinite(withinSeconds)) { return 0f; }
         double peak = 0d;
+        float expiry = System.Math.Max(withinSeconds, expireAfterSeconds);
         for (int k = _resultsByCombatTime.Count - 1; k >= 0; k--)
         {
             float arrival = _resultsByCombatTime.Keys[k];
             float age = CombatTimeElapsed - arrival;
-            if (age - minAgeSeconds >= withinSeconds || arrival < since.CombatTime) { break; }
-            if (age < minAgeSeconds) { continue; }
+            if (age >= expiry || arrival < since.CombatTime) { break; }
             double sum = 0d;
             for (int j = k; j >= 0; j--)
             {
