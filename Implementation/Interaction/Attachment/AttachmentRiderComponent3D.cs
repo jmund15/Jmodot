@@ -102,8 +102,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
     /// </summary>
     [Export] public AttachPose? DefaultPose { get; private set; }
 
-    /// <summary>Seconds between attack damage ticks while attached. The scheduler owns the cadence; the
-    /// per-tick amount is the rider's damage-per-second scaled by this.</summary>
+    /// <summary>Seconds between attack damage ticks while attached. A non-positive or non-finite value ticks
+    /// every physics frame. The per-tick amount is the rider's damage-per-second scaled by the time since
+    /// the last tick.</summary>
     [Export, RequiredExport] public BaseFloatValueDefinition AttackTickIntervalDefinition { get; private set; } = null!;
 
     private IBlackboard _bb = null!;
