@@ -2,6 +2,7 @@ namespace Jmodot.Implementation.Actors;
 
 using System;
 using System.Collections.Generic;
+using Core.Actors;
 using Core.AI.BB;
 using Core.Combat;
 using Core.Combat.Reactions;
@@ -44,7 +45,13 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
     /// </summary>
     [Export] private int _physicsPriority = PhysicsOrder.AfterMovement;
 
+    /// <summary>
+    /// Raised for each impact no absorber consumed. An impact an <see cref="IImpactAbsorber"/> consumed
+    /// is logged but never raised.
+    /// </summary>
     public event Action<ImpactInfo> Impacted = delegate { };
+
+    private IImpactAbsorber? _absorber;
 
     private ICharacterController3D? _controller;
     private CharacterBody3D? _body;
@@ -92,6 +99,32 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
     }
 
     public void OnPostInitialize() { }
+
+    /// <summary>
+    /// Takes the single absorber slot. Idempotent for the instance already held; a different instance
+    /// is refused with an error and the first holder keeps the slot. The holder owns the slot's
+    /// lifetime: <see cref="Initialize"/> and <see cref="OnPoolReset"/> leave it alone.
+    /// </summary>
+    public void SetAbsorber(IImpactAbsorber absorber)
+    {
+        if (_absorber == null || ReferenceEquals(_absorber, absorber))
+        {
+            _absorber = absorber;
+            return;
+        }
+
+        JmoLogger.Error(this, "[Impact] The absorber slot is already held; a second absorber is refused. "
+            + "Composition of several absorbers is not defined.");
+    }
+
+    /// <summary>Releases the slot only when <paramref name="absorber"/> holds it.</summary>
+    public void ClearAbsorber(IImpactAbsorber absorber)
+    {
+        if (ReferenceEquals(_absorber, absorber))
+        {
+            _absorber = null;
+        }
+    }
 
     public Node GetUnderlyingNode() => this;
 
@@ -153,21 +186,30 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
             var normal = col.GetNormal();
             var speedAlongNormal = ImpactInfo.ComputeSpeedAlongNormal(_controller.PreMoveVelocity, normal);
             var info = new ImpactInfo(speedAlongNormal, preMoveSpeed, normal, collider);
-            Impacted.Invoke(info);
-
-            // Dual-channel publish: event for sibling damage systems (per-frame subscribe);
-            // CombatLog for HSM-side queryable lookback (TransitionCondition.CheckEvent reads).
-            // Mirrors KnockbackComponent3D pattern: emit signal AND log CombatResult.
-            _combatLog?.Log(new ImpactResult(info));
+            Dispatch(info);
         }
 
         (_inContactLastFrame, _newContactsThisFrame) = (_newContactsThisFrame, _inContactLastFrame);
     }
 
+    /// <summary>
+    /// The consumption phase: offer the impact to the absorber, always log it (CombatLog is the HSM-side
+    /// queryable lookback), and raise <see cref="Impacted"/> for sibling damage systems only when nothing consumed it.
+    /// </summary>
+    private void Dispatch(in ImpactInfo info)
+    {
+        var consumed = _absorber?.TryAbsorb(in info) ?? false;
+        _combatLog?.Log(new ImpactResult(info));
+        if (!consumed)
+        {
+            Impacted.Invoke(info);
+        }
+    }
+
     #region Test Helpers
 #if TOOLS
     /// <summary>
-    /// Test-only emit of <see cref="Impacted"/> with a synthetic <see cref="ImpactInfo"/>.
+    /// Test-only dispatch of a synthetic <see cref="ImpactInfo"/> through the same consumption phase as a real contact.
     /// Bypasses the velocity/slide-collision machinery so consumer-side tests can drive
     /// CapturedState's wall-impact transition (and similar) without setting up a full
     /// physics scene.
@@ -179,7 +221,7 @@ public partial class ImpactDetector : Node, IComponent, IBlackboardProvider, IPo
     /// </remarks>
     internal void EmitImpactedForTesting(ImpactInfo info)
     {
-        Impacted.Invoke(info);
+        Dispatch(info);
     }
 #endif
     #endregion

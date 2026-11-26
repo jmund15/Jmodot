@@ -78,7 +78,6 @@ public partial class ForceImpactDamageApplier : Node, IComponent
     private Node3D? _self;
     private CombatLog? _combatLog;
     private IExternalForceReceiver? _forceReceiver;
-    private IReadOnlyList<IImpactDamageGate> _gates = new List<IImpactDamageGate>();
     private IStatProvider? _launcherStats;
 
     public bool IsInitialized { get; private set; }
@@ -134,13 +133,6 @@ public partial class ForceImpactDamageApplier : Node, IComponent
         bb.TryGet(BBDataSig.ExternalForceReceiver, out _forceReceiver);
         bb.TryGet(BBDataSig.Stats, out _launcherStats);
 
-        // Capability gates (invulnerability window, damage-absorption shield, …) veto impact
-        // damage per-impact. Subtree-scoped: whether a gate is authored at the root or grouped under
-        // a Combat/ organiser is the scene author's prerogative, and a direct-child search answers
-        // "absent" for a grouped gate with no error — the ice would silently stop absorbing impact
-        // damage. Re-resolved on every Initialize to honor the pool-reuse/rebind contract.
-        _gates = _self.GetChildrenOfInterface<IImpactDamageGate>(includeSubChildren: true).ToList();
-
         IsInitialized = true;
         Initialized();
         return true;
@@ -175,15 +167,6 @@ public partial class ForceImpactDamageApplier : Node, IComponent
         if (_self != null && info.Collider == _self)
         {
             return;
-        }
-
-        // A denying gate absorbs the whole impact — skip both damage and the velocity-loss step.
-        foreach (var gate in _gates)
-        {
-            if (!gate.AllowImpactDamage(info))
-            {
-                return;
-            }
         }
 
         if (_health == null || DamageProfile == null)
