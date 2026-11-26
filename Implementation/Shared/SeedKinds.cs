@@ -32,7 +32,13 @@ public static class SeedKinds
     [SeedStreamKey("composite_consideration")] public const string CompositeConsideration = "composite_consideration";
     [SeedStreamKey("zone_shape")] public const string ZoneShape = "zone_shape";
     [SeedStreamKey("movement_quirk")] public const string MovementQuirk = "movement_quirk";
-    [SeedStreamKey("attachment")] public const string Attachment = "attachment";
+
+    // One kind per same-entity consumer: an entity-scoped stream is deterministic in (entity seed, kind) alone, so
+    // two consumers on one entity that shared a kind would draw the identical sequence.
+    [SeedStreamKey("attachment_place")] public const string AttachmentPlace = "attachment_place";
+    [SeedStreamKey("attachment_fling")] public const string AttachmentFling = "attachment_fling";
+    [SeedStreamKey("attachment_shed")] public const string AttachmentShed = "attachment_shed";
+
     [SeedStreamKey("random_time_limit")] public const string RandomTimeLimit = "random_time_limit";
     [SeedStreamKey("dither")] public const string Dither = "dither";
     [SeedStreamKey("cadence_phase")] public const string CadencePhase = "cadence_phase";

@@ -639,7 +639,7 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
         bb.TryGet<IStatProvider>(BBDataSig.Stats, out this._stats);
         bb.TryGet<HurtboxComponent3D>(BBDataSig.HurtboxComponent, out this._hurtbox);
         bb.TryGet<IHealth>(BBDataSig.HealthComponent, out this._health);
-        this._rng = EntityRngResolver.ResolveEntityScoped(bb, SeedKinds.Attachment, this, ref this._warnedMissingSeed);
+        this._rng = EntityRngResolver.ResolveEntityScoped(bb, SeedKinds.AttachmentPlace, this, ref this._warnedMissingSeed);
 
         IsInitialized = true;
         Initialized();
