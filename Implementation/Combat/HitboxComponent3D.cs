@@ -977,4 +977,11 @@ using AI.BB;
             return PhysicsCollisionExceptionRegistry.HasException(ownerBody, targetBody);
         }
         #endregion
+
+        #region Test Helpers
+#if TOOLS
+        /// <summary>Raises <see cref="OnHitRegistered"/> once without a hit, so a test can count its subscribers' runs.</summary>
+        internal void _TestRaiseHitRegistered(HurtboxComponent3D hurtbox, IAttackPayload payload) => OnHitRegistered?.Invoke(hurtbox, payload);
+#endif
+        #endregion
     }
