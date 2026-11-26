@@ -184,7 +184,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     public override void _PhysicsProcess(double delta)
     {
         if (Engine.IsEditorHint()) { return; }
-        if (this._promotionGroundRetryPending) { this.ResolveSplits(); }
+        if (this._promotionGroundRetryPending) { this.ResolveSplits(retryDue: true); }
         if (this._head == null || this._history == null) { return; }
         if (this._spawnProbesLeft > 0) { this.TrySpawnInitialSegments(); }
         if (this._segments.Count == 0) { return; }
@@ -655,11 +655,15 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     {
         if (this._resolutionQueued) { return; }
 
-        Callable.From(this.ResolveSplits).CallDeferred();
+        Callable.From(this.ResolveQueuedSplits).CallDeferred();
         this._resolutionQueued = true;
     }
 
-    private void ResolveSplits()
+    private void ResolveQueuedSplits() => this.ResolveSplits(retryDue: false);
+
+    // retryDue is true only from the physics tick that drains a pending ground retry. A queued resolution that lands
+    // earlier, from a second death inside the window, re-arms the wait instead of spending it.
+    private void ResolveSplits(bool retryDue)
     {
         this._resolutionQueued = false;
         if (!this._resolutionOpen) { return; }
@@ -668,7 +672,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         var dead = new HashSet<int>(this._deadIndices);
         var headDead = this._headDead;
         if (!headDead
-            && !this._promotionGroundRetryPending
+            && !retryDue
             && this.RequiresPromotionGroundRetry(roster, dead))
         {
             this._promotionGroundRetryPending = true;
