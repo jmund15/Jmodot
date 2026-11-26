@@ -10,7 +10,9 @@ using Jmodot.Core.Visual.Effects;
 using Jmodot.Core.Visual.Sprite;
 using Shared;
 
-/// <summary>Binds runtime sprite materials to sprites under its parent using the required project shader body.</summary>
+/// <summary>Binds runtime sprite materials, built on the required project shader body, to every sprite under its parent
+/// that it covers (see <see cref="FindCovering"/>). It applies no effect-art filter: a sprite at or under an
+/// <see cref="IVfxNode"/> is bound like any other.</summary>
 [GlobalClass, Tool]
 public partial class SpriteMaterialBinder3D : Node
 {
