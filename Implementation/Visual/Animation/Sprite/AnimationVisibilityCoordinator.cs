@@ -89,7 +89,6 @@ public partial class AnimationVisibilityCoordinator : Node
     private Dictionary<StringName, List<Node>> _visibilityCache = new();
     private List<Node> _allManagedNodes = new();
     private IAnimComponent _targetAnimComponent = null!;
-    private bool _subscribedToParentChildEnteredTree;
 
     /// <summary>
     /// Extracts the animation lookup key from a node name by stripping the prefix
@@ -123,15 +122,14 @@ public partial class AnimationVisibilityCoordinator : Node
 
         if (AutoRegisterNodes)
         {
-            RegisterChildren(GetParent());
-
-            // Connect to ChildEnteredTree to detect dynamically added nodes
             var parent = GetParent();
-            if (parent != null)
-            {
-                parent.ChildEnteredTree += OnChildEnteredTree;
-                _subscribedToParentChildEnteredTree = true;
-            }
+            RegisterChildren(parent);
+
+            // The coordinator moves with its parent (the visuals root DetachFromParent reparents), so the
+            // parent is the same object after a reparent and the binding re-arms on it.
+            this.BindWhileInTree<Node, Node.ChildEnteredTreeEventHandler>(parent, OnChildEnteredTree,
+                static (source, handler) => source.ChildEnteredTree += handler,
+                static (source, handler) => source.ChildEnteredTree -= handler);
         }
 
         // Resolved AFTER auto-registration so a dual auto+manual node is already in the managed set
@@ -139,23 +137,6 @@ public partial class AnimationVisibilityCoordinator : Node
         RegisterManualVisibilityMap();
 
         SetupAnimatorConnection();
-    }
-
-    public override void _ExitTree()
-    {
-        base._ExitTree();
-        if (!Engine.IsEditorHint())
-        {
-            if (_subscribedToParentChildEnteredTree)
-            {
-                var parent = GetParent();
-                if (parent != null && IsInstanceValid(parent))
-                {
-                    parent.ChildEnteredTree -= OnChildEnteredTree;
-                }
-                _subscribedToParentChildEnteredTree = false;
-            }
-        }
     }
 
     // Editor configuration-warning refresh is driven by the property setters above
