@@ -131,6 +131,41 @@ public static class NodeExts
         };
     }
 
+    /// <summary>
+    /// Calls <paramref name="onRemoved"/> once when <paramref name="node"/> has left the tree for good,
+    /// never on a reparent. <c>TreeExiting</c> fires for a reparent as well, so the decision is deferred
+    /// to the next idle callback, where only a node that is freed or still outside the tree counts as
+    /// removed. The watch ends after that one call; a node that is removed but kept alive and parented
+    /// again needs a new watch.
+    /// </summary>
+    /// <returns>An action that ends the watch before it fires; safe to call after the node is freed.</returns>
+    public static Action OnRemovedFromTree(this Node node, Action onRemoved)
+    {
+        var fired = false;
+
+        void Exiting() => Callable.From(Confirm).CallDeferred();
+
+        void Confirm()
+        {
+            if (fired) { return; }
+            if (GodotObject.IsInstanceValid(node))
+            {
+                if (node.IsInsideTree()) { return; }
+                node.TreeExiting -= Exiting;
+            }
+
+            fired = true;
+            onRemoved();
+        }
+
+        node.TreeExiting += Exiting;
+        return () =>
+        {
+            fired = true;
+            if (GodotObject.IsInstanceValid(node)) { node.TreeExiting -= Exiting; }
+        };
+    }
+
     #endregion
 
     #region SEARCH_EXTENSIONS

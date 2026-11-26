@@ -28,7 +28,7 @@ public partial class SquadRoster : Node
         IBlackboardGraph Graph,
         IHealth? Health,
         Action<HealthChangeEventArgs>? DiedHandler,
-        Callable TreeExitingHandler);
+        Action StopWatchingRemoval);
 
     private readonly List<Node3D> _members = new();
     private readonly List<IBlackboardGraph> _memberGraphs = new();
@@ -135,11 +135,10 @@ public partial class SquadRoster : Node
             JmoLogger.Warning(this, $"[Squad] Member '{member.Name}': no IHealth on its graph; death auto-removal is disabled for this member.");
         }
 
-        // Always subscribe TreeExiting as a reparent-filtered safety net (QueueFree bypasses domain events).
-        var treeExitingHandler = Callable.From(() => OnMemberTreeExiting(member));
-        member.Connect(Node.SignalName.TreeExiting, treeExitingHandler);
+        // Always watch for removal as a reparent-filtered safety net (QueueFree bypasses domain events).
+        var stopWatching = member.OnRemovedFromTree(() => OnMemberRemoved(member));
 
-        _records[member] = new MemberRecord(graph, memberHealth, diedHandler, treeExitingHandler);
+        _records[member] = new MemberRecord(graph, memberHealth, diedHandler, stopWatching);
 
         if (_members.Count > _peakMemberCount)
         {
@@ -241,7 +240,7 @@ public partial class SquadRoster : Node
         // AncestorQueuedForDeletion cannot see a teardown the engine drives itself, so the error fired on
         // every clean shutdown and trained readers to ignore it. One deferred frame later the difference
         // is plain — a reparented roster is back in the tree, a torn-down one is gone. Same shape as
-        // DeferredTreeExitCheck below, for the same reason.
+        // NodeExts.OnRemovedFromTree, for the same reason.
         var mightBeReparent = !_disbanded && !AncestorQueuedForDeletion();
 
         Disband();
@@ -272,24 +271,14 @@ public partial class SquadRoster : Node
         }
     }
 
-    private void OnMemberTreeExiting(Node3D member)
-    {
-        // TreeExiting fires on reparent too — defer the decision and only remove if the member is truly gone.
-        Callable.From(() => DeferredTreeExitCheck(member)).CallDeferred();
-    }
-
-    private void DeferredTreeExitCheck(Node3D member)
+    private void OnMemberRemoved(Node3D member)
     {
         if (!GodotObject.IsInstanceValid(this) || _disbanded)
         {
             return;
         }
 
-        if (!GodotObject.IsInstanceValid(member) || !member.IsInsideTree())
-        {
-            RemoveMember(member); // genuinely gone
-        }
-        // else: still in tree → reparented → retains membership
+        RemoveMember(member);
     }
 
     private void UnsubscribeMember(Node3D member)
@@ -304,10 +293,7 @@ public partial class SquadRoster : Node
             record.Health.OnDied -= record.DiedHandler;
         }
 
-        if (GodotObject.IsInstanceValid(member))
-        {
-            member.Disconnect(Node.SignalName.TreeExiting, record.TreeExitingHandler);
-        }
+        record.StopWatchingRemoval();
 
         _records.Remove(member);
     }
