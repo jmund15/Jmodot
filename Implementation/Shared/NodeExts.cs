@@ -175,7 +175,9 @@ public static class NodeExts
     /// <remarks>
     /// A call with the same owner, source and handler changes nothing, so an initializer that runs again on a
     /// pooled reuse binds once. A source freed before the owner exits is not unsubscribed, because its events are
-    /// gone with it and teardown frees siblings in no fixed order.
+    /// gone with it and teardown frees siblings in no fixed order; the next bind on the owner drops its binding.
+    /// A binding is never removed while its source lives, so a caller that replaces a live source with another
+    /// keeps both subscribed and needs a hand-written pair instead.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="handler"/> is a lambda or local function, not a method
@@ -203,6 +205,14 @@ public static class NodeExts
 
     private static readonly ConditionalWeakTable<Node, TreeBindingRegistry> TreeRegistries = new();
 
+    #region Test Helpers
+#if TOOLS
+    /// <summary>The number of tree bindings <paramref name="owner"/> holds, for tests.</summary>
+    internal static int _TestTreeBindingCount(Node owner)
+        => TreeRegistries.TryGetValue(owner, out var registry) ? registry.Count : 0;
+#endif
+    #endregion
+
     private sealed class TreeBindingRegistry
     {
         private readonly List<TreeBinding> _bindings = [];
@@ -215,6 +225,8 @@ public static class NodeExts
 
         public static TreeBindingRegistry For(Node owner) => TreeRegistries.GetValue(owner, o => new TreeBindingRegistry(o));
 
+        public int Count => _bindings.Count;
+
         public void Add(object? source, Delegate handler, Action subscribe, Action unsubscribe)
         {
             if (handler.Method.IsDefined(typeof(CompilerGeneratedAttribute), false)
@@ -223,6 +235,7 @@ public static class NodeExts
                 throw new ArgumentException("A tree binding needs a method-group handler: a lambda or local function is a new delegate on every call, so a repeated bind would subscribe it again.", nameof(handler));
             }
 
+            _bindings.RemoveAll(b => !b.SourceLive);
             if (_bindings.Exists(b => b.Matches(source, handler))) { return; }
             var binding = new TreeBinding(source, handler, subscribe, unsubscribe);
             _bindings.Add(binding);
@@ -247,7 +260,7 @@ public static class NodeExts
         public bool Matches(object? otherSource, Delegate otherHandler)
             => ReferenceEquals(source, otherSource) && handler.Equals(otherHandler);
 
-        private bool SourceLive => source is not GodotObject godot || GodotObject.IsInstanceValid(godot);
+        public bool SourceLive => source is not GodotObject godot || GodotObject.IsInstanceValid(godot);
 
         public void Arm()
         {
