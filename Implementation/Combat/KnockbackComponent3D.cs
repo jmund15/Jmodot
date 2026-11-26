@@ -414,39 +414,10 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 
 	private void OnDied(HealthChangeEventArgs args) => ReleaseHold();
 
-	private void SubscribeHealth()
-	{
-		if (!IsAlive(_health)) { return; }
-		_health!.OnDied -= OnDied;
-		_health.OnDied += OnDied;
-	}
-
-	public override void _EnterTree()
-	{
-		base._EnterTree();
-		if (Engine.IsEditorHint()) { return; }
-		// A reparent unsubscribes in _ExitTree and Phase 2 does not run again, so a built component re-arms here.
-		if (IsInitialized)
-		{
-			_combatant.CombatResultEvent -= OnCombatResult;
-			_combatant.CombatResultEvent += OnCombatResult;
-			SubscribeHealth();
-		}
-	}
-
 	public override void _ExitTree()
 	{
 		if (Engine.IsEditorHint()) { return; }
 		ReleaseHold(exiting: true);
-		if (IsAlive(_health)) { _health!.OnDied -= OnDied; }
-		// Disposal-race guard: CombatantComponent is a Godot Node and may be freed
-		// before this _ExitTree fires during scene teardown (sibling free-order is
-		// not guaranteed). Unsubscribing from a disposed event source throws
-		// ObjectDisposedException. See BB_Apply_Cache_Restore_Pattern (IsInstanceValid).
-		if (_combatant != null && GodotObject.IsInstanceValid(_combatant))
-		{
-			_combatant.CombatResultEvent -= OnCombatResult;
-		}
 		base._ExitTree();
 	}
 
@@ -491,9 +462,13 @@ public partial class KnockbackComponent3D : Node3D, IComponent, IBlackboardProvi
 	{
 		if (Engine.IsEditorHint()) { return; }
 		ProcessMode = ProcessModeEnum.Inherit;
-		_combatant.CombatResultEvent -= OnCombatResult;
-		_combatant.CombatResultEvent += OnCombatResult;
-		SubscribeHealth();
+		this.BindWhileInTree<CombatantComponent, Action<CombatResult>>(_combatant, OnCombatResult,
+			static (c, h) => c.CombatResultEvent += h, static (c, h) => c.CombatResultEvent -= h);
+		if (IsAlive(_health))
+		{
+			this.BindWhileInTree<IHealth, Action<HealthChangeEventArgs>>(_health!, OnDied,
+				static (h, d) => h.OnDied += d, static (h, d) => h.OnDied -= d);
+		}
 	}
 
 	public Node GetUnderlyingNode() => this;
