@@ -298,7 +298,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         {
             if (segment == null || !GodotObject.IsInstanceValid(segment)) { continue; }
             if (!this._segments.Contains(segment)) { continue; }
-            if (segment.Health is HealthComponent health && !health.IsDead) { health.Kill(source); }
+            if (segment.Health is HealthComponent health) { health.Kill(source); }
         }
     }
 
@@ -813,7 +813,7 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         foreach (var segment in members)
         {
             if (!GodotObject.IsInstanceValid(segment)) { continue; }
-            if (segment.Health is HealthComponent health && !health.IsDead) { health.Kill(source); }
+            if (segment.Health is HealthComponent health) { health.Kill(source); }
         }
     }
 

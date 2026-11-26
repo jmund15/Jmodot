@@ -368,6 +368,9 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     /// Forces the entity to die by setting its health to zero, past the damage gates
     /// (<see cref="IsDamageImmune"/> and <see cref="IsIndestructible"/>). The death carries
     /// <paramref name="kind"/> on its events; a <see cref="DamageKind.Heal"/> kind is refused.
+    /// An entity already at zero health and still alive dies without a health change. Killing an entity
+    /// that is already dead, or not yet initialized, does nothing and logs nothing, so a rule-kill
+    /// needs no <see cref="IsDead"/> check before it.
     /// </summary>
     /// <param name="source">The object responsible for the kill (e.g., a debug command, kill-zone).</param>
     /// <param name="kind">The cause of the death, carried to subscribers so feedback can filter it.</param>
@@ -380,7 +383,13 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         }
         if (IsDead || !IsInitialized)
         {
-            JmoLogger.Warning(this, $"Can't kill an entity that's already dead!");
+            return;
+        }
+        if (_currentHealth <= 0f)
+        {
+            // SetHealth returns before its death transition when health does not change.
+            IsDead = true;
+            OnDied.Invoke(new HealthChangeEventArgs(_currentHealth, _currentHealth, MaxHealth, source, kind));
             return;
         }
         SetHealth(0, source, kind);
