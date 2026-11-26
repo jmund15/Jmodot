@@ -11,7 +11,7 @@ using Implementation.Shared;
 /// Supports both fixed and variable durations via _additiveVariation.
 /// When _additiveVariation is 0 (default), waits exactly _duration seconds.
 /// When _additiveVariation > 0, waits _duration + Random(0, _additiveVariation) seconds, drawn from a stream seeded by
-/// the entity seed and this task's name, so the same staging rolls the same waits. Without an entity seed the stream
+/// the entity seed and this task's position under its agent (<see cref="EntityRngResolver.NodeKey"/>), so the same staging rolls the same waits. Without an entity seed the stream
 /// is <see cref="JmoRng.UnseededByDesign"/> and warns once.
 /// </summary>
 [GlobalClass, Tool]
