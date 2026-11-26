@@ -577,7 +577,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         return false;
     }
 
-    private static bool TryResolveIdentity(Node3D body, out IIdentifiable? identifiable)
+    /// <summary>The identity source the sensor perceives a body through: the body itself, else its first
+    /// <see cref="IIdentifiable"/> child. A body with neither is never perceived.</summary>
+    internal static bool TryResolveIdentity(Node3D body, out IIdentifiable? identifiable)
     {
         if (body is IIdentifiable directId)
         {
