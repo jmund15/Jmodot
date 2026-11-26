@@ -574,17 +574,14 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
     {
         if (this._exitHooks.ContainsKey(segment)) { return; }
 
-        Action handler = () => this.OnSegmentExiting(segment);
-        this._exitHooks[segment] = handler;
-        segment.TreeExiting += handler;
+        this._exitHooks[segment] = segment.OnRemovedFromTree(() => this.OnSegmentRemoved(segment));
     }
 
     private void UnhookSegment(BodySegment3D segment)
     {
-        if (!this._exitHooks.Remove(segment, out var handler)) { return; }
-        if (!GodotObject.IsInstanceValid(segment)) { return; }
+        if (!this._exitHooks.Remove(segment, out var stopWatching)) { return; }
 
-        segment.TreeExiting -= handler;
+        stopWatching();
     }
 
     private void OnSegmentDied(BodySegment3D segment)
@@ -830,14 +827,8 @@ public partial class SegmentedBodyComponent3D : Node3D, IComponent, IBlackboardP
         return 0;
     }
 
-    private void OnSegmentExiting(BodySegment3D segment)
-        // A unit leaving the tree may be mid-reparent; only one still absent next idle frame is gone.
-        => Callable.From(() => this.DropSegmentIfRemoved(segment)).CallDeferred();
-
-    private void DropSegmentIfRemoved(BodySegment3D segment)
+    private void OnSegmentRemoved(BodySegment3D segment)
     {
-        if (GodotObject.IsInstanceValid(segment) && segment.IsInsideTree()) { return; }
-
         this.RecordLoss(segment, out _);
         this.DropSegment(segment);
     }
