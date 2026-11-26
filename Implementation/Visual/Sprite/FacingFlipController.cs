@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.Visual.Sprite;
 
+using System;
 using System.Collections.Generic;
 using Godot;
 using Jmodot.Core.Shared.Attributes;
@@ -130,25 +131,18 @@ public partial class FacingFlipController : Node
             }
         }
 
-        // Idempotent, and paired with _ExitTree rather than _Ready: _ExitTree fires on reparent
-        // but _Ready runs once per node lifetime, so a _Ready-bound subscription dies silently
-        // the first time a visual is reparented.
-        _source.DirectionalResolutionApplied -= OnResolutionApplied;
-        _source.DirectionalResolutionApplied += OnResolutionApplied;
+        // Bound here rather than in _Ready: a dormant controller must not subscribe at all, and the
+        // helper re-arms the subscription on every re-entry.
+        this.BindWhileInTree<IDirectionalResolutionSource, Action<IAnimComponent, StringName?, DirectionalAnimRequest>>(
+            _source, OnResolutionApplied,
+            static (resolver, handler) => resolver.DirectionalResolutionApplied += handler,
+            static (resolver, handler) => resolver.DirectionalResolutionApplied -= handler);
     }
 
     public override void _Ready()
     {
         if (Engine.IsEditorHint()) { return; }
         this.ValidateRequiredExports();
-    }
-
-    public override void _ExitTree()
-    {
-        if (_source != null)
-        {
-            _source.DirectionalResolutionApplied -= OnResolutionApplied;
-        }
     }
 
     public override string[] _GetConfigurationWarnings()

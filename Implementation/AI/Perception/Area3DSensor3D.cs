@@ -171,22 +171,23 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         }
     }
 
-    // Idempotent: unsubscribe-then-subscribe so _EnterTree resubscribes and OnPostInitialize's
-    // first-entry subscribe never double-register.
     private void SubscribeStatProvider()
     {
         if (_statProvider == null) { return; }
-        _statProvider.OnStatChanged -= OnStatProviderStatChanged;
-        _statProvider.OnStatChanged += OnStatProviderStatChanged;
+        this.BindWhileInTree<IStatProvider, Action<Core.Stats.Attribute, Variant>>(_statProvider,
+            OnStatProviderStatChanged,
+            static (provider, handler) => provider.OnStatChanged += handler,
+            static (provider, handler) => provider.OnStatChanged -= handler);
     }
 
-    // No unsubscribe-first guard: a C# `signal -= handler` compiles to GodotObject.Disconnect,
-    // which raises an engine ERROR when no connection exists. _EnterTree/_ExitTree are paired by
-    // the engine and this is their only call site, so the pair is already symmetric.
     private void SubscribeBodySignals()
     {
-        BodyEntered += OnBodyEntered;
-        BodyExited += OnBodyExited;
+        this.BindWhileInTree<Area3DSensor3D, BodyEnteredEventHandler>(this, OnBodyEntered,
+            static (sensor, handler) => sensor.BodyEntered += handler,
+            static (sensor, handler) => sensor.BodyEntered -= handler);
+        this.BindWhileInTree<Area3DSensor3D, BodyExitedEventHandler>(this, OnBodyExited,
+            static (sensor, handler) => sensor.BodyExited += handler,
+            static (sensor, handler) => sensor.BodyExited -= handler);
     }
 
     private void OnStatProviderStatChanged(Core.Stats.Attribute attribute, Variant newValue)
@@ -270,16 +271,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     #endregion
 
-    // Signal + stat-provider subscription lives here (not _Ready) so it is symmetric with
-    // _ExitTree — a reparent re-enters the tree without re-running _Ready. _EnterTree fires
-    // before _Ready on first entry; SubscribeStatProvider is idempotent so the stat subscribe
-    // never double-registers. On first entry IsInitialized is still false and _statProvider null, so
-    // OnPostInitialize owns the initial stat subscribe; on reparent this restores it.
-    public override void _EnterTree()
-    {
-        SubscribeBodySignals();
-        if (IsInitialized) { SubscribeStatProvider(); }
-    }
+    // Body signals bind here (not _Ready) so the first physics tick already has them; the helper re-arms
+    // them, and the stat subscription OnPostInitialize binds, on every re-entry.
+    public override void _EnterTree() => SubscribeBodySignals();
 
     public override void _Ready()
     {
@@ -290,12 +284,6 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     public override void _ExitTree()
     {
-        BodyEntered -= OnBodyEntered;
-        BodyExited -= OnBodyExited;
-        if (_statProvider != null)
-        {
-            _statProvider.OnStatChanged -= OnStatProviderStatChanged;
-        }
         _trackedBodies.Clear();
         _visibleBodies.Clear();
         _polledBodies.Clear();

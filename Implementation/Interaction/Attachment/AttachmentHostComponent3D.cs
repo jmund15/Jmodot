@@ -144,19 +144,12 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     }
 
     /// <summary>
-    /// Re-arms the death hook that <see cref="_ExitTree"/> drops. Reparenting fires both, so without
-    /// this a moved host could no longer release its riders when its entity dies.
-    /// </summary>
-    public override void _EnterTree() => this.SubscribeHostDeath();
-
-    /// <summary>
     /// The host is leaving: every rider is released here, because <c>QueueFree</c> raises no domain
     /// event a rider could subscribe to. Riders additionally poll this host's validity, which is
     /// what covers a host freed without this ever running.
     /// </summary>
     public override void _ExitTree()
     {
-        this.UnsubscribeHostDeath();
 #if TOOLS
         if (this._TestSuppressExitTreeDetach) { return; }
 #endif
@@ -167,13 +160,9 @@ public partial class AttachmentHostComponent3D : Node3D, IComponent, IBlackboard
     {
         if (this._health == null) { return; }
 
-        this._health.OnDied -= this.OnHostDied;
-        this._health.OnDied += this.OnHostDied;
-    }
-
-    private void UnsubscribeHostDeath()
-    {
-        if (this._health != null) { this._health.OnDied -= this.OnHostDied; }
+        this.BindWhileInTree<IHealth, Action<HealthChangeEventArgs>>(this._health, this.OnHostDied,
+            static (health, handler) => health.OnDied += handler,
+            static (health, handler) => health.OnDied -= handler);
     }
 
     private void OnHostDied(HealthChangeEventArgs args) => this.DetachAll(DetachCause.HostRemoved);

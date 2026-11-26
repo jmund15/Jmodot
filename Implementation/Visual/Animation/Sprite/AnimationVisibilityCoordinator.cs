@@ -116,21 +116,6 @@ public partial class AnimationVisibilityCoordinator : Node
     public event Action VisibleNodesChanged = delegate { };
     public event Action VisualNodesChanged = delegate { };
 
-    public override void _EnterTree()
-    {
-        base._EnterTree();
-        if (Engine.IsEditorHint()) { return; }
-
-        // Re-subscribe after reparent (e.g., DetachFromParent in spell destroy flow).
-        // _Ready resolves _targetAnimComponent once; _ExitTree unsubscribes.
-        // On first entry _targetAnimComponent is null (not yet resolved), so this is a no-op.
-        if (_targetAnimComponent != null)
-        {
-            _targetAnimComponent.AnimStarted += OnAnimStarted;
-            _targetAnimComponent.AnimStopped += OnAnimStopped;
-        }
-    }
-
     public override void _Ready()
     {
         // Don't run runtime logic in the editor
@@ -169,11 +154,6 @@ public partial class AnimationVisibilityCoordinator : Node
                     parent.ChildEnteredTree -= OnChildEnteredTree;
                 }
                 _subscribedToParentChildEnteredTree = false;
-            }
-            if (_targetAnimComponent != null)
-            {
-                _targetAnimComponent.AnimStarted -= OnAnimStarted;
-                _targetAnimComponent.AnimStopped -= OnAnimStopped;
             }
         }
     }
@@ -336,8 +316,12 @@ public partial class AnimationVisibilityCoordinator : Node
         if (target is IAnimComponent animComp)
         {
             _targetAnimComponent = animComp;
-            _targetAnimComponent.AnimStarted += OnAnimStarted;
-            _targetAnimComponent.AnimStopped += OnAnimStopped;
+            this.BindWhileInTree<IAnimComponent, Action<StringName>>(animComp, OnAnimStarted,
+                static (animator, handler) => animator.AnimStarted += handler,
+                static (animator, handler) => animator.AnimStarted -= handler);
+            this.BindWhileInTree<IAnimComponent, Action<StringName>>(animComp, OnAnimStopped,
+                static (animator, handler) => animator.AnimStopped += handler,
+                static (animator, handler) => animator.AnimStopped -= handler);
 
             // Catch up on a clip that started before this subscription existed. Native `autoplay`
             // emits its started signal while the AnimationPlayer enters the tree, which is before

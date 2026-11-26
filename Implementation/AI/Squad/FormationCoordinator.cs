@@ -1,5 +1,6 @@
 namespace Jmodot.Implementation.AI.Squad;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -38,9 +39,15 @@ public partial class FormationCoordinator : Node
             return; // _Ready's ValidateRequiredExports raises the friendly error
         }
 
-        _roster.MemberAdded += OnMemberAdded;
-        _roster.MemberRemoved += OnMemberRemoved;
-        _roster.LeaderChanged += OnLeaderChanged;
+        this.BindWhileInTree<SquadRoster, Action<Node3D>>(_roster, OnMemberAdded,
+            static (roster, handler) => roster.MemberAdded += handler,
+            static (roster, handler) => roster.MemberAdded -= handler);
+        this.BindWhileInTree<SquadRoster, Action<Node3D, IBlackboardGraph>>(_roster, OnMemberRemoved,
+            static (roster, handler) => roster.MemberRemoved += handler,
+            static (roster, handler) => roster.MemberRemoved -= handler);
+        this.BindWhileInTree<SquadRoster, Action<Node3D?>>(_roster, OnLeaderChanged,
+            static (roster, handler) => roster.LeaderChanged += handler,
+            static (roster, handler) => roster.LeaderChanged -= handler);
 
         // A leader assigned before this coordinator entered the tree (programmatic construction,
         // or the coordinator added after the roster) raised LeaderChanged before this subscription
@@ -49,18 +56,6 @@ public partial class FormationCoordinator : Node
         {
             OnLeaderChanged(_roster.Leader);
         }
-    }
-
-    public override void _ExitTree()
-    {
-        if (_roster == null)
-        {
-            return;
-        }
-
-        _roster.MemberAdded -= OnMemberAdded;
-        _roster.MemberRemoved -= OnMemberRemoved;
-        _roster.LeaderChanged -= OnLeaderChanged;
     }
 
     public override void _Ready()

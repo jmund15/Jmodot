@@ -126,9 +126,15 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
         ApplyEffectiveSpeed();
 
         // Forward events
-        _targetAnimator.AnimStarted += OnTargetAnimStarted;
-        _targetAnimator.AnimFinished += OnTargetAnimFinished;
-        _targetAnimator.AnimStopped += OnTargetAnimStopped;
+        this.BindWhileInTree<IAnimComponent, Action<StringName>>(_targetAnimator, OnTargetAnimStarted,
+            static (animator, handler) => animator.AnimStarted += handler,
+            static (animator, handler) => animator.AnimStarted -= handler);
+        this.BindWhileInTree<IAnimComponent, Action<StringName>>(_targetAnimator, OnTargetAnimFinished,
+            static (animator, handler) => animator.AnimFinished += handler,
+            static (animator, handler) => animator.AnimFinished -= handler);
+        this.BindWhileInTree<IAnimComponent, Action<StringName>>(_targetAnimator, OnTargetAnimStopped,
+            static (animator, handler) => animator.AnimStopped += handler,
+            static (animator, handler) => animator.AnimStopped -= handler);
         SubscribeTargetResolution();
 
         if (RequiresSeededRng())
@@ -203,50 +209,19 @@ public partial class AnimationOrchestrator : Node, IAnimationOrchestrator, IComp
         throw new InvalidOperationException(message);
     }
 
-    public override void _EnterTree()
-    {
-        base._EnterTree();
-        if (Engine.IsEditorHint()) { return; }
-
-        // Re-subscribe after reparent (e.g., DetachFromParent in spell destroy flow).
-        // _Ready resolves _targetAnimator once; _ExitTree unsubscribes.
-        // On first entry _targetAnimator is null (not yet resolved), so this is a no-op.
-        if (_targetAnimator != null)
-        {
-            _targetAnimator.AnimStarted += OnTargetAnimStarted;
-            _targetAnimator.AnimFinished += OnTargetAnimFinished;
-            _targetAnimator.AnimStopped += OnTargetAnimStopped;
-            SubscribeTargetResolution();
-        }
-    }
-
-    public override void _ExitTree()
-    {
-        base._ExitTree();
-        if (_targetAnimator != null)
-        {
-            _targetAnimator.AnimStarted -= OnTargetAnimStarted;
-            _targetAnimator.AnimFinished -= OnTargetAnimFinished;
-            _targetAnimator.AnimStopped -= OnTargetAnimStopped;
-            if (TargetOwnsResolution(out var source))
-            {
-                source.DirectionalResolutionApplied -= OnTargetResolutionApplied;
-            }
-        }
-    }
-
     // Forwarding is gated on IDirectionalAnimTarget, not on IDirectionalResolutionSource: it must
     // pair with the UpdateAnim branch that DELEGATES resolution. A target that announces its own
     // resolution without owning it (a nested orchestrator — legal, since IAnimationOrchestrator
     // derives IAnimComponent) is still resolved by THIS class, so forwarding as well would fire
     // twice per resolution with two different facings.
-    // Idempotent: -= before += so the _Ready/_EnterTree overlap on first entry can't double-hook.
     private void SubscribeTargetResolution()
     {
         if (!TargetOwnsResolution(out var source)) { return; }
 
-        source.DirectionalResolutionApplied -= OnTargetResolutionApplied;
-        source.DirectionalResolutionApplied += OnTargetResolutionApplied;
+        this.BindWhileInTree<IDirectionalResolutionSource, Action<IAnimComponent, StringName?, DirectionalAnimRequest>>(
+            source, OnTargetResolutionApplied,
+            static (resolver, handler) => resolver.DirectionalResolutionApplied += handler,
+            static (resolver, handler) => resolver.DirectionalResolutionApplied -= handler);
     }
 
     private bool TargetOwnsResolution([NotNullWhen(true)] out IDirectionalResolutionSource? source)

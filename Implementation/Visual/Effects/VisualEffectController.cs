@@ -82,8 +82,6 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
     private readonly List<(Node Node, Color Emission)> _emissionWritesScratch = new();
     private ulong _playCount;
 
-    private IVisualEffectService? _subscribedService;
-
     public bool IsInitialized { get; private set; }
     public event Action Initialized = delegate { };
 
@@ -102,31 +100,22 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
         RefreshVisualNodes();
     }
 
-    /// <summary>
-    /// Re-attaches composer/service subscriptions after a reparent: _ExitTree tears them down and
-    /// _Ready does not run a second time, so _EnterTree is the only hook that fires again.
-    /// </summary>
-    public override void _EnterTree()
-    {
-        base._EnterTree();
-        if (Engine.IsEditorHint() || !IsNodeReady()) { return; }
-        SubscribeToComposer();
-    }
-
     private void SubscribeToComposer()
     {
         if (Composer == null) { return; }
 
-        Composer.NodeAdded -= OnNodeAdded;
-        Composer.NodeAdded += OnNodeAdded;
-        Composer.NodeRemoved -= OnNodeRemoved;
-        Composer.NodeRemoved += OnNodeRemoved;
+        this.BindWhileInTree<VisualComposer, Action<VisualNodeHandle>>(Composer, OnNodeAdded,
+            static (composer, handler) => composer.NodeAdded += handler,
+            static (composer, handler) => composer.NodeAdded -= handler);
+        this.BindWhileInTree<VisualComposer, Action<VisualNodeHandle>>(Composer, OnNodeRemoved,
+            static (composer, handler) => composer.NodeRemoved += handler,
+            static (composer, handler) => composer.NodeRemoved -= handler);
 
-        if (_subscribedService != null) { _subscribedService.TintChanged -= OnTintChanged; }
-        _subscribedService = Composer.Effects;
-        if (_subscribedService != null)
+        if (Composer.Effects != null)
         {
-            _subscribedService.TintChanged += OnTintChanged;
+            this.BindWhileInTree<IVisualEffectService, Action<Node, Color>>(Composer.Effects, OnTintChanged,
+                static (service, handler) => service.TintChanged += handler,
+                static (service, handler) => service.TintChanged -= handler);
         }
     }
 
@@ -149,16 +138,6 @@ public partial class VisualEffectController : Node, IComponent, IBlackboardProvi
     {
         base._ExitTree();
         StopAllEffects();
-        if (Composer != null)
-        {
-            Composer.NodeAdded -= OnNodeAdded;
-            Composer.NodeRemoved -= OnNodeRemoved;
-        }
-        if (_subscribedService != null)
-        {
-            _subscribedService.TintChanged -= OnTintChanged;
-            _subscribedService = null;
-        }
     }
 
     public override void _Process(double delta) => ApplyEffects();

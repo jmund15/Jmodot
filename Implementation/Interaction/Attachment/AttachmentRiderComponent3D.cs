@@ -251,22 +251,9 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
         this._controller.Teleport(anchor);
     }
 
-    /// <summary>
-    /// Re-arms the death hook that <see cref="_ExitTree"/> drops. Reparenting fires both, so without
-    /// this the rider survives the move with no way to notice its own death.
-    /// </summary>
-    public override void _EnterTree()
-    {
-        if (this._health == null) { return; }
-
-        this._health.OnDied -= this.OnOwnDeath;
-        this._health.OnDied += this.OnOwnDeath;
-    }
-
     public override void _ExitTree()
     {
         this.ClearCollisionException();
-        if (this._health != null) { this._health.OnDied -= this.OnOwnDeath; }
         if (this.Host == null) { return; }
 
         var host = this.Host;
@@ -762,9 +749,10 @@ public partial class AttachmentRiderComponent3D : Node3D, IComponent, IBlackboar
 
         if (this._health == null) { return; }
 
-        // Idempotent: OnPostInitialize re-runs on pool reuse and scene rebind.
-        this._health.OnDied -= this.OnOwnDeath;
-        this._health.OnDied += this.OnOwnDeath;
+        // Idempotent: OnPostInitialize re-runs on pool reuse and scene rebind; the helper re-arms on reparent.
+        this.BindWhileInTree<IHealth, Action<HealthChangeEventArgs>>(this._health, this.OnOwnDeath,
+            static (health, handler) => health.OnDied += handler,
+            static (health, handler) => health.OnDied -= handler);
     }
 
     public Node GetUnderlyingNode() => this;
