@@ -363,7 +363,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     private IIdentifiable? ResolveTrackedIdentity(Node3D body)
     {
         if (_trackedBodies.TryGetValue(body, out var cached) && cached != null && IsLive(cached)) { return cached; }
-        if (!TryResolveIdentity(body, out var identifiable)) { return null; }
+        if (!SensorIdentity.TryResolve(body, out var identifiable)) { return null; }
         _trackedBodies[body] = identifiable;
         return identifiable;
     }
@@ -527,7 +527,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     private void ProcessDetection(Node3D body, float confidence)
     {
-        if (!TryResolveIdentity(body, out var identifiable)) { return; }
+        if (!SensorIdentity.TryResolve(body, out var identifiable)) { return; }
         EmitPercept(body, identifiable!, confidence);
     }
 
@@ -563,19 +563,6 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
             if (identity.HasCategory(filterCat)) { return true; }
         }
         return false;
-    }
-
-    /// <summary>The identity source the sensor perceives a body through: the body itself, else its first
-    /// <see cref="IIdentifiable"/> child. A body with neither is never perceived.</summary>
-    internal static bool TryResolveIdentity(Node3D body, out IIdentifiable? identifiable)
-    {
-        if (body is IIdentifiable directId)
-        {
-            identifiable = directId;
-            return true;
-        }
-
-        return body.TryGetFirstChildOfInterface(out identifiable);
     }
 
     private static Vector3 ExtractVelocity(Node3D body)

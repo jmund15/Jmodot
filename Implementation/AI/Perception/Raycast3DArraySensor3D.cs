@@ -71,7 +71,7 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
 
     private void FireDetectedPercept(Node3D body, Vector3 hitPosition, float rayLength)
     {
-        if (!TryResolveIdentity(body, out var identifiable)) { return; }
+        if (!SensorIdentity.TryResolve(body, out var identifiable)) { return; }
 
         var identity = identifiable!.GetIdentity();
         if (_categoryFilter.Count > 0 && !MatchesCategoryFilter(identity)) { return; }
@@ -94,7 +94,7 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
 
     private void FireLostPercept(Node3D body)
     {
-        if (!TryResolveIdentity(body, out var identifiable)) { return; }
+        if (!SensorIdentity.TryResolve(body, out var identifiable)) { return; }
 
         var identity = identifiable!.GetIdentity();
         if (_categoryFilter.Count > 0 && !MatchesCategoryFilter(identity)) { return; }
@@ -119,17 +119,6 @@ public partial class Raycast3DArraySensor3D : Node3D, IAISensor3D
             if (identity.HasCategory(filterCat)) { return true; }
         }
         return false;
-    }
-
-    private static bool TryResolveIdentity(Node3D body, out IIdentifiable? identifiable)
-    {
-        if (body is IIdentifiable directId)
-        {
-            identifiable = directId;
-            return true;
-        }
-
-        return body.TryGetFirstChildOfInterface(out identifiable);
     }
 
     private static Vector3 ExtractVelocity(Node3D body)
