@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Godot.Collections;
 using Jmodot.Core.AI.BB;
 using Jmodot.Core.Identification;
@@ -164,6 +165,95 @@ public static class NodeExts
             fired = true;
             if (GodotObject.IsInstanceValid(node)) { node.TreeExiting -= Exiting; }
         };
+    }
+
+    /// <summary>
+    /// Subscribes <paramref name="handler"/> to <paramref name="source"/> now, and keeps the subscription
+    /// only while <paramref name="owner"/> is in the tree: it unsubscribes on the owner's exit and
+    /// subscribes again on its entry.
+    /// </summary>
+    /// <remarks>
+    /// A call with the same owner, source and handler changes nothing, so an initializer that runs again on a
+    /// pooled reuse binds once. The handler must be a method group: a lambda is a new delegate on every call and
+    /// cannot be matched. A source freed before the owner exits is not unsubscribed, because its events are gone
+    /// with it and teardown frees siblings in no fixed order.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    public static void BindWhileInTree<TSource, THandler>(this Node owner, TSource source, THandler handler,
+        Action<TSource, THandler> subscribe, Action<TSource, THandler> unsubscribe)
+        where TSource : class where THandler : Delegate
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        TreeBindingRegistry.For(owner).Add(source, handler,
+            () => subscribe(source, handler), () => unsubscribe(source, handler));
+    }
+
+    /// <summary>
+    /// The static-event form of <see cref="BindWhileInTree{TSource,THandler}"/>: the same owner-tree lifetime
+    /// and the same per-(owner, handler) idempotence, for an event with no source object to free.
+    /// </summary>
+    public static void BindStaticWhileInTree<THandler>(this Node owner, THandler handler,
+        Action<THandler> subscribe, Action<THandler> unsubscribe) where THandler : Delegate
+    {
+        TreeBindingRegistry.For(owner).Add(null, handler,
+            () => subscribe(handler), () => unsubscribe(handler));
+    }
+
+    private static readonly ConditionalWeakTable<Node, TreeBindingRegistry> TreeRegistries = new();
+
+    private sealed class TreeBindingRegistry
+    {
+        private readonly List<TreeBinding> _bindings = [];
+
+        private TreeBindingRegistry(Node owner)
+        {
+            owner.TreeExiting += OnOwnerExiting;
+            owner.TreeEntered += OnOwnerEntered;
+        }
+
+        public static TreeBindingRegistry For(Node owner) => TreeRegistries.GetValue(owner, o => new TreeBindingRegistry(o));
+
+        public void Add(object? source, Delegate handler, Action subscribe, Action unsubscribe)
+        {
+            if (_bindings.Exists(b => b.Matches(source, handler))) { return; }
+            var binding = new TreeBinding(source, handler, subscribe, unsubscribe);
+            _bindings.Add(binding);
+            binding.Arm();
+        }
+
+        private void OnOwnerExiting()
+        {
+            foreach (var binding in _bindings) { binding.Disarm(); }
+        }
+
+        private void OnOwnerEntered()
+        {
+            foreach (var binding in _bindings) { binding.Arm(); }
+        }
+    }
+
+    private sealed class TreeBinding(object? source, Delegate handler, Action subscribe, Action unsubscribe)
+    {
+        private bool _armed;
+
+        public bool Matches(object? otherSource, Delegate otherHandler)
+            => ReferenceEquals(source, otherSource) && handler.Equals(otherHandler);
+
+        private bool SourceLive => source is not GodotObject godot || GodotObject.IsInstanceValid(godot);
+
+        public void Arm()
+        {
+            if (_armed || !SourceLive) { return; }
+            _armed = true;
+            subscribe();
+        }
+
+        public void Disarm()
+        {
+            if (!_armed) { return; }
+            _armed = false;
+            if (SourceLive) { unsubscribe(); }
+        }
     }
 
     #endregion
