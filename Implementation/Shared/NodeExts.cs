@@ -174,11 +174,12 @@ public static class NodeExts
     /// </summary>
     /// <remarks>
     /// A call with the same owner, source and handler changes nothing, so an initializer that runs again on a
-    /// pooled reuse binds once. The handler must be a method group: a lambda is a new delegate on every call and
-    /// cannot be matched. A source freed before the owner exits is not unsubscribed, because its events are gone
-    /// with it and teardown frees siblings in no fixed order.
+    /// pooled reuse binds once. A source freed before the owner exits is not unsubscribed, because its events are
+    /// gone with it and teardown frees siblings in no fixed order.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="handler"/> is a lambda or local function, not a method
+    /// group: it is a new delegate on every call, so a repeated bind could not match it and would subscribe again.</exception>
     public static void BindWhileInTree<TSource, THandler>(this Node owner, TSource source, THandler handler,
         Action<TSource, THandler> subscribe, Action<TSource, THandler> unsubscribe)
         where TSource : class where THandler : Delegate
@@ -192,6 +193,7 @@ public static class NodeExts
     /// The static-event form of <see cref="BindWhileInTree{TSource,THandler}"/>: the same owner-tree lifetime
     /// and the same per-(owner, handler) idempotence, for an event with no source object to free.
     /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="handler"/> is a lambda or local function, not a method group.</exception>
     public static void BindStaticWhileInTree<THandler>(this Node owner, THandler handler,
         Action<THandler> subscribe, Action<THandler> unsubscribe) where THandler : Delegate
     {
@@ -215,6 +217,12 @@ public static class NodeExts
 
         public void Add(object? source, Delegate handler, Action subscribe, Action unsubscribe)
         {
+            if (handler.Method.IsDefined(typeof(CompilerGeneratedAttribute), false)
+                || handler.Method.DeclaringType?.IsDefined(typeof(CompilerGeneratedAttribute), false) == true)
+            {
+                throw new ArgumentException("A tree binding needs a method-group handler: a lambda or local function is a new delegate on every call, so a repeated bind would subscribe it again.", nameof(handler));
+            }
+
             if (_bindings.Exists(b => b.Matches(source, handler))) { return; }
             var binding = new TreeBinding(source, handler, subscribe, unsubscribe);
             _bindings.Add(binding);
