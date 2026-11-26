@@ -265,4 +265,10 @@ using Shared;
             }
             return warnings.ToArray();
         }
+
+        #region Test Helpers
+#if TOOLS
+        internal IReadOnlyList<BTCondition> _TestRuntimeConditions => _activeConditions;
+#endif
+        #endregion
     }
