@@ -170,7 +170,9 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         // Only subscribe if stats are available (ConstantFloatDefinition doesn't use stats).
         if (_statProvider != null)
         {
-            _statProvider.OnStatChanged += OnStatProviderStatChanged;
+            this.BindWhileInTree<IStatProvider, Action<Attribute, Variant>>(_statProvider, OnStatProviderStatChanged,
+                static (stats, handler) => stats.OnStatChanged += handler,
+                static (stats, handler) => stats.OnStatChanged -= handler);
         }
 
         // Emit initial values for any listeners that are set up during their own Initialize phase.
@@ -178,20 +180,6 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
     }
 
     public event Action Initialized = delegate { };
-
-    #endregion
-
-    #region Godot Lifecycle
-
-    public override void _ExitTree()
-    {
-        // Always unsubscribe from events when the node is removed from the scene
-        // to prevent memory leaks and errors from the event being fired on a freed object.
-        if (_statProvider != null)
-        {
-            _statProvider.OnStatChanged -= OnStatProviderStatChanged;
-        }
-    }
 
     #endregion
 
@@ -222,12 +210,6 @@ public partial class HealthComponent : Node, IComponent, IHealth, IDamageable, I
         OnDamaged = delegate { };
         OnHealed = delegate { };
         OnHitSuppressed = delegate { };
-
-        // Unsubscribe from stat provider to prevent stale callbacks
-        if (_statProvider != null)
-        {
-            _statProvider.OnStatChanged -= OnStatProviderStatChanged;
-        }
 
         // Reset state
         _currentHealth = 0;
