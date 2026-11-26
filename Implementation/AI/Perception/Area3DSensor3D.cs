@@ -17,6 +17,9 @@ using Strategies;
 /// Event-driven radius sensor that detects bodies entering/exiting an Area3D volume
 /// and fires percepts into the AI perception pipeline.
 ///
+/// A sensor with no <c>PerceptUpdated</c> subscriber does no tracking work and yields no percepts;
+/// a consumer must subscribe before its first physics tick (a manager subscribes in its _Ready).
+///
 /// Identity resolution uses the dual pattern: body is IIdentifiable → child IIdentifiable fallback.
 /// Velocity extracted from CharacterBody3D; zero for static bodies.
 ///
@@ -93,13 +96,15 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     [ExportGroup("Range")]
     [Export] private BaseFloatValueDefinition? _rangeDefinition;
 
-    private readonly HashSet<Node3D> _trackedBodies = new();
+    // Key set is the tracked set; value is the identity resolved so far (null until it resolves).
+    private readonly Dictionary<Node3D, IIdentifiable?> _trackedBodies = new();
     private readonly HashSet<Node3D> _visibleBodies = new();
     private readonly HashSet<Node3D> _polledBodies = new();
     // NOT readonly: IntervalClock is a mutable struct.
     private IntervalClock _pollClock = new();
 #if TOOLS
     private int _pollCount;
+    private int _sightCheckCount;
 #endif
     private CollisionShape3D? _cachedCollisionShape;
     private IStatProvider? _statProvider;
@@ -305,6 +310,8 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
             ResyncOverlaps();
         }
 
+        if (PerceptUpdated == null) { return; }
+
         // Static body polling via IntersectShape (replaces body_entered for static bodies)
         if (_staticBodyPolling)
         {
@@ -323,7 +330,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
         // Re-poll all tracked bodies to update their positions
         // Use a snapshot to avoid collection modification during iteration
-        var snapshot = new List<Node3D>(_trackedBodies);
+        var snapshot = new List<Node3D>(_trackedBodies.Keys);
         foreach (var body in snapshot)
         {
             if (!body.IsValid())
@@ -347,19 +354,43 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     // confidence-0 percept (mirrors body-exit); while blocked stay silent.
     private void ProcessSighted(Node3D body)
     {
+        var identifiable = ResolveTrackedIdentity(body);
+        if (identifiable == null || !AdmitsIdentity(identifiable.GetIdentity()))
+        {
+            _visibleBodies.Remove(body);
+            return;
+        }
+
         if (HasLineOfSight(body))
         {
             _visibleBodies.Add(body);
-            ProcessDetection(body, 1.0f);
+            EmitPercept(body, identifiable, 1.0f);
         }
         else if (_visibleBodies.Remove(body))
         {
-            ProcessDetection(body, 0.0f);
+            EmitPercept(body, identifiable, 0.0f);
         }
     }
 
+    private IIdentifiable? ResolveTrackedIdentity(Node3D body)
+    {
+        if (_trackedBodies.TryGetValue(body, out var cached) && cached != null && IsLive(cached)) { return cached; }
+        if (!TryResolveIdentity(body, out var identifiable)) { return null; }
+        _trackedBodies[body] = identifiable;
+        return identifiable;
+    }
+
+    private static bool IsLive(IIdentifiable identifiable) =>
+        identifiable is not GodotObject instance || GodotObject.IsInstanceValid(instance);
+
+    /// <summary>The body this sensor is mounted on, or null when its parent is not a collision body.</summary>
+    private CollisionObject3D? FindOwnEntity() => GetParent() as CollisionObject3D;
+
     private bool HasLineOfSight(Node3D body)
     {
+#if TOOLS
+        _sightCheckCount++;
+#endif
         var spaceState = GetWorld3D()?.DirectSpaceState;
         if (spaceState == null) { return true; }
 
@@ -367,7 +398,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         var query = PhysicsRayQueryParameters3D.Create(
             GlobalPosition + offset, body.GlobalPosition + offset, ResolvedOcclusionMask);
         var exclude = new Godot.Collections.Array<Rid>();
-        if (GetParent() is CollisionObject3D self) { exclude.Add(self.GetRid()); }
+        if (FindOwnEntity() is { } self) { exclude.Add(self.GetRid()); }
         if (body is CollisionObject3D target) { exclude.Add(target.GetRid()); }
         query.Exclude = exclude;
         return spaceState.IntersectRay(query).Count == 0;
@@ -410,7 +441,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
         {
             if (result.TryGetValue("collider", out var collider) && collider.Obj is Node3D body)
             {
-                if (body == GetParent()) { continue; }
+                if (body == FindOwnEntity()) { continue; }
                 currentBodies.Add(body);
             }
         }
@@ -466,6 +497,7 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
     internal int TrackedBodyCount => _trackedBodies.Count;
     internal int PolledBodyCount => _polledBodies.Count;
     internal int PollCount => _pollCount;
+    internal int SightCheckCount => _sightCheckCount;
     internal void SimulateBodyEntered(Node3D body) => OnBodyEntered(body);
     internal void SimulateBodyExited(Node3D body) => OnBodyExited(body);
     internal void SimulatePhysicsTick(double delta) => _PhysicsProcess(delta);
@@ -480,8 +512,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     private void OnBodyEntered(Node3D body)
     {
+        if (body == FindOwnEntity()) { return; }
         if (!_knownOverlaps.Add(body)) { return; }
-        if (_continuousTracking || _requireLineOfSight) { _trackedBodies.Add(body); }
+        if (_continuousTracking || _requireLineOfSight) { _trackedBodies.TryAdd(body, null); }
         if (_requireLineOfSight)
         {
             // No immediate emit: the space state may be locked during signal flush, and the body
@@ -506,11 +539,16 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
     private void ProcessDetection(Node3D body, float confidence)
     {
-        if (_defaultDecayStrategy == null) { return; }
         if (!TryResolveIdentity(body, out var identifiable)) { return; }
+        EmitPercept(body, identifiable!, confidence);
+    }
 
-        var identity = identifiable!.GetIdentity();
-        if (_categoryFilter.Count > 0 && !MatchesCategoryFilter(identity)) { return; }
+    private void EmitPercept(Node3D body, IIdentifiable identifiable, float confidence)
+    {
+        if (_defaultDecayStrategy == null) { return; }
+
+        var identity = identifiable.GetIdentity();
+        if (!AdmitsIdentity(identity)) { return; }
         var strategy = identity.ResolvePerceptionDecay() ?? _defaultDecayStrategy;
         var velocity = ExtractVelocity(body);
         var position = body.GlobalPosition;
@@ -526,6 +564,9 @@ public partial class Area3DSensor3D : Area3D, IAISensor3D, IComponent
 
         PerceptUpdated?.Invoke(this, percept);
     }
+
+    private bool AdmitsIdentity(Identity identity) =>
+        _categoryFilter.Count == 0 || MatchesCategoryFilter(identity);
 
     private bool MatchesCategoryFilter(Identity identity)
     {
