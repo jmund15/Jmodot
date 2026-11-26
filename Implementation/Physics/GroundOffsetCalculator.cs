@@ -52,6 +52,21 @@ public static class GroundOffsetCalculator
     }
 
     /// <summary>
+    /// <see cref="CalculateFromCollisionShape"/> on <paramref name="body"/>'s first direct <see cref="CollisionShape3D"/>
+    /// child, readable before the body enters the tree. Null while that child is missing or has no shape resource, so a
+    /// caller caching the result can read again once a shape is assigned.
+    /// </summary>
+    public static float? FindFromFirstCollisionShape(CollisionObject3D body)
+    {
+        if (!body.TryGetFirstChildOfType<CollisionShape3D>(out var shape, false) || shape.Shape == null)
+        {
+            return null;
+        }
+
+        return CalculateFromCollisionShape(shape);
+    }
+
+    /// <summary>
     /// Lowest point of <paramref name="body"/>'s OWN enabled <see cref="CollisionShape3D"/> children,
     /// in body-local space. SIGNED, unlike <see cref="CalculateBottomExtent"/>: negative when the
     /// collider hangs below the body origin, positive when it sits entirely above it — a caller
